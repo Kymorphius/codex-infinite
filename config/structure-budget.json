@@ -5,7 +5,7 @@
     "test": { "maxLines": 300, "maxBytes": 24000 }
   },
   "fileLimits": {
-    "src/http-server.mjs": { "maxLines": 177, "maxBytes": 9006 }
+    "src/http-server.mjs": { "maxLines": 66, "maxBytes": 3261 }
   },
   "frozenDebt": {
     "public/app.js": { "maxLines": 1041, "maxBytes": 50931 },
