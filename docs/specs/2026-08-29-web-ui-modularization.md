@@ -48,6 +48,9 @@ public/
   features/context/index.js
   features/priority/index.js
   features/zotero/index.js
+  features/zotero/browser.js
+  features/zotero/editor.js
+  features/zotero/format.js
 ```
 
 Extraction order:
@@ -70,13 +73,13 @@ Extract one feature per change while retaining existing behavior tests and real 
 
 ## Acceptance criteria
 
-- [ ] `public/app.js` is at most 250 lines and only composes modules.
+- [ ] `public/app.js` is at most 250 lines and only composes modules. (The size target is complete at 164 lines; final shared task loading and navigation extraction remains.)
 - [x] Every extracted feature module is within the default structure budget.
 - [x] No extracted feature imports another feature.
 - [x] Existing tests continue to pass throughout extraction.
 - [x] Sessions search, status filter, grouping, and native open flow pass real-UI verification.
-- [ ] Dispatch and Zotero mutation behavior retains origin and credential protections.
-- [ ] `npm run check` reports no growth in frozen structural debt.
+- [x] Dispatch and Zotero mutation behavior retains origin and credential protections.
+- [x] `npm run check` reports no growth in frozen structural debt.
 
 ## Verification plan
 
@@ -114,3 +117,12 @@ Extract one feature per change while retaining existing behavior tests and real 
 - Registered the new feature and core modules in the explicit static-asset allowlist.
 - Reduced `public/app.js` from 1041 lines and 50,931 bytes to 824 lines and 38,748 bytes and ratcheted the structure budget again.
 - Real embedded verification observed 16 project destinations; selecting `mulitca` populated six native conversation choices. The context page rendered one saved million-token override with 872,000 accepted and 828,400 effective values. Browser logs contained no warnings or errors.
+
+### Slice 4: Zotero
+
+- Added a 116-line Zotero composition module, a 170-line read-only browser, a 301-line authorization/editor boundary, and a 66-line pure formatting module.
+- Kept read routes independent from write authorization. Editor mutations still require explicit authorization, a complete confirmation summary, version checks, and the server's exact-origin protection.
+- Added pure tests for creator parsing, line and tag normalization, and write-state labels; retained the existing mutation, credential, conflict, and Local API suites.
+- Registered every imported Zotero module in the exact static-asset allowlist.
+- Reduced `public/app.js` from 824 lines and 38,748 bytes to 164 lines and 8,696 bytes, removing it from frozen structural debt.
+- Real embedded verification observed 2,337 items and 535 collections with 24 cards on the first page. Searching `创造之门` returned two matching items and clearing restored the page. With Zotero Local API offline, write controls stayed disabled and the browser log remained empty.
