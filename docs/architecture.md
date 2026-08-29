@@ -31,7 +31,7 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/main.mjs` — composition root and lifecycle only.
 - `src/board.mjs`, `src/priority.mjs` — pure derived domain views.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.
-- `src/context-http.mjs`, `src/dispatch-http.mjs` — bounded-context HTTP route orchestration.
+- `src/context-http.mjs`, `src/dispatch-http.mjs`, `src/tasks-http.mjs`, `src/zotero-http.mjs` — bounded-context HTTP route orchestration.
 - `src/http-utils.mjs`, `src/static-assets.mjs` — shared loopback transport primitives and allowlisted public assets.
 - `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-local-api.mjs` — external providers.
 - `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
@@ -61,6 +61,5 @@ Each feature owns its rendering, events, and view-specific formatting. Shared pr
 3. Extract Zotero read queries/mapping from `src/zotero-adapter.mjs`.
 4. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
 5. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
-6. Continue splitting the remaining task and Zotero HTTP routes by bounded context while retaining one loopback server composition module.
 
 This order reduces the largest change surface first without changing product behavior.
