@@ -1,20 +1,7 @@
-import fs from "node:fs/promises";
 import http from "node:http";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { assertLoopbackConfig } from "./loopback.mjs";
 import { describeContextOverride } from "./context-window.mjs";
-
-const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
-const assetMap = new Map([
-  ["/", { file: "index.html", type: "text/html; charset=utf-8" }],
-  ["/index.html", { file: "index.html", type: "text/html; charset=utf-8" }],
-  ["/styles.css", { file: "styles.css", type: "text/css; charset=utf-8" }],
-  ["/app.js", { file: "app.js", type: "text/javascript; charset=utf-8" }],
-  ["/features/console/index.js", { file: "features/console/index.js", type: "text/javascript; charset=utf-8" }],
-  ["/features/priority/index.js", { file: "features/priority/index.js", type: "text/javascript; charset=utf-8" }],
-  ["/features/sessions/index.js", { file: "features/sessions/index.js", type: "text/javascript; charset=utf-8" }]
-]);
+import { serveStaticAsset } from "./static-assets.mjs";
 
 function sendJson(response, statusCode, body) {
   const payload = JSON.stringify(body);
@@ -301,20 +288,9 @@ export function createDashboardServer({ config, adapter, zoteroAdapter = null, z
         sendJson(response, 405, { status: "error", message: "Method not allowed" });
         return;
       }
-      const asset = assetMap.get(requestUrl.pathname);
-      if (!asset) {
+      if (!await serveStaticAsset(request, response)) {
         sendJson(response, 404, { status: "error", message: "Not found" });
-        return;
       }
-      const content = await fs.readFile(path.join(publicDirectory, asset.file));
-      response.writeHead(200, {
-        "content-type": asset.type,
-        "cache-control": "no-store",
-        "x-content-type-options": "nosniff",
-        "content-security-policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
-      });
-      if (request.method === "HEAD") response.end();
-      else response.end(content);
     } catch (error) {
       if (!response.headersSent) sendJson(response, error.statusCode || 500, { status: "error", message: error.statusCode ? error.message : "控制台服务内部错误" });
       else response.end();
