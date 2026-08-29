@@ -16,6 +16,9 @@ function responseRecorder() {
 test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/").file, "index.html");
   assert.equal(resolveStaticAsset("/styles.css?v=1").type, "text/css; charset=utf-8");
+  assert.equal(resolveStaticAsset("/core/transport.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/context/index.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/dispatch/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/sessions/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/missing.js"), null);
   assert.equal(resolveStaticAsset("/../package.json"), null);

@@ -36,7 +36,7 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-local-api.mjs` — external providers.
 - `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
 - `src/http-server.mjs` — loopback server lifecycle and top-level route composition; bounded contexts own their handlers.
-- `public/` — embedded web client. It should evolve toward feature modules rather than a single application script.
+- `public/core/` and `public/features/` — shared browser services and isolated feature ownership; `public/app.js` composes extracted modules while the remaining Zotero UI awaits extraction.
 
 ## Target web structure
 

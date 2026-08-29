@@ -8,7 +8,7 @@
     "src/http-server.mjs": { "maxLines": 66, "maxBytes": 3261 }
   },
   "frozenDebt": {
-    "public/app.js": { "maxLines": 1041, "maxBytes": 50931 },
+    "public/app.js": { "maxLines": 824, "maxBytes": 38748 },
     "public/index.html": { "maxLines": 368, "maxBytes": 30287 },
     "public/styles.css": { "maxLines": 272, "maxBytes": 29488 },
     "scripts/inspect.mjs": { "maxLines": 434, "maxBytes": 23043 },
