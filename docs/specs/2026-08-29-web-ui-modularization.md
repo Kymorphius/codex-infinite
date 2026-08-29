@@ -1,6 +1,6 @@
 # Web UI modularization
 
-- Status: in-progress
+- Status: shipped
 - Owner: Codex Control Console
 - Date: 2026-08-29
 - Related ADRs: none
@@ -41,8 +41,10 @@ public/
   app.js
   core/dom.js
   core/format.js
-  core/transport.js
   core/navigation.js
+  core/state.js
+  core/tasks.js
+  core/transport.js
   features/sessions/index.js
   features/dispatch/index.js
   features/context/index.js
@@ -63,6 +65,8 @@ Extraction order:
 
 Feature modules may import `core/*`; feature-to-feature imports are not allowed. The bootstrap creates shared services, loads data, and passes explicit dependencies to features.
 
+For the final extraction slice, `core/state.js` owns the initial normalized browser state and module catalog; `core/dom.js` owns notifications and scoped state rendering; `core/format.js` owns shared task/date formatting; `core/tasks.js` owns `/api/tasks` loading and normalization; and `core/navigation.js` owns module chrome plus the parent-frame task-open message contract. These modules expose callbacks rather than importing feature modules, so `public/app.js` remains the only composition point.
+
 ## Security and privacy
 
 No trust boundary changes. The browser continues to receive no credentials. Mutation requests continue to rely on exact-origin server checks. Session data remains read-only and native conversation opening continues through the parent-frame message contract.
@@ -73,7 +77,7 @@ Extract one feature per change while retaining existing behavior tests and real 
 
 ## Acceptance criteria
 
-- [ ] `public/app.js` is at most 250 lines and only composes modules. (The size target is complete at 164 lines; final shared task loading and navigation extraction remains.)
+- [x] `public/app.js` is at most 250 lines and only composes modules.
 - [x] Every extracted feature module is within the default structure budget.
 - [x] No extracted feature imports another feature.
 - [x] Existing tests continue to pass throughout extraction.
@@ -126,3 +130,13 @@ Extract one feature per change while retaining existing behavior tests and real 
 - Registered every imported Zotero module in the exact static-asset allowlist.
 - Reduced `public/app.js` from 824 lines and 38,748 bytes to 164 lines and 8,696 bytes, removing it from frozen structural debt.
 - Real embedded verification observed 2,337 items and 535 collections with 24 cards on the first page. Searching `创造之门` returned two matching items and clearing restored the page. With Zotero Local API offline, write controls stayed disabled and the browser log remained empty.
+
+### Slice 5: shared core and composition root
+
+- Added focused core modules for initial browser state, DOM notifications and scoped states, shared task formatting, normalized task loading, and module/native-frame navigation.
+- Kept the feature dependency rule intact: core services accept callbacks and never import feature modules; `public/app.js` is the only browser composition point.
+- Added focused tests for isolated initial state, task response normalization and notification order, shared labels and units, plus the minimal fail-closed native task-open message contract.
+- Registered every core module in the exact static-asset allowlist.
+- Reduced `public/app.js` from 164 lines and 8,696 bytes to 69 lines and 3,214 bytes.
+- Completed real embedded verification after a fresh server start: sessions showed one device, 19 directories, and 160 conversations; refresh preserved the data; Zotero showed 2,337 items, 535 collections, and 24 first-page cards; context lazy loading showed one enabled override. Browser logs contained no warnings or errors.
+- The final full suite passed 76 tests and the structure checker reported five remaining, unrelated frozen-debt files.

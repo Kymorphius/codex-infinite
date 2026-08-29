@@ -36,14 +36,16 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-local-api.mjs` — external providers.
 - `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
 - `src/http-server.mjs` — loopback server lifecycle and top-level route composition; bounded contexts own their handlers.
-- `public/core/` and `public/features/` — shared browser services and isolated feature ownership; `public/app.js` composes extracted modules while the remaining Zotero UI awaits extraction.
+- `public/core/` — normalized browser state, DOM services, shared formatting, task loading, transport, navigation, and native frame messaging.
+- `public/features/` — isolated feature rendering and interaction ownership; Zotero keeps read-only browsing separate from authorization and write editing.
+- `public/app.js` — browser composition root only; it creates services and features, wires callbacks, and starts lifecycle work.
 
 ## Target web structure
 
 ```text
 public/
   app.js                    # bootstrap only
-  core/                     # state, DOM helpers, transport, module navigation
+  core/                     # state, DOM helpers, formatting, task source, transport, navigation
   features/
     sessions/
     dispatch/
@@ -56,10 +58,9 @@ Each feature owns its rendering, events, and view-specific formatting. Shared pr
 
 ## Structural debt and extraction order
 
-1. Split `public/app.js` by feature, beginning with sessions and Zotero.
-2. Split `public/index.html` into feature templates only if native modules or a build-free template loader can preserve startup reliability.
-3. Extract Zotero read queries/mapping from `src/zotero-adapter.mjs`.
-4. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
-5. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
+1. Split `public/index.html` into feature templates only if native modules or a build-free template loader can preserve startup reliability.
+2. Extract Zotero read queries/mapping from `src/zotero-adapter.mjs`.
+3. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
+4. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
 
 This order reduces the largest change surface first without changing product behavior.
