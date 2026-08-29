@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>控制台 · Codex</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell" data-testid="control-console">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">CODEX CONTROL CONSOLE</p>
+          <h1 data-testid="module-title">看板</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="loopback-pill"><span class="status-dot"></span>仅本机</span>
+          <button class="quiet-button" type="button" data-action="refresh">刷新</button>
+          <button class="quiet-button" type="button" data-action="close">返回对话</button>
+        </div>
+      </header>
+
+      <nav class="module-nav" aria-label="控制台模块">
+        <div class="module-nav-inner">
+          <button class="module-tab is-active" type="button" data-module-target="board" data-action="module" aria-current="page">看板</button>
+          <button class="module-tab" type="button" data-module-target="console" data-action="module">控制台</button>
+          <button class="module-tab" type="button" data-module-target="sessions" data-action="module">会话中心</button>
+          <button class="module-tab" type="button" data-module-target="context" data-action="module">上下文状态</button>
+          <button class="module-tab" type="button" data-module-target="priority" data-action="module">项目优先级</button>
+          <button class="module-tab" type="button" data-module-target="zotero" data-action="module">文献库</button>
+          <span class="module-caption" data-testid="module-caption">只读项目任务视图</span>
+        </div>
+      </nav>
+
+      <main class="content">
+        <section data-module-panel="board">
+          <section class="intro-card">
+            <div>
+              <p class="eyebrow">DISPATCH BOARD</p>
+              <h2>任务看板</h2>
+              <p class="muted">创建任务、指派项目和目标对话，按时间进入单通道发送队列。任务到期后会真实续接所选 Codex 对话。</p>
+            </div>
+            <div class="profile-chip">
+              <span class="chip-label">发送策略</span>
+              <code>单并发 · 按入队时间执行</code>
+            </div>
+          </section>
+
+          <section class="metrics" aria-label="看板概览">
+            <div class="metric-card"><span>调度任务</span><strong data-testid="dispatch-count">—</strong></div>
+            <div class="metric-card"><span>等待执行</span><strong data-testid="dispatch-waiting-count">—</strong></div>
+            <div class="metric-card"><span>目标对话</span><strong data-testid="dispatch-target-count">—</strong></div>
+          </section>
+
+          <section class="composer-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">NEW TASK</p><h2>安排一个任务</h2></div>
+              <span class="section-status" data-testid="connection-status">连接中…</span>
+            </div>
+            <form data-testid="dispatch-form" class="dispatch-form">
+              <label class="field field-wide"><span>任务标题</span><input name="title" maxlength="160" required placeholder="例如：检查发布流程并给出修复"></label>
+              <label class="field"><span>项目</span><select name="project" data-testid="dispatch-project" required><option value="">选择项目</option></select></label>
+              <label class="field"><span>目标对话</span><select name="targetThreadId" data-testid="dispatch-thread" disabled><option value="">先选择项目</option></select></label>
+              <label class="field"><span>发送时间</span><input name="scheduledAt" type="datetime-local"></label>
+              <label class="field"><span>初始状态</span><select name="mode"><option value="queue">立即排队</option><option value="schedule">按时间发送</option><option value="backlog">先放入待排期</option></select></label>
+              <label class="field field-full"><span>发送给 Codex 的任务说明</span><textarea name="prompt" maxlength="12000" rows="4" required placeholder="写清目标、范围、验收条件和限制。"></textarea></label>
+              <div class="form-footer"><span>只会发送到你选择的项目对话；发送后由该对话继续执行。</span><button class="primary-button" type="submit">加入任务看板</button></div>
+            </form>
+          </section>
+
+          <section class="board-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">TASK PIPELINE</p><h2>发送队列</h2></div>
+              <button class="quiet-button" type="button" data-action="refresh-dispatches">刷新队列</button>
+            </div>
+            <div class="state-card" data-dispatch-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取发送队列</h3><p>队列保存在本机控制台目录。</p></div>
+            <div class="state-card hidden" data-dispatch-state="error"><div class="state-icon">!</div><h3>发送队列暂时不可用</h3><p data-dispatch-state-message>请稍后重试。</p></div>
+            <div class="dispatch-board hidden" data-testid="dispatch-board" aria-live="polite">
+              <section class="board-column" data-dispatch-column="backlog"><header class="board-column-header"><h3>待排期</h3><span class="column-count" data-dispatch-count="backlog">0</span></header><div class="board-column-list" data-dispatch-list="backlog"></div></section>
+              <section class="board-column" data-dispatch-column="scheduled"><header class="board-column-header"><h3>已排期</h3><span class="column-count" data-dispatch-count="scheduled">0</span></header><div class="board-column-list" data-dispatch-list="scheduled"></div></section>
+              <section class="board-column" data-dispatch-column="queued"><header class="board-column-header"><h3>排队中</h3><span class="column-count" data-dispatch-count="queued">0</span></header><div class="board-column-list" data-dispatch-list="queued"></div></section>
+              <section class="board-column" data-dispatch-column="sending"><header class="board-column-header"><h3>发送中</h3><span class="column-count" data-dispatch-count="sending">0</span></header><div class="board-column-list" data-dispatch-list="sending"></div></section>
+              <section class="board-column" data-dispatch-column="sent"><header class="board-column-header"><h3>已发送</h3><span class="column-count" data-dispatch-count="sent">0</span></header><div class="board-column-list" data-dispatch-list="sent"></div></section>
+              <section class="board-column" data-dispatch-column="failed"><header class="board-column-header"><h3>异常</h3><span class="column-count" data-dispatch-count="failed">0</span></header><div class="board-column-list" data-dispatch-list="failed"></div></section>
+            </div>
+          </section>
+        </section>
+
+        <section class="context-panel hidden" data-module-panel="context">
+          <section class="intro-card">
+            <div>
+              <p class="eyebrow">WRAPPER CONTEXT</p>
+              <h2>包装版全局扩展上下文</h2>
+              <p class="muted">包装版内的原生常规聊天会统一请求 1,000,000 tokens，并同步提高自动压缩阈值。直接新建或打开对话后发送即可，不需要出现在看板中；模型仍会按自身上限接受请求。</p>
+            </div>
+            <div class="profile-chip">
+              <span class="chip-label">常规聊天</span>
+              <code>包装版全部原生对话</code>
+            </div>
+          </section>
+
+          <section class="metrics context-metrics" aria-label="会话上下文概览">
+            <div class="metric-card"><span>已配置会话</span><strong data-testid="context-count">—</strong></div>
+            <div class="metric-card"><span>百万请求</span><strong data-testid="context-million-count">—</strong></div>
+            <div class="metric-card"><span>状态</span><strong data-testid="context-status">读取中</strong></div>
+          </section>
+
+          <section class="composer-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">OPTIONAL BOARD OVERRIDE</p><h2>看板任务单独覆盖（可选）</h2><p class="muted">这里只影响由看板调度器续接的任务；包装版原生常规聊天无需填写。</p></div>
+              <button class="quiet-button" type="button" data-action="refresh-context">刷新</button>
+            </div>
+            <form class="context-form" data-testid="context-form">
+              <label class="field field-wide"><span>会话 ID</span><input name="threadId" data-testid="context-thread-id" list="context-thread-options" maxlength="36" required placeholder="01a015ac-363f-7472-961a-f31d174ad2c8"></label>
+              <datalist id="context-thread-options" data-testid="context-thread-options"></datalist>
+              <label class="field"><span>请求窗口（tokens）</span><input name="contextWindow" data-testid="context-window" type="number" min="32000" max="2000000" step="1" value="1000000" required></label>
+              <div class="context-submit"><button class="primary-button" type="submit">保存单会话覆盖</button></div>
+              <p class="form-hint field-full">“100 万”是提交给 Codex 的请求值。模型会按自身上限和有效比例决定实际窗口；保存后下方会同时显示请求值、模型接受值和预计有效值。</p>
+            </form>
+          </section>
+
+          <section class="context-section">
+            <div class="state-card" data-context-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取会话覆盖</h3><p>配置保存在本机控制台目录。</p></div>
+            <div class="state-card hidden" data-context-state="empty"><div class="state-icon">○</div><h3>尚未配置会话上下文</h3><p>输入会话 ID 和窗口大小后保存。</p></div>
+            <div class="state-card hidden" data-context-state="error"><div class="state-icon">!</div><h3>读取配置失败</h3><p data-context-state-message>请稍后重试。</p></div>
+            <div class="context-list hidden" data-context-state="connected" data-testid="context-list" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section class="console-panel hidden" data-module-panel="console">
+          <section class="intro-card">
+            <div>
+              <p class="eyebrow">WORKSPACE OVERVIEW</p>
+              <h2>控制台</h2>
+              <p class="muted">控制台读取本机 Codex 任务记录；任务打开仍交给 Codex 原生侧边栏处理。</p>
+            </div>
+            <div class="profile-chip">
+              <span class="chip-label">Dedicated profile</span>
+              <code>Codex Control Console</code>
+            </div>
+          </section>
+
+          <section class="metrics" aria-label="控制台概览">
+            <div class="metric-card"><span>任务</span><strong data-testid="console-task-count">—</strong></div>
+            <div class="metric-card"><span>数据来源</span><strong data-testid="console-task-source">读取中</strong></div>
+            <div class="metric-card"><span>权限</span><strong>只读</strong></div>
+          </section>
+
+          <section class="task-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">CURRENT TASKS</p><h2>当前任务</h2></div>
+              <span class="section-status" data-testid="console-connection-status">连接中…</span>
+            </div>
+            <div class="console-state state-card" data-console-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在读取 Codex 任务</h3><p>从本机任务记录获取最新状态。</p>
+            </div>
+            <div class="console-state state-card hidden" data-console-state="empty">
+              <div class="state-icon">○</div><h3>还没有可显示的任务</h3><p>当 Codex 创建任务后，任务会出现在这里。</p>
+            </div>
+            <div class="console-state state-card hidden" data-console-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法连接到任务记录</h3><p data-console-state-message>Codex 本地任务数据不可用。控制台没有伪造任务。</p>
+            </div>
+            <div class="console-state state-card hidden" data-console-state="error">
+              <div class="state-icon">!</div><h3>读取任务时遇到问题</h3><p data-console-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="task-list hidden" data-testid="console-task-list" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section class="sessions-panel hidden" data-module-panel="sessions">
+          <section class="sessions-section">
+            <div class="section-heading sessions-heading">
+              <div><p class="eyebrow">PROJECT → SESSION</p><h2>项目与会话</h2></div>
+              <span class="section-status" data-testid="session-connection-status">连接中…</span>
+            </div>
+            <div class="session-controls" aria-label="筛选会话">
+              <label class="session-search"><span class="sr-only">搜索会话</span><input type="search" data-testid="session-search" placeholder="搜索项目、目录、会话或模型"></label>
+              <label class="session-status-filter"><span class="sr-only">状态</span><select data-testid="session-status-filter"><option value="all">全部状态</option><option value="active">进行中</option><option value="completed">已完成</option><option value="error">异常</option></select></label>
+              <div class="session-scope-summary" aria-label="会话数据范围">
+                <span><strong data-testid="session-device-count">—</strong> 设备</span>
+                <span><strong data-testid="session-project-count">—</strong> 目录</span>
+                <span><strong data-testid="session-count">—</strong> 总会话</span>
+              </div>
+              <span class="session-result-count" data-testid="session-result-count">—</span>
+            </div>
+            <div class="sessions-state state-card" data-sessions-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在读取原生会话</h3><p>从包装版共享的 Codex 会话目录建立只读索引。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="empty">
+              <div class="state-icon">○</div><h3>还没有可显示的会话</h3><p>在包装版中新建或打开原生 Codex 对话后，会话会出现在这里。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法读取原生会话</h3><p data-sessions-state-message>Codex 本地会话记录不可用。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="error">
+              <div class="state-icon">!</div><h3>读取会话时遇到问题</h3><p data-sessions-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="session-filter-empty hidden" data-testid="session-filter-empty"><div class="state-icon">⌕</div><h3>没有匹配的会话</h3><p>换一个关键词或状态试试。</p></div>
+            <div class="session-project-list hidden" data-testid="session-project-list" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section class="priority-panel hidden" data-module-panel="priority">
+          <section class="intro-card priority-intro">
+            <div>
+              <p class="eyebrow">PROJECT PRIORITY</p>
+              <h2>项目优先级</h2>
+              <p class="muted">按真实会话活动计算项目顺序：近期对话贡献活跃权重，累计运行跨度贡献时长权重。本视图只读。</p>
+            </div>
+            <div class="formula-card" aria-label="优先级计算规则">
+              <span>优先级分数</span>
+              <strong>近期对话 70 + 会话加权 15 + 时长 15</strong>
+              <small>最近对话决定主顺序；近 7 天每个活跃会话加 3 分，运行跨度只作辅助。</small>
+            </div>
+          </section>
+
+          <section class="metrics" aria-label="项目优先级概览">
+            <div class="metric-card"><span>项目</span><strong data-testid="priority-project-count">—</strong></div>
+            <div class="metric-card"><span>近期活跃会话</span><strong data-testid="priority-recent-count">—</strong></div>
+            <div class="metric-card"><span>数据来源</span><strong data-testid="priority-source">读取中</strong></div>
+          </section>
+
+          <section class="priority-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">RANKED PROJECTS</p><h2>项目排序</h2></div>
+              <span class="section-status" data-testid="priority-connection-status">连接中…</span>
+            </div>
+            <div class="priority-state state-card" data-priority-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在计算项目优先级</h3><p>从本机只读任务记录汇总近期对话和运行时间。</p>
+            </div>
+            <div class="priority-state state-card hidden" data-priority-state="empty">
+              <div class="state-icon">○</div><h3>还没有可排序的项目</h3><p>出现可读取的 Codex 会话后，项目会显示在这里。</p>
+            </div>
+            <div class="priority-state state-card hidden" data-priority-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法连接到任务记录</h3><p data-priority-state-message>Codex 本地任务数据不可用，没有伪造优先级。</p>
+            </div>
+            <div class="priority-state state-card hidden" data-priority-state="error">
+              <div class="state-icon">!</div><h3>计算项目优先级时遇到问题</h3><p data-priority-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="priority-list hidden" data-testid="priority-list" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section class="zotero-panel hidden" data-module-panel="zotero">
+          <section class="intro-card zotero-intro">
+            <div>
+              <p class="eyebrow">LOCAL RESEARCH LIBRARY</p>
+              <h2>文献库</h2>
+              <p class="muted">本地数据库用于快速浏览；回写通过 Zotero 10+ Local API 单独授权。只传文献元数据，不提供附件文件访问。</p>
+            </div>
+            <div class="zotero-bridge-chip profile-chip" data-zotero-write-state="loading">
+              <span class="chip-label">Zotero 回写</span>
+              <strong data-testid="zotero-write-status-badge">检测中…</strong>
+              <small data-testid="zotero-write-status-message">正在检测本机 Local API。</small>
+              <div class="zotero-bridge-actions">
+                <button class="primary-button small-button" type="button" data-action="zotero-authorize" data-testid="zotero-authorize">连接 Zotero 回写</button>
+                <button class="quiet-button small-button hidden" type="button" data-action="zotero-forget" data-testid="zotero-forget">忘记本地授权</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="metrics zotero-metrics" aria-label="文献库概览">
+            <div class="metric-card"><span>文献</span><strong data-testid="zotero-item-count">—</strong></div>
+            <div class="metric-card"><span>集合</span><strong data-testid="zotero-collection-count">—</strong></div>
+            <div class="metric-card"><span>附件</span><strong data-testid="zotero-attachment-count">—</strong></div>
+            <div class="metric-card"><span>笔记</span><strong data-testid="zotero-note-count">—</strong></div>
+          </section>
+
+          <section class="zotero-library-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">READ-ONLY LIBRARY</p><h2>浏览文献</h2></div>
+              <div class="zotero-heading-actions">
+                <button class="quiet-button" type="button" data-action="zotero-create-collection" data-testid="zotero-create-collection" disabled>新建集合</button>
+                <button class="primary-button small-button" type="button" data-action="zotero-create-item" data-testid="zotero-create-item" disabled>新建文献</button>
+                <span class="section-status" data-testid="zotero-connection-status">连接中…</span>
+              </div>
+            </div>
+
+            <div class="zotero-layout">
+              <aside class="zotero-sidebar" aria-label="Zotero 集合">
+                <div class="zotero-sidebar-heading"><div><p class="eyebrow">COLLECTIONS</p><h3>集合</h3></div><span data-testid="zotero-collection-count-label">—</span></div>
+                <div class="zotero-collection-list" data-testid="zotero-collection-list" aria-live="polite"></div>
+              </aside>
+
+              <div class="zotero-browser">
+                <form class="zotero-toolbar" data-testid="zotero-search-form">
+                  <label class="zotero-search-field"><span class="sr-only">搜索文献</span><input data-testid="zotero-search" name="q" type="search" maxlength="200" placeholder="搜索标题、作者、出版物或标签" autocomplete="off"><button class="quiet-button" type="submit">搜索</button></label>
+                  <label class="zotero-select-field"><span>集合</span><select data-testid="zotero-collection-filter" name="collection"><option value="">全部文献</option></select></label>
+                  <button class="quiet-button" type="button" data-action="zotero-clear">清除</button>
+                </form>
+
+                <div class="zotero-state state-card" data-zotero-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取 Zotero</h3><p>连接本机文献库并读取集合索引。</p></div>
+                <div class="zotero-state state-card hidden" data-zotero-state="empty"><div class="state-icon">○</div><h3>没有匹配的文献</h3><p data-zotero-state-message>清空搜索或切换集合后重试。</p></div>
+                <div class="zotero-state state-card hidden" data-zotero-state="disconnected"><div class="state-icon">⟂</div><h3>Zotero 暂时不可用</h3><p data-zotero-state-message>本机 Zotero 数据库不可读。控制台没有伪造文献。</p><button class="primary-button" type="button" data-action="zotero-refresh">重试连接</button></div>
+                <div class="zotero-state state-card hidden" data-zotero-state="error"><div class="state-icon">!</div><h3>读取文献时遇到问题</h3><p data-zotero-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="zotero-refresh">重试</button></div>
+                <div class="zotero-item-list hidden" data-testid="zotero-item-list" aria-live="polite"></div>
+                <div class="zotero-pagination hidden" data-testid="zotero-pagination">
+                  <button class="quiet-button" type="button" data-action="zotero-page" data-page-direction="previous" data-testid="zotero-previous">上一页</button>
+                  <span data-testid="zotero-page-label">—</span>
+                  <button class="quiet-button" type="button" data-action="zotero-page" data-page-direction="next" data-testid="zotero-next">下一页</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="zotero-editor hidden" data-testid="zotero-editor" aria-hidden="true">
+            <div class="zotero-editor-backdrop" data-action="zotero-close-editor" aria-hidden="true"></div>
+            <div class="zotero-editor-panel" role="dialog" aria-modal="true" aria-labelledby="zotero-editor-title">
+              <div class="zotero-editor-header">
+                <div><p class="eyebrow">LOCAL API WRITEBACK</p><h2 id="zotero-editor-title" data-testid="zotero-editor-title">编辑文献</h2></div>
+                <button class="quiet-button" type="button" data-action="zotero-close-editor" aria-label="关闭编辑器">关闭</button>
+              </div>
+              <div class="zotero-editor-message hidden" data-testid="zotero-editor-message" role="status"></div>
+              <div class="zotero-editor-conflict hidden" data-testid="zotero-editor-conflict" role="alert">
+                <strong>检测到版本冲突</strong>
+                <p>这条文献在打开后已被其他位置更新。重新加载当前数据后再编辑，不会自动覆盖对方修改。</p>
+                <button class="quiet-button" type="button" data-action="zotero-reload-editor" data-testid="zotero-reload-editor">重新加载当前数据</button>
+              </div>
+
+              <form class="zotero-editor-form" data-testid="zotero-item-form">
+                <input type="hidden" name="version">
+                <div class="zotero-form-grid">
+                  <label class="field"><span>条目类型</span><select name="itemType" data-testid="zotero-item-type"><option value="book">图书</option><option value="journalArticle">期刊文章</option><option value="webpage">网页</option></select></label>
+                  <label class="field field-wide"><span>标题</span><input name="title" maxlength="4000" required></label>
+                  <label class="field"><span>日期</span><input name="date" maxlength="4000"></label>
+                  <label class="field"><span>出版物</span><input name="publicationTitle" maxlength="4000"></label>
+                  <label class="field"><span>URL</span><input name="url" type="url" maxlength="4000"></label>
+                  <label class="field"><span>DOI</span><input name="DOI" maxlength="4000"></label>
+                  <label class="field"><span>ISBN</span><input name="ISBN" maxlength="4000"></label>
+                  <label class="field field-full"><span>摘要</span><textarea name="abstractNote" maxlength="50000" rows="4"></textarea></label>
+                </div>
+                <div class="zotero-complete-list-grid">
+                  <label class="field"><span>作者（完整替换列表）</span><textarea name="creators" data-testid="zotero-creators" rows="5" placeholder="每行一位：author|姓名；机构作者可直接写 author|机构名"></textarea></label>
+                  <label class="field"><span>标签（完整替换列表）</span><textarea name="tags" data-testid="zotero-tags" rows="5" placeholder="每行一个标签"></textarea></label>
+                  <label class="field"><span>集合 key（完整替换列表）</span><textarea name="collections" data-testid="zotero-collections" rows="5" placeholder="每行一个 Zotero 集合 key"></textarea></label>
+                </div>
+                <p class="form-hint">作者、标签、集合会以你提交的完整列表替换现有列表；留空表示清空该列表。每次写入都会先显示确认摘要。</p>
+                <div class="form-footer"><span data-testid="zotero-editor-version">版本 —</span><button class="primary-button" type="submit" data-testid="zotero-save-item">检查并提交修改</button></div>
+              </form>
+
+              <section class="zotero-note-section" data-testid="zotero-note-section">
+                <div class="zotero-subheading"><div><p class="eyebrow">CHILD NOTE</p><h3>添加子笔记</h3></div><span>不会修改或删除原文献</span></div>
+                <form class="zotero-note-form" data-testid="zotero-note-form">
+                  <label class="field"><span>标题（可选）</span><input name="title" maxlength="500"></label>
+                  <label class="field field-full"><span>笔记内容</span><textarea name="note" maxlength="100000" rows="4" required></textarea></label>
+                  <div class="form-footer"><span>笔记将作为当前文献的子条目创建。</span><button class="quiet-button" type="submit">检查并添加笔记</button></div>
+                </form>
+              </section>
+
+              <form class="zotero-collection-form hidden" data-testid="zotero-collection-form">
+                <label class="field"><span>集合名称</span><input name="name" maxlength="500" required></label>
+                <label class="field"><span>父集合 key（可选）</span><input name="parentCollection" maxlength="64"></label>
+                <div class="form-footer"><span>只创建集合，不会移动或删除现有内容。</span><button class="primary-button" type="submit">检查并创建集合</button></div>
+              </form>
+
+              <section class="zotero-confirmation hidden" data-testid="zotero-confirmation" role="dialog" aria-live="assertive">
+                <p class="eyebrow">CONFIRM WRITE</p>
+                <h3>确认这次 Zotero 回写</h3>
+                <p data-testid="zotero-confirmation-summary"></p>
+                <div class="zotero-confirmation-actions"><button class="primary-button" type="button" data-action="zotero-confirm" data-testid="zotero-confirm">确认写入</button><button class="quiet-button" type="button" data-action="zotero-cancel-confirm">返回修改</button></div>
+              </section>
+            </div>
+          </section>
+        </section>
+      </main>
+      <div class="toast hidden" data-testid="toast" role="status"></div>
+    </div>
+<script src="/app.js" type="module"></script></body></html>
