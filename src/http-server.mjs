@@ -11,6 +11,8 @@ const assetMap = new Map([
   ["/index.html", { file: "index.html", type: "text/html; charset=utf-8" }],
   ["/styles.css", { file: "styles.css", type: "text/css; charset=utf-8" }],
   ["/app.js", { file: "app.js", type: "text/javascript; charset=utf-8" }],
+  ["/features/console/index.js", { file: "features/console/index.js", type: "text/javascript; charset=utf-8" }],
+  ["/features/priority/index.js", { file: "features/priority/index.js", type: "text/javascript; charset=utf-8" }],
   ["/features/sessions/index.js", { file: "features/sessions/index.js", type: "text/javascript; charset=utf-8" }]
 ]);
 

@@ -72,8 +72,8 @@ Extract one feature per change while retaining existing behavior tests and real 
 
 - [ ] `public/app.js` is at most 250 lines and only composes modules.
 - [x] Every extracted feature module is within the default structure budget.
-- [ ] No feature imports another feature.
-- [ ] Existing 46 tests continue to pass throughout extraction.
+- [x] No extracted feature imports another feature.
+- [x] Existing tests continue to pass throughout extraction.
 - [x] Sessions search, status filter, grouping, and native open flow pass real-UI verification.
 - [ ] Dispatch and Zotero mutation behavior retains origin and credential protections.
 - [ ] `npm run check` reports no growth in frozen structural debt.
@@ -95,3 +95,12 @@ Extract one feature per change while retaining existing behavior tests and real 
 - Changed the browser entry to a native ES module and explicitly served the feature module from the loopback HTTP server.
 - Reduced `public/app.js` from 1272 to 1108 lines and ratcheted the structure budget to the new lower baseline.
 - Real embedded verification observed 18 projects and 160 sessions; searching `mulitca` returned one project and six sessions; native open and return both succeeded.
+
+### Slice 2: console and priority
+
+- Added `public/features/console/index.js` as a 54-line feature module.
+- Added `public/features/priority/index.js` as a 74-line feature module.
+- Moved loading/empty/error state ownership, metrics, list rendering, and native-open controls out of `public/app.js`.
+- Added focused metric tests for truthful connected and unavailable states.
+- Reduced `public/app.js` from 1108 to 1041 lines and ratcheted the structure budget again.
+- Real embedded verification observed 160 console task cards with native-open actions and 16 priority projects in descending score order with working scrolling.

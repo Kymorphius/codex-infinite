@@ -1,3 +1,5 @@
+import { createConsoleFeature } from "./features/console/index.js";
+import { createPriorityFeature } from "./features/priority/index.js";
 import { createSessionsFeature } from "./features/sessions/index.js";
 
 (() => {
@@ -38,11 +40,7 @@ import { createSessionsFeature } from "./features/sessions/index.js";
   };
   const $ = (selector) => document.querySelector(selector);
   const toast = $('[data-testid="toast"]');
-  const consolePanel = $('[data-module-panel="console"]');
-  const priorityPanel = $('[data-module-panel="priority"]');
   const zoteroPanel = $('[data-module-panel="zotero"]');
-  const consoleTaskList = $('[data-testid="console-task-list"]');
-  const priorityList = $('[data-testid="priority-list"]');
   const dispatchBoard = $('[data-testid="dispatch-board"]');
   const dispatchForm = $('[data-testid="dispatch-form"]');
   const contextForm = $('[data-testid="context-form"]');
@@ -130,22 +128,13 @@ import { createSessionsFeature } from "./features/sessions/index.js";
 
   function setTaskState(responseStatus, message = "") {
     state.taskStatus = responseStatus;
-    setScopedState(consolePanel, "data-console-state", responseStatus, message);
-    setScopedState(priorityPanel, "data-priority-state", responseStatus, message);
     const connected = responseStatus === "connected";
     const label = { connected: "已连接", empty: "暂无任务", disconnected: "未连接", error: "读取失败", loading: "连接中…" }[responseStatus];
     const source = connected ? "本机记录" : responseStatus === "loading" ? "读取中" : "不可用";
-    $('[data-testid="console-task-count"]').textContent = connected ? String(state.tasks.length) : "—";
-    $('[data-testid="console-task-source"]').textContent = source;
-    $('[data-testid="console-connection-status"]').textContent = label;
+    consoleFeature.setTaskState(responseStatus, label, message);
     sessionsFeature.setTaskState(responseStatus, label);
-    $('[data-testid="priority-project-count"]').textContent = connected ? String(state.projects.length) : "—";
-    $('[data-testid="priority-recent-count"]').textContent = connected ? String(state.projects.reduce((sum, project) => sum + (project.recentSessionCount || 0), 0)) : "—";
-    $('[data-testid="priority-source"]').textContent = source;
-    $('[data-testid="priority-connection-status"]').textContent = label;
+    priorityFeature.setTaskState(responseStatus, label, source, message);
     $('[data-testid="connection-status"]').textContent = connected ? "目标已连接" : label;
-    consoleTaskList.classList.toggle("hidden", !connected);
-    priorityList.classList.toggle("hidden", !connected);
     for (const element of dispatchForm.elements) element.disabled = !connected;
   }
 
@@ -154,64 +143,6 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     if (task.status === "completed") return "已完成";
     if (task.status === "error" || task.status === "interrupted") return "异常";
     return "待处理";
-  }
-
-  function taskCard(task) {
-    const card = document.createElement("article");
-    card.className = "task-card";
-    card.dataset.taskId = task.id;
-    const main = document.createElement("div");
-    main.className = "task-card-main";
-    const title = document.createElement("div");
-    title.className = "task-title";
-    title.textContent = task.title;
-    const meta = document.createElement("div");
-    meta.className = "task-meta";
-    for (const text of [statusLabel(task), task.project || "未归类", `更新 ${formatDate(task.updatedAt)}`]) {
-      const span = document.createElement("span"); span.textContent = text; meta.append(span);
-    }
-    main.append(title, meta);
-    const open = document.createElement("button");
-    open.type = "button"; open.className = "task-open"; open.textContent = "在 Codex 中打开";
-    open.addEventListener("click", () => requestOpen(task));
-    card.append(main, open);
-    return card;
-  }
-
-  function renderConsoleTasks() {
-    consoleTaskList.replaceChildren(...state.tasks.map(taskCard));
-  }
-
-  function priorityCard(project, index) {
-    const card = document.createElement("article");
-    card.className = "priority-card";
-    card.dataset.project = project.project;
-    const rank = document.createElement("div"); rank.className = "priority-rank";
-    const rankLabel = document.createElement("span"); rankLabel.textContent = "排名";
-    const rankValue = document.createElement("strong"); rankValue.textContent = String(index + 1);
-    rank.append(rankLabel, rankValue);
-    const body = document.createElement("div"); body.className = "priority-card-body";
-    const heading = document.createElement("div"); heading.className = "priority-card-heading";
-    const name = document.createElement("h3"); name.textContent = project.project;
-    const latest = document.createElement("span"); latest.textContent = `最近对话 ${formatDate(project.lastConversationAt)}`;
-    heading.append(name, latest);
-    const task = document.createElement("p"); task.className = "priority-latest-task"; task.textContent = project.latestTask?.title || "暂无可读取会话标题";
-    const stats = document.createElement("div"); stats.className = "priority-stats";
-    for (const text of [`${project.taskCount} 个会话`, `近 7 天 ${project.recentSessionCount} 个`, `运行跨度 ${formatDuration(project.totalRuntimeMs)}`]) {
-      const span = document.createElement("span"); span.textContent = text; stats.append(span);
-    }
-    body.append(heading, task, stats);
-    const score = document.createElement("div"); score.className = "priority-score";
-    const scoreValue = document.createElement("strong"); scoreValue.textContent = String(project.priorityScore);
-    const scoreLabel = document.createElement("span"); scoreLabel.textContent = "优先级";
-    const scoreDetail = document.createElement("small"); scoreDetail.textContent = `活跃 ${project.recencyWeight} · 时长 ${project.runtimeWeight}`;
-    score.append(scoreValue, scoreLabel, scoreDetail);
-    card.append(rank, body, score);
-    return card;
-  }
-
-  function renderPriorityProjects() {
-    priorityList.replaceChildren(...state.projects.map(priorityCard));
   }
 
   const ZOTERO_ITEM_TYPE_LABELS = {
@@ -905,7 +836,7 @@ import { createSessionsFeature } from "./features/sessions/index.js";
       state.devices = Array.isArray(data.devices) ? data.devices : [];
       renderContextThreadOptions();
       if (data.status === "connected" && state.tasks.length) {
-        setTaskState("connected"); renderConsoleTasks(); sessionsFeature.render(); renderPriorityProjects(); updateDestinationSelectors();
+        setTaskState("connected"); consoleFeature.render(); sessionsFeature.render(); priorityFeature.render(); updateDestinationSelectors();
       } else if (data.status === "empty") setTaskState("empty", data.message);
       else if (data.status === "disconnected") setTaskState("disconnected", data.message);
       else setTaskState("error", data.message || "任务数据不可用。");
@@ -943,6 +874,8 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     showToast("正在请求 Codex 打开任务…");
   }
 
+  const consoleFeature = createConsoleFeature({ state, $, formatDate, statusLabel, requestOpen });
+  const priorityFeature = createPriorityFeature({ state, $, formatDate, formatDuration });
   const sessionsFeature = createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen });
   sessionsFeature.bind();
 
