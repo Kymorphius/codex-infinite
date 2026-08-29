@@ -20,6 +20,10 @@ test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/features/context/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/dispatch/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/sessions/index.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/zotero/index.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/zotero/browser.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/zotero/editor.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/zotero/format.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/missing.js"), null);
   assert.equal(resolveStaticAsset("/../package.json"), null);
   assert.equal(resolveStaticAsset("/%2e%2e/package.json"), null);
