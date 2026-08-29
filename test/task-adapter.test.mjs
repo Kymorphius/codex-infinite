@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSessionDevice, parseSessionJsonl } from "../src/task-adapter.mjs";
-import { resolveDispatchTarget } from "../src/http-server.mjs";
+import { resolveDispatchTarget } from "../src/dispatch-http.mjs";
 
 test("session adapter extracts truthful task metadata without requiring app internals", () => {
   const content = [
