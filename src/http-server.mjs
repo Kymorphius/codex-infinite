@@ -1,53 +1,9 @@
 import http from "node:http";
 import { assertLoopbackConfig } from "./loopback.mjs";
-import { describeContextOverride } from "./context-window.mjs";
 import { serveStaticAsset } from "./static-assets.mjs";
-
-function sendJson(response, statusCode, body) {
-  const payload = JSON.stringify(body);
-  response.writeHead(statusCode, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-    "x-content-type-options": "nosniff"
-  });
-  response.end(payload);
-}
-
-async function readJsonBody(request, maxBytes = 64 * 1024) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > maxBytes) throw httpError(413, "请求内容过大");
-    chunks.push(chunk);
-  }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-  } catch {
-    throw httpError(400, "请求 JSON 无效");
-  }
-}
-
-function httpError(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
-
-function assertMutationOrigin(request, dashboardOrigin) {
-  const origin = request.headers.origin;
-  if (origin && origin !== dashboardOrigin) throw new Error("不允许的请求来源");
-}
-
-function assertExactMutationOrigin(request, dashboardOrigin) {
-  if (request.headers.origin !== dashboardOrigin) throw httpError(403, "需要控制台页面的精确请求来源");
-}
-
-function assertJsonContentType(request) {
-  if (!String(request.headers["content-type"] || "").toLowerCase().includes("application/json")) {
-    throw httpError(415, "请求必须使用 application/json");
-  }
-}
+import { createContextHttpHandler } from "./context-http.mjs";
+import { createDispatchHttpHandler } from "./dispatch-http.mjs";
+import { assertExactMutationOrigin, assertJsonContentType, decodePathSegment, readJsonBody, sendJson } from "./http-utils.mjs";
 
 function sendZoteroResult(response, result, fallbackStatus = 200) {
   const { httpStatus, ...body } = result || { status: "error", message: "Zotero 服务不可用。" };
@@ -67,18 +23,10 @@ function emptyZoteroApiResult() {
   };
 }
 
-function decodePathSegment(value) {
-  try { return decodeURIComponent(value); } catch { throw httpError(400, "路径标识无效"); }
-}
-
-export function resolveDispatchTarget(tasks, { project, targetThreadId }) {
-  const projectTasks = (tasks || []).filter((task) => task.project === project);
-  if (targetThreadId) return projectTasks.find((task) => task.id === targetThreadId) || null;
-  return projectTasks[0] || null;
-}
-
 export function createDashboardServer({ config, adapter, zoteroAdapter = null, zoteroLocalApi = null, dispatchStore = null, contextWindowStore = null, modelCatalog = null, logger = console }) {
   assertLoopbackConfig(config);
+  const handleContextRequest = createContextHttpHandler({ adapter, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin });
+  const handleDispatchRequest = createDispatchHttpHandler({ adapter, dispatchStore, dashboardOrigin: config.dashboardOrigin });
   const server = http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url || "/", config.dashboardOrigin);
@@ -193,97 +141,8 @@ export function createDashboardServer({ config, adapter, zoteroAdapter = null, z
         sendJson(response, 200, { status: "ok", task });
         return;
       }
-      if (requestUrl.pathname === "/api/context-overrides") {
-        if (!contextWindowStore || !modelCatalog) {
-          sendJson(response, 503, { status: "error", message: "会话上下文服务不可用" });
-          return;
-        }
-        if (request.method !== "GET" && request.method !== "HEAD") {
-          sendJson(response, 405, { status: "error", message: "Method not allowed" });
-          return;
-        }
-        const taskResult = await adapter.listTasks();
-        const tasks = new Map((taskResult.tasks || []).map((task) => [task.id, task]));
-        const items = await Promise.all(contextWindowStore.list().map((item) => describeContextOverride(item, tasks.get(item.threadId), modelCatalog)));
-        sendJson(response, 200, { status: "ok", items });
-        return;
-      }
-      if (requestUrl.pathname.startsWith("/api/context-overrides/")) {
-        if (!contextWindowStore || !modelCatalog) {
-          sendJson(response, 503, { status: "error", message: "会话上下文服务不可用" });
-          return;
-        }
-        assertExactMutationOrigin(request, config.dashboardOrigin);
-        const threadId = decodeURIComponent(requestUrl.pathname.slice("/api/context-overrides/".length));
-        if (request.method === "PUT") {
-          assertJsonContentType(request);
-          const body = await readJsonBody(request, 8 * 1024);
-          const task = await adapter.getTask(threadId);
-          if (!task) throw httpError(404, "会话不存在、已超出本机扫描范围或记录不可读");
-          const item = await contextWindowStore.set(threadId, body.contextWindow);
-          sendJson(response, 200, { status: "ok", item: await describeContextOverride(item, task, modelCatalog) });
-          return;
-        }
-        if (request.method === "DELETE") {
-          const removed = await contextWindowStore.remove(threadId);
-          sendJson(response, removed ? 200 : 404, removed ? { status: "ok" } : { status: "error", message: "该会话没有上下文覆盖" });
-          return;
-        }
-        sendJson(response, 405, { status: "error", message: "Method not allowed" });
-        return;
-      }
-      if (requestUrl.pathname === "/api/dispatches") {
-        if (!dispatchStore) {
-          sendJson(response, 503, { status: "error", message: "任务调度服务不可用" });
-          return;
-        }
-        if (request.method === "GET" || request.method === "HEAD") {
-          sendJson(response, 200, { status: "ok", items: dispatchStore.list() });
-          return;
-        }
-        if (request.method === "POST") {
-          assertMutationOrigin(request, config.dashboardOrigin);
-          const input = await readJsonBody(request);
-          const taskResult = await adapter.listTasks();
-          const target = resolveDispatchTarget(taskResult.tasks, input);
-          if (!target) {
-            sendJson(response, 400, { status: "error", message: "所选项目或目标对话不可用" });
-            return;
-          }
-          const item = await dispatchStore.create({
-            ...input,
-            project: target.project,
-            targetThreadId: target.id,
-            targetThreadTitle: target.title,
-            cwd: target.cwd
-          });
-          sendJson(response, 201, { status: "ok", item });
-          return;
-        }
-        sendJson(response, 405, { status: "error", message: "Method not allowed" });
-        return;
-      }
-      if (requestUrl.pathname.startsWith("/api/dispatches/")) {
-        if (!dispatchStore) {
-          sendJson(response, 503, { status: "error", message: "任务调度服务不可用" });
-          return;
-        }
-        assertMutationOrigin(request, config.dashboardOrigin);
-        const id = decodeURIComponent(requestUrl.pathname.slice("/api/dispatches/".length));
-        if (request.method === "PATCH") {
-          const item = await dispatchStore.update(id, await readJsonBody(request));
-          if (!item) sendJson(response, 404, { status: "error", message: "调度任务不存在" });
-          else sendJson(response, 200, { status: "ok", item });
-          return;
-        }
-        if (request.method === "DELETE") {
-          const removed = await dispatchStore.remove(id);
-          sendJson(response, removed ? 200 : 404, removed ? { status: "ok" } : { status: "error", message: "调度任务不存在" });
-          return;
-        }
-        sendJson(response, 405, { status: "error", message: "Method not allowed" });
-        return;
-      }
+      if (await handleContextRequest(request, response, requestUrl)) return;
+      if (await handleDispatchRequest(request, response, requestUrl)) return;
       if (request.method !== "GET" && request.method !== "HEAD") {
         sendJson(response, 405, { status: "error", message: "Method not allowed" });
         return;

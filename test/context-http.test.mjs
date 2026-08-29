@@ -34,6 +34,8 @@ test("context override API is origin-protected and reports model clamping", asyn
 
   const missingOrigin = await fetch(`${origin}${pathname}`, { method: "PUT", headers: { "content-type": "application/json" }, body });
   assert.equal(missingOrigin.status, 403);
+  const missingContentType = await fetch(`${origin}${pathname}`, { method: "PUT", headers: { origin: config.dashboardOrigin }, body });
+  assert.equal(missingContentType.status, 415);
   const saved = await fetch(`${origin}${pathname}`, { method: "PUT", headers: { "content-type": "application/json", origin: config.dashboardOrigin }, body });
   assert.equal(saved.status, 200);
   const savedBody = await saved.json();
@@ -43,4 +45,7 @@ test("context override API is origin-protected and reports model clamping", asyn
   const listed = await fetch(`${origin}/api/context-overrides`);
   assert.equal(listed.status, 200);
   assert.equal((await listed.json()).items[0].requestedContextWindow, 1_000_000);
+  assert.equal((await fetch(`${origin}${pathname}`, { method: "DELETE" })).status, 403);
+  assert.equal((await fetch(`${origin}${pathname}`, { method: "DELETE", headers: { origin: config.dashboardOrigin } })).status, 200);
+  assert.equal((await fetch(`${origin}${pathname}`, { method: "DELETE", headers: { origin: config.dashboardOrigin } })).status, 404);
 });
