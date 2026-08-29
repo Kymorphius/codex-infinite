@@ -104,3 +104,13 @@ Extract one feature per change while retaining existing behavior tests and real 
 - Added focused metric tests for truthful connected and unavailable states.
 - Reduced `public/app.js` from 1108 to 1041 lines and ratcheted the structure budget again.
 - Real embedded verification observed 160 console task cards with native-open actions and 16 priority projects in descending score order with working scrolling.
+
+### Slice 3: dispatch and context
+
+- Added `public/core/transport.js` as an 11-line shared JSON request boundary.
+- Added `public/features/dispatch/index.js` as a 175-line feature module owning project/thread selection, six-column rendering, metrics, create/move/delete actions, loading states, and polling refreshes.
+- Added `public/features/context/index.js` as a 133-line feature module owning task options, saved-override rendering, metrics, load/save/remove actions, and lazy initialization.
+- Added pure tests for dispatch column normalization, dispatch metrics, destination normalization, and context availability metrics.
+- Registered the new feature and core modules in the explicit static-asset allowlist.
+- Reduced `public/app.js` from 1041 lines and 50,931 bytes to 824 lines and 38,748 bytes and ratcheted the structure budget again.
+- Real embedded verification observed 16 project destinations; selecting `mulitca` populated six native conversation choices. The context page rendered one saved million-token override with 872,000 accepted and 828,400 effective values. Browser logs contained no warnings or errors.

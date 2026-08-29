@@ -1,4 +1,6 @@
 import { createConsoleFeature } from "./features/console/index.js";
+import { createContextFeature } from "./features/context/index.js";
+import { createDispatchFeature } from "./features/dispatch/index.js";
 import { createPriorityFeature } from "./features/priority/index.js";
 import { createSessionsFeature } from "./features/sessions/index.js";
 
@@ -11,7 +13,6 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     priority: { title: "项目优先级", caption: "按会话活跃度与运行时间排序" },
     zotero: { title: "文献库", caption: "本机 Zotero 文献与安全回写" }
   };
-  const DISPATCH_COLUMNS = ["backlog", "scheduled", "queued", "sending", "sent", "failed"];
   const requestedModule = new URLSearchParams(location.search).get("module");
   const state = {
     module: Object.hasOwn(MODULES, requestedModule) ? requestedModule : "board",
@@ -41,13 +42,6 @@ import { createSessionsFeature } from "./features/sessions/index.js";
   const $ = (selector) => document.querySelector(selector);
   const toast = $('[data-testid="toast"]');
   const zoteroPanel = $('[data-module-panel="zotero"]');
-  const dispatchBoard = $('[data-testid="dispatch-board"]');
-  const dispatchForm = $('[data-testid="dispatch-form"]');
-  const contextForm = $('[data-testid="context-form"]');
-  const contextList = $('[data-testid="context-list"]');
-  const contextThreadOptions = $('[data-testid="context-thread-options"]');
-  const projectSelect = $('[data-testid="dispatch-project"]');
-  const threadSelect = $('[data-testid="dispatch-thread"]');
   const zoteroSearchForm = $('[data-testid="zotero-search-form"]');
   const zoteroSearchInput = $('[data-testid="zotero-search"]');
   const zoteroCollectionSelect = $('[data-testid="zotero-collection-filter"]');
@@ -118,7 +112,7 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     updateModuleChrome();
     if (announce) showToast(`${MODULES[state.module].title}已打开`);
     if (state.module === "zotero" && !state.zotero.initialized) void loadZotero();
-    if (state.module === "context" && !state.context.initialized) void loadContextOverrides();
+    if (state.module === "context" && !state.context.initialized) void contextFeature.load();
   }
 
   function setScopedState(panel, attribute, responseStatus, message = "") {
@@ -134,8 +128,7 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     consoleFeature.setTaskState(responseStatus, label, message);
     sessionsFeature.setTaskState(responseStatus, label);
     priorityFeature.setTaskState(responseStatus, label, source, message);
-    $('[data-testid="connection-status"]').textContent = connected ? "目标已连接" : label;
-    for (const element of dispatchForm.elements) element.disabled = !connected;
+    dispatchFeature.setTaskState(responseStatus, label);
   }
 
   function statusLabel(task) {
@@ -678,153 +671,6 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     }
   }
 
-  function updateDestinationSelectors() {
-    const currentProject = projectSelect.value;
-    const names = [...new Set(state.tasks.map((task) => task.project || "未归类"))].sort((left, right) => left.localeCompare(right, "zh-CN"));
-    projectSelect.replaceChildren(new Option("选择项目", ""), ...names.map((name) => new Option(name, name)));
-    if (names.includes(currentProject)) projectSelect.value = currentProject;
-    updateThreadSelector();
-  }
-
-  function updateThreadSelector() {
-    const tasks = state.tasks.filter((task) => task.project === projectSelect.value);
-    threadSelect.replaceChildren();
-    if (!tasks.length) {
-      threadSelect.append(new Option(projectSelect.value ? "该项目没有可用对话" : "先选择项目", ""));
-      threadSelect.disabled = true;
-      return;
-    }
-    threadSelect.append(new Option(`自动：最近对话 · ${tasks[0].title}`, ""));
-    for (const task of tasks) threadSelect.append(new Option(`${formatDate(task.updatedAt)} · ${task.title}`, task.id));
-    threadSelect.disabled = false;
-  }
-
-  function dispatchColumnStatus(status) {
-    return status === "cancelled" ? "failed" : status;
-  }
-
-  function dispatchAction(label, action, item, className = "task-open") {
-    const button = document.createElement("button");
-    button.type = "button"; button.className = className; button.textContent = label;
-    button.dataset.dispatchAction = action; button.dataset.dispatchId = item.id;
-    return button;
-  }
-
-  function dispatchCard(item) {
-    const card = document.createElement("article");
-    card.className = "dispatch-card";
-    card.dataset.dispatchId = item.id;
-    const title = document.createElement("h4"); title.textContent = item.title;
-    const route = document.createElement("div"); route.className = "dispatch-route"; route.textContent = `${item.project} → ${item.targetThreadTitle}`;
-    const prompt = document.createElement("p"); prompt.textContent = item.prompt;
-    const meta = document.createElement("div"); meta.className = "dispatch-meta";
-    meta.textContent = item.status === "scheduled" ? `计划 ${formatDate(item.scheduledAt)}` : item.status === "sending" ? `开始 ${formatDate(item.startedAt)}` : `更新 ${formatDate(item.updatedAt)}`;
-    if (item.lastError) {
-      const error = document.createElement("div"); error.className = "dispatch-error"; error.textContent = item.lastError; card.append(title, route, prompt, meta, error);
-    } else card.append(title, route, prompt, meta);
-    const actions = document.createElement("div"); actions.className = "dispatch-actions";
-    if (["backlog", "scheduled", "failed", "cancelled"].includes(item.status)) actions.append(dispatchAction("立即排队", "queue", item, "primary-button small-button"));
-    if (["queued", "scheduled"].includes(item.status)) actions.append(dispatchAction("移到待排期", "backlog", item));
-    if (item.status !== "sending") actions.append(dispatchAction("删除", "delete", item, "quiet-button small-button"));
-    card.append(actions);
-    return card;
-  }
-
-  function renderDispatches() {
-    for (const column of DISPATCH_COLUMNS) {
-      const items = state.dispatches.filter((item) => dispatchColumnStatus(item.status) === column);
-      $(`[data-dispatch-count="${column}"]`).textContent = String(items.length);
-      const list = $(`[data-dispatch-list="${column}"]`);
-      list.replaceChildren(...items.map(dispatchCard));
-      if (!items.length) {
-        const empty = document.createElement("div"); empty.className = "column-empty"; empty.textContent = "暂无任务"; list.append(empty);
-      }
-    }
-    $('[data-testid="dispatch-count"]').textContent = String(state.dispatches.length);
-    $('[data-testid="dispatch-waiting-count"]').textContent = String(state.dispatches.filter((item) => ["scheduled", "queued", "sending"].includes(item.status)).length);
-    $('[data-testid="dispatch-target-count"]').textContent = String(new Set(state.dispatches.map((item) => item.targetThreadId)).size);
-  }
-
-  function setDispatchState(status, message = "") {
-    state.dispatchStatus = status;
-    for (const element of document.querySelectorAll("[data-dispatch-state]")) element.classList.toggle("hidden", element.dataset.dispatchState !== status);
-    const messageElement = $("[data-dispatch-state-message]");
-    if (message && messageElement) messageElement.textContent = message;
-    dispatchBoard.classList.toggle("hidden", status !== "connected");
-  }
-
-  function renderContextThreadOptions() {
-    contextThreadOptions.replaceChildren(...state.tasks.map((task) => {
-      const option = document.createElement("option");
-      option.value = task.id;
-      option.label = `${task.project || "未归类"} · ${task.title}`;
-      return option;
-    }));
-  }
-
-  function contextCard(item) {
-    const card = document.createElement("article");
-    card.className = "context-card";
-    card.dataset.threadId = item.threadId;
-    const heading = document.createElement("div");
-    heading.className = "context-card-heading";
-    const titleGroup = document.createElement("div");
-    const title = document.createElement("h3"); title.textContent = item.threadTitle;
-    const id = document.createElement("code"); id.textContent = item.threadId;
-    titleGroup.append(title, id);
-    const remove = document.createElement("button");
-    remove.type = "button"; remove.className = "quiet-button"; remove.textContent = "移除覆盖";
-    remove.dataset.contextAction = "remove"; remove.dataset.threadId = item.threadId;
-    heading.append(titleGroup, remove);
-
-    const values = document.createElement("div");
-    values.className = "context-values";
-    const rows = [
-      ["请求值", formatTokens(item.requestedContextWindow)],
-      [item.clamped ? "模型接受值（已钳制）" : "模型接受值", formatTokens(item.acceptedContextWindow)],
-      [`预计有效值（${item.effectiveContextWindowPercent}%）`, formatTokens(item.estimatedEffectiveContextWindow)],
-      ["最近观测值", formatTokens(item.observedContextWindow)]
-    ];
-    for (const [label, value] of rows) {
-      const metric = document.createElement("div");
-      const name = document.createElement("span"); name.textContent = label;
-      const strong = document.createElement("strong"); strong.textContent = value;
-      metric.append(name, strong); values.append(metric);
-    }
-    const footer = document.createElement("p");
-    footer.className = "context-card-footer";
-    footer.textContent = `${item.project || "项目未知"} · ${item.model || "模型未知"} · 保存于 ${formatDate(item.updatedAt)}${item.taskAvailable ? "" : " · 会话记录当前不可读"}`;
-    card.append(heading, values, footer);
-    return card;
-  }
-
-  function setContextState(status, message = "") {
-    state.context.status = status;
-    for (const element of document.querySelectorAll("[data-context-state]")) element.classList.toggle("hidden", element.dataset.contextState !== status);
-    const messageElement = $("[data-context-state-message]");
-    if (message && messageElement) messageElement.textContent = message;
-    $('[data-testid="context-count"]').textContent = status === "connected" || status === "empty" ? String(state.context.items.length) : "—";
-    $('[data-testid="context-million-count"]').textContent = status === "connected" || status === "empty"
-      ? String(state.context.items.filter((item) => item.requestedContextWindow >= 1_000_000).length)
-      : "—";
-    $('[data-testid="context-status"]').textContent = { loading: "读取中", connected: "已启用", empty: "未配置", error: "异常" }[status] || "未知";
-  }
-
-  async function loadContextOverrides({ quiet = false } = {}) {
-    state.context.initialized = true;
-    if (!quiet) setContextState("loading");
-    try {
-      const response = await fetch("/api/context-overrides", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
-      state.context.items = Array.isArray(data.items) ? data.items : [];
-      contextList.replaceChildren(...state.context.items.map(contextCard));
-      setContextState(state.context.items.length ? "connected" : "empty");
-    } catch (error) {
-      setContextState("error", error.message);
-    }
-  }
-
   async function loadTasks() {
     setTaskState("loading");
     try {
@@ -834,35 +680,15 @@ import { createSessionsFeature } from "./features/sessions/index.js";
       state.tasks = Array.isArray(data.tasks) ? data.tasks : [];
       state.projects = Array.isArray(data.projects) ? data.projects : [];
       state.devices = Array.isArray(data.devices) ? data.devices : [];
-      renderContextThreadOptions();
+      contextFeature.renderThreadOptions();
       if (data.status === "connected" && state.tasks.length) {
-        setTaskState("connected"); consoleFeature.render(); sessionsFeature.render(); priorityFeature.render(); updateDestinationSelectors();
+        setTaskState("connected"); consoleFeature.render(); sessionsFeature.render(); priorityFeature.render(); dispatchFeature.updateDestinations();
       } else if (data.status === "empty") setTaskState("empty", data.message);
       else if (data.status === "disconnected") setTaskState("disconnected", data.message);
       else setTaskState("error", data.message || "任务数据不可用。");
     } catch (error) {
       setTaskState("disconnected", `无法连接到控制台服务：${error.message}`);
     }
-  }
-
-  async function loadDispatches({ quiet = false } = {}) {
-    if (!quiet) setDispatchState("loading");
-    try {
-      const response = await fetch("/api/dispatches", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
-      state.dispatches = Array.isArray(data.items) ? data.items : [];
-      setDispatchState("connected"); renderDispatches();
-    } catch (error) {
-      setDispatchState("error", error.message);
-    }
-  }
-
-  async function mutateDispatch(path, method, body) {
-    const response = await fetch(path, { method, headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
-    return data;
   }
 
   function requestOpen(task) {
@@ -875,11 +701,14 @@ import { createSessionsFeature } from "./features/sessions/index.js";
   }
 
   const consoleFeature = createConsoleFeature({ state, $, formatDate, statusLabel, requestOpen });
+  const contextFeature = createContextFeature({ state, $, formatDate, formatTokens, showToast });
+  const dispatchFeature = createDispatchFeature({ state, $, formatDate, showToast });
   const priorityFeature = createPriorityFeature({ state, $, formatDate, formatDuration });
   const sessionsFeature = createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen });
+  contextFeature.bind();
+  dispatchFeature.bind();
   sessionsFeature.bind();
 
-  projectSelect.addEventListener("change", updateThreadSelector);
   zoteroSearchForm.addEventListener("submit", (event) => {
     event.preventDefault();
     state.zotero.q = zoteroSearchInput.value.trim().slice(0, 200);
@@ -929,30 +758,6 @@ import { createSessionsFeature } from "./features/sessions/index.js";
     if (!body.name) return showToast("集合名称不能为空。");
     queueZoteroWrite({ kind: "collection", method: "POST", path: "/api/zotero/collections", body, summary: `创建集合：${body.name}${parentCollection ? `\n父集合 key：${parentCollection}` : ""}` });
   });
-  dispatchForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = Object.fromEntries(new FormData(dispatchForm));
-    if (data.mode === "schedule" && !data.scheduledAt) return showToast("选择“按时间发送”时必须设置发送时间。");
-    if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt).toISOString();
-    try {
-      await mutateDispatch("/api/dispatches", "POST", data);
-      dispatchForm.reset(); updateDestinationSelectors();
-      await loadDispatches({ quiet: true }); showToast("任务已加入看板。");
-    } catch (error) { showToast(error.message); }
-  });
-  contextForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = Object.fromEntries(new FormData(contextForm));
-    const threadId = String(data.threadId || "").trim();
-    try {
-      const result = await mutateDispatch(`/api/context-overrides/${encodeURIComponent(threadId)}`, "PUT", { contextWindow: Number(data.contextWindow) });
-      await loadContextOverrides({ quiet: true });
-      showToast(result.item.clamped
-        ? `已保存；模型会将请求钳制为 ${formatTokens(result.item.acceptedContextWindow)} tokens。`
-        : `已为该会话保存 ${formatTokens(result.item.requestedContextWindow)} tokens。`);
-    } catch (error) { showToast(error.message); }
-  });
-
   document.addEventListener("click", async (event) => {
     const zoteroCollection = event.target.closest("[data-zotero-collection]");
     if (zoteroCollection) {
@@ -963,36 +768,14 @@ import { createSessionsFeature } from "./features/sessions/index.js";
       await loadZoteroItems();
       return;
     }
-    const dispatchButton = event.target.closest("[data-dispatch-action]");
-    if (dispatchButton) {
-      dispatchButton.disabled = true;
-      try {
-        if (dispatchButton.dataset.dispatchAction === "delete") await mutateDispatch(`/api/dispatches/${encodeURIComponent(dispatchButton.dataset.dispatchId)}`, "DELETE");
-        else await mutateDispatch(`/api/dispatches/${encodeURIComponent(dispatchButton.dataset.dispatchId)}`, "PATCH", { status: dispatchButton.dataset.dispatchAction === "queue" ? "queued" : "backlog" });
-        await loadDispatches({ quiet: true });
-      } catch (error) { showToast(error.message); dispatchButton.disabled = false; }
-      return;
-    }
-    const contextButton = event.target.closest("[data-context-action]");
-    if (contextButton) {
-      contextButton.disabled = true;
-      try {
-        await mutateDispatch(`/api/context-overrides/${encodeURIComponent(contextButton.dataset.threadId)}`, "DELETE");
-        await loadContextOverrides({ quiet: true });
-        showToast("已移除该会话的上下文覆盖。");
-      } catch (error) { showToast(error.message); contextButton.disabled = false; }
-      return;
-    }
     const actionElement = event.target.closest("[data-action]");
     const action = actionElement?.dataset.action;
     if (action === "refresh") {
-      const refreshes = [loadTasks(), loadDispatches()];
+      const refreshes = [loadTasks(), dispatchFeature.load()];
       if (state.module === "zotero") refreshes.push(loadZotero());
-      if (state.module === "context") refreshes.push(loadContextOverrides());
+      if (state.module === "context") refreshes.push(contextFeature.load());
       await Promise.all(refreshes);
     }
-    if (action === "refresh-dispatches") await loadDispatches();
-    if (action === "refresh-context") await loadContextOverrides();
     if (action === "module") showModule(actionElement.dataset.moduleTarget, true);
     if (action === "zotero-refresh") await loadZotero();
     if (action === "zotero-authorize") await authorizeZotero();
@@ -1034,8 +817,8 @@ import { createSessionsFeature } from "./features/sessions/index.js";
   });
 
   updateModuleChrome();
-  Promise.all([loadTasks(), loadDispatches()]);
+  Promise.all([loadTasks(), dispatchFeature.load()]);
   if (state.module === "zotero") void loadZotero();
-  if (state.module === "context") void loadContextOverrides();
-  setInterval(() => void loadDispatches({ quiet: true }), 2500);
+  if (state.module === "context") void contextFeature.load();
+  setInterval(() => void dispatchFeature.load({ quiet: true }), 2500);
 })();
