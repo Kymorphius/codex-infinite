@@ -30,7 +30,7 @@ for (const file of files) {
   const relative = path.relative(root, file).split(path.sep).join("/");
   const contents = fs.readFileSync(file);
   const lines = contents.length === 0 ? 0 : contents.toString("utf8").split(/\r?\n/).length - 1 + (contents.at(-1) === 10 ? 0 : 1);
-  const limits = budget.frozenDebt[relative] || budget.defaults[category(relative)];
+  const limits = budget.fileLimits?.[relative] || budget.frozenDebt[relative] || budget.defaults[category(relative)];
   if (budget.frozenDebt[relative]) debt.push(`${relative} (${lines} lines, ${contents.length} bytes)`);
   if (lines > limits.maxLines || contents.length > limits.maxBytes) {
     failures.push(`${relative}: ${lines}/${limits.maxLines} lines, ${contents.length}/${limits.maxBytes} bytes`);
