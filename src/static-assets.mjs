@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const javascriptType = "text/javascript; charset=utf-8";
+const coreNames = ["dom", "format", "navigation", "state", "tasks", "transport"];
 const featureNames = ["console", "context", "dispatch", "priority", "sessions", "zotero"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
 const assetMap = new Map([
@@ -11,7 +12,7 @@ const assetMap = new Map([
   ["/index.html", { file: "index.html", type: "text/html; charset=utf-8" }],
   ["/styles.css", { file: "styles.css", type: "text/css; charset=utf-8" }],
   ["/app.js", { file: "app.js", type: javascriptType }],
-  ["/core/transport.js", { file: "core/transport.js", type: javascriptType }],
+  ...coreNames.map((name) => [`/core/${name}.js`, { file: `core/${name}.js`, type: javascriptType }]),
   ...featureNames.map((name) => [`/features/${name}/index.js`, { file: `features/${name}/index.js`, type: javascriptType }]),
   ...zoteroSupportFiles.map((name) => [`/features/zotero/${name}.js`, { file: `features/zotero/${name}.js`, type: javascriptType }])
 ].map(([url, asset]) => [url, Object.freeze({ ...asset, path: path.join(publicDirectory, asset.file) })]));
