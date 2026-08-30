@@ -2,7 +2,7 @@ export const MODULES = Object.freeze({
   board: { title: "看板", caption: "任务排期与对话发送" },
   console: { title: "控制台", caption: "只读本机任务记录" },
   sessions: { title: "会话中心", caption: "按工作目录查看原生 Codex 会话" },
-  context: { title: "上下文状态", caption: "包装版常规聊天全局扩展；看板任务可单独覆盖" },
+  context: { title: "上下文状态", caption: "普通会话使用模型默认窗口；需要时按会话扩展" },
   priority: { title: "项目优先级", caption: "按会话活跃度与运行时间排序" },
   zotero: { title: "文献库", caption: "本机 Zotero 文献与安全回写" }
 });

@@ -1,13 +1,13 @@
         <section class="context-panel hidden" data-module-panel="context">
           <section class="intro-card">
             <div>
-              <p class="eyebrow">WRAPPER CONTEXT</p>
-              <h2>包装版全局扩展上下文</h2>
-              <p class="muted">包装版内的原生常规聊天会统一请求 1,000,000 tokens，并同步提高自动压缩阈值。直接新建或打开对话后发送即可，不需要出现在看板中；模型仍会按自身上限接受请求。</p>
+              <p class="eyebrow">PER-CONVERSATION CONTEXT</p>
+              <h2>按会话启用扩展上下文</h2>
+              <p class="muted">普通会话使用模型默认窗口。只有在下方标记的会话，才会在原生界面打开或由看板续接时请求扩展上下文；不会影响其他聊天。</p>
             </div>
             <div class="profile-chip">
-              <span class="chip-label">常规聊天</span>
-              <code>包装版全部原生对话</code>
+              <span class="chip-label">默认模式</span>
+              <code>模型默认 · 按需开启</code>
             </div>
           </section>
 
@@ -19,7 +19,7 @@
 
           <section class="composer-card">
             <div class="section-heading">
-              <div><p class="eyebrow">OPTIONAL BOARD OVERRIDE</p><h2>看板任务单独覆盖（可选）</h2><p class="muted">这里只影响由看板调度器续接的任务；包装版原生常规聊天无需填写。</p></div>
+              <div><p class="eyebrow">NATIVE THREAD OVERRIDE</p><h2>选择需要扩展的会话</h2><p class="muted">保存后，在会话中心或原生侧边栏打开它都会应用；看板后台续接同样生效。</p></div>
               <button class="quiet-button" type="button" data-action="refresh-context">刷新</button>
             </div>
             <form class="context-form" data-testid="context-form">
@@ -27,7 +27,7 @@
               <datalist id="context-thread-options" data-testid="context-thread-options"></datalist>
               <label class="field"><span>请求窗口（tokens）</span><input name="contextWindow" data-testid="context-window" type="number" min="32000" max="2000000" step="1" value="1000000" required></label>
               <div class="context-submit"><button class="primary-button" type="submit">保存单会话覆盖</button></div>
-              <p class="form-hint field-full">“100 万”是提交给 Codex 的请求值。模型会按自身上限和有效比例决定实际窗口；保存后下方会同时显示请求值、模型接受值和预计有效值。</p>
+              <p class="form-hint field-full">“100 万”是只提交给这一条会话的请求值。模型仍会按自身上限决定实际窗口；最近观测值会在该会话下一次真实对话后更新。</p>
             </form>
           </section>
 

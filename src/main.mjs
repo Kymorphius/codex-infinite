@@ -27,7 +27,7 @@ export async function run() {
   const wrapper = await prepareWrapperCodexHome({
     sourceHome: config.sourceCodexHome,
     wrapperHome: config.wrapperCodexHome,
-    contextWindow: config.wrapperContextWindow
+    contextWindow: config.perThreadContextWindow
   });
   const localAdapter = new CodexTaskAdapter({
     sessionRoot: config.sessionRoot,
@@ -75,14 +75,19 @@ export async function run() {
   let injector;
   try {
     const codex = await ensureDedicatedCodex(config);
-    injector = new CodexInjector({ cdpOrigin: config.cdpOrigin, dashboardUrl: config.dashboardOrigin });
+    injector = new CodexInjector({
+      cdpOrigin: config.cdpOrigin,
+      dashboardUrl: config.dashboardOrigin,
+      contextWindowStore
+    });
     await injector.start();
     scheduler.start();
     console.log(`[codex-control-console] dashboard listening at ${config.dashboardOrigin}`);
     console.log(`[codex-control-console] CDP ${codex.mode} on ${config.cdpOrigin}`);
     console.log(`[codex-control-console] dedicated profile: ${config.profileDirectory}`);
     console.log(`[codex-control-console] wrapper CODEX_HOME: ${wrapper.wrapperHome}`);
-    console.log(`[codex-control-console] regular-chat context request: ${wrapper.requestedContextWindow}`);
+    console.log("[codex-control-console] regular-chat context: model default");
+    console.log(`[codex-control-console] per-thread extended context request: ${wrapper.requestedContextWindow}`);
   } catch (error) {
     zoteroAdapter.close();
     await dashboard.close();

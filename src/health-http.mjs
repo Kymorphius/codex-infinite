@@ -8,8 +8,9 @@ export function createHealthHttpHandler(config) {
       dashboardOrigin: config.dashboardOrigin,
       cdpOrigin: config.cdpOrigin,
       profileDirectory: config.profileDirectory,
-      wrapperContextWindow: config.wrapperContextWindow || null,
-      regularChatExtendedContext: Boolean(config.wrapperCodexHome && config.wrapperContextWindow),
+      perThreadExtendedContextWindow: config.perThreadContextWindow || null,
+      regularChatContextMode: "model-default",
+      regularChatExtendedContext: false,
       taskAdapter: "federated-codex-nodes"
     });
     return true;

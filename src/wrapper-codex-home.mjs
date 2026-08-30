@@ -29,27 +29,14 @@ function positiveInteger(value, label) {
   return parsed;
 }
 
-export function withWrapperContextConfig(source, contextWindow) {
-  const value = positiveInteger(contextWindow, "包装版上下文窗口");
+export function withoutWrapperContextConfig(source) {
   const lines = String(source || "").replace(/\s+$/, "").split(/\r?\n/);
   const tableIndex = lines.findIndex((line) => /^\s*\[/.test(line));
   const rootEnd = tableIndex < 0 ? lines.length : tableIndex;
-  const settings = [
-    ["model_context_window", value],
-    ["model_auto_compact_token_limit", value]
-  ];
-  let insertionIndex = rootEnd;
-  for (const [key, settingValue] of settings) {
-    const existingIndex = lines.slice(0, insertionIndex).findIndex((line) => new RegExp(`^\\s*${key}\\s*=`).test(line));
-    const setting = `${key} = ${settingValue}`;
-    if (existingIndex >= 0) lines[existingIndex] = setting;
-    else {
-      lines.splice(insertionIndex, 0, setting);
-      insertionIndex += 1;
-    }
-  }
-  if (insertionIndex < lines.length && lines[insertionIndex] !== "") lines.splice(insertionIndex, 0, "");
-  return `${lines.join("\n").replace(/\n{3,}/g, "\n\n")}\n`;
+  const contextKeys = /^(?:model_context_window|model_auto_compact_token_limit)\s*=/;
+  const root = lines.slice(0, rootEnd).filter((line) => !contextKeys.test(line.trim()));
+  const tables = lines.slice(rootEnd);
+  return `${[...root, ...tables].join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "")}\n`;
 }
 
 async function ensureSharedEntry(sourceHome, wrapperHome, name) {
@@ -86,7 +73,7 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const config = withWrapperContextConfig(sourceConfig, requestedContextWindow);
+  const config = withoutWrapperContextConfig(sourceConfig);
   const configPath = path.join(wrapperHome, "config.toml");
   const temporaryPath = `${configPath}.tmp`;
   await fs.writeFile(temporaryPath, config, { mode: 0o600 });
@@ -98,9 +85,9 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
   const projectState = await repairWrapperProjectState({ sourceHome, wrapperHome });
   const metadataPath = path.join(wrapperHome, "wrapper-context.json");
   await fs.writeFile(metadataPath, JSON.stringify({
-    version: 1,
-    requestedContextWindow,
-    requestedAutoCompactTokenLimit: requestedContextWindow,
+    version: 2,
+    defaultContextMode: "model-default",
+    perThreadContextWindow: requestedContextWindow,
     sourceHome,
     sharedEntries
   }, null, 2), { mode: 0o600 });

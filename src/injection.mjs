@@ -30,7 +30,7 @@ export function buildInjectionScript(dashboardUrl) {
   const TITLEBAR_SESSION_ENTRY_SELECTOR = '[' + TITLEBAR_SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-08-30.6';
+  const INJECTION_VERSION = '2026-08-30.7';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
   const SESSION_ENTRY_TEXT = '会话中心';
@@ -165,16 +165,15 @@ export function buildInjectionScript(dashboardUrl) {
     window.__codexControlConsoleClose = restoreWorkspace;
   }
 
-  function openTask(task) {
+  async function openTask(task) {
     const title = normalize(task?.title);
     const taskId = normalize(task?.id);
     const localThreadId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId) ? taskId : null;
     if (localThreadId) {
-      window.postMessage({
-        type: 'navigate-to-route',
-        path: '/local/' + encodeURIComponent(localThreadId)
-      }, '*');
-      return { ok: true, method: 'native-route-id', id: localThreadId, title };
+      const activation = typeof window.__codexControlConsoleOpenNativeThread === 'function'
+        ? await window.__codexControlConsoleOpenNativeThread(localThreadId)
+        : (window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(localThreadId) }, '*'), { applied: false });
+      return { ok: true, method: activation.applied ? 'native-route-context' : 'native-route-id', id: localThreadId, title, contextWindow: activation.contextWindow || null };
     }
     const nodes = Array.from(document.querySelectorAll('[role="button"], button, a, [role="link"], [tabindex], div, span')).filter((element) => {
       if (element.matches(ENTRY_SELECTOR + ',' + KANBAN_ENTRY_SELECTOR + ',' + SESSION_ENTRY_SELECTOR + ',' + PRIORITY_ENTRY_SELECTOR)) return false;
@@ -264,10 +263,10 @@ export function buildInjectionScript(dashboardUrl) {
     }
   }
 
-  window.addEventListener('message', (event) => {
+  window.addEventListener('message', async (event) => {
     if (!frame || event.source !== frame.contentWindow || !event.data) return;
     if (event.data.type === 'codex-control-console-open-task') {
-      const result = openTask(event.data.task || {});
+      const result = await openTask(event.data.task || {}).catch((error) => ({ ok: false, method: 'native-route-error', message: error.message }));
       postToDashboard({ type: 'codex-control-console-open-task-result', result });
       if (result.ok) restoreWorkspace();
     } else if (event.data.type === 'codex-control-console-close') {
