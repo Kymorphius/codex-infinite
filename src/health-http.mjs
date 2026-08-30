@@ -11,6 +11,7 @@ export function createHealthHttpHandler(config) {
       perThreadExtendedContextWindow: config.perThreadContextWindow || null,
       regularChatContextMode: "model-default",
       regularChatExtendedContext: false,
+      embeddedDashboardCompatibility: "chromium-lna-and-target-csp",
       taskAdapter: "federated-codex-nodes"
     });
     return true;

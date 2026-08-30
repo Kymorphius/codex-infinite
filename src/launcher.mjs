@@ -6,6 +6,7 @@ import { assertLoopbackConfig } from "./loopback.mjs";
 import { fetchJson } from "./cdp-client.mjs";
 
 const execFile = promisify(nodeExecFile);
+export const WRAPPER_DISABLED_FEATURES = "LocalNetworkAccessChecks";
 
 export function extractCdpProfile(command, port) {
   const portPattern = new RegExp(`--remote-debugging-port=${port}(?:\\s|$)`);
@@ -32,7 +33,7 @@ export async function findCdpProcess({ port, execFileImpl = execFile } = {}) {
 }
 
 function wrapperSignature(config) {
-  return Buffer.from(`per-thread-v2\n${path.resolve(config.wrapperCodexHome || "")}\n${config.perThreadContextWindow || ""}`, "utf8").toString("base64url");
+  return Buffer.from(`per-thread-v3-lna\n${path.resolve(config.wrapperCodexHome || "")}\n${config.perThreadContextWindow || ""}`, "utf8").toString("base64url");
 }
 
 async function processWrapperSignature(pid, execFileImpl) {
@@ -91,7 +92,8 @@ export async function ensureDedicatedCodex(config, {
     `--user-data-dir=${config.profileDirectory}`,
     `--remote-debugging-address=${config.cdpHost}`,
     `--remote-debugging-port=${config.cdpPort}`,
-    `--remote-allow-origins=${config.cdpOrigin}`
+    `--remote-allow-origins=${config.cdpOrigin}`,
+    `--disable-features=${WRAPPER_DISABLED_FEATURES}`
   ], {
     detached: true,
     stdio: "ignore",
