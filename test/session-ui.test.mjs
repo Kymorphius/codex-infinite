@@ -22,6 +22,12 @@ test("session devices group normalized tasks and order by latest activity", () =
   assert.equal(devices[1].projects.length, 2);
 });
 
+test("an unavailable peer remains visible even without readable sessions", () => {
+  const offline = { id: "offline", name: "Offline", status: "error", kind: "remote-codex", location: "远程" };
+  const groups = groupSessionsByDevice([local, offline], tasks.filter((task) => task.device.id === "local"));
+  assert.equal(groups.some((device) => device.id === "offline" && device.projects.length === 0), true);
+});
+
 test("session filtering searches metadata and normalizes interrupted as error", () => {
   assert.deepEqual(filterSessions(tasks, { query: "TERRA" }).map((task) => task.id), ["1"]);
   assert.deepEqual(filterSessions(tasks, { status: "active" }).map((task) => task.id), ["2"]);

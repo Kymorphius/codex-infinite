@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTaskSource, normalizeTaskPayload, taskStatePresentation } from "../public/core/tasks.js";
+import { createTaskSource, isLocalTask, normalizeTaskPayload, taskStatePresentation } from "../public/core/tasks.js";
 
 test("task payload normalization keeps only normalized arrays and truthful state", () => {
   assert.deepEqual(normalizeTaskPayload({ status: "connected", tasks: [{ id: "one" }], projects: null }), {
@@ -10,6 +10,12 @@ test("task payload normalization keeps only normalized arrays and truthful state
   assert.deepEqual(taskStatePresentation("disconnected", "offline"), {
     status: "disconnected", label: "未连接", source: "不可用", message: "offline"
   });
+});
+
+test("remote node tasks are excluded from local-only actions", () => {
+  assert.equal(isLocalTask({ device: { kind: "local-codex" } }), true);
+  assert.equal(isLocalTask({ device: { kind: "remote-codex" } }), false);
+  assert.equal(isLocalTask({}), true);
 });
 
 test("task source updates normalized state before notifying consumers", async () => {

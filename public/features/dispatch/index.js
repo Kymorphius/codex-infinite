@@ -1,4 +1,5 @@
 import { requestJson } from "../../core/transport.js";
+import { isLocalTask } from "../../core/tasks.js";
 
 export const DISPATCH_COLUMNS = ["backlog", "scheduled", "queued", "sending", "sent", "failed"];
 
@@ -26,7 +27,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
   const threadSelect = $('[data-testid="dispatch-thread"]');
 
   function updateThreadSelector() {
-    const tasks = state.tasks.filter((task) => task.project === projectSelect.value);
+    const tasks = state.tasks.filter((task) => isLocalTask(task) && task.project === projectSelect.value);
     threadSelect.replaceChildren();
     if (!tasks.length) {
       threadSelect.append(new Option(projectSelect.value ? "该项目没有可用对话" : "先选择项目", ""));
@@ -40,7 +41,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
 
   function updateDestinations() {
     const currentProject = projectSelect.value;
-    const names = destinationProjectNames(state.tasks);
+    const names = destinationProjectNames(state.tasks.filter(isLocalTask));
     projectSelect.replaceChildren(new Option("选择项目", ""), ...names.map((name) => new Option(name, name)));
     if (names.includes(currentProject)) projectSelect.value = currentProject;
     updateThreadSelector();

@@ -1,7 +1,9 @@
+import { isLocalTask } from "../../core/tasks.js";
+
 export function consoleMetrics(tasks = [], connected = true) {
   return {
     count: connected ? String(tasks.length) : "—",
-    source: connected ? "本机记录" : "不可用"
+    source: connected ? "节点记录" : "不可用"
   };
 }
 
@@ -29,8 +31,10 @@ export function createConsoleFeature({ state, $, formatDate, statusLabel, reques
     const open = document.createElement("button");
     open.type = "button";
     open.className = "task-open";
-    open.textContent = "在 Codex 中打开";
-    open.addEventListener("click", () => requestOpen(task));
+    const local = isLocalTask(task);
+    open.textContent = local ? "在 Codex 中打开" : "由远端节点打开";
+    open.disabled = !local;
+    if (local) open.addEventListener("click", () => requestOpen(task));
     card.append(main, open);
     return card;
   }

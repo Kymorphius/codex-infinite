@@ -5,29 +5,20 @@ import { createContextHttpHandler } from "./context-http.mjs";
 import { createDispatchHttpHandler } from "./dispatch-http.mjs";
 import { createTasksHttpHandler } from "./tasks-http.mjs";
 import { createZoteroHttpHandler } from "./zotero-http.mjs";
+import { createHealthHttpHandler } from "./health-http.mjs";
 import { sendJson } from "./http-utils.mjs";
 
-export function createDashboardServer({ config, adapter, zoteroAdapter = null, zoteroLocalApi = null, dispatchStore = null, contextWindowStore = null, modelCatalog = null, logger = console }) {
+export function createDashboardServer({ config, adapter, local = adapter, zoteroAdapter = null, zoteroLocalApi = null, dispatchStore = null, contextWindowStore = null, modelCatalog = null, logger = console }) {
   assertLoopbackConfig(config);
-  const handleContextRequest = createContextHttpHandler({ adapter, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin });
-  const handleDispatchRequest = createDispatchHttpHandler({ adapter, dispatchStore, dashboardOrigin: config.dashboardOrigin });
-  const handleTasksRequest = createTasksHttpHandler({ adapter });
+  const handleContextRequest = createContextHttpHandler({ adapter: local, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin });
+  const handleDispatchRequest = createDispatchHttpHandler({ adapter: local, dispatchStore, dashboardOrigin: config.dashboardOrigin });
+  const handleTasksRequest = createTasksHttpHandler({ adapter, localAdapter: local });
   const handleZoteroRequest = createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin });
+  const handleHealthRequest = createHealthHttpHandler(config);
   const server = http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url || "/", config.dashboardOrigin);
-      if (requestUrl.pathname === "/api/health") {
-        sendJson(response, 200, {
-          status: "ok",
-          dashboardOrigin: config.dashboardOrigin,
-          cdpOrigin: config.cdpOrigin,
-          profileDirectory: config.profileDirectory,
-          wrapperContextWindow: config.wrapperContextWindow || null,
-          regularChatExtendedContext: Boolean(config.wrapperCodexHome && config.wrapperContextWindow),
-          taskAdapter: "codex-session-metadata-read-only"
-        });
-        return;
-      }
+      if (handleHealthRequest(response, requestUrl)) return;
       if (await handleZoteroRequest(request, response, requestUrl)) return;
       if (await handleTasksRequest(request, response, requestUrl)) return;
       if (await handleContextRequest(request, response, requestUrl)) return;

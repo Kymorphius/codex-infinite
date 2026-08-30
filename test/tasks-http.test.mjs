@@ -16,7 +16,12 @@ async function start(t) {
     async listTasks() { calls.push(["list"]); return { status: "connected", tasks: [task], projects: ["demo"] }; },
     async getTask(id) { calls.push(["get", id]); return id === task.id ? task : null; }
   };
-  const dashboard = createDashboardServer({ config: config(), adapter });
+  const localTask = { id: "local-one", title: "Local", status: "active", project: "local", sourceFile: "/private/session.jsonl" };
+  const localAdapter = {
+    async listTasks() { calls.push(["local-list"]); return { status: "connected", tasks: [localTask], devices: [{ id: "local", name: "Local" }] }; },
+    async getTask(id) { return id === localTask.id ? localTask : null; }
+  };
+  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter });
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
@@ -44,4 +49,16 @@ test("task routes reject unsupported methods and malformed identifiers", async (
   assert.equal((await request("/api/tasks", { method: "POST" })).status, 405);
   assert.equal((await request("/api/tasks/%ZZ")).status, 400);
   assert.deepEqual(calls, []);
+});
+
+test("node snapshot is local-only, bounded, and excludes filesystem paths", async (t) => {
+  const { calls, request } = await start(t);
+  const response = await request("/api/node/snapshot");
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.schemaVersion, 1);
+  assert.equal(result.tasks[0].id, "local-one");
+  assert.equal(result.tasks[0].sourceFile, undefined);
+  assert.deepEqual(calls, [["local-list"]]);
+  assert.equal((await request("/api/node/snapshot", { method: "POST" })).status, 405);
 });

@@ -1,13 +1,19 @@
 import { decodePathSegment, sendJson } from "./http-utils.mjs";
+import { projectLocalNodeSnapshot } from "./peer-contract.mjs";
 
-export function createTasksHttpHandler({ adapter }) {
+export function createTasksHttpHandler({ adapter, localAdapter = adapter }) {
   return async function handleTasksRequest(request, response, requestUrl) {
+    const isNodeSnapshot = requestUrl.pathname === "/api/node/snapshot";
     const isCollection = requestUrl.pathname === "/api/tasks";
     const isItem = requestUrl.pathname.startsWith("/api/tasks/");
-    if (!isCollection && !isItem) return false;
+    if (!isNodeSnapshot && !isCollection && !isItem) return false;
 
     if (request.method !== "GET" && request.method !== "HEAD") {
       sendJson(response, 405, { status: "error", message: "Method not allowed" });
+      return true;
+    }
+    if (isNodeSnapshot) {
+      sendJson(response, 200, projectLocalNodeSnapshot(await localAdapter.listTasks()));
       return true;
     }
     if (isCollection) {

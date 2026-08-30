@@ -1,3 +1,7 @@
+export function isLocalTask(task) {
+  return task?.device?.kind !== "remote-codex";
+}
+
 export function normalizeTaskPayload(data = {}) {
   const tasks = Array.isArray(data.tasks) ? data.tasks : [];
   const projects = Array.isArray(data.projects) ? data.projects : [];
@@ -14,13 +18,13 @@ export function normalizeTaskPayload(data = {}) {
 
 export function taskStatePresentation(status, message = "") {
   const label = { connected: "已连接", empty: "暂无任务", disconnected: "未连接", error: "读取失败", loading: "连接中…" }[status];
-  const source = status === "connected" ? "本机记录" : status === "loading" ? "读取中" : "不可用";
+  const source = status === "connected" ? "节点记录" : status === "loading" ? "读取中" : "不可用";
   return { status, label, source, message };
 }
 
 export function createTaskSource({ state, onState, onData, fetchImpl = fetch }) {
-  async function load() {
-    onState(taskStatePresentation("loading"));
+  async function load({ quiet = false } = {}) {
+    if (!quiet) onState(taskStatePresentation("loading"));
     try {
       const response = await fetchImpl("/api/tasks", { cache: "no-store" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
