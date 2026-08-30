@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { repairWrapperProjectState } from "./wrapper-project-state.mjs";
 
 const SHARED_ENTRIES = Object.freeze([
   "auth.json",
@@ -94,6 +95,7 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
   for (const name of SHARED_ENTRIES) {
     if (await ensureSharedEntry(sourceHome, wrapperHome, name)) sharedEntries.push(name);
   }
+  const projectState = await repairWrapperProjectState({ sourceHome, wrapperHome });
   const metadataPath = path.join(wrapperHome, "wrapper-context.json");
   await fs.writeFile(metadataPath, JSON.stringify({
     version: 1,
@@ -102,5 +104,5 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
     sourceHome,
     sharedEntries
   }, null, 2), { mode: 0o600 });
-  return { wrapperHome, configPath, metadataPath, requestedContextWindow, sharedEntries };
+  return { wrapperHome, configPath, metadataPath, requestedContextWindow, sharedEntries, projectState };
 }
