@@ -15,7 +15,13 @@ function responseRecorder() {
 
 test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/").file, "index.html");
-  assert.equal(resolveStaticAsset("/styles.css?v=1").type, "text/css; charset=utf-8");
+  for (const name of ["base", "tasks", "sessions-priority", "states", "zotero", "responsive"]) {
+    const asset = resolveStaticAsset(`/styles/${name}.css?v=1`);
+    assert.equal(asset.file, `styles/${name}.css`);
+    assert.equal(asset.type, "text/css; charset=utf-8");
+  }
+  assert.equal(resolveStaticAsset("/styles.css"), null);
+  assert.equal(resolveStaticAsset("/styles/missing.css"), null);
   assert.equal(resolveStaticAsset("/core/dom.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/core/format.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/core/navigation.js").type, "text/javascript; charset=utf-8");
@@ -34,6 +40,7 @@ test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/../package.json"), null);
   assert.equal(resolveStaticAsset("/%2e%2e/package.json"), null);
   assert.equal(resolveStaticAsset("/features/%2e%2e/app.js"), null);
+  assert.equal(resolveStaticAsset("/styles/%2e%2e/index.html"), null);
   assert.equal(resolveStaticAsset("/%ZZ"), null);
 });
 
