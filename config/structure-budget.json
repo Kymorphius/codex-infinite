@@ -9,7 +9,6 @@
   },
   "frozenDebt": {
     "public/styles.css": { "maxLines": 272, "maxBytes": 29488 },
-    "scripts/inspect.mjs": { "maxLines": 434, "maxBytes": 23043 },
-    "src/zotero-local-api.mjs": { "maxLines": 545, "maxBytes": 23477 }
+    "scripts/inspect.mjs": { "maxLines": 434, "maxBytes": 23043 }
   }
 }
