@@ -44,6 +44,8 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 
 ```text
 public/
+  index.html                # synchronous document shell
+  panels/                   # private server-composed feature markup
   app.js                    # bootstrap only
   core/                     # state, DOM helpers, formatting, task source, transport, navigation
   features/
@@ -58,9 +60,8 @@ Each feature owns its rendering, events, and view-specific formatting. Shared pr
 
 ## Structural debt and extraction order
 
-1. Split `public/index.html` into feature templates only if native modules or a build-free template loader can preserve startup reliability.
-2. Extract Zotero read queries/mapping from `src/zotero-adapter.mjs`.
-3. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
-4. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
+1. Extract Zotero read queries/mapping from `src/zotero-adapter.mjs`.
+2. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
+3. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
 
 This order reduces the largest change surface first without changing product behavior.

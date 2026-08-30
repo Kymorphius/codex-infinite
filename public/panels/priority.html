@@ -1,0 +1,41 @@
+        <section class="priority-panel hidden" data-module-panel="priority">
+          <section class="intro-card priority-intro">
+            <div>
+              <p class="eyebrow">PROJECT PRIORITY</p>
+              <h2>项目优先级</h2>
+              <p class="muted">按真实会话活动计算项目顺序：近期对话贡献活跃权重，累计运行跨度贡献时长权重。本视图只读。</p>
+            </div>
+            <div class="formula-card" aria-label="优先级计算规则">
+              <span>优先级分数</span>
+              <strong>近期对话 70 + 会话加权 15 + 时长 15</strong>
+              <small>最近对话决定主顺序；近 7 天每个活跃会话加 3 分，运行跨度只作辅助。</small>
+            </div>
+          </section>
+
+          <section class="metrics" aria-label="项目优先级概览">
+            <div class="metric-card"><span>项目</span><strong data-testid="priority-project-count">—</strong></div>
+            <div class="metric-card"><span>近期活跃会话</span><strong data-testid="priority-recent-count">—</strong></div>
+            <div class="metric-card"><span>数据来源</span><strong data-testid="priority-source">读取中</strong></div>
+          </section>
+
+          <section class="priority-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">RANKED PROJECTS</p><h2>项目排序</h2></div>
+              <span class="section-status" data-testid="priority-connection-status">连接中…</span>
+            </div>
+            <div class="priority-state state-card" data-priority-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在计算项目优先级</h3><p>从本机只读任务记录汇总近期对话和运行时间。</p>
+            </div>
+            <div class="priority-state state-card hidden" data-priority-state="empty">
+              <div class="state-icon">○</div><h3>还没有可排序的项目</h3><p>出现可读取的 Codex 会话后，项目会显示在这里。</p>
+            </div>
+            <div class="priority-state state-card hidden" data-priority-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法连接到任务记录</h3><p data-priority-state-message>Codex 本地任务数据不可用，没有伪造优先级。</p>
+            </div>
+            <div class="priority-state state-card hidden" data-priority-state="error">
+              <div class="state-icon">!</div><h3>计算项目优先级时遇到问题</h3><p data-priority-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="priority-list hidden" data-testid="priority-list" aria-live="polite"></div>
+          </section>
+        </section>
+

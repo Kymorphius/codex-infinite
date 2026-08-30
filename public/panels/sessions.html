@@ -1,0 +1,32 @@
+        <section class="sessions-panel hidden" data-module-panel="sessions">
+          <section class="sessions-section">
+            <div class="section-heading sessions-heading">
+              <div><p class="eyebrow">PROJECT → SESSION</p><h2>项目与会话</h2></div>
+              <span class="section-status" data-testid="session-connection-status">连接中…</span>
+            </div>
+            <div class="session-controls" aria-label="筛选会话">
+              <label class="session-search"><span class="sr-only">搜索会话</span><input type="search" data-testid="session-search" placeholder="搜索项目、目录、会话或模型"></label>
+              <label class="session-status-filter"><span class="sr-only">状态</span><select data-testid="session-status-filter"><option value="all">全部状态</option><option value="active">进行中</option><option value="completed">已完成</option><option value="error">异常</option></select></label>
+              <div class="session-scope-summary" aria-label="会话数据范围">
+                <span><strong data-testid="session-device-count">—</strong> 设备</span>
+                <span><strong data-testid="session-project-count">—</strong> 目录</span>
+                <span><strong data-testid="session-count">—</strong> 总会话</span>
+              </div>
+              <span class="session-result-count" data-testid="session-result-count">—</span>
+            </div>
+            <div class="sessions-state state-card" data-sessions-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在读取原生会话</h3><p>从包装版共享的 Codex 会话目录建立只读索引。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="empty">
+              <div class="state-icon">○</div><h3>还没有可显示的会话</h3><p>在包装版中新建或打开原生 Codex 对话后，会话会出现在这里。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法读取原生会话</h3><p data-sessions-state-message>Codex 本地会话记录不可用。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="error">
+              <div class="state-icon">!</div><h3>读取会话时遇到问题</h3><p data-sessions-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="session-filter-empty hidden" data-testid="session-filter-empty"><div class="state-icon">⌕</div><h3>没有匹配的会话</h3><p>换一个关键词或状态试试。</p></div>
+            <div class="session-project-list hidden" data-testid="session-project-list" aria-live="polite"></div>
+          </section>
+        </section>
