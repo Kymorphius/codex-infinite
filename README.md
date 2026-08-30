@@ -40,6 +40,8 @@ npm start
 
 如果 `9231` 已经被另一个 profile 占用，启动器会拒绝附着或终止它，避免误触碰正常 Codex 实例。
 
+新版桌面运行时同时通过 Chromium Local Network Access 和原生 renderer 的 CSP 拦截 `app://-` 内嵌的 loopback 页面。专用包装版进程单独关闭 `LocalNetworkAccessChecks`；注入器只对专用主页面 target 启用 CDP CSP bypass，并在第一次启用时重载一次原生页面，让该设置从新文档开始生效。重载标记随 renderer 文档保存，后台服务自身重启不会再次打断界面。这些兼容设置不作用于普通 Codex、其他页面 target 或系统浏览器，也不修改应用包。dashboard/CDP 仍只监听 `127.0.0.1`，所有变更接口仍要求精确 dashboard Origin。决策与风险边界记录在 [ADR 0005](docs/adr/0005-disable-lna-in-dedicated-wrapper.md)。
+
 首次从旧的全局模式升级到单会话模式，或修改 `CODEX_CONTROL_CONTEXT_WINDOW` 后，必须先完全退出已经打开的包装版窗口，再运行 `npm start`。启动器会拒绝附着到仍使用旧环境的包装版进程，避免界面状态与实际配置不一致。
 
 单会话表单默认请求 1,000,000 tokens。如需改变包装版建议的扩展值，可在启动时设置 `CODEX_CONTROL_CONTEXT_WINDOW`；它不会自动应用到普通会话。
@@ -118,7 +120,7 @@ app-server/native route bridge 可用后，可以在 `src/task-adapter.mjs` 后�
 ## 安全边界
 
 - 所有 HTTP/CDP listener 都固定绑定到 `127.0.0.1`，配置会拒绝 wildcard、LAN 和 `localhost` 主机。
-- 只对专用 CDP renderer 设置 `Page.setBypassCSP`，让本机 dashboard 能在 Codex 的受限 `app://` workspace 中显示；不写入应用包。
+- CSP bypass 只施加到专用包装版的主页面 target；首次启用时重载一次使其生效，不写入应用包，不影响普通 Codex 或其他浏览器。
 - 不会终止正常 `/Users/matrix/Library/Application Support/Codex` 对应的进程。
 - 注入使用 DOM marker、new-document script 和定期同步，入口可重复执行且不会重复添加。
 

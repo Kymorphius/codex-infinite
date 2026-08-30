@@ -35,12 +35,41 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
 }
 
+async function waitForReloadedDocument(connection) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const ready = await connection.evaluate("document.readyState === 'interactive' || document.readyState === 'complete'").catch(() => false);
+    if (ready) return;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("Codex renderer did not become ready after enabling dashboard compatibility");
+}
+
+async function prepareCspBypass(connection) {
+  if (connection.__codexControlConsoleCspPrepared) return false;
+  const alreadyReloaded = await connection.evaluate("Boolean(window.__codexControlConsoleCspBypassReloaded)").catch(() => false);
+  await connection.send("Page.setBypassCSP", { enabled: true });
+  await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: "window.__codexControlConsoleCspBypassReloaded = true;"
+  });
+  connection.__codexControlConsoleCspPrepared = true;
+  if (alreadyReloaded) return false;
+  await connection.send("Page.reload", { ignoreCache: false });
+  await waitForReloadedDocument(connection);
+  return true;
+}
+
 export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null } = {}) {
   await connection.send("Page.enable");
-  if (!connection.__codexControlConsoleCspPrepared) {
-    await connection.send("Page.setBypassCSP", { enabled: true });
-    connection.__codexControlConsoleCspPrepared = true;
+  if (!connection.__codexControlConsoleScriptsPrepared) {
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: buildInjectionScript(dashboardUrl)
+    });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: buildNativeContextInjectionScript()
+    });
+    connection.__codexControlConsoleScriptsPrepared = true;
   }
+  await prepareCspBypass(connection);
   if (!force && connection.__codexControlConsoleInstalled) {
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');
@@ -56,14 +85,6 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       await connection.evaluate("window.__codexControlConsoleClose?.()");
       connection.__codexControlConsoleRecoveryAttempted = true;
     }
-  }
-  if (!connection.__codexControlConsoleInstalled) {
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildInjectionScript(dashboardUrl)
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeContextInjectionScript()
-    });
   }
   await syncNativeContext(connection, contextWindowStore, contextOverrides);
   await connection.evaluate(buildInjectionScript(dashboardUrl));
