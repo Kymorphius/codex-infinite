@@ -11,7 +11,7 @@ import { FederatedTaskAdapter } from "../src/federated-task-adapter.mjs";
 import { SshPeerAdapter, sshActionArguments, sshActivityArguments, sshSnapshotArguments } from "../src/ssh-peer-adapter.mjs";
 
 const peer = normalizePeerDefinition({
-  id: "forest-mac", name: "森林 Mac", location: "森林",
+  id: "forest-mac", name: "MacBook Pro", location: "192.168.1.30",
   transports: [
     { type: "direct-ssh", host: "192.168.1.30", user: "matrix", port: 22, dashboardPort: 47831 },
     { type: "ssh-relay", relayHost: "67.230.169.158", relayUser: "root", relayPort: 33699, forwardedPort: 47842 }
@@ -42,7 +42,7 @@ test("local node snapshots drop source paths and peer identity is configuration-
   assert.equal(local.tasks[0].sourceFile, undefined);
   const remote = normalizePeerSnapshot(peer, snapshot());
   assert.equal(remote.tasks[0].device.id, "forest-mac");
-  assert.equal(remote.tasks[0].device.name, "森林 Mac");
+  assert.equal(remote.tasks[0].device.name, "MacBook Pro");
   assert.equal(remote.tasks[0].sourceFile, undefined);
 });
 
@@ -120,6 +120,7 @@ test("peer messages send bodies over stdin and keep prompts out of SSH arguments
   assert.equal(result.transport, "direct-ssh");
   assert.equal(invocation.args.some((argument) => argument.includes("private prompt body")), false);
   assert.equal(JSON.parse(invocation.body()).prompt, "private prompt body");
+  assert.equal(JSON.parse(invocation.body()).expectedDraftRevision, null);
   assert.ok(invocation.args.includes("--data-binary"));
   assert.equal(invocation.args.filter((argument) => argument.includes("x-codex-node-")).some((argument) => argument.includes(" ")), false);
   assert.ok(sshActionArguments(peer.transports[0], { "x-codex-node-timestamp": "1", "x-codex-node-nonce": "nonce", "x-codex-node-signature": "a".repeat(64) }).includes("http://127.0.0.1:47831/api/node/actions/message"));

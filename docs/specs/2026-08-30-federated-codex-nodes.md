@@ -9,7 +9,7 @@
 
 The console currently represents only one Mac. The desired product is not a central controller with lightweight agents: every device must run the complete wrapper, dashboard, and native Codex UI, while every peer can see which native conversations exist and which are active on the other devices.
 
-The first target peer is the Mac at `192.168.1.30`, named “森林 Mac”. It already runs native ChatGPT/Codex and has 1,095 session files, but does not currently have a Node.js runtime or this wrapper installed.
+The first target peer is the MacBook Pro at `192.168.1.30`. Its stable legacy node id remains `forest-mac` so deployed credentials and routes do not break.
 
 ## Goals
 
@@ -41,8 +41,8 @@ Refresh fetches local data and configured peers concurrently. Remote conversatio
   "peers": [
     {
       "id": "forest-mac",
-      "name": "森林 Mac",
-      "location": "森林",
+      "name": "MacBook Pro",
+      "location": "192.168.1.30",
       "transports": [
         {
           "type": "direct-ssh",
@@ -94,7 +94,7 @@ Domain normalization remains independent from SSH, HTTP, and filesystem behavior
 
 Federation is inactive when the peer file is absent or empty, preserving current single-node behavior. Removing or renaming the peer file returns a node to standalone operation. A failed peer cannot prevent the local node from starting or serving its own sessions.
 
-Forest deployment installs a user-local Node runtime, checks out/copies the same committed application, creates its node/peer config with mode 0600, launches the full wrapper as a user service, and maintains its assigned reverse tunnel. The current Mac receives the symmetric setup. Rollback unloads only those user services and removes the deployed application/runtime directories; native ChatGPT/Codex data remains untouched.
+MacBook Pro deployment installs a user-local Node runtime, checks out/copies the same committed application, creates its node/peer config with mode 0600, launches the full wrapper as a user service, and maintains its assigned reverse tunnel. The current Mac receives the symmetric setup. Rollback unloads only those user services and removes the deployed application/runtime directories; native ChatGPT/Codex data remains untouched.
 
 ## Acceptance criteria
 
@@ -116,8 +116,8 @@ Forest deployment installs a user-local Node runtime, checks out/copies the same
 ## Shipped deviations
 
 - The accepted design was extended before implementation from relay-preferred to adaptive ordered transport: direct SSH is retried first on each refresh, then `67.230.169.158:33699` relay forwarding is used.
-- Both nodes run persistent complete wrapper and relay LaunchAgents. Forest uses the checksum-verified official Node.js 22.23.2 Apple Silicon user runtime and its existing native ChatGPT/Codex installation.
+- Both nodes run persistent complete wrapper and relay LaunchAgents. MacBook Pro uses the checksum-verified official Node.js 22.23.2 Apple Silicon user runtime and its existing native ChatGPT/Codex installation.
 - Each node returned 320 aggregate sessions: 160 owned locally plus 160 from its peer, grouped into 2 devices and 31 working directories. Real embedded inspection verified both native windows and all four injected entries exactly once.
-- Relay loopback ports 47841 and 47842 independently returned schema-v1 snapshots for MatrixBook Air and Forest Mac respectively, each with 160 tasks. No application or forwarded port bound to a LAN/public address.
+- Relay loopback ports 47841 and 47842 independently returned schema-v1 snapshots for MatrixBook Air and MacBook Pro respectively, each with 160 tasks. No application or forwarded port bound to a LAN/public address.
 - The browser silently refreshes node snapshots every 15 seconds. Unavailable peer cards remain visible, and remote-native open, context, and dispatch actions remain disabled until the routed-action protocol ships.
 - Final structure validation covered 100 files with zero frozen debt; all 93 tests passed independently on both Macs after the final synchronization changes.

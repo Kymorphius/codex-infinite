@@ -19,7 +19,7 @@ test("browser remote messages require exact origin and owner actions require a n
   };
   const adapter = {
     async listTasks() { return { status: "empty", tasks: [], projects: [], devices: [] }; },
-    async sendMessage(id, device, prompt) { calls.push(["route", id, device, prompt]); return { accepted: true, transport: "direct-ssh" }; }
+    async sendMessage(id, device, prompt, revision) { calls.push(["route", id, device, prompt, revision]); return { accepted: true, transport: "direct-ssh" }; }
   };
   const remoteMessageService = { async submit(input) { calls.push(["owner", input.threadId, input.prompt]); return { accepted: true, requestId: "request-1" }; } };
   const dashboard = createDashboardServer({ config, adapter, local: adapter, remoteMessageService });
@@ -45,6 +45,5 @@ test("browser remote messages require exact origin and owner actions require a n
   assert.equal(duplicate.status, 202);
   assert.equal((await duplicate.json()).duplicate, true);
   assert.equal((await fetch(`${origin}${ownerPath}`, { method: "POST", headers: { ...headers, [ACTION_HEADERS.signature]: "0".repeat(64) }, body: ownerBody })).status, 401);
-  assert.deepEqual(calls, [["route", "thread-1", "forest-mac", "continue remotely"], ["owner", "thread-1", "owner executes"]]);
+  assert.deepEqual(calls, [["route", "thread-1", "forest-mac", "continue remotely", undefined], ["owner", "thread-1", "owner executes"]]);
 });
-

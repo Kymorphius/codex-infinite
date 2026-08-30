@@ -55,9 +55,9 @@ SSH remains the authenticated transport: the peer invokes a fixed loopback URL t
 
 ## Shipped evidence
 
-- MatrixBook Air fetched a 60-entry Forest conversation through `direct-ssh`; the normalized response contained 17 messages, 32 tool lifecycle entries, and 11 status markers with no forbidden raw fields.
+- MatrixBook Air fetched a 60-entry MacBook Pro conversation through `direct-ssh`; the normalized response contained 17 messages, 32 tool lifecycle entries, and 11 status markers with no forbidden raw fields.
 - The relay loopback route on `67.230.169.158:47842` independently returned the same schema-v1 owner activity when accessed through authenticated SSH on port 33699.
-- Real UI inspection opened a Forest session in the local “会话中心”, rendered the read-only owner label and recent native activity, and preserved three-second refresh behavior without browser persistence.
+- Real UI inspection opened a MacBook Pro session in the local “会话中心”, rendered the owner label and recent native activity, and preserved three-second refresh behavior without browser persistence.
 - The follow-up workspace treatment expanded the remote activity from a side drawer to the full embedded Codex work area, keeping the local native window chrome while making ownership explicit.
 - Both Macs passed 97 tests and the 103-file structure check with zero frozen debt after deployment.
 

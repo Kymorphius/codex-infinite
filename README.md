@@ -12,7 +12,7 @@
 
 节点传输可自适应。`~/.codex-control-console/peers.json` 为每个节点配置有序候选，优先使用直接 SSH；不可达时自动回退到认证中继。当前两台 Mac 的备用路径通过 `67.230.169.158:33699` 建立反向隧道，中继端口只绑定服务器 `127.0.0.1`，两台 Mac 的 dashboard 和 CDP 也继续只监听本机回环。中继只转发节点自己的有界快照，不成为会话所有者，也不会递归转发从其他节点学到的数据。
 
-本机节点由 `~/Library/LaunchAgents/dev.codex-control-console.plist` 持续运行完整包装版，由 `dev.codex-control-relay.plist` 维护备用隧道。森林节点使用相同的两个用户服务，应用位于 `~/Applications/CodexControlConsole`，Node.js 用户运行时位于 `~/.local/node-v22.23.2-darwin-arm64`；不会替换系统 Node 或普通 ChatGPT/Codex profile。
+本机节点由 `~/Library/LaunchAgents/dev.codex-control-console.plist` 持续运行完整包装版，由 `dev.codex-control-relay.plist` 维护备用隧道。MacBook Pro（192.168.1.30）使用相同的两个用户服务，应用位于 `~/Applications/CodexControlConsole`，Node.js 用户运行时位于 `~/.local/node-v22.23.2-darwin-arm64`；不会替换系统 Node 或普通 ChatGPT/Codex profile。
 
 ## 常规聊天扩展上下文
 

@@ -11,11 +11,10 @@ export function createDashboardHandlers({ config, adapter, local, remoteMessageS
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
     createPeerActionHttpHandler({ adapter, remoteMessageService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
-    createActivityHttpHandler({ adapter, localAdapter: local }),
+    createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService }),
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),
     createTasksHttpHandler({ adapter, localAdapter: local }),
     createContextHttpHandler({ adapter: local, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin }),
     createDispatchHttpHandler({ adapter: local, dispatchStore, dashboardOrigin: config.dashboardOrigin })
   ];
 }
-

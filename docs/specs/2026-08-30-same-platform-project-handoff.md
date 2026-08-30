@@ -14,7 +14,7 @@ Cross-node viewing does not make a project portable. A user must be able to move
 
 - Copy a selected project directory completely between trusted macOS nodes, preserving its requested absolute path when safe.
 - Preflight source, destination, free space, platform compatibility, active work, Git state, symlinks, and conflicts before copying.
-- Support an initial one-way handoff between MatrixBook Air and Forest Mac over direct SSH.
+- Support an initial one-way handoff between MatrixBook Air and MacBook Pro over direct SSH.
 - Transfer selected conversation continuity only through an explicit ownership handoff.
 - Verify file and conversation integrity before offering “在目标节点继续”.
 

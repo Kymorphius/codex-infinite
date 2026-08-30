@@ -124,12 +124,12 @@ export class SshPeerAdapter {
     throw error;
   }
 
-  async sendMessage(threadId, prompt) {
+  async sendMessage(threadId, prompt, expectedDraftRevision = null) {
     if (!THREAD_ID_PATTERN.test(String(threadId || ""))) throw new Error("Peer action thread id is invalid");
     const key = await loadActionKey(this.actionKeyPath);
     const timestamp = String(Date.now());
     const nonce = crypto.randomUUID();
-    const body = Buffer.from(JSON.stringify({ threadId, prompt, requestId: nonce }), "utf8");
+    const body = Buffer.from(JSON.stringify({ threadId, prompt, expectedDraftRevision, requestId: nonce }), "utf8");
     const headers = {
       [ACTION_HEADERS.timestamp]: timestamp,
       [ACTION_HEADERS.nonce]: nonce
@@ -141,6 +141,7 @@ export class SshPeerAdapter {
         if (payload.status !== "ok" || !payload.accepted) {
           const rejected = new Error(payload.message || "所属节点拒绝了消息");
           rejected.remoteRejected = true;
+          rejected.statusCode = 409;
           throw rejected;
         }
         return { accepted: true, duplicate: Boolean(payload.duplicate), transport: transport.type };

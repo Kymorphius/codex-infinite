@@ -9,7 +9,9 @@ export function validateRemoteMessage(input = {}) {
   if (!THREAD_ID_PATTERN.test(threadId)) throw httpError(400, "会话标识无效");
   if (!prompt) throw httpError(400, "发送内容不能为空");
   if (prompt.length > 12_000) throw httpError(413, "发送内容过长");
-  return { threadId, prompt };
+  const expectedDraftRevision = input.expectedDraftRevision == null ? null : String(input.expectedDraftRevision);
+  if (expectedDraftRevision !== null && !/^[0-9a-f]{64}$/.test(expectedDraftRevision)) throw httpError(400, "草稿版本无效");
+  return { threadId, prompt, expectedDraftRevision };
 }
 
 export class RemoteMessageService {
@@ -21,7 +23,7 @@ export class RemoteMessageService {
   }
 
   async submit(input) {
-    const { threadId, prompt } = validateRemoteMessage(input);
+    const { threadId, prompt, expectedDraftRevision } = validateRemoteMessage(input);
     if (!this.nativeConversationAdapter) throw httpError(503, "所属节点发送服务不可用");
     const task = await this.localAdapter.getTask(threadId);
     if (!task) throw httpError(404, "所属节点不存在这个会话");
@@ -29,10 +31,14 @@ export class RemoteMessageService {
     const requestId = this.idFactory();
     this.activeThreads.add(threadId);
     try {
-      await this.nativeConversationAdapter.sendMessage({ threadId, prompt });
+      await this.nativeConversationAdapter.sendMessage({ threadId, prompt, expectedDraftRevision });
       return { accepted: true, requestId, threadId };
     } finally {
       this.activeThreads.delete(threadId);
     }
+  }
+
+  async readDraft(threadId) {
+    return this.nativeConversationAdapter?.readDraft?.(threadId) || null;
   }
 }

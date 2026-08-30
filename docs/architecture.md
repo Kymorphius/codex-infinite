@@ -37,7 +37,7 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/peer-contract.mjs`, `src/peer-config.mjs`, `src/ssh-peer-adapter.mjs`, `src/federated-task-adapter.mjs` — trusted node definitions, local-only snapshot/activity contracts, adaptive direct/relay SSH transport, and owner-routed aggregate read views.
 - `src/conversation-activity.mjs`, `src/activity-http.mjs` — bounded native activity projection/redaction and explicit owning-device HTTP routing.
 - `src/peer-action-auth.mjs`, `src/peer-action-http.mjs`, `src/remote-message-service.mjs` — credential-isolated action signing/replay protection, local/owner mutation routes, and single-owner native thread coordination.
-- `src/native-conversation-adapter.mjs` — loopback CDP boundary for opening the owner task and submitting through its native Codex composer.
+- `src/native-conversation-adapter.mjs` — loopback CDP boundary for reading revisioned native drafts, opening the owner task, and submitting through its native Codex composer.
 - `src/zotero-local-api.mjs`, `src/zotero-local-contract.mjs`, `src/zotero-write-validation.mjs`, `src/zotero-credentials.mjs` — credential-isolated Zotero write orchestration, safe protocol mapping, and allowlisted validation.
 - `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
 - `src/http-server.mjs` — loopback server lifecycle and top-level route composition; bounded contexts own their handlers.

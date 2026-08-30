@@ -62,12 +62,20 @@ export function normalizePeerActivity(peer, payload = {}) {
     if (entry?.kind === "status" && ["started", "completed"].includes(entry.status)) return Object.freeze({ ...base, kind: "status", status: entry.status });
     throw new Error("Peer activity entry is invalid");
   });
+  let draft = null;
+  if (payload.draft != null) {
+    if (typeof payload.draft?.text !== "string" || payload.draft.text.length > 12_000 || !/^[0-9a-f]{64}$/.test(String(payload.draft.revision || ""))) {
+      throw new Error("Peer activity draft is invalid");
+    }
+    draft = Object.freeze({ text: cleanText(payload.draft.text, 12_000), revision: payload.draft.revision });
+  }
   return Object.freeze({
     schemaVersion: 1,
     threadId: cleanText(payload.threadId, 160),
     title: cleanText(payload.title, 160) || null,
     updatedAt: cleanText(payload.updatedAt, 64) || null,
     entries: Object.freeze(entries),
+    draft,
     device: Object.freeze({ id: peer.id, name: peer.name, kind: "remote-codex", location: peer.location, status: "connected" })
   });
 }

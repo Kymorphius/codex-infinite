@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizePeerActivity, parseConversationActivity } from "../src/conversation-activity.mjs";
 
-const peer = { id: "forest-mac", name: "森林 Mac", location: "森林" };
+const peer = { id: "forest-mac", name: "MacBook Pro", location: "192.168.1.30" };
 
 test("conversation activity allowlists visible messages and lifecycle without tool payloads or reasoning", () => {
   const content = [
@@ -31,7 +31,9 @@ test("conversation activity is bounded and remote activity fails closed on malfo
   assert.ok(parsed.entries.length <= 60);
   assert.ok(parsed.entries.every((entry) => entry.text.length <= 4000));
   assert.ok(parsed.entries.reduce((sum, entry) => sum + (entry.text?.length || 0), 0) <= 64 * 1024);
-  const normalized = normalizePeerActivity(peer, parsed);
+  const normalized = normalizePeerActivity(peer, { ...parsed, draft: { text: "未发送内容", revision: "a".repeat(64) } });
   assert.equal(normalized.device.id, "forest-mac");
+  assert.equal(normalized.draft.text, "未发送内容");
   assert.throws(() => normalizePeerActivity(peer, { schemaVersion: 1, entries: [{ kind: "reasoning", text: "no" }] }), /invalid/);
+  assert.throws(() => normalizePeerActivity(peer, { schemaVersion: 1, entries: [], draft: { text: "bad", revision: "short" } }), /draft is invalid/);
 });

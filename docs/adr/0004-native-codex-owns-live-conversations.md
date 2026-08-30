@@ -18,6 +18,8 @@ The command-line resume dispatcher remains available for scheduled local dispatc
 
 The UI adapter must fail closed when it cannot prove that it opened the requested conversation or cannot identify an enabled native composer and send control. It must not fall back silently to a second command-line writer.
 
+An unsent draft in the selected owner conversation may be projected to an authenticated peer. Remote edits carry the revision that was read; the owner replaces the draft only if its current revision still matches. This keeps the native application authoritative without reducing remote control to a blocking warning.
+
 ## Consequences
 
 - The owner native application can display the conversation before, during, and after remote continuation without an ownership conflict.
