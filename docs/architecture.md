@@ -33,7 +33,7 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.
 - `src/context-http.mjs`, `src/dispatch-http.mjs`, `src/tasks-http.mjs`, `src/zotero-http.mjs` — bounded-context HTTP route orchestration.
 - `src/http-utils.mjs`, `src/static-assets.mjs` — shared loopback transport primitives and allowlisted public assets.
-- `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-local-api.mjs` — external providers.
+- `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-read-contract.mjs`, `src/zotero-read-metadata.mjs`, `src/zotero-local-api.mjs` — external providers and normalized Zotero read boundaries.
 - `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
 - `src/http-server.mjs` — loopback server lifecycle and top-level route composition; bounded contexts own their handlers.
 - `public/core/` — normalized browser state, DOM services, shared formatting, task loading, transport, navigation, and native frame messaging.
@@ -60,8 +60,7 @@ Each feature owns its rendering, events, and view-specific formatting. Shared pr
 
 ## Structural debt and extraction order
 
-1. Extract Zotero read queries/mapping from `src/zotero-adapter.mjs`.
-2. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
-3. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
+1. Extract Zotero request protocol and payload validation from `src/zotero-local-api.mjs`.
+2. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
 
 This order reduces the largest change surface first without changing product behavior.

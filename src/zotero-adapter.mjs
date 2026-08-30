@@ -1,125 +1,20 @@
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import {
+  asNumber, asText, boundedInteger, collectionTreeOrder, countPayload,
+  escapeLikeTerm, mapItemRow, publicReadError, responseBase
+} from "./zotero-read-contract.mjs";
+import { loadItemMetadata } from "./zotero-read-metadata.mjs";
 
 export const DEFAULT_ZOTERO_PATH = path.join(os.homedir(), "Zotero", "zotero.sqlite");
 export const DEFAULT_ZOTERO_LIMIT = 24;
 export const MAX_ZOTERO_LIMIT = 100;
 export const MAX_ZOTERO_OFFSET = 1_000_000;
 
-const SOURCE_LABEL = "本机 Zotero";
-const SOURCE_TYPE = "local-zotero-sqlite";
 const SPECIAL_ITEM_TYPES = ["note", "attachment", "annotation"];
-const PUBLICATION_FIELDS = ["publicationTitle", "bookTitle", "conferenceName", "proceedingsTitle", "publisher"];
 const SEARCH_LIMIT = 200;
 
-function asText(value) {
-  return value === null || value === undefined ? "" : String(value).trim();
-}
-
-function asNumber(value, fallback = 0) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
-}
-
-function boundedInteger(value, fallback, minimum, maximum) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.min(maximum, Math.max(minimum, Math.trunc(number)));
-}
-
-function placeholders(count) {
-  return Array.from({ length: count }, () => "?").join(", ");
-}
-
-function escapeLikeTerm(value) {
-  return asText(value)
-    .slice(0, SEARCH_LIMIT)
-    .replaceAll("\\", "\\\\")
-    .replaceAll("%", "\\%")
-    .replaceAll("_", "\\_");
-}
-
-function extractYear(value) {
-  const match = asText(value).match(/\b(\d{4})\b/);
-  return match ? Number(match[1]) : null;
-}
-
-function creatorName(row) {
-  const firstName = asText(row.firstName);
-  const lastName = asText(row.lastName);
-  if (Number(row.fieldMode) === 1 || !firstName) return lastName || firstName;
-  return [firstName, lastName].filter(Boolean).join(" ");
-}
-
-function collator() {
-  return new Intl.Collator("zh-CN", { numeric: true, sensitivity: "base" });
-}
-
-function collectionTreeOrder(rows) {
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  const children = new Map();
-  for (const row of rows) {
-    const parentId = row.parentCollectionId && byId.has(row.parentCollectionId) ? row.parentCollectionId : null;
-    if (!children.has(parentId)) children.set(parentId, []);
-    children.get(parentId).push(row);
-  }
-  const compare = collator();
-  for (const list of children.values()) {
-    list.sort((left, right) => compare.compare(left.name, right.name) || left.id - right.id);
-  }
-
-  const output = [];
-  const visited = new Set();
-  const visit = (row, depth) => {
-    if (visited.has(row.id)) return;
-    visited.add(row.id);
-    output.push({ ...row, depth });
-    for (const child of children.get(row.id) || []) visit(child, depth + 1);
-  };
-
-  for (const row of children.get(null) || []) visit(row, 0);
-  for (const row of rows) visit(row, 0);
-  return output;
-}
-
-function responseBase(status, message = "") {
-  const response = {
-    status,
-    source: SOURCE_LABEL,
-    sourceType: SOURCE_TYPE,
-    readOnly: true
-  };
-  if (message) response.message = message;
-  return response;
-}
-
-function errorMessage(error) {
-  const code = error?.code || "";
-  if (code === "ENOENT" || code === "SQLITE_CANTOPEN" || code === "ERR_SQLITE_CANTOPEN") {
-    return "未找到本机 Zotero 数据库。请确认 Zotero 已安装，或配置 CODEX_CONTROL_ZOTERO_PATH。";
-  }
-  if (code === "SQLITE_BUSY" || code === "SQLITE_LOCKED" || /busy|locked/i.test(error?.message || "")) {
-    return "Zotero 数据库暂时被占用，请稍后刷新。";
-  }
-  if (/readonly|read-only/i.test(error?.message || "")) {
-    return "Zotero 数据库无法以只读方式打开。控制台没有继续读取。";
-  }
-  return "无法读取本机 Zotero 数据库。控制台没有伪造文献数据。";
-}
-
-function countPayload(row) {
-  const counts = {
-    items: asNumber(row.items),
-    itemRows: asNumber(row.itemRows),
-    collections: asNumber(row.collections),
-    attachments: asNumber(row.attachments),
-    notes: asNumber(row.notes),
-    libraries: asNumber(row.libraries),
-    deletedItems: asNumber(row.deletedItems)
-  };
-  return counts;
-}
 
 export class ZoteroAdapter {
   constructor({
@@ -188,7 +83,7 @@ export class ZoteroAdapter {
   _disconnected(error) {
     this._discardDatabase();
     return {
-      ...responseBase("disconnected", errorMessage(error)),
+      ...responseBase("disconnected", publicReadError(error)),
       counts: { items: 0, itemRows: 0, collections: 0, attachments: 0, notes: 0, libraries: 0, deletedItems: 0 }
     };
   }
@@ -339,107 +234,6 @@ export class ZoteroAdapter {
     return conditions.join(" AND ");
   }
 
-  _loadItemMetadata(database, items) {
-    if (!items.length) return items;
-    const itemIds = items.map((item) => item.itemId);
-    const itemIdPlaceholders = placeholders(itemIds.length);
-    const byId = new Map(items.map((item) => [item.itemId, item]));
-
-    if (this._hasTable("itemCreators") && this._hasTable("creators")) {
-      const rows = database.prepare(`
-        SELECT ic.itemID AS itemId, ic.orderIndex, c.firstName, c.lastName, c.fieldMode
-        FROM itemCreators ic
-        JOIN creators c ON c.creatorID = ic.creatorID
-        WHERE ic.itemID IN (${itemIdPlaceholders})
-        ORDER BY ic.itemID, ic.orderIndex
-      `).all(...itemIds);
-      for (const row of rows) {
-        const item = byId.get(asNumber(row.itemId));
-        const name = creatorName(row);
-        if (item && name) item.creators.push(name);
-      }
-    }
-
-    if (this._hasTable("itemTags") && this._hasTable("tags")) {
-      const rows = database.prepare(`
-        SELECT it.itemID AS itemId, t.name
-        FROM itemTags it
-        JOIN tags t ON t.tagID = it.tagID
-        WHERE it.itemID IN (${itemIdPlaceholders})
-        ORDER BY it.itemID, t.name COLLATE NOCASE
-      `).all(...itemIds);
-      for (const row of rows) {
-        const item = byId.get(asNumber(row.itemId));
-        const name = asText(row.name);
-        if (item && name) item.tags.push(name);
-      }
-    }
-
-    if (this._hasTable("collectionItems") && this._hasTable("collections")) {
-      const rows = database.prepare(`
-        SELECT
-          ci.itemID AS itemId,
-          c.collectionID AS id,
-          c.collectionID AS collectionId,
-          c.collectionName AS name,
-          c.parentCollectionID AS parentCollectionId,
-          c.libraryID AS libraryId,
-          c.key AS key
-        FROM collectionItems ci
-        JOIN collections c ON c.collectionID = ci.collectionID
-        WHERE ci.itemID IN (${itemIdPlaceholders})
-        ORDER BY ci.itemID, c.collectionName COLLATE NOCASE
-      `).all(...itemIds);
-      for (const row of rows) {
-        const item = byId.get(asNumber(row.itemId));
-        if (!item) continue;
-        item.collections.push({
-          id: asNumber(row.id),
-          collectionId: asNumber(row.collectionId),
-          name: asText(row.name) || "未命名集合",
-          parentCollectionId: row.parentCollectionId === null ? null : asNumber(row.parentCollectionId),
-          libraryId: asNumber(row.libraryId),
-          key: asText(row.key)
-        });
-      }
-    }
-
-    if (this._hasTable("itemNotes")) {
-      const rows = database.prepare(`
-        SELECT parentItemID AS itemId, COUNT(*) AS count
-        FROM itemNotes
-        WHERE parentItemID IN (${itemIdPlaceholders})
-        GROUP BY parentItemID
-      `).all(...itemIds);
-      for (const row of rows) {
-        const item = byId.get(asNumber(row.itemId));
-        if (item) item.noteCount = asNumber(row.count);
-      }
-    }
-
-    if (this._hasTable("itemAttachments")) {
-      const rows = database.prepare(`
-        SELECT parentItemID AS itemId, COUNT(*) AS count
-        FROM itemAttachments
-        WHERE parentItemID IN (${itemIdPlaceholders})
-        GROUP BY parentItemID
-      `).all(...itemIds);
-      for (const row of rows) {
-        const item = byId.get(asNumber(row.itemId));
-        if (item) item.attachmentCount = asNumber(row.count);
-      }
-    }
-
-    for (const item of items) {
-      item.creatorText = item.creators.join("、");
-      item.collectionKeys = item.collections.map((collection) => collection.key).filter(Boolean);
-      item.collectionNames = item.collections.map((collection) => collection.name);
-      item.notes = item.noteCount;
-      item.attachments = item.attachmentCount;
-    }
-    return items;
-  }
-
   getItems({ q = "", collection = "", limit = DEFAULT_ZOTERO_LIMIT, offset = 0 } = {}) {
     const normalizedLimit = boundedInteger(limit, DEFAULT_ZOTERO_LIMIT, 1, MAX_ZOTERO_LIMIT);
     const normalizedOffset = boundedInteger(offset, 0, 0, MAX_ZOTERO_OFFSET);
@@ -485,32 +279,8 @@ export class ZoteroAdapter {
         LIMIT ? OFFSET ?
       `).all(...pageParameters, normalizedLimit, normalizedOffset);
 
-      const items = rows.map((row) => ({
-        id: asNumber(row.id),
-        itemId: asNumber(row.itemId),
-        key: asText(row.key),
-        zoteroKey: asText(row.key),
-        libraryId: asNumber(row.libraryId),
-        title: asText(row.title) || "未命名条目",
-        creators: [],
-        creatorText: "",
-        year: extractYear(row.date),
-        date: asText(row.date),
-        itemType: asText(row.itemType) || "unknown",
-        type: asText(row.itemType) || "unknown",
-        publication: asText(row.publication),
-        tags: [],
-        collections: [],
-        collectionKeys: [],
-        collectionNames: [],
-        noteCount: 0,
-        attachmentCount: 0,
-        notes: 0,
-        attachments: 0,
-        dateAdded: asText(row.dateAdded),
-        updatedAt: asText(row.updatedAt)
-      }));
-      this._loadItemMetadata(database, items);
+      const items = rows.map(mapItemRow);
+      loadItemMetadata({ database, items, hasTable: (name) => this._hasTable(name) });
       const hasMore = normalizedOffset + items.length < total;
       return {
         ...responseBase(total > 0 ? "connected" : "empty", total > 0 ? "" : (query || collectionValue ? "没有匹配的文献。" : "还没有可显示的文献。")),
