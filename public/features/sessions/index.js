@@ -1,52 +1,13 @@
 import { isLocalTask } from "../../core/tasks.js";
-
-export function groupSessionsByDirectory(tasks = []) {
-  const groups = new Map();
-  for (const task of tasks) {
-    const directory = typeof task.cwd === "string" && task.cwd.trim() ? task.cwd.trim() : "";
-    const key = directory || "__unclassified__";
-    if (!groups.has(key)) groups.set(key, { key, directory, project: task.project || "未归类", tasks: [] });
-    groups.get(key).tasks.push(task);
-  }
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    tasks: group.tasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
-  })).sort((left, right) => (
-    String(right.tasks[0]?.updatedAt || "").localeCompare(String(left.tasks[0]?.updatedAt || ""))
-    || left.project.localeCompare(right.project, "zh-CN")
-  ));
-}
-
-export function groupSessionsByDevice(devices = [], tasks = []) {
-  const configured = new Map(devices.map((device) => [device.id, { ...device, tasks: [] }]));
-  for (const task of tasks) {
-    const device = task.device || devices[0] || { id: "local", name: "本机", kind: "local-codex", location: "本机", status: "connected" };
-    if (!configured.has(device.id)) configured.set(device.id, { ...device, tasks: [] });
-    configured.get(device.id).tasks.push(task);
-  }
-  return Array.from(configured.values()).filter((device) => device.tasks.length || device.status !== "connected").map((device) => ({
-    ...device,
-    projects: groupSessionsByDirectory(device.tasks),
-    latestAt: device.tasks.reduce((latest, task) => String(task.updatedAt || "") > latest ? String(task.updatedAt || "") : latest, "")
-  })).sort((left, right) => String(right.latestAt || "").localeCompare(String(left.latestAt || "")) || left.name.localeCompare(right.name, "zh-CN"));
-}
-
-export function filterSessions(tasks = [], { query = "", status = "all" } = {}) {
-  const normalizedQuery = String(query).toLocaleLowerCase("zh-CN");
-  return tasks.filter((task) => {
-    const taskStatus = task.status === "interrupted" ? "error" : task.status;
-    if (status !== "all" && taskStatus !== status) return false;
-    if (!normalizedQuery) return true;
-    return [task.title, task.project, task.cwd, task.model, task.id]
-      .some((value) => String(value || "").toLocaleLowerCase("zh-CN").includes(normalizedQuery));
-  });
-}
+import { SessionDisclosureState, summarizeSessionDevice } from "./disclosure.js";
+import { filterSessions, groupSessionsByDevice } from "./model.js";
 
 export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
   const list = $('[data-testid="session-project-list"]');
   const search = $('[data-testid="session-search"]');
   const statusFilter = $('[data-testid="session-status-filter"]');
+  const clearFilter = $('[data-testid="session-clear-filter"]');
   const filterEmpty = $('[data-testid="session-filter-empty"]');
   const activityLayer = $('[data-testid="session-activity-layer"]');
   const activityList = $('[data-testid="session-activity-list"]');
@@ -56,6 +17,8 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   const remoteSend = $('[data-testid="session-remote-send"]');
   const remoteSendStatus = $('[data-testid="session-remote-send-status"]');
   const filter = { query: "", status: "all" };
+  const disclosure = new SessionDisclosureState();
+  let visibleDevices = [];
   let selectedActivityTask = null;
   let activityLoading = false;
   let messageSending = false;
@@ -221,11 +184,12 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     return row;
   }
 
-  function projectCard(group, index) {
+  function projectCard(device, group, index) {
     const card = document.createElement("details");
     card.className = "session-project-card";
-    card.open = index === 0;
+    card.open = disclosure.isProjectOpen(device.id, group.key, index === 0, filter);
     card.dataset.directory = group.directory;
+    card.addEventListener("toggle", () => disclosure.setProjectOpen(device.id, group.key, card.open));
     const summary = document.createElement("summary");
     const identity = document.createElement("div");
     identity.className = "session-project-identity";
@@ -254,32 +218,73 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     const card = document.createElement("section");
     card.className = "session-device-card";
     card.dataset.deviceId = device.id;
-    const header = document.createElement("header");
+    const open = disclosure.isDeviceOpen(device.id, filter);
+    card.dataset.collapsed = String(!open);
+    const header = document.createElement("button");
+    header.type = "button";
     header.className = "session-device-header";
+    header.setAttribute("aria-expanded", String(open));
+    header.setAttribute("aria-label", `${open ? "折叠" : "展开"}${device.name || "未知设备"}`);
     const identity = document.createElement("div");
     identity.className = "session-device-identity";
+    const identityTop = document.createElement("div");
+    identityTop.className = "session-device-name-row";
     const name = document.createElement("h3");
     name.textContent = device.name || "未知设备";
+    const role = document.createElement("span");
+    role.className = "session-device-role";
+    role.textContent = device.kind === "local-codex" ? "本机" : "远端";
+    identityTop.append(name, role);
     const source = document.createElement("span");
     source.textContent = `${device.location || "远程"} · ${["local-codex", "remote-codex"].includes(device.kind) ? "原生 Codex" : device.kind || "Codex 节点"}`;
-    identity.append(name, source);
+    identity.append(identityTop, source);
+    const summary = summarizeSessionDevice(device);
+    const stats = document.createElement("div");
+    stats.className = "session-device-stats";
+    for (const text of [`${summary.projectCount} 目录`, `${summary.sessionCount} 会话`, summary.activeCount ? `${summary.activeCount} 进行中` : "当前无进行中", `最近 ${formatDate(summary.latestAt)}`]) {
+      const item = document.createElement("span");
+      item.textContent = text;
+      stats.append(item);
+    }
     const status = document.createElement("span");
     status.className = "session-device-status";
     status.dataset.status = device.status || "unknown";
     status.textContent = device.status === "connected" ? "已连接" : device.status === "error" ? "异常" : "未连接";
-    header.append(identity, status);
+    const trailing = document.createElement("div");
+    trailing.className = "session-device-trailing";
+    const disclosureIcon = document.createElement("span");
+    disclosureIcon.className = "session-device-disclosure";
+    disclosureIcon.setAttribute("aria-hidden", "true");
+    disclosureIcon.textContent = "⌄";
+    trailing.append(status, disclosureIcon);
+    header.append(identity, stats, trailing);
+    header.addEventListener("click", () => { disclosure.setDeviceOpen(device.id, !open); render(); });
     const projects = document.createElement("div");
     projects.className = "session-device-projects";
-    projects.replaceChildren(...device.projects.map((project, projectIndex) => projectCard(project, projectIndex)));
+    projects.classList.toggle("hidden", !open);
+    projects.replaceChildren(...device.projects.map((project, projectIndex) => projectCard(device, project, projectIndex)));
+    if (device.projects.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "session-device-empty";
+      empty.textContent = "此设备暂时没有可读取的会话。";
+      projects.replaceChildren(empty);
+    }
     card.append(header, projects);
     return card;
   }
 
   function render() {
     const tasks = filterSessions(state.tasks, filter);
-    list.replaceChildren(...groupSessionsByDevice(state.devices, tasks).map(deviceCard));
+    visibleDevices = groupSessionsByDevice(state.devices, tasks);
+    list.replaceChildren(...visibleDevices.map(deviceCard));
     list.classList.toggle("hidden", state.taskStatus !== "connected" || tasks.length === 0);
     filterEmpty.classList.toggle("hidden", state.taskStatus !== "connected" || tasks.length > 0);
+    const filtering = disclosure.isFiltering(filter);
+    clearFilter.classList.toggle("hidden", !filtering);
+    for (const button of panel.querySelectorAll("[data-session-disclosure]")) {
+      button.disabled = filtering;
+      button.title = filtering ? "筛选时会自动展开所有匹配项" : "";
+    }
     $('[data-testid="session-result-count"]').textContent = filter.query || filter.status !== "all" ? `${tasks.length} 条匹配` : "最近更新优先";
   }
 
@@ -297,6 +302,10 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   function bind() {
     search.addEventListener("input", () => { filter.query = search.value.trim().slice(0, 200); render(); });
     statusFilter.addEventListener("change", () => { filter.status = statusFilter.value; render(); });
+    clearFilter.addEventListener("click", () => { search.value = ""; statusFilter.value = "all"; filter.query = ""; filter.status = "all"; render(); search.focus(); });
+    for (const button of panel.querySelectorAll("[data-session-disclosure]")) {
+      button.addEventListener("click", () => { disclosure.setAll(visibleDevices, button.dataset.sessionDisclosure === "expand"); render(); });
+    }
     for (const close of activityLayer.querySelectorAll("[data-session-activity-close]")) close.addEventListener("click", closeActivity);
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && selectedActivityTask) closeActivity(); });
     remoteComposer.addEventListener("submit", (event) => { event.preventDefault(); void sendRemoteMessage(); });
