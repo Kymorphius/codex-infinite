@@ -39,8 +39,8 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /openWorkspace\('sessions'\)/);
   assert.match(source, /\['console', 'sessions', 'priority'\]\.includes\(module\) \? module : 'board'/);
   assert.match(source, /__codexControlConsoleInjected/);
-  assert.match(source, /__codexControlConsoleSetProjectOrder/);
-  assert.match(source, /data-codex-control-console-project-rank/);
+  assert.doesNotMatch(source, /__codexControlConsoleSetProjectOrder/);
+  assert.doesNotMatch(source, /data-codex-control-console-project-rank/);
   assert.match(source, /http:\/\/127\.0\.0\.1:47831/);
   assert.doesNotMatch(source, /127\.0\.0\.1:9231/);
 });

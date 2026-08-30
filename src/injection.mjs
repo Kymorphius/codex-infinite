@@ -30,7 +30,7 @@ export function buildInjectionScript(dashboardUrl) {
   const TITLEBAR_SESSION_ENTRY_SELECTOR = '[' + TITLEBAR_SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-08-29.5';
+  const INJECTION_VERSION = '2026-08-30.6';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
   const SESSION_ENTRY_TEXT = '会话中心';
@@ -51,8 +51,6 @@ export function buildInjectionScript(dashboardUrl) {
   let observerTimer = null;
   let workspaceHost = null;
   let frame = null;
-  window.__codexControlConsoleProjectOrder = window.__codexControlConsoleProjectOrder || [];
-
   const iconMarkup = '<span aria-hidden="true" style="display:inline-flex;width:1.1rem;height:1.1rem;align-items:center;justify-content:center;font-size:15px;line-height:1">⌘</span>';
 
   function nativeAnchor() {
@@ -61,48 +59,6 @@ export function buildInjectionScript(dashboardUrl) {
       return ['插件', 'Apps', '站点', 'Sites', '已安排', 'Scheduled'].includes(text);
     }) || null;
   }
-
-  function nativeProjectList() {
-    const heading = Array.from(document.querySelectorAll('div')).find((element) => (
-      normalize(element.textContent) === '项目' && element.classList.contains('group/nav-section-title')
-    ));
-    return heading?.closest('section')?.querySelector('[role="list"]') || null;
-  }
-
-  function nativeProjectName(item) {
-    const projectGroup = Array.from(item.children).find((child) => child.getAttribute('role') === 'listitem') || item.firstElementChild;
-    return normalize(projectGroup?.children?.[1]?.textContent);
-  }
-
-  function sortNativeProjects() {
-    const list = nativeProjectList();
-    const order = window.__codexControlConsoleProjectOrder;
-    if (!list || !Array.isArray(order) || order.length === 0) return false;
-    const ranks = new Map(order.map((project, index) => [normalize(project), index]));
-    const items = Array.from(list.children);
-    const originalIndex = new Map(items.map((item, index) => [item, index]));
-    const sorted = [...items].sort((left, right) => {
-      const leftRank = ranks.get(nativeProjectName(left));
-      const rightRank = ranks.get(nativeProjectName(right));
-      if (leftRank === undefined && rightRank === undefined) return originalIndex.get(left) - originalIndex.get(right);
-      if (leftRank === undefined) return 1;
-      if (rightRank === undefined) return -1;
-      return leftRank - rightRank;
-    });
-    const changed = sorted.some((item, index) => item !== items[index]);
-    sorted.forEach((item, index) => {
-      const project = nativeProjectName(item);
-      if (ranks.has(project)) item.setAttribute('data-codex-control-console-project-rank', String(ranks.get(project) + 1));
-      else item.removeAttribute('data-codex-control-console-project-rank');
-      if (changed) list.append(item);
-    });
-    return changed;
-  }
-
-  window.__codexControlConsoleSetProjectOrder = (projects) => {
-    window.__codexControlConsoleProjectOrder = Array.isArray(projects) ? projects.map(normalize).filter(Boolean) : [];
-    sortNativeProjects();
-  };
 
   function workspaceCandidate() {
     const isVisibleCandidate = (element) => {
@@ -321,7 +277,7 @@ export function buildInjectionScript(dashboardUrl) {
 
   function scheduleInstall() {
     if (observerTimer) clearTimeout(observerTimer);
-    observerTimer = setTimeout(() => { installEntry(); installTitlebarEntry(); sortNativeProjects(); }, 30);
+    observerTimer = setTimeout(() => { installEntry(); installTitlebarEntry(); }, 30);
   }
 
   function boot() {
@@ -332,7 +288,6 @@ export function buildInjectionScript(dashboardUrl) {
     }
     installEntry();
     installTitlebarEntry();
-    sortNativeProjects();
     window.__codexControlConsoleObserver = new MutationObserver(scheduleInstall);
     window.__codexControlConsoleObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
