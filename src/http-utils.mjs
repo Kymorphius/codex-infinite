@@ -14,7 +14,7 @@ export function httpError(statusCode, message) {
   return error;
 }
 
-export async function readJsonBody(request, maxBytes = 64 * 1024) {
+export async function readRequestBody(request, maxBytes = 64 * 1024) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
@@ -22,8 +22,13 @@ export async function readJsonBody(request, maxBytes = 64 * 1024) {
     if (size > maxBytes) throw httpError(413, "请求内容过大");
     chunks.push(chunk);
   }
+  return Buffer.concat(chunks);
+}
+
+export async function readJsonBody(request, maxBytes = 64 * 1024) {
+  const body = await readRequestBody(request, maxBytes);
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+    return JSON.parse(body.toString("utf8") || "{}");
   } catch {
     throw httpError(400, "请求 JSON 无效");
   }

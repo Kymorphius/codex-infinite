@@ -1,31 +1,16 @@
 import http from "node:http";
 import { assertLoopbackConfig } from "./loopback.mjs";
 import { serveStaticAsset } from "./static-assets.mjs";
-import { createContextHttpHandler } from "./context-http.mjs";
-import { createDispatchHttpHandler } from "./dispatch-http.mjs";
-import { createTasksHttpHandler } from "./tasks-http.mjs";
-import { createZoteroHttpHandler } from "./zotero-http.mjs";
-import { createHealthHttpHandler } from "./health-http.mjs";
-import { createActivityHttpHandler } from "./activity-http.mjs";
+import { createDashboardHandlers } from "./dashboard-handlers.mjs";
 import { sendJson } from "./http-utils.mjs";
 
-export function createDashboardServer({ config, adapter, local = adapter, zoteroAdapter = null, zoteroLocalApi = null, dispatchStore = null, contextWindowStore = null, modelCatalog = null, logger = console }) {
+export function createDashboardServer({ config, adapter, local = adapter, remoteMessageService = null, zoteroAdapter = null, zoteroLocalApi = null, dispatchStore = null, contextWindowStore = null, modelCatalog = null, logger = console }) {
   assertLoopbackConfig(config);
-  const handleContextRequest = createContextHttpHandler({ adapter: local, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin });
-  const handleDispatchRequest = createDispatchHttpHandler({ adapter: local, dispatchStore, dashboardOrigin: config.dashboardOrigin });
-  const handleTasksRequest = createTasksHttpHandler({ adapter, localAdapter: local });
-  const handleZoteroRequest = createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin });
-  const handleHealthRequest = createHealthHttpHandler(config);
-  const handleActivityRequest = createActivityHttpHandler({ adapter, localAdapter: local });
+  const handlers = createDashboardHandlers({ config, adapter, local, remoteMessageService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
   const server = http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url || "/", config.dashboardOrigin);
-      if (handleHealthRequest(response, requestUrl)) return;
-      if (await handleActivityRequest(request, response, requestUrl)) return;
-      if (await handleZoteroRequest(request, response, requestUrl)) return;
-      if (await handleTasksRequest(request, response, requestUrl)) return;
-      if (await handleContextRequest(request, response, requestUrl)) return;
-      if (await handleDispatchRequest(request, response, requestUrl)) return;
+      for (const handler of handlers) if (await handler(request, response, requestUrl)) return;
       if (request.method !== "GET" && request.method !== "HEAD") {
         sendJson(response, 405, { status: "error", message: "Method not allowed" });
         return;

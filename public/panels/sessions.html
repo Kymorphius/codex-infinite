@@ -34,11 +34,19 @@
               <header class="session-activity-header">
                 <button class="session-activity-back" type="button" data-session-activity-close aria-label="返回会话中心">← <span>会话中心</span></button>
                 <div class="session-activity-identity"><h3 id="session-activity-title" data-testid="session-activity-title">远端原生对话</h3><code data-testid="session-activity-directory">—</code></div>
-                <span class="session-activity-owner" data-testid="session-activity-owner">远端节点 · 原生 Codex · 只读</span>
+                <span class="session-activity-owner" data-testid="session-activity-owner">远端节点 · 原生 Codex · 可交互</span>
               </header>
               <div class="session-activity-state" data-testid="session-activity-state">正在读取所属节点…</div>
               <div class="session-activity-list hidden" data-testid="session-activity-list" aria-live="polite"></div>
-              <footer class="session-activity-footer"><span><strong>远端镜像</strong> · 每 3 秒从所属节点更新，不在本机创建会话副本</span><span data-testid="session-activity-updated">—</span></footer>
+              <div class="session-activity-bottom">
+                <form class="session-remote-composer" data-testid="session-remote-composer">
+                  <label class="sr-only" for="session-remote-prompt">向远端 Codex 发送消息</label>
+                  <textarea id="session-remote-prompt" data-testid="session-remote-prompt" rows="2" maxlength="12000" placeholder="向所属节点的 Codex 发送消息…"></textarea>
+                  <button class="primary-button" type="submit" data-testid="session-remote-send">发送</button>
+                </form>
+                <div class="session-remote-send-status" data-testid="session-remote-send-status" aria-live="polite"></div>
+                <footer class="session-activity-footer"><span><strong>远端执行</strong> · 消息由所属节点写入原生会话，本机持续显示结果</span><span data-testid="session-activity-updated">—</span></footer>
+              </div>
             </article>
           </section>
         </section>

@@ -42,4 +42,10 @@ export class FederatedTaskAdapter {
     if (!peer) return null;
     return peer.getActivity(id);
   }
+
+  async sendMessage(id, deviceId, prompt) {
+    const peer = this.peerAdapters.find((adapter) => adapter.peer?.id === deviceId);
+    if (!peer) return null;
+    return peer.sendMessage(id, prompt);
+  }
 }

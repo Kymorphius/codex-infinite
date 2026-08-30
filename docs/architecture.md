@@ -36,9 +36,11 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-read-contract.mjs`, `src/zotero-read-metadata.mjs` — external providers and normalized Zotero read boundaries.
 - `src/peer-contract.mjs`, `src/peer-config.mjs`, `src/ssh-peer-adapter.mjs`, `src/federated-task-adapter.mjs` — trusted node definitions, local-only snapshot/activity contracts, adaptive direct/relay SSH transport, and owner-routed aggregate read views.
 - `src/conversation-activity.mjs`, `src/activity-http.mjs` — bounded native activity projection/redaction and explicit owning-device HTTP routing.
+- `src/peer-action-auth.mjs`, `src/peer-action-http.mjs`, `src/remote-message-service.mjs` — credential-isolated action signing/replay protection, local/owner mutation routes, and single-owner native thread resumption.
 - `src/zotero-local-api.mjs`, `src/zotero-local-contract.mjs`, `src/zotero-write-validation.mjs`, `src/zotero-credentials.mjs` — credential-isolated Zotero write orchestration, safe protocol mapping, and allowlisted validation.
 - `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
 - `src/http-server.mjs` — loopback server lifecycle and top-level route composition; bounded contexts own their handlers.
+- `src/dashboard-handlers.mjs` — ordered bounded-context handler registry used by the loopback server.
 - `src/health-http.mjs`, `src/tasks-http.mjs` — health and aggregate/local-only node snapshot route ownership.
 - `public/core/` — normalized browser state, DOM services, shared formatting, task loading, transport, navigation, and native frame messaging.
 - `public/features/` — isolated feature rendering and interaction ownership; Zotero keeps read-only browsing separate from authorization and write editing.

@@ -13,6 +13,7 @@ import { prepareWrapperCodexHome } from "./wrapper-codex-home.mjs";
 import { loadPeerConfig } from "./peer-config.mjs";
 import { SshPeerAdapter } from "./ssh-peer-adapter.mjs";
 import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
+import { RemoteMessageService } from "./remote-message-service.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,7 +32,7 @@ export async function run() {
     device: config.nodeDevice
   });
   const peers = await loadPeerConfig(config.peerConfigPath);
-  const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer }));
+  const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }));
   const adapter = new FederatedTaskAdapter({ localAdapter, peerAdapters });
   const zoteroAdapter = new ZoteroAdapter({ databasePath: config.zoteroPath });
   const zoteroCredentials = new ZoteroCredentialStore({ filePath: config.zoteroCredentialPath });
@@ -48,8 +49,9 @@ export async function run() {
     codexHome: config.wrapperCodexHome,
     contextWindowStore
   });
+  const remoteMessageService = new RemoteMessageService({ localAdapter, dispatcher });
   const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher });
-  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
+  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
   await dashboard.listen();
   let injector;
   try {
