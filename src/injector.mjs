@@ -3,8 +3,20 @@ import { buildInjectionScript } from "./injection.mjs";
 import {
   buildNativeContextInjectionScript,
   buildNativeContextSnapshotScript,
+  NATIVE_CONTEXT_BINDING,
   normalizeNativeContextAction
 } from "./native-context-injection.mjs";
+
+export async function persistNativeContextAction(payload, contextWindowStore) {
+  if (!contextWindowStore) return null;
+  let parsed;
+  try { parsed = JSON.parse(String(payload || "")); } catch { return null; }
+  const action = normalizeNativeContextAction(parsed);
+  if (!action) return null;
+  if (action.action === "set") await contextWindowStore.set(action.threadId, action.contextWindow);
+  else await contextWindowStore.remove(action.threadId);
+  return action;
+}
 
 export async function drainNativeContextActions(connection, contextWindowStore) {
   if (!contextWindowStore) return [];
@@ -71,6 +83,8 @@ export class CodexInjector {
     this.syncing = false;
     this.targetId = null;
     this.connection = null;
+    this.removeContextBindingListener = null;
+    this.contextActionChain = Promise.resolve();
   }
 
   async sync() {
@@ -80,9 +94,17 @@ export class CodexInjector {
       const targets = await discoverTargets(this.cdpOrigin);
       const target = chooseMainTarget(targets);
       if (target.id !== this.targetId) {
+        this.removeContextBindingListener?.();
         await this.connection?.close();
         this.connection = new CdpConnection(target.webSocketDebuggerUrl);
         await this.connection.connect();
+        await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
+        this.removeContextBindingListener = this.connection.onEvent((event) => {
+          if (event.method !== "Runtime.bindingCalled" || event.params?.name !== NATIVE_CONTEXT_BINDING) return;
+          this.contextActionChain = this.contextActionChain
+            .then(() => persistNativeContextAction(event.params.payload, this.contextWindowStore))
+            .catch((error) => this.logger.warn(`[codex-control-console] context toggle persistence failed: ${error.message}`));
+        });
         this.targetId = target.id;
       }
       await installIntoTarget(this.connection, this.dashboardUrl, {
@@ -107,6 +129,9 @@ export class CodexInjector {
     this.running = false;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.removeContextBindingListener?.();
+    this.removeContextBindingListener = null;
+    await this.contextActionChain;
     await this.connection?.close();
     this.connection = null;
     this.targetId = null;
