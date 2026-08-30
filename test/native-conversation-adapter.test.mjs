@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NativeConversationAdapter } from "../src/native-conversation-adapter.mjs";
+import { draftRevision, NativeConversationAdapter } from "../src/native-conversation-adapter.mjs";
 
 function harness({ draft = "" } = {}) {
   const calls = [];
-  let inserted = "";
+  let inserted = draft;
   const connection = {
     async connect() { calls.push(["connect"]); },
     async evaluate(expression) {
@@ -16,7 +16,11 @@ function harness({ draft = "" } = {}) {
       if (expression.includes("innerText")) return inserted;
       return true;
     },
-    async send(method, params) { calls.push(["send", method, params]); inserted = params.text; },
+    async send(method, params) {
+      calls.push(["send", method, params]);
+      if (method === "Input.insertText") inserted = params.text;
+      if (method === "Input.dispatchKeyEvent" && params.key === "Backspace" && params.type === "keyDown") inserted = "";
+    },
     async close() { calls.push(["close"]); }
   };
   const adapter = new NativeConversationAdapter({
@@ -38,11 +42,20 @@ test("native conversation adapter opens the exact owner thread and types through
   assert.equal(calls.at(-1)[0], "close");
 });
 
-test("native conversation adapter preserves an owner draft and never creates a second writer", async () => {
+test("native conversation adapter reads and safely replaces an unchanged owner draft", async () => {
   const { adapter, calls } = harness({ draft: "owner is typing" });
-  await assert.rejects(
-    adapter.sendMessage({ threadId: "01a04445-8d03-7243-a4d3-181180bb626d", prompt: "remote" }),
-    /尚未发送/
-  );
+  const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
+  assert.deepEqual(await adapter.readDraft(threadId), { text: "owner is typing", revision: draftRevision("owner is typing") });
+  await adapter.sendMessage({ threadId, prompt: "owner is typing, continued remotely", expectedDraftRevision: draftRevision("owner is typing") });
+  assert.ok(calls.some((call) => call[0] === "send" && call[1] === "Input.dispatchKeyEvent"));
+});
+
+test("native conversation adapter rejects a stale draft revision without changing the composer", async () => {
+  const { adapter, calls } = harness({ draft: "new owner draft" });
+  await assert.rejects(adapter.sendMessage({
+    threadId: "01a04445-8d03-7243-a4d3-181180bb626d",
+    prompt: "remote edit",
+    expectedDraftRevision: draftRevision("old owner draft")
+  }), /已经变化/);
   assert.equal(calls.some((call) => call[0] === "send"), false);
 });

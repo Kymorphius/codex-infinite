@@ -30,7 +30,7 @@ export function createPeerActionHttpHandler({ adapter, remoteMessageService, das
       const deviceId = requestUrl.searchParams.get("device");
       if (!deviceId) throw httpError(400, "缺少会话所属设备");
       const input = await readJsonBody(request, 16 * 1024);
-      const result = await adapter.sendMessage(threadId, deviceId, input.prompt);
+      const result = await adapter.sendMessage(threadId, deviceId, input.prompt, input.expectedDraftRevision);
       if (!result) throw httpError(404, "会话所属节点不可用");
       sendJson(response, 202, { status: "ok", ...result });
       return true;
@@ -49,4 +49,3 @@ export function createPeerActionHttpHandler({ adapter, remoteMessageService, das
     return true;
   };
 }
-

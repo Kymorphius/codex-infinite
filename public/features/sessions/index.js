@@ -59,6 +59,8 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   let selectedActivityTask = null;
   let activityLoading = false;
   let messageSending = false;
+  let remoteDraftRevision = null;
+  let syncedDraftText = "";
 
   function activityEntry(entry) {
     const item = document.createElement("article");
@@ -102,6 +104,20 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
       if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
       if (selectedActivityTask !== task) return;
       const entries = Array.isArray(result.activity?.entries) ? result.activity.entries : [];
+      const draft = result.activity?.draft;
+      if (draft?.text && draft.revision && (!remotePrompt.value.trim() || remotePrompt.value === syncedDraftText)) {
+        remotePrompt.value = draft.text;
+        syncedDraftText = draft.text;
+        remoteDraftRevision = draft.revision;
+        if (!messageSending) {
+          remoteSendStatus.dataset.status = "accepted";
+          remoteSendStatus.textContent = `已读取 ${task.device?.name || "所属节点"} 的原生未发送草稿。`;
+        }
+      } else if (!draft && remotePrompt.value === syncedDraftText) {
+        remotePrompt.value = "";
+        syncedDraftText = "";
+        remoteDraftRevision = null;
+      }
       activityList.replaceChildren(...entries.map(activityEntry));
       activityList.classList.toggle("hidden", entries.length === 0);
       activityState.classList.toggle("hidden", entries.length > 0);
@@ -125,6 +141,8 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     $('[data-testid="session-activity-owner"]').textContent = `${task.device?.name || "远端节点"} · 原生 Codex · 可交互`;
     remotePrompt.placeholder = `发送到 ${task.device?.name || "所属节点"} 的 Codex…`;
     remotePrompt.value = "";
+    syncedDraftText = "";
+    remoteDraftRevision = null;
     remoteSendStatus.textContent = "";
     activityLayer.classList.remove("hidden");
     void loadActivity();
@@ -146,11 +164,13 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     remoteSendStatus.textContent = `正在交给 ${task.device?.name || "所属节点"}…`;
     try {
       const url = `/api/tasks/${encodeURIComponent(task.id)}/messages?device=${encodeURIComponent(task.device.id)}`;
-      const response = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt }) });
+      const response = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, expectedDraftRevision: remoteDraftRevision }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
       if (selectedActivityTask !== task) return;
       remotePrompt.value = "";
+      syncedDraftText = "";
+      remoteDraftRevision = null;
       remoteSendStatus.dataset.status = "accepted";
       remoteSendStatus.textContent = result.duplicate ? "所属节点已接收过这条消息，正在继续同步。" : `${task.device?.name || "所属节点"} 已接收，等待 Codex 响应…`;
       setTimeout(() => void loadActivity({ quiet: true }), 1000);
@@ -158,6 +178,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
       if (selectedActivityTask !== task) return;
       remoteSendStatus.dataset.status = "error";
       remoteSendStatus.textContent = `发送失败：${error.message}`;
+      await loadActivity({ quiet: true });
     } finally {
       messageSending = false;
       remoteSend.disabled = false;

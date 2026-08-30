@@ -1,7 +1,13 @@
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { httpError } from "./http-utils.mjs";
+import crypto from "node:crypto";
 
 const LOCAL_THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function draftRevision(text) {
+  const value = String(text || "").trim();
+  return value ? crypto.createHash("sha256").update(value).digest("hex") : null;
+}
 
 function openThreadExpression(threadId) {
   return `(() => {
@@ -71,21 +77,53 @@ export class NativeConversationAdapter {
     return null;
   }
 
-  async sendMessage({ threadId, prompt }) {
+  async connect() {
+    const target = this.choose(await this.discover(this.cdpOrigin));
+    const connection = this.connectionFactory(target.webSocketDebuggerUrl);
+    await connection.connect();
+    return connection;
+  }
+
+  async readDraft(threadId) {
+    if (!LOCAL_THREAD_ID.test(threadId) || this.active) return null;
+    let connection;
+    try {
+      connection = await this.connect();
+      const state = await connection.evaluate(composerStateExpression(threadId));
+      if (!state?.ready || !state.draft) return null;
+      return { text: state.draft, revision: draftRevision(state.draft) };
+    } catch {
+      return null;
+    } finally {
+      await connection?.close().catch(() => {});
+    }
+  }
+
+  async replaceDraft(connection, prompt) {
+    await connection.send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 4 });
+    await connection.send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: 4 });
+    await connection.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace" });
+    await connection.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace" });
+    const cleared = await this.waitFor(connection, composerTextExpression, (value) => value === "");
+    if (cleared === null) throw httpError(503, "无法安全更新所属节点的原生草稿");
+    await connection.send("Input.insertText", { text: prompt });
+  }
+
+  async sendMessage({ threadId, prompt, expectedDraftRevision = null }) {
     if (!LOCAL_THREAD_ID.test(threadId)) throw httpError(400, "原生 Codex 会话标识无效");
     if (this.active) throw httpError(409, "所属节点正在接收另一条远端消息");
     this.active = true;
     let connection;
     try {
-      const target = this.choose(await this.discover(this.cdpOrigin));
-      connection = this.connectionFactory(target.webSocketDebuggerUrl);
-      await connection.connect();
+      connection = await this.connect();
       await connection.evaluate(openThreadExpression(threadId));
       const state = await this.waitFor(connection, composerStateExpression(threadId), (value) => value?.ready);
       if (!state) throw httpError(503, "无法在所属节点打开这个原生会话");
-      if (state.draft) throw httpError(409, "所属节点的原生输入框中有尚未发送的内容");
+      const currentRevision = draftRevision(state.draft);
+      if (currentRevision !== (expectedDraftRevision || null)) throw httpError(409, "所属节点的原生草稿已经变化，请同步后再发送");
       if (!await connection.evaluate(focusComposerExpression)) throw httpError(503, "无法聚焦所属节点的原生输入框");
-      await connection.send("Input.insertText", { text: prompt });
+      if (state.draft && state.draft !== prompt.trim()) await this.replaceDraft(connection, prompt);
+      else if (!state.draft) await connection.send("Input.insertText", { text: prompt });
       const inserted = await this.waitFor(connection, composerTextExpression, (value) => value === prompt.trim());
       if (inserted === null) throw httpError(503, "原生输入框没有接收到完整内容");
       if (!await connection.evaluate(clickSendExpression)) throw httpError(503, "原生 Codex 暂时不能发送这条消息");

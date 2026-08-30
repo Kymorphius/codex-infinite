@@ -24,7 +24,8 @@ async function start(t) {
     async getTask(id) { return id === localTask.id ? localTask : null; },
     async getActivity(id) { calls.push(["local-activity", id]); return id === localTask.id ? { schemaVersion: 1, threadId: id, entries: [] } : null; }
   };
-  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter });
+  const remoteMessageService = { async readDraft(id) { calls.push(["draft", id]); return { text: "owner draft", revision: "a".repeat(64) }; } };
+  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter, remoteMessageService });
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
@@ -70,12 +71,14 @@ test("activity routes preserve explicit owner identity and local-only node expor
   const { calls, request } = await start(t);
   const owner = await request("/api/node/activity/local-one");
   assert.equal(owner.status, 200);
-  assert.equal((await owner.json()).schemaVersion, 1);
+  const ownerActivity = await owner.json();
+  assert.equal(ownerActivity.schemaVersion, 1);
+  assert.equal(ownerActivity.draft.text, "owner draft");
   const remote = await request("/api/tasks/thread%2Fone/activity?device=remote");
   assert.equal(remote.status, 200);
   assert.equal((await remote.json()).activity.threadId, "thread/one");
   assert.equal((await request("/api/tasks/thread%2Fone/activity")).status, 400);
   assert.equal((await request("/api/node/activity/%3Bbad")).status, 400);
   assert.equal((await request("/api/node/activity/local-one", { method: "POST" })).status, 405);
-  assert.deepEqual(calls, [["local-activity", "local-one"], ["activity", "thread/one", "remote"]]);
+  assert.deepEqual(calls, [["local-activity", "local-one"], ["draft", "local-one"], ["activity", "thread/one", "remote"]]);
 });
