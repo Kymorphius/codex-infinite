@@ -98,7 +98,7 @@ npm run inspect -- --open-priority --screenshot=/tmp/codex-control-console-prior
 
 如果状态显示“Zotero 未运行”，请先由用户启动 Zotero，再回到控制台点击连接；控制台不会在后台静默启动 Zotero。实现和自动化测试使用 mock Local API，不会修改真实 Zotero 数据库。
 
-专用 Codex 实例左侧原生“项目”列表也会使用同一顺序。注入层每 15 秒从本机只读 API 接收一次项目排名，在 React 重绘后重新应用；无法匹配到任务元数据的原生项目保持原有相对顺序并排在已排名项目之后。这个调整只存在于专用 renderer 的 DOM 中，不写入 Codex 配置或应用文件。
+“项目优先级”的计算顺序只显示在控制台自己的只读模块中。注入层不再移动 React 管理的原生项目节点；GPT Work 工作区、Codex 项目的存在性、顺序和置顶状态完全由原生应用管理。
 
 看板专用截图验证：
 
