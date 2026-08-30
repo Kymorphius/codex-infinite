@@ -19,16 +19,29 @@ export function normalizeNativeContextAction(item) {
   return { action, threadId, contextWindow };
 }
 
+export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
+
 export function buildNativeContextInjectionScript() {
+  const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-08-30.2') return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-08-30.4') return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
-  window.__codexControlConsoleNativeContextVersion = '2026-08-30.2';
+  document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
+  window.__codexControlConsoleNativeContextVersion = '2026-08-30.4';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const overrides = new Map();
   const actions = [];
   let requestSequence = 0;
   let installTimer = null;
+
+  function persistAction(action) {
+    const binding = window[${bindingName}];
+    if (typeof binding === 'function') binding(JSON.stringify(action));
+    else {
+      if (actions.length >= 32) actions.shift();
+      actions.push(action);
+    }
+  }
 
   function request(method, params) {
     const bridge = window.electronBridge?.sendMessageFromView;
@@ -81,13 +94,20 @@ export function buildNativeContextInjectionScript() {
     return value.startsWith('local:') && UUID.test(value.slice(6)) ? value.slice(6).toLowerCase() : null;
   }
 
-  function styleToggle(button, enabled, pending = false) {
+  function styleToggle(button, threadId, enabled, pending = false) {
+    const renderState = threadId + ':' + (enabled ? 'on' : 'off') + ':' + (pending ? 'pending' : 'ready');
+    if (button.dataset.renderState === renderState) return;
+    button.dataset.renderState = renderState;
+    button.dataset.threadId = threadId;
     button.dataset.enabled = enabled ? 'true' : 'false';
     button.disabled = pending;
     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     button.title = enabled ? '当前会话已启用扩展上下文；点击恢复模型默认' : '点击仅为当前会话启用百万上下文';
     button.style.cssText = 'display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:999px;border:1px solid ' + (enabled ? 'rgba(184,134,11,.46)' : 'rgba(128,128,128,.25)') + ';background:' + (enabled ? 'rgba(234,179,8,.15)' : 'transparent') + ';color:' + (enabled ? '#a47400' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.62' : '1') + ';';
-    button.innerHTML = '<span aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:' + (enabled ? '#d9a400' : '#96969b') + '"></span><span>百万上下文</span><small style="font-size:10px;opacity:.78">' + (enabled ? '开' : '关') + '</small>';
+    const dot = button.querySelector('[data-context-toggle-dot]');
+    const status = button.querySelector('[data-context-toggle-status]');
+    if (dot) dot.style.background = enabled ? '#d9a400' : '#96969b';
+    if (status) status.textContent = enabled ? '开' : '关';
   }
 
   async function toggleCurrent(button) {
@@ -97,16 +117,15 @@ export function buildNativeContextInjectionScript() {
     const enabled = !wasEnabled;
     if (enabled) overrides.set(threadId, 1000000);
     else overrides.delete(threadId);
-    styleToggle(button, enabled, true);
+    styleToggle(button, threadId, enabled, true);
     try {
       await resume(threadId, enabled ? 1000000 : null);
-      if (actions.length >= 32) actions.shift();
-      actions.push(enabled ? { action: 'set', threadId, contextWindow: 1000000 } : { action: 'remove', threadId });
-      styleToggle(button, enabled, false);
+      persistAction(enabled ? { action: 'set', threadId, contextWindow: 1000000 } : { action: 'remove', threadId });
+      styleToggle(button, threadId, enabled, false);
     } catch (error) {
       if (wasEnabled) overrides.set(threadId, 1000000);
       else overrides.delete(threadId);
-      styleToggle(button, wasEnabled, false);
+      styleToggle(button, threadId, wasEnabled, false);
       window.__codexControlConsoleLastContextResume = { threadId, ok: false, message: error.message };
     }
   }
@@ -123,9 +142,10 @@ export function buildNativeContextInjectionScript() {
       button.type = 'button';
       button.setAttribute('data-codex-control-console-context-toggle', '');
       button.setAttribute('aria-label', '百万上下文');
+      button.innerHTML = '<span data-context-toggle-dot aria-hidden="true" style="width:6px;height:6px;border-radius:50%"></span><span>百万上下文</span><small data-context-toggle-status style="font-size:10px;opacity:.78"></small>';
       button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void toggleCurrent(button); });
     }
-    styleToggle(button, overrides.has(threadId), button.disabled);
+    styleToggle(button, threadId, overrides.has(threadId), button.disabled);
     if (button.parentElement !== host) host.append(button);
   }
 

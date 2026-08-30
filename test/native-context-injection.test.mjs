@@ -35,8 +35,11 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /data-app-action-sidebar-thread-id/);
   assert.match(source, /__codexControlConsoleOpenNativeThread/);
   assert.match(source, /data-codex-control-console-context-toggle/);
+  assert.match(source, /button\.dataset\.renderState === renderState/);
+  assert.match(source, /data-context-toggle-status/);
   assert.match(source, /百万上下文/);
   assert.match(source, /__codexControlConsoleDrainContextActions/);
+  assert.match(source, /__codexControlConsolePersistContext/);
 });
 
 test("native snapshot script contains normalized data only", () => {
