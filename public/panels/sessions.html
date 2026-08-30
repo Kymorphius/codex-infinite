@@ -29,4 +29,16 @@
             <div class="session-filter-empty hidden" data-testid="session-filter-empty"><div class="state-icon">⌕</div><h3>没有匹配的会话</h3><p>换一个关键词或状态试试。</p></div>
             <div class="session-project-list hidden" data-testid="session-project-list" aria-live="polite"></div>
           </section>
+          <section class="session-activity-layer hidden" data-testid="session-activity-layer" aria-label="远端会话实时过程">
+            <button class="session-activity-backdrop" type="button" data-session-activity-close aria-label="关闭实时过程"></button>
+            <article class="session-activity-panel" role="dialog" aria-modal="true" aria-labelledby="session-activity-title">
+              <header class="session-activity-header">
+                <div><span data-testid="session-activity-owner">远端原生 Codex · 只读</span><h3 id="session-activity-title" data-testid="session-activity-title">会话实时过程</h3></div>
+                <button class="icon-button" type="button" data-session-activity-close aria-label="关闭">×</button>
+              </header>
+              <div class="session-activity-state" data-testid="session-activity-state">正在读取所属节点…</div>
+              <div class="session-activity-list hidden" data-testid="session-activity-list" aria-live="polite"></div>
+              <footer class="session-activity-footer"><span>每 3 秒从所属节点更新，不保存副本</span><span data-testid="session-activity-updated">—</span></footer>
+            </article>
+          </section>
         </section>

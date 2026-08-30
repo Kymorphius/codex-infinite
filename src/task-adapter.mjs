@@ -3,9 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { enrichTaskForBoard } from "./board.mjs";
 import { buildProjectPriorities } from "./priority.mjs";
+import { parseConversationActivity } from "./conversation-activity.mjs";
 
 const DEFAULT_MAX_FILES = 160;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
+const DEFAULT_ACTIVITY_BYTES = 2 * 1024 * 1024;
 
 function defaultDevice() {
   const hostname = os.hostname() || "本机";
@@ -137,6 +139,19 @@ async function readTaskFile(filePath, maxBytes) {
   return task;
 }
 
+async function readFileTail(filePath, maxBytes = DEFAULT_ACTIVITY_BYTES) {
+  const stat = await fs.stat(filePath);
+  if (stat.size <= maxBytes) return fs.readFile(filePath, "utf8");
+  const handle = await fs.open(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(maxBytes);
+    const { bytesRead } = await handle.read(buffer, 0, maxBytes, stat.size - maxBytes);
+    return buffer.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    await handle.close();
+  }
+}
+
 export class CodexTaskAdapter {
   constructor({ sessionRoot, archivedSessionRoot, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device } = {}) {
     this.sessionRoot = sessionRoot;
@@ -173,5 +188,12 @@ export class CodexTaskAdapter {
   async getTask(id) {
     const result = await this.listTasks();
     return result.tasks.find((task) => task.id === id) || null;
+  }
+
+  async getActivity(id) {
+    const task = await this.getTask(id);
+    if (!task?.sourceFile) return null;
+    const activity = parseConversationActivity(await readFileTail(task.sourceFile), { threadId: task.id });
+    return { ...activity, title: task.title, updatedAt: task.updatedAt, device: this.device };
   }
 }

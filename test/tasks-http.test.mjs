@@ -14,12 +14,15 @@ async function start(t) {
   const task = { id: "thread/one", title: "Demo", project: "demo" };
   const adapter = {
     async listTasks() { calls.push(["list"]); return { status: "connected", tasks: [task], projects: ["demo"] }; },
-    async getTask(id) { calls.push(["get", id]); return id === task.id ? task : null; }
+    async getTask(id) { calls.push(["get", id]); return id === task.id ? task : null; },
+    async getActivity(id, deviceId) { calls.push(["activity", id, deviceId]); return id === task.id && deviceId === "remote" ? { schemaVersion: 1, threadId: id, entries: [] } : null; }
   };
   const localTask = { id: "local-one", title: "Local", status: "active", project: "local", sourceFile: "/private/session.jsonl" };
   const localAdapter = {
+    device: { id: "local" },
     async listTasks() { calls.push(["local-list"]); return { status: "connected", tasks: [localTask], devices: [{ id: "local", name: "Local" }] }; },
-    async getTask(id) { return id === localTask.id ? localTask : null; }
+    async getTask(id) { return id === localTask.id ? localTask : null; },
+    async getActivity(id) { calls.push(["local-activity", id]); return id === localTask.id ? { schemaVersion: 1, threadId: id, entries: [] } : null; }
   };
   const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter });
   await dashboard.listen();
@@ -61,4 +64,18 @@ test("node snapshot is local-only, bounded, and excludes filesystem paths", asyn
   assert.equal(result.tasks[0].sourceFile, undefined);
   assert.deepEqual(calls, [["local-list"]]);
   assert.equal((await request("/api/node/snapshot", { method: "POST" })).status, 405);
+});
+
+test("activity routes preserve explicit owner identity and local-only node export", async (t) => {
+  const { calls, request } = await start(t);
+  const owner = await request("/api/node/activity/local-one");
+  assert.equal(owner.status, 200);
+  assert.equal((await owner.json()).schemaVersion, 1);
+  const remote = await request("/api/tasks/thread%2Fone/activity?device=remote");
+  assert.equal(remote.status, 200);
+  assert.equal((await remote.json()).activity.threadId, "thread/one");
+  assert.equal((await request("/api/tasks/thread%2Fone/activity")).status, 400);
+  assert.equal((await request("/api/node/activity/%3Bbad")).status, 400);
+  assert.equal((await request("/api/node/activity/local-one", { method: "POST" })).status, 405);
+  assert.deepEqual(calls, [["local-activity", "local-one"], ["activity", "thread/one", "remote"]]);
 });
