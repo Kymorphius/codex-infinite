@@ -13,30 +13,26 @@ export function validateRemoteMessage(input = {}) {
 }
 
 export class RemoteMessageService {
-  constructor({ localAdapter, dispatcher, logger = console, idFactory = () => crypto.randomUUID() } = {}) {
+  constructor({ localAdapter, nativeConversationAdapter, idFactory = () => crypto.randomUUID() } = {}) {
     this.localAdapter = localAdapter;
-    this.dispatcher = dispatcher;
-    this.logger = logger;
+    this.nativeConversationAdapter = nativeConversationAdapter;
     this.idFactory = idFactory;
     this.activeThreads = new Set();
   }
 
   async submit(input) {
     const { threadId, prompt } = validateRemoteMessage(input);
-    if (!this.dispatcher) throw httpError(503, "所属节点发送服务不可用");
+    if (!this.nativeConversationAdapter) throw httpError(503, "所属节点发送服务不可用");
     const task = await this.localAdapter.getTask(threadId);
     if (!task) throw httpError(404, "所属节点不存在这个会话");
     if (this.activeThreads.has(threadId)) throw httpError(409, "这个会话正在处理上一条远端消息");
     const requestId = this.idFactory();
     this.activeThreads.add(threadId);
-    void Promise.resolve().then(() => this.dispatcher.dispatch({
-      targetThreadId: threadId,
-      cwd: task.cwd,
-      prompt
-    })).catch(() => {
-      this.logger.warn?.(`[codex-control-console] remote message ${requestId} failed`);
-    }).finally(() => this.activeThreads.delete(threadId));
-    return { accepted: true, requestId, threadId };
+    try {
+      await this.nativeConversationAdapter.sendMessage({ threadId, prompt });
+      return { accepted: true, requestId, threadId };
+    } finally {
+      this.activeThreads.delete(threadId);
+    }
   }
 }
-

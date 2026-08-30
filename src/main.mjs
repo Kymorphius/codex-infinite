@@ -14,6 +14,7 @@ import { loadPeerConfig } from "./peer-config.mjs";
 import { SshPeerAdapter } from "./ssh-peer-adapter.mjs";
 import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
 import { RemoteMessageService } from "./remote-message-service.mjs";
+import { NativeConversationAdapter } from "./native-conversation-adapter.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -49,7 +50,8 @@ export async function run() {
     codexHome: config.wrapperCodexHome,
     contextWindowStore
   });
-  const remoteMessageService = new RemoteMessageService({ localAdapter, dispatcher });
+  const nativeConversationAdapter = new NativeConversationAdapter({ cdpOrigin: config.cdpOrigin });
+  const remoteMessageService = new RemoteMessageService({ localAdapter, nativeConversationAdapter });
   const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher });
   const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
   await dashboard.listen();
