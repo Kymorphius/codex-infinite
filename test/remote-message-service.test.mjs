@@ -9,22 +9,19 @@ test("remote messaging validates bounded thread and prompt contracts", () => {
   assert.throws(() => validateRemoteMessage({ threadId: "thread-1", prompt: "x".repeat(12_001) }), /过长/);
 });
 
-test("owner service resumes the local native task and prevents concurrent remote writers", async () => {
+test("owner service submits through the owner native UI and prevents concurrent remote writers", async () => {
   let release;
   const dispatched = [];
   const service = new RemoteMessageService({
     localAdapter: { async getTask(id) { return id === "thread-1" ? { id, cwd: "/work/owner" } : null; } },
-    dispatcher: { dispatch(item) { dispatched.push(item); return new Promise((resolve) => { release = resolve; }); } },
-    idFactory: () => "request-1",
-    logger: { warn() {} }
+    nativeConversationAdapter: { sendMessage(item) { dispatched.push(item); return new Promise((resolve) => { release = resolve; }); } },
+    idFactory: () => "request-1"
   });
-  const accepted = await service.submit({ threadId: "thread-1", prompt: "continue" });
+  const first = service.submit({ threadId: "thread-1", prompt: "continue" });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(accepted.requestId, "request-1");
-  assert.deepEqual(dispatched[0], { targetThreadId: "thread-1", cwd: "/work/owner", prompt: "continue" });
+  assert.deepEqual(dispatched[0], { threadId: "thread-1", prompt: "continue" });
   await assert.rejects(() => service.submit({ threadId: "thread-1", prompt: "again" }), (error) => error.statusCode === 409);
   release();
-  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal((await first).requestId, "request-1");
   await assert.rejects(() => service.submit({ threadId: "missing", prompt: "go" }), (error) => error.statusCode === 404);
 });
-
