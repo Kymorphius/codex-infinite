@@ -44,6 +44,8 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     status: "connected"
   });
   const peerConfigPath = env.CODEX_CONTROL_PEER_CONFIG || path.join(wrapperCodexHome, "peers.json");
+  const nodeActionKeyPath = env.CODEX_CONTROL_NODE_ACTION_KEY || path.join(wrapperCodexHome, "node-action.key");
+  const peerActionKeyDirectory = env.CODEX_CONTROL_PEER_ACTION_KEY_DIR || path.join(wrapperCodexHome, "peer-keys");
 
   return Object.freeze({
     dashboardHost,
@@ -63,6 +65,8 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     modelCatalogPath,
     nodeDevice,
     peerConfigPath,
+    nodeActionKeyPath,
+    peerActionKeyDirectory,
     sessionRoot: env.CODEX_CONTROL_SESSION_ROOT || path.join(sourceCodexHome, "sessions"),
     archivedSessionRoot: env.CODEX_CONTROL_ARCHIVED_SESSION_ROOT || path.join(sourceCodexHome, "archived_sessions")
   });

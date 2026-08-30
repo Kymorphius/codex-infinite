@@ -51,9 +51,14 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   const activityLayer = $('[data-testid="session-activity-layer"]');
   const activityList = $('[data-testid="session-activity-list"]');
   const activityState = $('[data-testid="session-activity-state"]');
+  const remoteComposer = $('[data-testid="session-remote-composer"]');
+  const remotePrompt = $('[data-testid="session-remote-prompt"]');
+  const remoteSend = $('[data-testid="session-remote-send"]');
+  const remoteSendStatus = $('[data-testid="session-remote-send-status"]');
   const filter = { query: "", status: "all" };
   let selectedActivityTask = null;
   let activityLoading = false;
+  let messageSending = false;
 
   function activityEntry(entry) {
     const item = document.createElement("article");
@@ -117,7 +122,10 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     selectedActivityTask = task;
     $('[data-testid="session-activity-title"]').textContent = task.title;
     $('[data-testid="session-activity-directory"]').textContent = task.cwd || "未记录远端工作目录";
-    $('[data-testid="session-activity-owner"]').textContent = `${task.device?.name || "远端节点"} · 原生 Codex · 只读`;
+    $('[data-testid="session-activity-owner"]').textContent = `${task.device?.name || "远端节点"} · 原生 Codex · 可交互`;
+    remotePrompt.placeholder = `发送到 ${task.device?.name || "所属节点"} 的 Codex…`;
+    remotePrompt.value = "";
+    remoteSendStatus.textContent = "";
     activityLayer.classList.remove("hidden");
     void loadActivity();
   }
@@ -125,6 +133,37 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   function closeActivity() {
     selectedActivityTask = null;
     activityLayer.classList.add("hidden");
+  }
+
+  async function sendRemoteMessage() {
+    const task = selectedActivityTask;
+    const prompt = remotePrompt.value.trim();
+    if (!task || !prompt || messageSending) return;
+    messageSending = true;
+    remoteSend.disabled = true;
+    remotePrompt.disabled = true;
+    remoteSendStatus.dataset.status = "sending";
+    remoteSendStatus.textContent = `正在交给 ${task.device?.name || "所属节点"}…`;
+    try {
+      const url = `/api/tasks/${encodeURIComponent(task.id)}/messages?device=${encodeURIComponent(task.device.id)}`;
+      const response = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
+      if (selectedActivityTask !== task) return;
+      remotePrompt.value = "";
+      remoteSendStatus.dataset.status = "accepted";
+      remoteSendStatus.textContent = result.duplicate ? "所属节点已接收过这条消息，正在继续同步。" : `${task.device?.name || "所属节点"} 已接收，等待 Codex 响应…`;
+      setTimeout(() => void loadActivity({ quiet: true }), 1000);
+    } catch (error) {
+      if (selectedActivityTask !== task) return;
+      remoteSendStatus.dataset.status = "error";
+      remoteSendStatus.textContent = `发送失败：${error.message}`;
+    } finally {
+      messageSending = false;
+      remoteSend.disabled = false;
+      remotePrompt.disabled = false;
+      remotePrompt.focus();
+    }
   }
 
   function sessionRow(task) {
@@ -239,6 +278,10 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     statusFilter.addEventListener("change", () => { filter.status = statusFilter.value; render(); });
     for (const close of activityLayer.querySelectorAll("[data-session-activity-close]")) close.addEventListener("click", closeActivity);
     document.addEventListener("keydown", (event) => { if (event.key === "Escape" && selectedActivityTask) closeActivity(); });
+    remoteComposer.addEventListener("submit", (event) => { event.preventDefault(); void sendRemoteMessage(); });
+    remotePrompt.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); remoteComposer.requestSubmit(); }
+    });
     setInterval(() => { if (selectedActivityTask) void loadActivity({ quiet: true }); }, 3000);
   }
 

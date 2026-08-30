@@ -26,7 +26,7 @@ Federated nodes can see remote conversation summaries, but cannot see the native
 
 A remote session row offers “打开远端对话”. It replaces the dashboard content area with a full native-workspace conversation view while retaining the surrounding local Codex window. The workspace is labelled with the owning device and read-only state. It shows recent user messages, assistant commentary/final messages, tool names and lifecycle status, and task start/completion markers. It refreshes every three seconds while open. Network or parse failure remains contained to that workspace.
 
-Local rows continue to open the native conversation. The remote workspace is a mirror, never a local copy or composer.
+Local rows continue to open the native conversation. The activity contract remains a read-only mirror and never becomes a local copy. Interactive continuation is provided by the separately authenticated owner-action contract in `2026-08-30-federated-remote-messaging.md`.
 
 ## Contracts
 

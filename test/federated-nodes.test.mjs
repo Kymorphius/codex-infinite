@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { normalizePeerDefinition, normalizePeerSnapshot, projectLocalNodeSnapshot } from "../src/peer-contract.mjs";
 import { loadPeerConfig } from "../src/peer-config.mjs";
 import { FederatedTaskAdapter } from "../src/federated-task-adapter.mjs";
-import { SshPeerAdapter, sshActivityArguments, sshSnapshotArguments } from "../src/ssh-peer-adapter.mjs";
+import { SshPeerAdapter, sshActionArguments, sshActivityArguments, sshSnapshotArguments } from "../src/ssh-peer-adapter.mjs";
 
 const peer = normalizePeerDefinition({
   id: "forest-mac", name: "森林 Mac", location: "森林",
@@ -90,6 +92,37 @@ test("peer adapter prefers direct SSH and automatically falls back to relay", as
   assert.equal(result.status, "connected");
   assert.equal(result.transport, "ssh-relay");
   assert.equal(calls.length, 2);
+});
+
+test("peer messages send bodies over stdin and keep prompts out of SSH arguments", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-peer-action-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const keyPath = path.join(directory, "forest-mac.key");
+  await fs.writeFile(keyPath, Buffer.alloc(32, 4).toString("base64"), { mode: 0o600 });
+  let invocation;
+  const spawnImpl = (command, args) => {
+    const child = new EventEmitter();
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.kill = () => {};
+    let body = "";
+    child.stdin.on("data", (chunk) => { body += chunk.toString(); });
+    child.stdin.on("finish", () => {
+      child.stdout.end(JSON.stringify({ status: "ok", accepted: true }));
+      queueMicrotask(() => child.emit("close", 0));
+    });
+    invocation = { command, args, body: () => body };
+    return child;
+  };
+  const adapter = new SshPeerAdapter({ peer, actionKeyPath: keyPath, spawnImpl, logger: { warn() {} } });
+  const result = await adapter.sendMessage("thread-1", "private prompt body");
+  assert.equal(result.transport, "direct-ssh");
+  assert.equal(invocation.args.some((argument) => argument.includes("private prompt body")), false);
+  assert.equal(JSON.parse(invocation.body()).prompt, "private prompt body");
+  assert.ok(invocation.args.includes("--data-binary"));
+  assert.equal(invocation.args.filter((argument) => argument.includes("x-codex-node-")).some((argument) => argument.includes(" ")), false);
+  assert.ok(sshActionArguments(peer.transports[0], { "x-codex-node-timestamp": "1", "x-codex-node-nonce": "nonce", "x-codex-node-signature": "a".repeat(64) }).includes("http://127.0.0.1:47831/api/node/actions/message"));
 });
 
 test("federated adapter keeps local data when a peer is unavailable", async () => {
