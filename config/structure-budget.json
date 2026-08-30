@@ -8,7 +8,6 @@
     "src/http-server.mjs": { "maxLines": 66, "maxBytes": 3261 }
   },
   "frozenDebt": {
-    "public/styles.css": { "maxLines": 272, "maxBytes": 29488 },
-    "scripts/inspect.mjs": { "maxLines": 434, "maxBytes": 23043 }
+    "public/styles.css": { "maxLines": 272, "maxBytes": 29488 }
   }
 }

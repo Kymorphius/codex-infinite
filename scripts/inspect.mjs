@@ -1,73 +1,11 @@
 import fs from "node:fs/promises";
 import { getConfig } from "../src/config.mjs";
-import { CdpConnection, chooseMainTarget, discoverTargets } from "../src/cdp-client.mjs";
+import { discoverTargets } from "../src/cdp-client.mjs";
+import { collectHostEvidence } from "./inspect-host-evidence.mjs";
+import { createInspectRuntime, wait } from "./inspect-runtime.mjs";
 
 const config = getConfig();
-const targets = await discoverTargets(config.cdpOrigin);
-const target = chooseMainTarget(targets);
-const connection = new CdpConnection(target.webSocketDebuggerUrl, { commandTimeoutMs: 20000 });
-await connection.connect();
-const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-const waitForDashboardReady = async () => {
-  for (let attempt = 0; attempt < 24; attempt += 1) {
-    const ready = await connection.evaluate("Boolean(document.querySelector('[data-codex-control-console-frame-ready]'))").catch(() => false);
-    if (ready) return true;
-    await wait(250);
-  }
-  return false;
-};
-const waitForDashboardData = async () => {
-  await waitForDashboardReady();
-  let iframeTarget = null;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    iframeTarget = (await discoverTargets(config.cdpOrigin)).find((candidate) => (
-      candidate.type === "iframe" && candidate.url?.startsWith(`${config.dashboardOrigin}/`)
-    ));
-    if (iframeTarget) break;
-    await wait(250);
-  }
-  if (!iframeTarget) return false;
-  const { sessionId } = await connection.send("Target.attachToTarget", { targetId: iframeTarget.id, flatten: true });
-  try {
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      const loaded = await evaluateInSession(sessionId, `(() => {
-        const module = new URLSearchParams(location.search).get('module') || 'board';
-        const selector = module === 'console' ? '[data-testid="console-connection-status"]' : module === 'sessions' ? '[data-testid="session-connection-status"]' : module === 'priority' ? '[data-testid="priority-connection-status"]' : '[data-testid="connection-status"]';
-        const text = document.querySelector(selector)?.textContent?.trim() || '';
-        return text && text !== '连接中…';
-      })()`).catch(() => false);
-      if (loaded) return true;
-      await wait(250);
-    }
-    return false;
-  } finally {
-    await connection.send("Target.detachFromTarget", { sessionId }).catch(() => {});
-  }
-};
-const evaluateInSession = async (sessionId, expression) => {
-  const result = await connection.send("Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-    awaitPromise: true
-  }, sessionId);
-  if (result?.exceptionDetails) {
-    const detail = result.exceptionDetails.exception?.description || result.exceptionDetails.description || result.exceptionDetails.text || "Runtime.evaluate failed";
-    throw new Error(detail);
-  }
-  return result?.result?.value;
-};
-const clickHostSelector = async (selector) => {
-  const point = await connection.evaluate(`(() => {
-    const element = document.querySelector(${JSON.stringify(selector)});
-    if (!element) return null;
-    const rect = element.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  })()`);
-  if (!point) throw new Error(`Clickable element is not present: ${selector}`);
-  await connection.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
-  await connection.send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
-  await connection.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
-};
+const { connection, evaluateInSession, target, waitForDashboardData } = await createInspectRuntime(config);
 if (process.argv.includes("--reload")) {
   await connection.send("Page.reload", { ignoreCache: true });
   await wait(1800);
@@ -375,33 +313,7 @@ if (process.argv.includes("--sidebar-structure")) {
     });
   })()`);
 }
-const evidence = await connection.evaluate(`(() => {
-  const entry = document.querySelector('[data-codex-control-console-entry]');
-  const kanbanEntry = document.querySelector('[data-codex-control-console-kanban-entry]');
-  const sessionEntry = document.querySelector('[data-codex-control-console-session-entry]');
-  const priorityEntry = document.querySelector('[data-codex-control-console-priority-entry]');
-  const iframe = document.querySelector('[data-codex-control-console-frame]');
-  const workspace = document.querySelector('[data-codex-control-console-workspace]');
-  return {
-    title: document.title,
-    entryVisible: Boolean(entry && entry.getBoundingClientRect().width > 0),
-    entryText: entry ? (entry.innerText || entry.textContent || '').trim() : null,
-    entryCount: document.querySelectorAll('[data-codex-control-console-entry]').length,
-    kanbanEntryVisible: Boolean(kanbanEntry && kanbanEntry.getBoundingClientRect().width > 0),
-    kanbanEntryText: kanbanEntry ? (kanbanEntry.innerText || kanbanEntry.textContent || '').trim() : null,
-    kanbanEntryCount: document.querySelectorAll('[data-codex-control-console-kanban-entry]').length,
-    sessionEntryVisible: Boolean(sessionEntry && sessionEntry.getBoundingClientRect().width > 0),
-    sessionEntryText: sessionEntry ? (sessionEntry.innerText || sessionEntry.textContent || '').trim() : null,
-    sessionEntryCount: document.querySelectorAll('[data-codex-control-console-session-entry]').length,
-    priorityEntryVisible: Boolean(priorityEntry && priorityEntry.getBoundingClientRect().width > 0),
-    priorityEntryText: priorityEntry ? (priorityEntry.innerText || priorityEntry.textContent || '').trim() : null,
-    priorityEntryCount: document.querySelectorAll('[data-codex-control-console-priority-entry]').length,
-    workspaceVisible: Boolean(workspace && workspace.getBoundingClientRect().width > 0),
-    dashboardFrameUrl: iframe?.getAttribute('src') || null,
-    bodyText: (document.body.innerText || '').slice(0, 1200),
-    dashboardFrameReadyState: iframe?.contentDocument?.readyState || null
-  };
-})()`);
+const evidence = await collectHostEvidence(connection);
 const health = await (await fetch(`${config.dashboardOrigin}/api/health`)).json();
 const tasks = await (await fetch(`${config.dashboardOrigin}/api/tasks`)).json();
 if (process.argv.includes("--focus-projects")) {

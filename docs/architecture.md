@@ -59,8 +59,6 @@ public/
 
 Each feature owns its rendering, events, and view-specific formatting. Shared primitives belong in `core/`; feature-to-feature imports are avoided.
 
-## Structural debt and extraction order
+## Structural debt
 
-1. Split `scripts/inspect.mjs` into host, iframe, and evidence helpers.
-
-This order reduces the largest change surface first without changing product behavior.
+The remaining frozen source debt is `public/styles.css`. It should be split by shared shell, feature layout, and Zotero/editor styling without introducing a CSS build step.
