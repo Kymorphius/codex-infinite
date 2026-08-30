@@ -18,6 +18,13 @@ async function readState(filePath, { optional = false } = {}) {
   }
 }
 
+async function writeState(filePath, state) {
+  const temporaryPath = `${filePath}.tmp-${process.pid}`;
+  await fs.writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  await fs.rename(temporaryPath, filePath);
+  await fs.chmod(filePath, 0o600);
+}
+
 function record(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -68,9 +75,28 @@ export async function repairWrapperProjectState({ sourceHome, wrapperHome }) {
   const target = await readState(wrapperPath, { optional: true });
   const result = mergeWrapperProjectState(source, target, { sourceHome, wrapperHome });
   if (!result.changed) return { changed: false, projectCount: Object.keys(record(target[LOCAL_PROJECTS])).length };
-  const temporaryPath = `${wrapperPath}.tmp-${process.pid}`;
-  await fs.writeFile(temporaryPath, `${JSON.stringify(result.state, null, 2)}\n`, { mode: 0o600 });
-  await fs.rename(temporaryPath, wrapperPath);
-  await fs.chmod(wrapperPath, 0o600);
+  await writeState(wrapperPath, result.state);
   return { changed: true, projectCount: Object.keys(record(result.state[LOCAL_PROJECTS])).length };
+}
+
+export async function orderWrapperProjectState({ wrapperHome, serverProjectIds }) {
+  const wrapperPath = path.join(wrapperHome, STATE_FILE);
+  const state = await readState(wrapperPath, { optional: true });
+  const projects = record(state[LOCAL_PROJECTS]);
+  const entries = Object.entries(projects);
+  if (entries.length === 0) return { changed: false, projectCount: 0 };
+  const wrapperHost = `local:${path.resolve(wrapperHome)}`;
+  const mappings = record(record(state[PROJECT_MAPPINGS])[wrapperHost]);
+  const ranks = new Map((serverProjectIds || []).map((id, index) => [id, index]));
+  const ordered = entries.map(([id, project], index) => ({ id, project, index, rank: ranks.get(mappings[id]) }));
+  ordered.sort((left, right) => (
+    (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER)
+    || left.index - right.index
+  ));
+  const orderedProjects = Object.fromEntries(ordered.map(({ id, project }) => [id, project]));
+  const changed = ordered.some((entry, index) => entry.id !== entries[index][0]);
+  if (!changed) return { changed: false, projectCount: entries.length };
+  state[LOCAL_PROJECTS] = orderedProjects;
+  await writeState(wrapperPath, state);
+  return { changed: true, projectCount: entries.length };
 }

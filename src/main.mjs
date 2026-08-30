@@ -10,6 +10,8 @@ import { DispatchBoardStore } from "./dispatch-board.mjs";
 import { CodexCliDispatcher, DispatchScheduler } from "./dispatcher.mjs";
 import { ContextWindowStore, ModelCatalog } from "./context-window.mjs";
 import { prepareWrapperCodexHome } from "./wrapper-codex-home.mjs";
+import { orderWrapperProjectState } from "./wrapper-project-state.mjs";
+import { AppServerProjectOrder } from "./app-server-project-order.mjs";
 import { loadPeerConfig } from "./peer-config.mjs";
 import { SshPeerAdapter } from "./ssh-peer-adapter.mjs";
 import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
@@ -32,6 +34,21 @@ export async function run() {
     archivedSessionRoot: config.archivedSessionRoot,
     device: config.nodeDevice
   });
+  const projectOrder = new AppServerProjectOrder({
+    codexPath: path.join(config.appPath, "Contents", "Resources", "codex"),
+    codexHome: config.wrapperCodexHome
+  });
+  try {
+    const taskSnapshot = await localAdapter.listTasks();
+    const orderResult = await projectOrder.apply(taskSnapshot.tasks || []);
+    await orderWrapperProjectState({
+      wrapperHome: config.wrapperCodexHome,
+      serverProjectIds: orderResult.order.map((project) => project.id)
+    });
+    console.log(`[codex-control-console] native project priority order: ${orderResult.changed ? `${orderResult.moveCount} moves` : "unchanged"}`);
+  } catch (error) {
+    console.warn(`[codex-control-console] native project priority order unavailable: ${error.message}`);
+  }
   const peers = await loadPeerConfig(config.peerConfigPath);
   const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }));
   const adapter = new FederatedTaskAdapter({ localAdapter, peerAdapters });

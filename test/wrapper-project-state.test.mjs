@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { mergeWrapperProjectState, repairWrapperProjectState } from "../src/wrapper-project-state.mjs";
+import { mergeWrapperProjectState, orderWrapperProjectState, repairWrapperProjectState } from "../src/wrapper-project-state.mjs";
 
 const sourceHome = "/Users/demo/.codex";
 const wrapperHome = "/Users/demo/.codex-control-console";
@@ -73,4 +73,24 @@ test("invalid target state fails closed", async (t) => {
   await fs.writeFile(path.join(wrapper, ".codex-global-state.json"), "not-json");
   await assert.rejects(repairWrapperProjectState({ sourceHome: source, wrapperHome: wrapper }), /无法读取 Codex 项目状态/);
   assert.equal(await fs.readFile(path.join(wrapper, ".codex-global-state.json"), "utf8"), "not-json");
+});
+
+test("wrapper bootstrap project keys follow app-server order without changing values", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "wrapper-project-order-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const wrapper = path.join(root, "wrapper");
+  await fs.mkdir(wrapper);
+  const host = `local:${wrapper}`;
+  const state = {
+    "local-projects": { first: { name: "First" }, idle: { name: "Idle" }, recent: { name: "Recent" } },
+    "app-server-project-id-by-legacy-project-id-by-host": {
+      [host]: { first: "server-first", recent: "server-recent" }
+    }
+  };
+  await fs.writeFile(path.join(wrapper, ".codex-global-state.json"), JSON.stringify(state));
+  const result = await orderWrapperProjectState({ wrapperHome: wrapper, serverProjectIds: ["server-recent", "server-first"] });
+  const saved = JSON.parse(await fs.readFile(path.join(wrapper, ".codex-global-state.json"), "utf8"));
+  assert.deepEqual(result, { changed: true, projectCount: 3 });
+  assert.deepEqual(Object.keys(saved["local-projects"]), ["recent", "first", "idle"]);
+  assert.deepEqual(saved["local-projects"].recent, { name: "Recent" });
 });
