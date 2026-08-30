@@ -7,15 +7,20 @@ const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "state", "tasks", "transport"];
 const featureNames = ["console", "context", "dispatch", "priority", "sessions", "zotero"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
+const panelFiles = ["board", "context", "console", "sessions", "priority", "zotero"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
-  ["/", { file: "index.html", type: "text/html; charset=utf-8" }],
-  ["/index.html", { file: "index.html", type: "text/html; charset=utf-8" }],
+  ["/", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],
+  ["/index.html", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],
   ["/styles.css", { file: "styles.css", type: "text/css; charset=utf-8" }],
   ["/app.js", { file: "app.js", type: javascriptType }],
   ...coreNames.map((name) => [`/core/${name}.js`, { file: `core/${name}.js`, type: javascriptType }]),
   ...featureNames.map((name) => [`/features/${name}/index.js`, { file: `features/${name}/index.js`, type: javascriptType }]),
   ...zoteroSupportFiles.map((name) => [`/features/zotero/${name}.js`, { file: `features/zotero/${name}.js`, type: javascriptType }])
-].map(([url, asset]) => [url, Object.freeze({ ...asset, path: path.join(publicDirectory, asset.file) })]));
+].map(([url, asset]) => [url, Object.freeze({
+  ...asset,
+  path: path.join(publicDirectory, asset.file),
+  fragmentPaths: Object.freeze((asset.fragments || []).map((file) => path.join(publicDirectory, file)))
+})]));
 
 export const STATIC_ASSET_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'";
 
@@ -38,10 +43,25 @@ export function resolveStaticAsset(target) {
   return assetMap.get(pathname) || null;
 }
 
+export function composeHtml(shell, fragments) {
+  const marker = "<!-- MODULE_PANELS -->";
+  const source = String(shell);
+  const first = source.indexOf(marker);
+  if (first < 0 || first !== source.lastIndexOf(marker)) throw new Error("Static HTML shell must contain exactly one module marker");
+  return source.replace(marker, fragments.map(String).join("\n"));
+}
+
+async function readAssetContent(asset, readFile) {
+  const content = await readFile(asset.path);
+  if (!asset.fragmentPaths.length) return content;
+  const fragments = await Promise.all(asset.fragmentPaths.map((file) => readFile(file)));
+  return Buffer.from(composeHtml(content, fragments));
+}
+
 export async function serveStaticAsset(request, response, { readFile = fs.readFile } = {}) {
   const asset = resolveStaticAsset(request.url);
   if (!asset) return false;
-  const content = await readFile(asset.path);
+  const content = request.method === "HEAD" ? null : await readAssetContent(asset, readFile);
   response.writeHead(200, {
     "content-type": asset.type,
     "cache-control": "no-store",

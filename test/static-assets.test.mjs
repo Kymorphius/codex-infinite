@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STATIC_ASSET_CSP, resolveStaticAsset, serveStaticAsset } from "../src/static-assets.mjs";
+import { composeHtml, STATIC_ASSET_CSP, resolveStaticAsset, serveStaticAsset } from "../src/static-assets.mjs";
 import { createDashboardServer } from "../src/http-server.mjs";
 
 function responseRecorder() {
@@ -29,11 +29,32 @@ test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/features/zotero/browser.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/zotero/editor.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/zotero/format.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/panels/board.html"), null);
   assert.equal(resolveStaticAsset("/missing.js"), null);
   assert.equal(resolveStaticAsset("/../package.json"), null);
   assert.equal(resolveStaticAsset("/%2e%2e/package.json"), null);
   assert.equal(resolveStaticAsset("/features/%2e%2e/app.js"), null);
   assert.equal(resolveStaticAsset("/%ZZ"), null);
+});
+
+test("HTML shell composition is ordered and requires one exact marker", () => {
+  assert.equal(composeHtml("<main><!-- MODULE_PANELS --></main>", ["<a>A</a>", "<b>B</b>"]), "<main><a>A</a>\n<b>B</b></main>");
+  assert.throws(() => composeHtml("<main></main>", []), /exactly one module marker/);
+  assert.throws(() => composeHtml("<!-- MODULE_PANELS --><!-- MODULE_PANELS -->", []), /exactly one module marker/);
+});
+
+test("index GET assembles only the fixed private panel files", async () => {
+  const response = responseRecorder();
+  const reads = [];
+  await serveStaticAsset({ method: "GET", url: "/" }, response, {
+    async readFile(filePath) {
+      reads.push(filePath);
+      if (filePath.endsWith("index.html")) return Buffer.from("<main><!-- MODULE_PANELS --></main>");
+      return Buffer.from(`<section>${filePath.split("/").at(-1)}</section>`);
+    }
+  });
+  assert.equal(reads.length, 7);
+  assert.match(response.body.toString(), /board\.html.*context\.html.*zotero\.html/s);
 });
 
 test("static GET uses trusted path, MIME, and security headers", async () => {
@@ -60,7 +81,7 @@ test("static HEAD sends successful headers without a body", async () => {
   const handled = await serveStaticAsset(
     { method: "HEAD", url: "/index.html" },
     response,
-    { async readFile() { return Buffer.from("hidden"); } }
+    { async readFile() { throw new Error("HEAD must not read template files"); } }
   );
 
   assert.equal(handled, true);
