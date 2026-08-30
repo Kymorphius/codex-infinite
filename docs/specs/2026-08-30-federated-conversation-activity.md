@@ -24,9 +24,9 @@ Federated nodes can see remote conversation summaries, but cannot see the native
 
 ## User experience
 
-A remote session row offers “查看实时过程”. It opens an in-console activity panel labelled with the owning device and read-only state. The panel shows recent user messages, assistant commentary/final messages, tool names and lifecycle status, and task start/completion markers. It refreshes every three seconds while open. Network or parse failure remains contained to the panel.
+A remote session row offers “打开远端对话”. It replaces the dashboard content area with a full native-workspace conversation view while retaining the surrounding local Codex window. The workspace is labelled with the owning device and read-only state. It shows recent user messages, assistant commentary/final messages, tool names and lifecycle status, and task start/completion markers. It refreshes every three seconds while open. Network or parse failure remains contained to that workspace.
 
-Local rows continue to open the native conversation. The activity panel is a mirror, never a composer.
+Local rows continue to open the native conversation. The remote workspace is a mirror, never a local copy or composer.
 
 ## Contracts
 
@@ -58,6 +58,7 @@ SSH remains the authenticated transport: the peer invokes a fixed loopback URL t
 - MatrixBook Air fetched a 60-entry Forest conversation through `direct-ssh`; the normalized response contained 17 messages, 32 tool lifecycle entries, and 11 status markers with no forbidden raw fields.
 - The relay loopback route on `67.230.169.158:47842` independently returned the same schema-v1 owner activity when accessed through authenticated SSH on port 33699.
 - Real UI inspection opened a Forest session in the local “会话中心”, rendered the read-only owner label and recent native activity, and preserved three-second refresh behavior without browser persistence.
+- The follow-up workspace treatment expanded the remote activity from a side drawer to the full embedded Codex work area, keeping the local native window chrome while making ownership explicit.
 - Both Macs passed 97 tests and the 103-file structure check with zero frozen debt after deployment.
 
 ## Verification plan
