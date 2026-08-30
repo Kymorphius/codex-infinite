@@ -1,4 +1,5 @@
 import { requestJson } from "../../core/transport.js";
+import { isLocalTask } from "../../core/tasks.js";
 
 export function contextMetrics(items = [], available = true) {
   return {
@@ -14,7 +15,7 @@ export function createContextFeature({ state, $, formatDate, formatTokens, showT
   const threadOptions = $('[data-testid="context-thread-options"]');
 
   function renderThreadOptions() {
-    threadOptions.replaceChildren(...state.tasks.map((task) => {
+    threadOptions.replaceChildren(...state.tasks.filter(isLocalTask).map((task) => {
       const option = document.createElement("option");
       option.value = task.id;
       option.label = `${task.project || "未归类"} · ${task.title}`;

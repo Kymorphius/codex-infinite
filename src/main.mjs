@@ -10,6 +10,9 @@ import { DispatchBoardStore } from "./dispatch-board.mjs";
 import { CodexCliDispatcher, DispatchScheduler } from "./dispatcher.mjs";
 import { ContextWindowStore, ModelCatalog } from "./context-window.mjs";
 import { prepareWrapperCodexHome } from "./wrapper-codex-home.mjs";
+import { loadPeerConfig } from "./peer-config.mjs";
+import { SshPeerAdapter } from "./ssh-peer-adapter.mjs";
+import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,10 +25,14 @@ export async function run() {
     wrapperHome: config.wrapperCodexHome,
     contextWindow: config.wrapperContextWindow
   });
-  const adapter = new CodexTaskAdapter({
+  const localAdapter = new CodexTaskAdapter({
     sessionRoot: config.sessionRoot,
-    archivedSessionRoot: config.archivedSessionRoot
+    archivedSessionRoot: config.archivedSessionRoot,
+    device: config.nodeDevice
   });
+  const peers = await loadPeerConfig(config.peerConfigPath);
+  const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer }));
+  const adapter = new FederatedTaskAdapter({ localAdapter, peerAdapters });
   const zoteroAdapter = new ZoteroAdapter({ databasePath: config.zoteroPath });
   const zoteroCredentials = new ZoteroCredentialStore({ filePath: config.zoteroCredentialPath });
   const zoteroLocalApi = new ZoteroLocalApi({
@@ -42,7 +49,7 @@ export async function run() {
     contextWindowStore
   });
   const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher });
-  const dashboard = createDashboardServer({ config, adapter, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
+  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
   await dashboard.listen();
   let injector;
   try {

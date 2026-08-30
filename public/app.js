@@ -66,4 +66,5 @@ import { createZoteroFeature } from "./features/zotero/index.js";
   if (state.module === "zotero") void zoteroFeature.load();
   if (state.module === "context") void contextFeature.load();
   setInterval(() => void dispatchFeature.load({ quiet: true }), 2500);
+  setInterval(() => void taskSource.load({ quiet: true }), 15000);
 })();

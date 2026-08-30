@@ -1,3 +1,5 @@
+import { isLocalTask } from "../../core/tasks.js";
+
 export function groupSessionsByDirectory(tasks = []) {
   const groups = new Map();
   for (const task of tasks) {
@@ -22,7 +24,7 @@ export function groupSessionsByDevice(devices = [], tasks = []) {
     if (!configured.has(device.id)) configured.set(device.id, { ...device, tasks: [] });
     configured.get(device.id).tasks.push(task);
   }
-  return Array.from(configured.values()).filter((device) => device.tasks.length).map((device) => ({
+  return Array.from(configured.values()).filter((device) => device.tasks.length || device.status !== "connected").map((device) => ({
     ...device,
     projects: groupSessionsByDirectory(device.tasks),
     latestAt: device.tasks.reduce((latest, task) => String(task.updatedAt || "") > latest ? String(task.updatedAt || "") : latest, "")
@@ -75,8 +77,10 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     const open = document.createElement("button");
     open.type = "button";
     open.className = "task-open session-open";
-    open.textContent = "打开原生对话";
-    open.addEventListener("click", () => requestOpen(task));
+    const local = isLocalTask(task);
+    open.textContent = local ? "打开原生对话" : "由远端节点打开";
+    open.disabled = !local;
+    if (local) open.addEventListener("click", () => requestOpen(task));
     row.append(main, open);
     return row;
   }
@@ -121,7 +125,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     const name = document.createElement("h3");
     name.textContent = device.name || "未知设备";
     const source = document.createElement("span");
-    source.textContent = `${device.location || "远程"} · ${device.kind === "local-codex" ? "原生 Codex" : device.kind || "Codex 节点"}`;
+    source.textContent = `${device.location || "远程"} · ${["local-codex", "remote-codex"].includes(device.kind) ? "原生 Codex" : device.kind || "Codex 节点"}`;
     identity.append(name, source);
     const status = document.createElement("span");
     status.className = "session-device-status";

@@ -35,6 +35,15 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const zoteroLocalApiOrigin = env.CODEX_CONTROL_ZOTERO_LOCAL_API_ORIGIN || env.CODEX_CONTROL_ZOTERO_API_ORIGIN || "http://127.0.0.1:23119/api/";
   const zoteroCredentialPath = path.join(profileDirectory, "zotero-local-api-keys.json");
   const modelCatalogPath = env.CODEX_CONTROL_MODEL_CATALOG_PATH || path.join(sourceCodexHome, "models_cache.json");
+  const hostname = os.hostname() || "本机";
+  const nodeDevice = Object.freeze({
+    id: env.CODEX_CONTROL_NODE_ID || `local:${hostname}`,
+    name: env.CODEX_CONTROL_NODE_NAME || hostname,
+    kind: "local-codex",
+    location: env.CODEX_CONTROL_NODE_LOCATION || "本机",
+    status: "connected"
+  });
+  const peerConfigPath = env.CODEX_CONTROL_PEER_CONFIG || path.join(wrapperCodexHome, "peers.json");
 
   return Object.freeze({
     dashboardHost,
@@ -52,6 +61,8 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     zoteroLocalApiOrigin,
     zoteroCredentialPath,
     modelCatalogPath,
+    nodeDevice,
+    peerConfigPath,
     sessionRoot: env.CODEX_CONTROL_SESSION_ROOT || path.join(sourceCodexHome, "sessions"),
     archivedSessionRoot: env.CODEX_CONTROL_ARCHIVED_SESSION_ROOT || path.join(sourceCodexHome, "archived_sessions")
   });
