@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildNativeContextInjectionScript,
   buildNativeContextSnapshotScript,
+  normalizeNativeContextAction,
   normalizeNativeContextOverrides
 } from "../src/native-context-injection.mjs";
 
@@ -14,6 +15,17 @@ test("native context snapshot accepts only UUIDs and bounded integer windows", (
   ]), [{ threadId: "01a015ac-363f-7472-961a-f31d174ad2c8", contextWindow: 1_000_000 }]);
 });
 
+test("native context actions accept only bounded set/remove contracts", () => {
+  assert.deepEqual(normalizeNativeContextAction({
+    action: "set", threadId: "01A015AC-363F-7472-961A-F31D174AD2C8", contextWindow: 1_000_000
+  }), { action: "set", threadId: "01a015ac-363f-7472-961a-f31d174ad2c8", contextWindow: 1_000_000 });
+  assert.deepEqual(normalizeNativeContextAction({
+    action: "remove", threadId: "01a015ac-363f-7472-961a-f31d174ad2c8", contextWindow: "ignored"
+  }), { action: "remove", threadId: "01a015ac-363f-7472-961a-f31d174ad2c8" });
+  assert.equal(normalizeNativeContextAction({ action: "set", threadId: "bad", contextWindow: 1_000_000 }), null);
+  assert.equal(normalizeNativeContextAction({ action: "other", threadId: "01a015ac-363f-7472-961a-f31d174ad2c8" }), null);
+});
+
 test("native bridge resumes through the desktop app-server with thread-scoped config", () => {
   const source = buildNativeContextInjectionScript();
   assert.match(source, /method, params/);
@@ -22,6 +34,9 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /model_auto_compact_token_limit: contextWindow/);
   assert.match(source, /data-app-action-sidebar-thread-id/);
   assert.match(source, /__codexControlConsoleOpenNativeThread/);
+  assert.match(source, /data-codex-control-console-context-toggle/);
+  assert.match(source, /百万上下文/);
+  assert.match(source, /__codexControlConsoleDrainContextActions/);
 });
 
 test("native snapshot script contains normalized data only", () => {

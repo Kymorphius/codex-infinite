@@ -1,8 +1,29 @@
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { buildInjectionScript } from "./injection.mjs";
-import { buildNativeContextInjectionScript, buildNativeContextSnapshotScript } from "./native-context-injection.mjs";
+import {
+  buildNativeContextInjectionScript,
+  buildNativeContextSnapshotScript,
+  normalizeNativeContextAction
+} from "./native-context-injection.mjs";
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [] } = {}) {
+export async function drainNativeContextActions(connection, contextWindowStore) {
+  if (!contextWindowStore) return [];
+  const raw = await connection.evaluate("window.__codexControlConsoleDrainContextActions?.() || []").catch(() => []);
+  const actions = (Array.isArray(raw) ? raw : []).slice(0, 32).map(normalizeNativeContextAction).filter(Boolean);
+  for (const action of actions) {
+    if (action.action === "set") await contextWindowStore.set(action.threadId, action.contextWindow);
+    else await contextWindowStore.remove(action.threadId);
+  }
+  return actions;
+}
+
+async function syncNativeContext(connection, contextWindowStore, contextOverrides) {
+  await connection.evaluate(buildNativeContextInjectionScript());
+  await drainNativeContextActions(connection, contextWindowStore);
+  await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
+}
+
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleCspPrepared) {
     await connection.send("Page.setBypassCSP", { enabled: true });
@@ -15,9 +36,8 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       return { hasEntry: Boolean(entry), hasFrame: Boolean(frame), frameReady: Boolean(frame?.hasAttribute('data-codex-control-console-frame-ready')) };
     })()`).catch(() => ({ hasEntry: false, hasFrame: false, frameReady: false }));
     if (state.hasEntry && (!state.hasFrame || state.frameReady || connection.__codexControlConsoleRecoveryAttempted)) {
-      await connection.evaluate(buildNativeContextInjectionScript());
+      await syncNativeContext(connection, contextWindowStore, contextOverrides);
       await connection.evaluate(buildInjectionScript(dashboardUrl));
-      await connection.evaluate(buildNativeContextSnapshotScript(contextOverrides));
       return { status: "already-installed" };
     }
     if (state.hasEntry && state.hasFrame && !state.frameReady) {
@@ -33,9 +53,8 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       source: buildNativeContextInjectionScript()
     });
   }
-  await connection.evaluate(buildNativeContextInjectionScript());
+  await syncNativeContext(connection, contextWindowStore, contextOverrides);
   await connection.evaluate(buildInjectionScript(dashboardUrl));
-  await connection.evaluate(buildNativeContextSnapshotScript(contextOverrides));
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
 }
@@ -67,7 +86,8 @@ export class CodexInjector {
         this.targetId = target.id;
       }
       await installIntoTarget(this.connection, this.dashboardUrl, {
-        contextOverrides: this.contextWindowStore?.list?.() || []
+        contextOverrides: this.contextWindowStore?.list?.() || [],
+        contextWindowStore: this.contextWindowStore
       });
     } catch (error) {
       this.logger.warn(`[codex-control-console] injector waiting: ${error.message}`);

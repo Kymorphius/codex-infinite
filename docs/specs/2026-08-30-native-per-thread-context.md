@@ -19,6 +19,8 @@ native desktop interface does not apply the saved override.
 ## Goals
 
 - Keep ordinary wrapper conversations on the selected model's default context.
+- Put an immediate, clearly labeled million-context switch in the current native
+  conversation composer so users never need to locate or copy a thread ID.
 - Apply a saved context override to the matching native thread when it is opened
   through the control console or the native sidebar.
 - Send the override through the desktop app's own app-server connection so the
@@ -37,14 +39,20 @@ native desktop interface does not apply the saved override.
 ## User behavior
 
 1. A conversation without a saved override uses model defaults.
-2. Saving an override (normally 1,000,000 tokens) marks only that native thread.
-3. Opening that thread from the session center resumes it with
+2. When a saved native conversation is selected, its composer shows a
+   `百万上下文` switch with an explicit on/off state. Enabling or disabling it
+   immediately resumes the current thread with the selected mode and persists
+   the choice in the background.
+3. Saving an override from the management page remains available for bulk
+   inspection, but is not required for normal use.
+4. Opening an enabled thread from the session center resumes it with
    `model_context_window` and `model_auto_compact_token_limit` in the native
    `thread/resume` request before navigation.
-4. Clicking the same configured thread in the native sidebar reapplies the
+5. Clicking the same configured thread in the native sidebar reapplies the
    override after the native navigation settles.
-5. Removing the override restores model-default behavior on the next resume.
-   An already-running turn is not mutated mid-turn.
+6. Turning the switch off resumes the idle thread with empty thread-level
+   overrides so model defaults apply. A running turn is never mutated mid-turn;
+   a failed change is visibly rolled back.
 
 ## Contracts and architecture
 
@@ -53,6 +61,10 @@ native desktop interface does not apply the saved override.
 - `CodexInjector` transfers a normalized read-only snapshot of overrides into
   the renderer over the existing loopback CDP connection. The native page does
   not fetch the dashboard API cross-origin.
+- Renderer switch actions enter a bounded in-memory queue. `CodexInjector`
+  drains validated set/remove actions and writes them through
+  `ContextWindowStore`; this preserves the dashboard's exact-origin HTTP safety
+  boundary instead of opening a cross-origin mutation route.
 - A focused native-context injection module owns app-server request correlation,
   resume parameters, sidebar selection detection, and override synchronization.
 - The general workspace injection calls the native-context bridge when it opens
@@ -67,6 +79,8 @@ native desktop interface does not apply the saved override.
 - Networking remains loopback-only and the existing exact-origin mutation checks
   are unchanged.
 - Only validated UUIDs and bounded integer window values enter the renderer.
+- Only validated `set`/`remove` actions can leave the renderer; the queue is
+  bounded and contains no prompts, credentials, paths, or conversation content.
 - Native app-server requests use the wrapper's existing desktop connection; no
   second writer process is started.
 - No conversation message is created during activation or verification.
@@ -75,7 +89,8 @@ native desktop interface does not apply the saved override.
 ## Verification
 
 - Unit-test root config removal, override payload normalization, native bridge
-  source, asynchronous native opening, and injector snapshot refresh.
+  source, composer switch/action queue, asynchronous native opening, action
+  persistence, and injector snapshot refresh.
 - Run `npm run check` and `npm test`.
 - Restart only the wrapper service/application, then verify its generated
   `config.toml` has no global context keys.
