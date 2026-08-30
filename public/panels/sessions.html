@@ -30,15 +30,15 @@
             <div class="session-project-list hidden" data-testid="session-project-list" aria-live="polite"></div>
           </section>
           <section class="session-activity-layer hidden" data-testid="session-activity-layer" aria-label="远端会话实时过程">
-            <button class="session-activity-backdrop" type="button" data-session-activity-close aria-label="关闭实时过程"></button>
-            <article class="session-activity-panel" role="dialog" aria-modal="true" aria-labelledby="session-activity-title">
+            <article class="session-activity-panel" aria-labelledby="session-activity-title">
               <header class="session-activity-header">
-                <div><span data-testid="session-activity-owner">远端原生 Codex · 只读</span><h3 id="session-activity-title" data-testid="session-activity-title">会话实时过程</h3></div>
-                <button class="icon-button" type="button" data-session-activity-close aria-label="关闭">×</button>
+                <button class="session-activity-back" type="button" data-session-activity-close aria-label="返回会话中心">← <span>会话中心</span></button>
+                <div class="session-activity-identity"><h3 id="session-activity-title" data-testid="session-activity-title">远端原生对话</h3><code data-testid="session-activity-directory">—</code></div>
+                <span class="session-activity-owner" data-testid="session-activity-owner">远端节点 · 原生 Codex · 只读</span>
               </header>
               <div class="session-activity-state" data-testid="session-activity-state">正在读取所属节点…</div>
               <div class="session-activity-list hidden" data-testid="session-activity-list" aria-live="polite"></div>
-              <footer class="session-activity-footer"><span>每 3 秒从所属节点更新，不保存副本</span><span data-testid="session-activity-updated">—</span></footer>
+              <footer class="session-activity-footer"><span><strong>远端镜像</strong> · 每 3 秒从所属节点更新，不在本机创建会话副本</span><span data-testid="session-activity-updated">—</span></footer>
             </article>
           </section>
         </section>

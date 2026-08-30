@@ -116,6 +116,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   function openActivity(task) {
     selectedActivityTask = task;
     $('[data-testid="session-activity-title"]').textContent = task.title;
+    $('[data-testid="session-activity-directory"]').textContent = task.cwd || "未记录远端工作目录";
     $('[data-testid="session-activity-owner"]').textContent = `${task.device?.name || "远端节点"} · 原生 Codex · 只读`;
     activityLayer.classList.remove("hidden");
     void loadActivity();
@@ -154,7 +155,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     open.type = "button";
     open.className = "task-open session-open";
     const local = isLocalTask(task);
-    open.textContent = local ? "打开原生对话" : "查看实时过程";
+    open.textContent = local ? "打开原生对话" : "打开远端对话";
     open.addEventListener("click", () => local ? requestOpen(task) : openActivity(task));
     row.append(main, open);
     return row;
