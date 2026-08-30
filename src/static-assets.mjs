@@ -6,6 +6,7 @@ const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "state", "tasks", "transport"];
 const featureNames = ["console", "context", "dispatch", "priority", "sessions", "zotero"];
+const sessionSupportFiles = ["disclosure", "model"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
 const styleNames = ["base", "tasks", "sessions-priority", "states", "zotero", "responsive"];
 const panelFiles = ["board", "context", "console", "sessions", "priority", "zotero"].map((name) => `panels/${name}.html`);
@@ -16,6 +17,7 @@ const assetMap = new Map([
   ["/app.js", { file: "app.js", type: javascriptType }],
   ...coreNames.map((name) => [`/core/${name}.js`, { file: `core/${name}.js`, type: javascriptType }]),
   ...featureNames.map((name) => [`/features/${name}/index.js`, { file: `features/${name}/index.js`, type: javascriptType }]),
+  ...sessionSupportFiles.map((name) => [`/features/sessions/${name}.js`, { file: `features/sessions/${name}.js`, type: javascriptType }]),
   ...zoteroSupportFiles.map((name) => [`/features/zotero/${name}.js`, { file: `features/zotero/${name}.js`, type: javascriptType }])
 ].map(([url, asset]) => [url, Object.freeze({
   ...asset,

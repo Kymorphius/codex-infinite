@@ -1,7 +1,9 @@
 .session-project-list { display: grid; gap: 16px; }
 .sessions-heading { margin-bottom: 10px; }
 .sessions-heading h2 { margin-bottom: 0; font-size: 21px; }
-.session-controls { display: grid; grid-template-columns: minmax(240px, 1fr) 130px auto auto; align-items: center; gap: 9px; margin-bottom: 12px; padding: 10px; border: 1px solid #e1e1e4; border-radius: 12px; background: #fff; }
+.session-controls { position: sticky; top: 8px; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px; border: 1px solid #e1e1e4; border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: 0 8px 24px rgba(0,0,0,.035); backdrop-filter: blur(16px); }
+.session-search { flex: 1 1 280px; }
+.session-status-filter { flex: 0 0 132px; }
 .session-search input, .session-status-filter select { width: 100%; height: 34px; border: 1px solid #dedee2; border-radius: 8px; outline: 0; background: #fafafa; color: #353539; font: inherit; font-size: 11px; }
 .session-search input { padding: 0 11px; }
 .session-status-filter select { padding: 0 9px; cursor: pointer; }
@@ -10,19 +12,35 @@
 .session-scope-summary span { border-radius: 999px; padding: 6px 8px; background: #f3f3f5; color: #85858a; font-size: 9px; }
 .session-scope-summary strong { color: #343438; font-size: 10px; }
 .session-result-count { min-width: 76px; color: #8d8d92; font-size: 10px; text-align: right; white-space: nowrap; }
+.session-clear-filter { border: 0; border-radius: 7px; padding: 7px 9px; background: #f1f1f3; color: #66666b; font-size: 9px; font-weight: 700; cursor: pointer; }
+.session-clear-filter:hover { background: #e7e7ea; color: #29292d; }
+.session-view-actions { display: inline-flex; overflow: hidden; border: 1px solid #dedee2; border-radius: 8px; background: #fafafa; }
+.session-view-actions button { border: 0; border-right: 1px solid #dedee2; padding: 7px 9px; background: transparent; color: #69696e; font-size: 9px; font-weight: 700; cursor: pointer; }
+.session-view-actions button:last-child { border-right: 0; }
+.session-view-actions button:hover:not(:disabled) { background: #ededf0; color: #29292d; }
+.session-view-actions button:disabled { cursor: default; opacity: .42; }
 .session-filter-empty { display: grid; justify-items: center; gap: 4px; min-height: 180px; padding: 42px 20px; border: 1px dashed #d9d9dd; border-radius: 14px; background: rgba(255,255,255,.6); text-align: center; }
 .session-filter-empty h3, .session-filter-empty p { margin-bottom: 0; }
 .session-filter-empty p { color: #8d8d92; font-size: 11px; }
 .session-device-card { overflow: hidden; border: 1px solid #dedee1; border-radius: 16px; background: #f1f1f3; }
-.session-device-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 16px 18px; border-bottom: 1px solid #dedee1; background: #fff; }
+.session-device-header { display: grid; grid-template-columns: minmax(170px, 1fr) auto auto; width: 100%; align-items: center; gap: 18px; border: 0; border-bottom: 1px solid #dedee1; padding: 15px 18px; background: #fff; color: inherit; text-align: left; cursor: pointer; }
+.session-device-header:hover { background: #fafafa; }
+.session-device-card[data-collapsed="true"] .session-device-header { border-bottom-color: transparent; }
 .session-device-identity { min-width: 0; }
-.session-device-identity h3 { margin: 0 0 4px; color: #26262a; font-size: 16px; }
+.session-device-name-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.session-device-identity h3 { margin: 0; overflow: hidden; color: #26262a; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .session-device-identity span { color: #8e8e93; font-size: 10px; }
+.session-device-role { flex: 0 0 auto; border-radius: 999px; padding: 3px 6px; background: #f0f0f2; color: #77777c !important; font-size: 8px !important; font-weight: 750; }
+.session-device-stats { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 5px 10px; max-width: 430px; color: #8b8b90; font-size: 9px; }
+.session-device-trailing { display: flex; align-items: center; gap: 10px; }
 .session-device-status { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 9px; background: #edf7f1; color: #27845a; font-size: 10px; font-weight: 750; white-space: nowrap; }
 .session-device-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .session-device-status:not([data-status="connected"]) { background: #f2f2f3; color: #8b8b90; }
 .session-device-status[data-status="error"] { background: #fff0f0; color: #b04545; }
+.session-device-disclosure { color: #8f8f94; font-size: 16px; line-height: 1; transition: transform .15s; }
+.session-device-header[aria-expanded="true"] .session-device-disclosure { transform: rotate(180deg); }
 .session-device-projects { display: grid; gap: 10px; padding: 12px; }
+.session-device-empty { margin: 0; padding: 24px; color: #929297; font-size: 10px; text-align: center; }
 .session-project-card { overflow: hidden; border: 1px solid #e0e0e3; border-radius: 12px; background: #fff; }
 .session-project-card > summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 16px; cursor: pointer; list-style: none; }
 .session-project-card > summary::-webkit-details-marker { display: none; }

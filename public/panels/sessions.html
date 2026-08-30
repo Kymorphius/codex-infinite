@@ -7,10 +7,15 @@
             <div class="session-controls" aria-label="筛选会话">
               <label class="session-search"><span class="sr-only">搜索会话</span><input type="search" data-testid="session-search" placeholder="搜索项目、目录、会话或模型"></label>
               <label class="session-status-filter"><span class="sr-only">状态</span><select data-testid="session-status-filter"><option value="all">全部状态</option><option value="active">进行中</option><option value="completed">已完成</option><option value="error">异常</option></select></label>
+              <button class="session-clear-filter hidden" type="button" data-testid="session-clear-filter">清除筛选</button>
               <div class="session-scope-summary" aria-label="会话数据范围">
                 <span><strong data-testid="session-device-count">—</strong> 设备</span>
                 <span><strong data-testid="session-project-count">—</strong> 目录</span>
                 <span><strong data-testid="session-count">—</strong> 总会话</span>
+              </div>
+              <div class="session-view-actions" aria-label="展开或折叠会话层级">
+                <button type="button" data-session-disclosure="expand">全部展开</button>
+                <button type="button" data-session-disclosure="collapse">全部折叠</button>
               </div>
               <span class="session-result-count" data-testid="session-result-count">—</span>
             </div>
