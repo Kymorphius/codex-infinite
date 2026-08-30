@@ -1,6 +1,6 @@
 # Codex Control Console
 
-这是一个嵌入 OpenAI Codex 桌面应用的本机包装版控制台。包装版保留 Codex 原生的常规聊天方式，并为包装版中的所有原生对话统一请求扩展上下文；本机普通 Codex 的配置不受影响。它还通过已验证的 loopback CDP 连接注入本地 dashboard，提供“控制台”、“看板”、“会话中心”、“项目优先级”、“上下文状态”和“文献库”等辅助工作区。
+这是一个嵌入 OpenAI Codex 桌面应用的本机包装版控制台。包装版保留 Codex 原生的常规聊天方式；普通会话使用模型默认上下文，只有明确标记的会话才请求扩展上下文。本机普通 Codex 的配置不受影响。它还通过已验证的 loopback CDP 连接注入本地 dashboard，提供“控制台”、“看板”、“会话中心”、“项目优先级”、“上下文状态”和“文献库”等辅助工作区。
 
 本项目按长期产品维护。功能开发采用 [SDD 流程](docs/development.md)，模块边界见 [架构说明](docs/architecture.md)，产品规格与架构决策分别保存在 `docs/specs/` 和 `docs/adr/`。`npm run check` 会执行语法检查和结构预算，阻止巨型文件继续增长。
 
@@ -14,18 +14,15 @@
 
 本机节点由 `~/Library/LaunchAgents/dev.codex-control-console.plist` 持续运行完整包装版，由 `dev.codex-control-relay.plist` 维护备用隧道。MacBook Pro（192.168.1.30）使用相同的两个用户服务，应用位于 `~/Applications/CodexControlConsole`，Node.js 用户运行时位于 `~/.local/node-v22.23.2-darwin-arm64`；不会替换系统 Node 或普通 ChatGPT/Codex profile。
 
-## 常规聊天扩展上下文
+## 按会话扩展上下文
 
-包装版启动时会准备独立的 `~/.codex-control-console/config.toml`，其中写入：
+包装版启动时会准备独立的 `~/.codex-control-console/config.toml`，但不会在根配置中写入 `model_context_window` 或 `model_auto_compact_token_limit`。因此新建和普通会话沿用当前模型默认值。
 
-```toml
-model_context_window = 1000000
-model_auto_compact_token_limit = 1000000
-```
+在“上下文状态”中为某条会话保存 1,000,000 tokens 后，从会话中心或原生侧边栏打开该会话时，包装版会通过桌面应用自身的 app-server 连接在 `thread/resume` 中附加这两个会话级配置；看板后台续接同一会话时也应用相同覆盖。设置只作用于该会话，不会改变其他对话。
 
 包装版的 Codex 进程使用该独立配置目录，但会通过符号链接复用普通 Codex 的登录状态、会话记录、模型目录、skills 和 plugins。因此目标对话仍会出现在原生侧栏中，使用方式也是正常对话：直接新建或打开对话，在原生输入框发送消息即可，不需要先加入看板。
 
-`~/.codex/config.toml` 不会被修改。请求值也不等于模型保证提供的实际窗口：当前本机 `gpt-5.6-sol` 模型元数据将 1,000,000 的请求钳制到 872,000 tokens，按 95% 有效比例预计可使用 828,400 tokens。包装版同时提高自动压缩阈值，以免仍按默认窗口过早压缩；到达模型实际容量后，Codex 自身的上下文接续机制仍会生效。
+`~/.codex/config.toml` 不会被修改。请求值也不等于模型保证提供的实际窗口：控制台会按本机模型目录展示模型接受值和预计有效值；原生引擎会在该会话下一次真实对话的 token-usage 事件中回报实际 `modelContextWindow`。包装版不会为了验证而向用户会话发送测试消息。
 
 ## 启动
 
@@ -35,7 +32,7 @@ npm start
 
 启动器会：
 
-1. 从普通 Codex 配置生成包装版专用 `~/.codex-control-console/config.toml`，加入扩展上下文和自动压缩阈值。
+1. 从普通 Codex 配置生成包装版专用 `~/.codex-control-console/config.toml`，移除根级上下文覆盖，使普通聊天使用模型默认值。
 2. 确保 dashboard 只监听 `http://127.0.0.1:47831`。
 3. 启动只使用 `127.0.0.1:9231` 的专用 Codex 实例，并把 `CODEX_HOME` 指向包装版目录。
 4. 使用 `/Users/matrix/Library/Application Support/Codex Control Console` 作为专用 Chromium profile。
@@ -43,9 +40,9 @@ npm start
 
 如果 `9231` 已经被另一个 profile 占用，启动器会拒绝附着或终止它，避免误触碰正常 Codex 实例。
 
-首次启用全局扩展上下文，或修改 `CODEX_CONTROL_CONTEXT_WINDOW` 后，必须先完全退出已经打开的包装版窗口，再运行 `npm start`。启动器会拒绝附着到仍使用旧环境的包装版进程，避免界面看似正常、实际却没有启用扩展上下文。
+首次从旧的全局模式升级到单会话模式，或修改 `CODEX_CONTROL_CONTEXT_WINDOW` 后，必须先完全退出已经打开的包装版窗口，再运行 `npm start`。启动器会拒绝附着到仍使用旧环境的包装版进程，避免界面状态与实际配置不一致。
 
-默认请求 1,000,000 tokens。如需改变包装版的统一请求值，可在启动时设置 `CODEX_CONTROL_CONTEXT_WINDOW`；该设置只属于包装版。
+单会话表单默认请求 1,000,000 tokens。如需改变包装版建议的扩展值，可在启动时设置 `CODEX_CONTROL_CONTEXT_WINDOW`；它不会自动应用到普通会话。
 
 ## 验证
 
@@ -65,9 +62,9 @@ npm run inspect -- --open-priority --screenshot=/tmp/codex-control-console-prior
 
 “看板”现在同时提供本机任务调度能力：填写任务标题和完整说明，选择项目后可自动指派到该项目最近对话，也可明确选择另一条对话。任务可以先放入“待排期”、指定未来时间，或立即加入单并发发送队列；状态依次显示为“待排期 / 已排期 / 排队中 / 发送中 / 已发送 / 异常”。到期任务通过安装包内的 `codex exec resume` 续接目标对话，指令经标准输入传递，不拼接 shell 命令，也不使用跳过审批或沙箱的危险参数。
 
-“上下文状态”中的单会话表单是看板调度器的可选覆盖功能。覆盖保存在 `src/.runtime/context-windows.json`，只在看板通过 `codex exec resume` 续接命中的会话时追加 `-c model_context_window=<tokens>`。它不是原生聊天的入口；包装版原生聊天已经由包装版专用配置全局启用，无需目标对话先出现在看板中。页面同时显示请求值、模型目录允许的最大接受值、按模型有效比例计算的预计可用值，以及会话记录中最近观测到的实际窗口。
+“上下文状态”中的单会话覆盖保存在 `src/.runtime/context-windows.json`。原生界面打开命中会话时通过桌面 app-server 应用；看板通过 `codex exec resume` 续接时追加相同配置。页面同时显示请求值、模型目录允许的最大接受值、按模型有效比例计算的预计可用值，以及会话记录中最近观测到的实际窗口。
 
-例如，会话 `01a015ac-363f-7472-961a-f31d174ad2c8` 仍保留看板调度请求 `1,000,000` tokens；即使不使用该调度覆盖，只要在包装版中以原生方式打开它，包装版的全局扩展上下文也会生效。
+例如，会话 `01a015ac-363f-7472-961a-f31d174ad2c8` 保存 `1,000,000` tokens 后，无论从会话中心进入、从原生侧栏打开，还是由看板后台续接，都只为这一条会话请求扩展窗口。
 
 调度状态保存在 `src/.runtime/dispatch-board.json`，会话上下文覆盖保存在 `src/.runtime/context-windows.json`；文件权限均为当前用户读写，并已加入 `.gitignore`。服务重启时，未完成的“发送中”任务会回到队列；发送失败会保留错误信息，用户可手动重试。所有写接口仍只监听 `127.0.0.1`，并拒绝来自其他浏览器 Origin 的写请求。
 

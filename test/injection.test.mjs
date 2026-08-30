@@ -29,7 +29,9 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /codex-control-console-show-module/);
   assert.match(source, /type: 'navigate-to-route'/);
   assert.match(source, /path: '\/local\/' \+ encodeURIComponent\(localThreadId\)/);
-  assert.match(source, /method: 'native-route-id'/);
+  assert.match(source, /'native-route-id'/);
+  assert.match(source, /__codexControlConsoleOpenNativeThread/);
+  assert.match(source, /native-route-context/);
   assert.match(source, /style\.visibility !== 'hidden'/);
   assert.match(source, /belongsToCurrentWorkspace/);
   assert.match(source, /visiblyMounted/);

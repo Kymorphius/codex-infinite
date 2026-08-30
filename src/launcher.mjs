@@ -32,7 +32,7 @@ export async function findCdpProcess({ port, execFileImpl = execFile } = {}) {
 }
 
 function wrapperSignature(config) {
-  return Buffer.from(`${path.resolve(config.wrapperCodexHome || "")}\n${config.wrapperContextWindow || ""}`, "utf8").toString("base64url");
+  return Buffer.from(`per-thread-v2\n${path.resolve(config.wrapperCodexHome || "")}\n${config.perThreadContextWindow || ""}`, "utf8").toString("base64url");
 }
 
 async function processWrapperSignature(pid, execFileImpl) {
@@ -72,7 +72,7 @@ export async function ensureDedicatedCodex(config, {
     if (profileDirectory && path.resolve(profileDirectory) === path.resolve(config.profileDirectory)) {
       const activeSignature = await processWrapperSignature(existingProcess.pid, execFileImpl);
       if (config.wrapperCodexHome && activeSignature !== wrapperSignature(config)) {
-        throw new Error("包装版 Codex 仍在使用旧配置。请完全退出专用 Codex 窗口后重新运行 npm start，以启用常规聊天扩展上下文。");
+        throw new Error("包装版 Codex 仍在使用旧配置。请完全退出专用 Codex 窗口后重新运行 npm start，以启用单会话扩展上下文。");
       }
       return { mode: "attached", pid: existingProcess.pid, profileDirectory, version: existingEndpoint.Browser || null };
     }
@@ -98,7 +98,7 @@ export async function ensureDedicatedCodex(config, {
     env: {
       ...process.env,
       ...(config.wrapperCodexHome ? { CODEX_HOME: config.wrapperCodexHome } : {}),
-      CODEX_CONTROL_WRAPPER_CONTEXT_WINDOW: String(config.wrapperContextWindow || ""),
+      CODEX_CONTROL_PER_THREAD_CONTEXT_WINDOW: String(config.perThreadContextWindow || ""),
       CODEX_CONTROL_WRAPPER_SIGNATURE: wrapperSignature(config)
     }
   });

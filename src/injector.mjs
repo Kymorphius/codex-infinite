@@ -1,7 +1,8 @@
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { buildInjectionScript } from "./injection.mjs";
+import { buildNativeContextInjectionScript, buildNativeContextSnapshotScript } from "./native-context-injection.mjs";
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [] } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleCspPrepared) {
     await connection.send("Page.setBypassCSP", { enabled: true });
@@ -14,6 +15,9 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       return { hasEntry: Boolean(entry), hasFrame: Boolean(frame), frameReady: Boolean(frame?.hasAttribute('data-codex-control-console-frame-ready')) };
     })()`).catch(() => ({ hasEntry: false, hasFrame: false, frameReady: false }));
     if (state.hasEntry && (!state.hasFrame || state.frameReady || connection.__codexControlConsoleRecoveryAttempted)) {
+      await connection.evaluate(buildNativeContextInjectionScript());
+      await connection.evaluate(buildInjectionScript(dashboardUrl));
+      await connection.evaluate(buildNativeContextSnapshotScript(contextOverrides));
       return { status: "already-installed" };
     }
     if (state.hasEntry && state.hasFrame && !state.frameReady) {
@@ -25,18 +29,24 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildInjectionScript(dashboardUrl)
     });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: buildNativeContextInjectionScript()
+    });
   }
+  await connection.evaluate(buildNativeContextInjectionScript());
   await connection.evaluate(buildInjectionScript(dashboardUrl));
+  await connection.evaluate(buildNativeContextSnapshotScript(contextOverrides));
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, contextWindowStore = null, pollMs = 1200, logger = console }) {
     this.cdpOrigin = cdpOrigin;
     this.dashboardUrl = dashboardUrl;
     this.pollMs = pollMs;
     this.logger = logger;
+    this.contextWindowStore = contextWindowStore;
     this.running = false;
     this.timer = null;
     this.syncing = false;
@@ -56,7 +66,9 @@ export class CodexInjector {
         await this.connection.connect();
         this.targetId = target.id;
       }
-      await installIntoTarget(this.connection, this.dashboardUrl);
+      await installIntoTarget(this.connection, this.dashboardUrl, {
+        contextOverrides: this.contextWindowStore?.list?.() || []
+      });
     } catch (error) {
       this.logger.warn(`[codex-control-console] injector waiting: ${error.message}`);
     } finally {

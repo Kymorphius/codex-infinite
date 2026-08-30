@@ -29,7 +29,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   );
   const sourceCodexHome = env.CODEX_CONTROL_SOURCE_CODEX_HOME || path.join(homeDirectory, ".codex");
   const wrapperCodexHome = env.CODEX_CONTROL_CODEX_HOME || path.join(homeDirectory, ".codex-control-console");
-  const wrapperContextWindow = positiveIntegerFromEnv(env.CODEX_CONTROL_CONTEXT_WINDOW, 1_000_000);
+  const perThreadContextWindow = positiveIntegerFromEnv(env.CODEX_CONTROL_CONTEXT_WINDOW, 1_000_000);
   const appPath = env.CODEX_CONTROL_APP_PATH || DEFAULT_APP_PATH;
   const zoteroPath = env.CODEX_CONTROL_ZOTERO_PATH || env.CODEX_CONTROL_ZOTERO_DB_PATH || path.join(homeDirectory, "Zotero", "zotero.sqlite");
   const zoteroLocalApiOrigin = env.CODEX_CONTROL_ZOTERO_LOCAL_API_ORIGIN || env.CODEX_CONTROL_ZOTERO_API_ORIGIN || "http://127.0.0.1:23119/api/";
@@ -57,7 +57,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     profileDirectory,
     sourceCodexHome,
     wrapperCodexHome,
-    wrapperContextWindow,
+    perThreadContextWindow,
     appPath,
     zoteroPath,
     zoteroLocalApiOrigin,

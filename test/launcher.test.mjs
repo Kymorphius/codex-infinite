@@ -13,7 +13,7 @@ function config() {
     cdpOrigin: "http://127.0.0.1:9231",
     profileDirectory: "/tmp/Codex Control Console",
     wrapperCodexHome: "/tmp/.codex-control-console",
-    wrapperContextWindow: 1_000_000,
+    perThreadContextWindow: 1_000_000,
     appPath: "/Applications/ChatGPT.app"
   };
 }
@@ -35,7 +35,7 @@ test("launcher refuses to attach to a wrapper process with stale context environ
 
 test("launcher attaches when the existing wrapper has the expected context environment", async () => {
   const current = config();
-  const signature = Buffer.from(`${path.resolve(current.wrapperCodexHome)}\n${current.wrapperContextWindow}`, "utf8").toString("base64url");
+  const signature = Buffer.from(`per-thread-v2\n${path.resolve(current.wrapperCodexHome)}\n${current.perThreadContextWindow}`, "utf8").toString("base64url");
   const execFileImpl = async (_file, args) => {
     if (args[0] === "-axo") return { stdout: "123 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/tmp/Codex Control Console --remote-debugging-port=9231\n" };
     return { stdout: `ChatGPT CODEX_CONTROL_WRAPPER_SIGNATURE=${signature}` };
