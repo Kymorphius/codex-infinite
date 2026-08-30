@@ -47,6 +47,7 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 public/
   index.html                # synchronous document shell
   panels/                   # private server-composed feature markup
+  styles/                   # ordered shared, feature, integration, and responsive styles
   app.js                    # bootstrap only
   core/                     # state, DOM helpers, formatting, task source, transport, navigation
   features/
@@ -61,4 +62,4 @@ Each feature owns its rendering, events, and view-specific formatting. Shared pr
 
 ## Structural debt
 
-The remaining frozen source debt is `public/styles.css`. It should be split by shared shell, feature layout, and Zotero/editor styling without introducing a CSS build step.
+All previously frozen source debt has been decomposed. New modules remain subject to the automated structure budget; budget increases require an ADR.

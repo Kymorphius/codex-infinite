@@ -7,11 +7,12 @@ const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "state", "tasks", "transport"];
 const featureNames = ["console", "context", "dispatch", "priority", "sessions", "zotero"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
+const styleNames = ["base", "tasks", "sessions-priority", "states", "zotero", "responsive"];
 const panelFiles = ["board", "context", "console", "sessions", "priority", "zotero"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
   ["/", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],
   ["/index.html", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],
-  ["/styles.css", { file: "styles.css", type: "text/css; charset=utf-8" }],
+  ...styleNames.map((name) => [`/styles/${name}.css`, { file: `styles/${name}.css`, type: "text/css; charset=utf-8" }]),
   ["/app.js", { file: "app.js", type: javascriptType }],
   ...coreNames.map((name) => [`/core/${name}.js`, { file: `core/${name}.js`, type: javascriptType }]),
   ...featureNames.map((name) => [`/features/${name}/index.js`, { file: `features/${name}/index.js`, type: javascriptType }]),
