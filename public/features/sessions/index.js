@@ -42,13 +42,89 @@ export function filterSessions(tasks = [], { query = "", status = "all" } = {}) 
   });
 }
 
-export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen }) {
+export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
   const list = $('[data-testid="session-project-list"]');
   const search = $('[data-testid="session-search"]');
   const statusFilter = $('[data-testid="session-status-filter"]');
   const filterEmpty = $('[data-testid="session-filter-empty"]');
+  const activityLayer = $('[data-testid="session-activity-layer"]');
+  const activityList = $('[data-testid="session-activity-list"]');
+  const activityState = $('[data-testid="session-activity-state"]');
   const filter = { query: "", status: "all" };
+  let selectedActivityTask = null;
+  let activityLoading = false;
+
+  function activityEntry(entry) {
+    const item = document.createElement("article");
+    item.className = "session-activity-entry";
+    item.dataset.kind = entry.kind;
+    if (entry.kind === "message") {
+      item.dataset.role = entry.role;
+      const label = document.createElement("span");
+      label.textContent = entry.role === "user" ? "你" : entry.phase === "commentary" ? "Codex · 过程" : "Codex";
+      const text = document.createElement("p");
+      text.textContent = entry.text;
+      item.append(label, text);
+    } else {
+      const label = document.createElement("span");
+      label.textContent = entry.kind === "tool" ? "执行" : "状态";
+      const text = document.createElement("p");
+      text.textContent = entry.kind === "tool" ? `${entry.name || "工具"} · ${entry.status || "已请求"}` : entry.status === "completed" ? "本轮已完成" : "本轮已开始";
+      item.append(label, text);
+    }
+    if (entry.timestamp) {
+      const time = document.createElement("time");
+      time.textContent = formatDate(entry.timestamp);
+      item.append(time);
+    }
+    return item;
+  }
+
+  async function loadActivity({ quiet = false } = {}) {
+    if (!selectedActivityTask || activityLoading) return;
+    activityLoading = true;
+    const task = selectedActivityTask;
+    if (!quiet) {
+      activityState.textContent = "正在读取所属节点…";
+      activityState.classList.remove("hidden");
+      activityList.classList.add("hidden");
+    }
+    try {
+      const url = `/api/tasks/${encodeURIComponent(task.id)}/activity?device=${encodeURIComponent(task.device.id)}`;
+      const response = await fetchImpl(url, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
+      if (selectedActivityTask !== task) return;
+      const entries = Array.isArray(result.activity?.entries) ? result.activity.entries : [];
+      activityList.replaceChildren(...entries.map(activityEntry));
+      activityList.classList.toggle("hidden", entries.length === 0);
+      activityState.classList.toggle("hidden", entries.length > 0);
+      activityState.textContent = entries.length ? "" : "这个会话最近没有可显示的活动。";
+      $('[data-testid="session-activity-updated"]').textContent = `更新 ${formatDate(result.activity?.updatedAt || new Date().toISOString())}`;
+      activityList.scrollTop = activityList.scrollHeight;
+    } catch (error) {
+      if (selectedActivityTask !== task) return;
+      activityState.textContent = `暂时无法读取：${error.message}`;
+      activityState.classList.remove("hidden");
+      if (!quiet) activityList.classList.add("hidden");
+    } finally {
+      activityLoading = false;
+    }
+  }
+
+  function openActivity(task) {
+    selectedActivityTask = task;
+    $('[data-testid="session-activity-title"]').textContent = task.title;
+    $('[data-testid="session-activity-owner"]').textContent = `${task.device?.name || "远端节点"} · 原生 Codex · 只读`;
+    activityLayer.classList.remove("hidden");
+    void loadActivity();
+  }
+
+  function closeActivity() {
+    selectedActivityTask = null;
+    activityLayer.classList.add("hidden");
+  }
 
   function sessionRow(task) {
     const row = document.createElement("article");
@@ -78,9 +154,8 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     open.type = "button";
     open.className = "task-open session-open";
     const local = isLocalTask(task);
-    open.textContent = local ? "打开原生对话" : "由远端节点打开";
-    open.disabled = !local;
-    if (local) open.addEventListener("click", () => requestOpen(task));
+    open.textContent = local ? "打开原生对话" : "查看实时过程";
+    open.addEventListener("click", () => local ? requestOpen(task) : openActivity(task));
     row.append(main, open);
     return row;
   }
@@ -114,7 +189,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     return card;
   }
 
-  function deviceCard(device, index) {
+  function deviceCard(device) {
     const card = document.createElement("section");
     card.className = "session-device-card";
     card.dataset.deviceId = device.id;
@@ -134,7 +209,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     header.append(identity, status);
     const projects = document.createElement("div");
     projects.className = "session-device-projects";
-    projects.replaceChildren(...device.projects.map((project, projectIndex) => projectCard(project, index === 0 ? projectIndex : projectIndex + 1)));
+    projects.replaceChildren(...device.projects.map((project, projectIndex) => projectCard(project, projectIndex)));
     card.append(header, projects);
     return card;
   }
@@ -161,6 +236,9 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   function bind() {
     search.addEventListener("input", () => { filter.query = search.value.trim().slice(0, 200); render(); });
     statusFilter.addEventListener("change", () => { filter.status = statusFilter.value; render(); });
+    for (const close of activityLayer.querySelectorAll("[data-session-activity-close]")) close.addEventListener("click", closeActivity);
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && selectedActivityTask) closeActivity(); });
+    setInterval(() => { if (selectedActivityTask) void loadActivity({ quiet: true }); }, 3000);
   }
 
   return { bind, render, setTaskState };

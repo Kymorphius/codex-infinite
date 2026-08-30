@@ -35,4 +35,11 @@ export class FederatedTaskAdapter {
     const result = await this.listTasks();
     return result.tasks.find((task) => task.id === id) || null;
   }
+
+  async getActivity(id, deviceId) {
+    if (deviceId === this.localAdapter.device?.id) return this.localAdapter.getActivity(id);
+    const peer = this.peerAdapters.find((adapter) => adapter.peer?.id === deviceId);
+    if (!peer) return null;
+    return peer.getActivity(id);
+  }
 }

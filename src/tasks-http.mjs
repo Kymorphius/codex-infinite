@@ -5,7 +5,7 @@ export function createTasksHttpHandler({ adapter, localAdapter = adapter }) {
   return async function handleTasksRequest(request, response, requestUrl) {
     const isNodeSnapshot = requestUrl.pathname === "/api/node/snapshot";
     const isCollection = requestUrl.pathname === "/api/tasks";
-    const isItem = requestUrl.pathname.startsWith("/api/tasks/");
+    const isItem = requestUrl.pathname.startsWith("/api/tasks/") && !requestUrl.pathname.endsWith("/activity");
     if (!isNodeSnapshot && !isCollection && !isItem) return false;
 
     if (request.method !== "GET" && request.method !== "HEAD") {

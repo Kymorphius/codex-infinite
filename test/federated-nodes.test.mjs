@@ -6,7 +6,7 @@ import path from "node:path";
 import { normalizePeerDefinition, normalizePeerSnapshot, projectLocalNodeSnapshot } from "../src/peer-contract.mjs";
 import { loadPeerConfig } from "../src/peer-config.mjs";
 import { FederatedTaskAdapter } from "../src/federated-task-adapter.mjs";
-import { SshPeerAdapter, sshSnapshotArguments } from "../src/ssh-peer-adapter.mjs";
+import { SshPeerAdapter, sshActivityArguments, sshSnapshotArguments } from "../src/ssh-peer-adapter.mjs";
 
 const peer = normalizePeerDefinition({
   id: "forest-mac", name: "森林 Mac", location: "森林",
@@ -52,6 +52,27 @@ test("SSH transport arguments are fixed and relay requests only relay loopback",
   assert.ok(relay.includes("root@67.230.169.158"));
   assert.ok(relay.includes("http://127.0.0.1:47842/api/node/snapshot"));
   assert.ok(relay.includes("StrictHostKeyChecking=yes"));
+  const activity = sshActivityArguments(peer.transports[0], "thread/one");
+  assert.ok(activity.includes("http://127.0.0.1:47831/api/node/activity/thread%2Fone"));
+  assert.equal(activity.some((argument) => argument.includes(";")), false);
+  assert.throws(() => sshActivityArguments(peer.transports[0], "thread;unsafe"), /invalid/);
+});
+
+test("federated activity routing requires the owning device even when thread ids collide", async () => {
+  const calls = [];
+  const localAdapter = {
+    device: { id: "matrix-air" },
+    async getActivity(id) { calls.push(["local", id]); return { threadId: id, entries: [] }; }
+  };
+  const remoteAdapter = {
+    peer: { id: "forest-mac" },
+    async getActivity(id) { calls.push(["remote", id]); return { threadId: id, entries: [] }; }
+  };
+  const federated = new FederatedTaskAdapter({ localAdapter, peerAdapters: [remoteAdapter] });
+  await federated.getActivity("same-id", "forest-mac");
+  await federated.getActivity("same-id", "matrix-air");
+  assert.deepEqual(calls, [["remote", "same-id"], ["local", "same-id"]]);
+  assert.equal(await federated.getActivity("same-id", "unknown"), null);
 });
 
 test("peer adapter prefers direct SSH and automatically falls back to relay", async () => {
