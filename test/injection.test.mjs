@@ -27,6 +27,9 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /SESSION_ENTRY_TEXT = '会话中心'/);
   assert.match(source, /PRIORITY_ENTRY_TEXT = '项目优先级'/);
   assert.match(source, /codex-control-console-show-module/);
+  assert.match(source, /url\.searchParams\.set\('theme', nativeTheme\(\)\)/);
+  assert.match(source, /prefers-color-scheme: dark/);
+  assert.match(source, /luminance < 128/);
   assert.match(source, /type: 'navigate-to-route'/);
   assert.match(source, /path: '\/local\/' \+ encodeURIComponent\(localThreadId\)/);
   assert.match(source, /'native-route-id'/);

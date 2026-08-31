@@ -9,6 +9,9 @@ test("config defaults bind both listeners to 127.0.0.1", () => {
   assert.equal(config.cdpHost, "127.0.0.1");
   assert.equal(config.dashboardPort, 47831);
   assert.equal(config.cdpPort, 9231);
+  assert.equal(config.primaryCdpHost, "127.0.0.1");
+  assert.equal(config.primaryCdpPort, 9232);
+  assert.equal(config.primaryCdpEnabled, false);
   assertLoopbackConfig(config);
 });
 

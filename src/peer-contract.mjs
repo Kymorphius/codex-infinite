@@ -1,8 +1,12 @@
+import { normalizeNodeRuntime, unknownNodeRuntime } from "./node-runtime.mjs";
+import { ACCESS_MODES, CONTEXT_OVERRIDE_STATES, SERVICE_TIERS } from "./thread-settings.mjs";
+
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const NODE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const USER_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]{0,31}$/;
 const HOST_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
 const MAX_PEER_TASKS = 200;
+const MAX_CONTEXT_WINDOW = 2_000_000;
 
 function text(value, maxLength, fallback = "") {
   const normalized = String(value || "").replace(/[\u0000-\u001f\u007f]/g, "").trim();
@@ -75,6 +79,12 @@ function publicTask(task, device) {
     recordCount: Number.isSafeInteger(task?.recordCount) && task.recordCount >= 0 ? task.recordCount : 0,
     model: text(task?.model, 120) || null,
     reasoningEffort: text(task?.reasoningEffort, 40) || null,
+    serviceTier: SERVICE_TIERS.includes(task?.serviceTier) && task.serviceTier !== "unknown" ? task.serviceTier : null,
+    approvalPolicy: text(task?.approvalPolicy, 40) || null,
+    permissionProfile: text(task?.permissionProfile, 80) || null,
+    accessMode: ACCESS_MODES.includes(task?.accessMode) ? task.accessMode : "unknown",
+    contextOverrideState: CONTEXT_OVERRIDE_STATES.includes(task?.contextOverrideState) ? task.contextOverrideState : "unknown",
+    requestedContextWindow: Number.isSafeInteger(task?.requestedContextWindow) && task.requestedContextWindow > 0 && task.requestedContextWindow <= MAX_CONTEXT_WINDOW ? task.requestedContextWindow : null,
     modelContextWindow: Number.isSafeInteger(task?.modelContextWindow) && task.modelContextWindow > 0 ? task.modelContextWindow : null,
     project: text(task?.project, 160, "未归类"),
     boardStatus: text(task?.boardStatus, 24, "pending"),
@@ -82,17 +92,18 @@ function publicTask(task, device) {
   });
 }
 
-export function projectLocalNodeSnapshot(result = {}) {
+export function projectLocalNodeSnapshot(result = {}, runtime = unknownNodeRuntime()) {
   const node = result.devices?.[0] || {};
   const device = Object.freeze({
     id: text(node.id, 64, "local"),
     name: text(node.name, 80, "本机"),
     kind: "local-codex",
     location: text(node.location, 80, "本机"),
-    status: text(node.status, 24, "connected")
+    status: text(node.status, 24, "connected"),
+    runtime: normalizeNodeRuntime(runtime)
   });
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 3,
     status: ["connected", "empty", "disconnected", "error"].includes(result.status) ? result.status : "error",
     node: device,
     tasks: Object.freeze((Array.isArray(result.tasks) ? result.tasks : []).slice(0, MAX_PEER_TASKS).map((task) => publicTask(task, device)).filter(Boolean))
@@ -100,10 +111,18 @@ export function projectLocalNodeSnapshot(result = {}) {
 }
 
 export function normalizePeerSnapshot(peer, payload = {}) {
-  if (payload.schemaVersion !== 1 || !Array.isArray(payload.tasks) || payload.tasks.length > MAX_PEER_TASKS) {
+  if (![1, 2, 3].includes(payload.schemaVersion) || !Array.isArray(payload.tasks) || payload.tasks.length > MAX_PEER_TASKS) {
     throw new Error("Peer snapshot contract is invalid");
   }
-  const device = Object.freeze({ id: peer.id, name: peer.name, kind: "remote-codex", location: peer.location, status: "connected" });
+  if (payload.schemaVersion === 3 && payload.tasks.some((task) => (
+    !ACCESS_MODES.includes(task?.accessMode)
+    || (task.serviceTier != null && (!SERVICE_TIERS.includes(task.serviceTier) || task.serviceTier === "unknown"))
+    || !CONTEXT_OVERRIDE_STATES.includes(task?.contextOverrideState)
+    || (task.contextOverrideState === "extended" && (!Number.isSafeInteger(task.requestedContextWindow) || task.requestedContextWindow < 32_000 || task.requestedContextWindow > MAX_CONTEXT_WINDOW))
+    || (task.contextOverrideState !== "extended" && task.requestedContextWindow != null)
+  ))) throw new Error("Peer snapshot settings are invalid");
+  const runtime = payload.schemaVersion >= 2 ? normalizeNodeRuntime(payload.node?.runtime) : unknownNodeRuntime();
+  const device = Object.freeze({ id: peer.id, name: peer.name, kind: "remote-codex", location: peer.location, status: "connected", runtime });
   const tasks = payload.tasks.map((task) => publicTask(task, device));
   if (tasks.some((task) => !task)) throw new Error("Peer snapshot contains an invalid task");
   return Object.freeze({

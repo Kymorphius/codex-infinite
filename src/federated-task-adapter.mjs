@@ -48,4 +48,16 @@ export class FederatedTaskAdapter {
     if (!peer) return null;
     return peer.sendMessage(id, prompt, expectedDraftRevision);
   }
+
+  async control(id, deviceId, input) {
+    const peer = this.peerAdapters.find((adapter) => adapter.peer?.id === deviceId);
+    if (!peer) return null;
+    return peer.control(id, input);
+  }
+
+  async updateSettings(id, deviceId, changes) {
+    const peer = this.peerAdapters.find((adapter) => adapter.peer?.id === deviceId);
+    if (!peer) return null;
+    return peer.updateSettings(id, changes);
+  }
 }

@@ -1,5 +1,6 @@
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { buildInjectionScript } from "./injection.mjs";
+import { buildNativeApprovalInjectionScript } from "./native-approval-injection.mjs";
 import {
   buildNativeContextInjectionScript,
   buildNativeContextSnapshotScript,
@@ -30,6 +31,7 @@ export async function drainNativeContextActions(connection, contextWindowStore) 
 }
 
 async function syncNativeContext(connection, contextWindowStore, contextOverrides) {
+  await connection.evaluate(buildNativeApprovalInjectionScript());
   await connection.evaluate(buildNativeContextInjectionScript());
   await drainNativeContextActions(connection, contextWindowStore);
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
@@ -66,6 +68,9 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeContextInjectionScript()
+    });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: buildNativeApprovalInjectionScript()
     });
     connection.__codexControlConsoleScriptsPrepared = true;
   }

@@ -1,7 +1,9 @@
 import crypto from "node:crypto";
+import { validateApprovalDecision } from "./approval-contract.mjs";
 import { httpError } from "./http-utils.mjs";
 
 const THREAD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/;
+const NATIVE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function validateRemoteMessage(input = {}) {
   const threadId = String(input.threadId || "").trim();
@@ -12,6 +14,21 @@ export function validateRemoteMessage(input = {}) {
   const expectedDraftRevision = input.expectedDraftRevision == null ? null : String(input.expectedDraftRevision);
   if (expectedDraftRevision !== null && !/^[0-9a-f]{64}$/.test(expectedDraftRevision)) throw httpError(400, "草稿版本无效");
   return { threadId, prompt, expectedDraftRevision };
+}
+
+export function validateRemoteControl(input = {}) {
+  const threadId = String(input.threadId || "").trim();
+  const turnId = String(input.turnId || "").trim().toLowerCase();
+  if (!THREAD_ID_PATTERN.test(threadId)) throw httpError(400, "会话标识无效");
+  if (!NATIVE_ID_PATTERN.test(turnId)) throw httpError(400, "执行轮次标识无效");
+  if (input.action === "interrupt") return { threadId, turnId, action: "interrupt" };
+  if (input.action !== "resolveApproval") throw httpError(400, "远端会话操作无效");
+  const approvalToken = String(input.approvalToken || "").trim().toLowerCase();
+  if (!NATIVE_ID_PATTERN.test(approvalToken)) throw httpError(400, "审批标识无效");
+  let decision;
+  try { decision = validateApprovalDecision(input.decision); }
+  catch { throw httpError(400, "远端审批操作无效"); }
+  return { threadId, turnId, action: "resolveApproval", approvalToken, decision };
 }
 
 export class RemoteMessageService {
@@ -32,7 +49,7 @@ export class RemoteMessageService {
     this.activeThreads.add(threadId);
     try {
       await this.nativeConversationAdapter.sendMessage({ threadId, prompt, expectedDraftRevision });
-      return { accepted: true, requestId, threadId };
+      return { accepted: true, requestId, threadId, executionAuthority: "owner-native-desktop" };
     } finally {
       this.activeThreads.delete(threadId);
     }
@@ -40,5 +57,33 @@ export class RemoteMessageService {
 
   async readDraft(threadId) {
     return this.nativeConversationAdapter?.readDraft?.(threadId) || null;
+  }
+
+  async readPendingApprovals(threadId) {
+    return this.nativeConversationAdapter?.readPendingApprovals?.(threadId) || [];
+  }
+
+  async interrupt(input) {
+    const { threadId, turnId, action } = validateRemoteControl(input);
+    if (!this.nativeConversationAdapter?.interruptTurn) throw httpError(503, "所属节点中断服务不可用");
+    const task = await this.localAdapter.getTask(threadId);
+    if (!task) throw httpError(404, "所属节点不存在这个会话");
+    if (task.status !== "active") throw httpError(409, "这一轮已经不在执行中");
+    await this.nativeConversationAdapter.interruptTurn({ threadId, turnId });
+    return { accepted: true, interrupted: true, threadId, turnId, action, executionAuthority: "owner-native-desktop" };
+  }
+
+  async resolveApproval(input) {
+    const { threadId, turnId, action, approvalToken, decision } = validateRemoteControl(input);
+    if (!this.nativeConversationAdapter?.resolveApproval) throw httpError(503, "所属节点审批服务不可用");
+    const task = await this.localAdapter.getTask(threadId);
+    if (!task) throw httpError(404, "所属节点不存在这个会话");
+    await this.nativeConversationAdapter.resolveApproval({ threadId, turnId, approvalToken, decision });
+    return { accepted: true, approvalResolved: true, threadId, turnId, action, decision, executionAuthority: "owner-native-desktop" };
+  }
+
+  async control(input) {
+    const normalized = validateRemoteControl(input);
+    return normalized.action === "interrupt" ? this.interrupt(normalized) : this.resolveApproval(normalized);
   }
 }

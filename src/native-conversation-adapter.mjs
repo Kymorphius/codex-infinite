@@ -1,6 +1,8 @@
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { httpError } from "./http-utils.mjs";
 import crypto from "node:crypto";
+import { normalizePendingApprovals, validateApprovalDecision } from "./approval-contract.mjs";
+import { nativeThreadStatusExpression, normalizeNativeThreadStatuses } from "./native-thread-status.mjs";
 
 const LOCAL_THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,6 +25,41 @@ function composerStateExpression(threadId) {
     const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     if (!selected || !editor || !(editor.offsetWidth || editor.offsetHeight)) return { ready: false };
     return { ready: true, draft: (editor.innerText || editor.textContent || "").trim() };
+  })()`;
+}
+
+function interruptTurnExpression(threadId, turnId) {
+  return `(async () => {
+    const interrupt = window.__codexControlConsoleInterruptThread;
+    if (typeof interrupt !== 'function') return { ok: false, message: '所属节点的原生中断服务尚未就绪' };
+    try {
+      await interrupt(${JSON.stringify(threadId)}, ${JSON.stringify(turnId)});
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: String(error?.message || '所属节点拒绝了中断请求').slice(0, 240) };
+    }
+  })()`;
+}
+
+function pendingApprovalsExpression(threadId) {
+  return `(() => {
+    const read = window.__codexControlConsoleReadPendingApprovals;
+    if (typeof read !== 'function') return { ok: false, message: '所属节点的原生审批服务尚未就绪' };
+    try { return { ok: true, items: read(${JSON.stringify(threadId)}) }; }
+    catch (error) { return { ok: false, message: String(error?.message || '无法读取原生审批').slice(0, 240) }; }
+  })()`;
+}
+
+function resolveApprovalExpression({ threadId, turnId, approvalToken, decision }) {
+  return `(async () => {
+    const resolve = window.__codexControlConsoleResolveApproval;
+    if (typeof resolve !== 'function') return { ok: false, unavailable: true, message: '所属节点的原生审批服务尚未就绪' };
+    try {
+      const result = await resolve(${JSON.stringify(threadId)}, ${JSON.stringify(turnId)}, ${JSON.stringify(approvalToken)}, ${JSON.stringify(decision)});
+      return { ok: Boolean(result?.accepted) };
+    } catch (error) {
+      return { ok: false, message: String(error?.message || '所属节点拒绝了审批操作').slice(0, 240) };
+    }
   })()`;
 }
 
@@ -84,6 +121,30 @@ export class NativeConversationAdapter {
     return connection;
   }
 
+  async probe() {
+    let connection;
+    try {
+      connection = await this.connect();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      await connection?.close().catch(() => {});
+    }
+  }
+
+  async readThreadStatuses() {
+    let connection;
+    try {
+      connection = await this.connect();
+      return normalizeNativeThreadStatuses(await connection.evaluate(nativeThreadStatusExpression));
+    } catch {
+      return new Map();
+    } finally {
+      await connection?.close().catch(() => {});
+    }
+  }
+
   async readDraft(threadId) {
     if (!LOCAL_THREAD_ID.test(threadId) || this.active) return null;
     let connection;
@@ -94,6 +155,21 @@ export class NativeConversationAdapter {
       return { text: state.draft, revision: draftRevision(state.draft) };
     } catch {
       return null;
+    } finally {
+      await connection?.close().catch(() => {});
+    }
+  }
+
+  async readPendingApprovals(threadId) {
+    if (!LOCAL_THREAD_ID.test(threadId)) return [];
+    let connection;
+    try {
+      connection = await this.connect();
+      const result = await connection.evaluate(pendingApprovalsExpression(threadId.toLowerCase()));
+      if (!result?.ok) return [];
+      return normalizePendingApprovals(result.items, { expectedThreadId: threadId });
+    } catch {
+      return [];
     } finally {
       await connection?.close().catch(() => {});
     }
@@ -136,6 +212,48 @@ export class NativeConversationAdapter {
     } finally {
       await connection?.close().catch(() => {});
       this.active = false;
+    }
+  }
+
+  async interruptTurn({ threadId, turnId }) {
+    if (!LOCAL_THREAD_ID.test(threadId) || !LOCAL_THREAD_ID.test(turnId)) throw httpError(400, "原生 Codex 会话或执行轮次标识无效");
+    let connection;
+    try {
+      connection = await this.connect();
+      const result = await connection.evaluate(interruptTurnExpression(threadId.toLowerCase(), turnId.toLowerCase()));
+      if (!result?.ok) throw httpError(409, result?.message || "所属节点当前无法停止这一轮");
+      return { interrupted: true, threadId, turnId };
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      throw httpError(503, "所属节点的原生 Codex 中断服务不可用");
+    } finally {
+      await connection?.close().catch(() => {});
+    }
+  }
+
+
+  async resolveApproval({ threadId, turnId, approvalToken, decision }) {
+    if (!LOCAL_THREAD_ID.test(threadId) || !LOCAL_THREAD_ID.test(turnId) || !LOCAL_THREAD_ID.test(approvalToken)) {
+      throw httpError(400, "原生 Codex 会话、执行轮次或审批标识无效");
+    }
+    try { decision = validateApprovalDecision(decision); }
+    catch { throw httpError(400, "远端审批操作无效"); }
+    let connection;
+    try {
+      connection = await this.connect();
+      const result = await connection.evaluate(resolveApprovalExpression({
+        threadId: threadId.toLowerCase(),
+        turnId: turnId.toLowerCase(),
+        approvalToken: approvalToken.toLowerCase(),
+        decision
+      }));
+      if (!result?.ok) throw httpError(result?.unavailable ? 503 : 409, result?.message || "这个审批已经失效");
+      return { approvalResolved: true, threadId, turnId, decision };
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      throw httpError(503, "所属节点的原生 Codex 审批服务不可用");
+    } finally {
+      await connection?.close().catch(() => {});
     }
   }
 }

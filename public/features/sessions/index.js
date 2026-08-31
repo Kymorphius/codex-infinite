@@ -1,6 +1,7 @@
 import { isLocalTask } from "../../core/tasks.js";
 import { SessionDisclosureState, summarizeSessionDevice } from "./disclosure.js";
-import { filterSessions, groupSessionsByDevice } from "./model.js";
+import { deviceHostLabel, filterSessions, groupSessionsByDevice } from "./model.js";
+import { createRemoteConversation } from "./remote-conversation.js";
 
 export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
@@ -9,146 +10,10 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   const statusFilter = $('[data-testid="session-status-filter"]');
   const clearFilter = $('[data-testid="session-clear-filter"]');
   const filterEmpty = $('[data-testid="session-filter-empty"]');
-  const activityLayer = $('[data-testid="session-activity-layer"]');
-  const activityList = $('[data-testid="session-activity-list"]');
-  const activityState = $('[data-testid="session-activity-state"]');
-  const remoteComposer = $('[data-testid="session-remote-composer"]');
-  const remotePrompt = $('[data-testid="session-remote-prompt"]');
-  const remoteSend = $('[data-testid="session-remote-send"]');
-  const remoteSendStatus = $('[data-testid="session-remote-send-status"]');
+  const remoteConversation = createRemoteConversation({ $, formatDate, fetchImpl });
   const filter = { query: "", status: "all" };
   const disclosure = new SessionDisclosureState();
   let visibleDevices = [];
-  let selectedActivityTask = null;
-  let activityLoading = false;
-  let messageSending = false;
-  let remoteDraftRevision = null;
-  let syncedDraftText = "";
-
-  function activityEntry(entry) {
-    const item = document.createElement("article");
-    item.className = "session-activity-entry";
-    item.dataset.kind = entry.kind;
-    if (entry.kind === "message") {
-      item.dataset.role = entry.role;
-      const label = document.createElement("span");
-      label.textContent = entry.role === "user" ? "你" : entry.phase === "commentary" ? "Codex · 过程" : "Codex";
-      const text = document.createElement("p");
-      text.textContent = entry.text;
-      item.append(label, text);
-    } else {
-      const label = document.createElement("span");
-      label.textContent = entry.kind === "tool" ? "执行" : "状态";
-      const text = document.createElement("p");
-      text.textContent = entry.kind === "tool" ? `${entry.name || "工具"} · ${entry.status || "已请求"}` : entry.status === "completed" ? "本轮已完成" : "本轮已开始";
-      item.append(label, text);
-    }
-    if (entry.timestamp) {
-      const time = document.createElement("time");
-      time.textContent = formatDate(entry.timestamp);
-      item.append(time);
-    }
-    return item;
-  }
-
-  async function loadActivity({ quiet = false } = {}) {
-    if (!selectedActivityTask || activityLoading) return;
-    activityLoading = true;
-    const task = selectedActivityTask;
-    if (!quiet) {
-      activityState.textContent = "正在读取所属节点…";
-      activityState.classList.remove("hidden");
-      activityList.classList.add("hidden");
-    }
-    try {
-      const url = `/api/tasks/${encodeURIComponent(task.id)}/activity?device=${encodeURIComponent(task.device.id)}`;
-      const response = await fetchImpl(url, { cache: "no-store" });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
-      if (selectedActivityTask !== task) return;
-      const entries = Array.isArray(result.activity?.entries) ? result.activity.entries : [];
-      const draft = result.activity?.draft;
-      if (draft?.text && draft.revision && (!remotePrompt.value.trim() || remotePrompt.value === syncedDraftText)) {
-        remotePrompt.value = draft.text;
-        syncedDraftText = draft.text;
-        remoteDraftRevision = draft.revision;
-        if (!messageSending) {
-          remoteSendStatus.dataset.status = "accepted";
-          remoteSendStatus.textContent = `已读取 ${task.device?.name || "所属节点"} 的原生未发送草稿。`;
-        }
-      } else if (!draft && remotePrompt.value === syncedDraftText) {
-        remotePrompt.value = "";
-        syncedDraftText = "";
-        remoteDraftRevision = null;
-      }
-      activityList.replaceChildren(...entries.map(activityEntry));
-      activityList.classList.toggle("hidden", entries.length === 0);
-      activityState.classList.toggle("hidden", entries.length > 0);
-      activityState.textContent = entries.length ? "" : "这个会话最近没有可显示的活动。";
-      $('[data-testid="session-activity-updated"]').textContent = `更新 ${formatDate(result.activity?.updatedAt || new Date().toISOString())}`;
-      activityList.scrollTop = activityList.scrollHeight;
-    } catch (error) {
-      if (selectedActivityTask !== task) return;
-      activityState.textContent = `暂时无法读取：${error.message}`;
-      activityState.classList.remove("hidden");
-      if (!quiet) activityList.classList.add("hidden");
-    } finally {
-      activityLoading = false;
-    }
-  }
-
-  function openActivity(task) {
-    selectedActivityTask = task;
-    $('[data-testid="session-activity-title"]').textContent = task.title;
-    $('[data-testid="session-activity-directory"]').textContent = task.cwd || "未记录远端工作目录";
-    $('[data-testid="session-activity-owner"]').textContent = `${task.device?.name || "远端节点"} · 原生 Codex · 可交互`;
-    remotePrompt.placeholder = `发送到 ${task.device?.name || "所属节点"} 的 Codex…`;
-    remotePrompt.value = "";
-    syncedDraftText = "";
-    remoteDraftRevision = null;
-    remoteSendStatus.textContent = "";
-    activityLayer.classList.remove("hidden");
-    void loadActivity();
-  }
-
-  function closeActivity() {
-    selectedActivityTask = null;
-    activityLayer.classList.add("hidden");
-  }
-
-  async function sendRemoteMessage() {
-    const task = selectedActivityTask;
-    const prompt = remotePrompt.value.trim();
-    if (!task || !prompt || messageSending) return;
-    messageSending = true;
-    remoteSend.disabled = true;
-    remotePrompt.disabled = true;
-    remoteSendStatus.dataset.status = "sending";
-    remoteSendStatus.textContent = `正在交给 ${task.device?.name || "所属节点"}…`;
-    try {
-      const url = `/api/tasks/${encodeURIComponent(task.id)}/messages?device=${encodeURIComponent(task.device.id)}`;
-      const response = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt, expectedDraftRevision: remoteDraftRevision }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
-      if (selectedActivityTask !== task) return;
-      remotePrompt.value = "";
-      syncedDraftText = "";
-      remoteDraftRevision = null;
-      remoteSendStatus.dataset.status = "accepted";
-      remoteSendStatus.textContent = result.duplicate ? "所属节点已接收过这条消息，正在继续同步。" : `${task.device?.name || "所属节点"} 已接收，等待 Codex 响应…`;
-      setTimeout(() => void loadActivity({ quiet: true }), 1000);
-    } catch (error) {
-      if (selectedActivityTask !== task) return;
-      remoteSendStatus.dataset.status = "error";
-      remoteSendStatus.textContent = `发送失败：${error.message}`;
-      await loadActivity({ quiet: true });
-    } finally {
-      messageSending = false;
-      remoteSend.disabled = false;
-      remotePrompt.disabled = false;
-      remotePrompt.focus();
-    }
-  }
 
   function sessionRow(task) {
     const row = document.createElement("article");
@@ -179,7 +44,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     open.className = "task-open session-open";
     const local = isLocalTask(task);
     open.textContent = local ? "打开原生对话" : "打开远端对话";
-    open.addEventListener("click", () => local ? requestOpen(task) : openActivity(task));
+    open.addEventListener("click", () => local ? requestOpen(task) : remoteConversation.open(task));
     row.append(main, open);
     return row;
   }
@@ -236,7 +101,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     role.textContent = device.kind === "local-codex" ? "本机" : "远端";
     identityTop.append(name, role);
     const source = document.createElement("span");
-    source.textContent = `${device.location || "远程"} · ${["local-codex", "remote-codex"].includes(device.kind) ? "原生 Codex" : device.kind || "Codex 节点"}`;
+    source.textContent = `${device.location || "远程"} · ${deviceHostLabel(device)}`;
     identity.append(identityTop, source);
     const summary = summarizeSessionDevice(device);
     const stats = document.createElement("div");
@@ -306,13 +171,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     for (const button of panel.querySelectorAll("[data-session-disclosure]")) {
       button.addEventListener("click", () => { disclosure.setAll(visibleDevices, button.dataset.sessionDisclosure === "expand"); render(); });
     }
-    for (const close of activityLayer.querySelectorAll("[data-session-activity-close]")) close.addEventListener("click", closeActivity);
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && selectedActivityTask) closeActivity(); });
-    remoteComposer.addEventListener("submit", (event) => { event.preventDefault(); void sendRemoteMessage(); });
-    remotePrompt.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); remoteComposer.requestSubmit(); }
-    });
-    setInterval(() => { if (selectedActivityTask) void loadActivity({ quiet: true }); }, 3000);
+    remoteConversation.bind();
   }
 
   return { bind, render, setTaskState };

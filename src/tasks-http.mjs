@@ -1,7 +1,7 @@
 import { decodePathSegment, sendJson } from "./http-utils.mjs";
 import { projectLocalNodeSnapshot } from "./peer-contract.mjs";
 
-export function createTasksHttpHandler({ adapter, localAdapter = adapter }) {
+export function createTasksHttpHandler({ adapter, localAdapter = adapter, nodeRuntimeService = null }) {
   return async function handleTasksRequest(request, response, requestUrl) {
     const isNodeSnapshot = requestUrl.pathname === "/api/node/snapshot";
     const isCollection = requestUrl.pathname === "/api/tasks";
@@ -13,7 +13,11 @@ export function createTasksHttpHandler({ adapter, localAdapter = adapter }) {
       return true;
     }
     if (isNodeSnapshot) {
-      sendJson(response, 200, projectLocalNodeSnapshot(await localAdapter.listTasks()));
+      const [tasks, runtime] = await Promise.all([
+        localAdapter.listTasks(),
+        nodeRuntimeService?.read?.()
+      ]);
+      sendJson(response, 200, projectLocalNodeSnapshot(tasks, runtime));
       return true;
     }
     if (isCollection) {

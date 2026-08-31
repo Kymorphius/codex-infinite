@@ -17,8 +17,9 @@ test("injector reloads once after enabling target-scoped CSP bypass", async () =
     }
   };
   await installIntoTarget(connection, "http://127.0.0.1:47831");
-  assert.deepEqual(calls.slice(0, 3).map(({ method }) => method), [
+  assert.deepEqual(calls.slice(0, 4).map(({ method }) => method), [
     "Page.enable",
+    "Page.addScriptToEvaluateOnNewDocument",
     "Page.addScriptToEvaluateOnNewDocument",
     "Page.addScriptToEvaluateOnNewDocument"
   ]);
@@ -48,8 +49,9 @@ test("injector does not reload a document already created under CSP bypass", asy
   await installIntoTarget(connection, "http://127.0.0.1:47831");
   assert.equal(calls.some((call) => call.method === "Page.reload"), false);
   assert.equal(calls.some((call) => call.method === "Page.setBypassCSP"), true);
-  assert.deepEqual(calls.slice(0, 3).map(({ method }) => method), [
+  assert.deepEqual(calls.slice(0, 4).map(({ method }) => method), [
     "Page.enable",
+    "Page.addScriptToEvaluateOnNewDocument",
     "Page.addScriptToEvaluateOnNewDocument",
     "Page.addScriptToEvaluateOnNewDocument"
   ]);

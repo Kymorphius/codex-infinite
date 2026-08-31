@@ -12,7 +12,7 @@ function route(pathname) {
   return null;
 }
 
-export function createActivityHttpHandler({ adapter, localAdapter, remoteMessageService = null }) {
+export function createActivityHttpHandler({ adapter, localAdapter, remoteMessageService = null, remoteThreadSettingsService = null }) {
   return async function handleActivityRequest(request, response, requestUrl) {
     const match = route(requestUrl.pathname);
     if (!match) return false;
@@ -31,8 +31,13 @@ export function createActivityHttpHandler({ adapter, localAdapter, remoteMessage
     }
     let activity = match.owner ? await localAdapter.getActivity(match.id) : await adapter.getActivity(match.id, deviceId);
     if (match.owner && activity && remoteMessageService) {
-      activity = { ...activity, draft: await remoteMessageService.readDraft(match.id) };
+      const [draft, approvals] = await Promise.all([
+        remoteMessageService.readDraft(match.id),
+        remoteMessageService.readPendingApprovals?.(match.id) || []
+      ]);
+      activity = { ...activity, draft, approvals };
     }
+    if (match.owner && activity && remoteThreadSettingsService) activity = await remoteThreadSettingsService.decorateActivity(activity);
     if (!activity) sendJson(response, 404, { status: "error", message: "会话不存在或已不可读" });
     else if (match.owner) sendJson(response, 200, activity);
     else sendJson(response, 200, { status: "ok", activity });

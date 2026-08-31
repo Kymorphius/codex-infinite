@@ -5,6 +5,7 @@ export const DEFAULT_DASHBOARD_HOST = "127.0.0.1";
 export const DEFAULT_DASHBOARD_PORT = 47831;
 export const DEFAULT_CDP_HOST = "127.0.0.1";
 export const DEFAULT_CDP_PORT = 9231;
+export const DEFAULT_PRIMARY_CDP_PORT = 9232;
 export const DEFAULT_APP_PATH = "/Applications/ChatGPT.app";
 
 function integerFromEnv(value, fallback) {
@@ -17,17 +18,28 @@ function positiveIntegerFromEnv(value, fallback) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function booleanFromEnv(value, fallback = false) {
+  if (value == null || value === "") return fallback;
+  return /^(1|true|yes|on)$/i.test(String(value));
+}
+
 export function getConfig(env = process.env, homeDirectory = os.homedir(), platform = process.platform) {
   const dashboardHost = env.CODEX_CONTROL_DASHBOARD_HOST || DEFAULT_DASHBOARD_HOST;
   const cdpHost = env.CODEX_CONTROL_CDP_HOST || DEFAULT_CDP_HOST;
   const dashboardPort = integerFromEnv(env.CODEX_CONTROL_DASHBOARD_PORT, DEFAULT_DASHBOARD_PORT);
   const cdpPort = integerFromEnv(env.CODEX_CONTROL_CDP_PORT, DEFAULT_CDP_PORT);
+  const primaryCdpHost = env.CODEX_CONTROL_PRIMARY_CDP_HOST || DEFAULT_CDP_HOST;
+  const primaryCdpPort = integerFromEnv(env.CODEX_CONTROL_PRIMARY_CDP_PORT, DEFAULT_PRIMARY_CDP_PORT);
+  const primaryCdpEnabled = booleanFromEnv(env.CODEX_CONTROL_PRIMARY_CDP_ENABLED);
   const profileDirectory = env.CODEX_CONTROL_PROFILE_DIR || (
     platform === "darwin"
       ? path.join(homeDirectory, "Library", "Application Support", "Codex Control Console")
       : path.join(homeDirectory, ".codex-control-console")
   );
   const sourceCodexHome = env.CODEX_CONTROL_SOURCE_CODEX_HOME || path.join(homeDirectory, ".codex");
+  const primaryProfileDirectory = env.CODEX_CONTROL_PRIMARY_PROFILE_DIR || (
+    platform === "darwin" ? path.join(homeDirectory, "Library", "Application Support", "Codex") : path.join(homeDirectory, ".config", "Codex")
+  );
   const wrapperCodexHome = env.CODEX_CONTROL_CODEX_HOME || path.join(homeDirectory, ".codex-control-console");
   const perThreadContextWindow = positiveIntegerFromEnv(env.CODEX_CONTROL_CONTEXT_WINDOW, 1_000_000);
   const appPath = env.CODEX_CONTROL_APP_PATH || DEFAULT_APP_PATH;
@@ -54,6 +66,11 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     cdpHost,
     cdpPort,
     cdpOrigin: `http://${cdpHost}:${cdpPort}`,
+    primaryCdpHost,
+    primaryCdpPort,
+    primaryCdpOrigin: `http://${primaryCdpHost}:${primaryCdpPort}`,
+    primaryCdpEnabled,
+    primaryProfileDirectory,
     profileDirectory,
     sourceCodexHome,
     wrapperCodexHome,
@@ -63,6 +80,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     zoteroLocalApiOrigin,
     zoteroCredentialPath,
     modelCatalogPath,
+    sessionTitleIndexPath: env.CODEX_CONTROL_SESSION_TITLE_INDEX || path.join(sourceCodexHome, "session_index.jsonl"),
     nodeDevice,
     peerConfigPath,
     nodeActionKeyPath,
