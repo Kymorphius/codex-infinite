@@ -1,13 +1,19 @@
 import { assertExactMutationOrigin, assertJsonContentType, decodePathSegment, httpError, readJsonBody, readRequestBody, sendJson } from "./http-utils.mjs";
 import { loadActionKey, NonceReplayWindow, verifyPeerAction } from "./peer-action-auth.mjs";
 
-const OWNER_PATH = "/api/node/actions/message";
+const OWNER_PATHS = Object.freeze({
+  "/api/node/actions/message": "message",
+  "/api/node/actions/control": "control",
+  "/api/node/actions/settings": "settings"
+});
 
-function browserThreadId(pathname) {
+function browserRoute(pathname) {
   const prefix = "/api/tasks/";
-  const suffix = "/messages";
-  if (!pathname.startsWith(prefix) || !pathname.endsWith(suffix)) return null;
-  return decodePathSegment(pathname.slice(prefix.length, -suffix.length));
+  if (!pathname.startsWith(prefix)) return null;
+  for (const [suffix, kind] of [["/messages", "message"], ["/control", "control"], ["/settings", "settings"]]) {
+    if (pathname.endsWith(suffix)) return { kind, threadId: decodePathSegment(pathname.slice(prefix.length, -suffix.length)) };
+  }
+  return null;
 }
 
 function parseBody(body) {
@@ -15,22 +21,26 @@ function parseBody(body) {
   catch { throw httpError(400, "请求 JSON 无效"); }
 }
 
-export function createPeerActionHttpHandler({ adapter, remoteMessageService, dashboardOrigin, nodeActionKeyPath, replayWindow = new NonceReplayWindow() }) {
+export function createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin, nodeActionKeyPath, replayWindow = new NonceReplayWindow() }) {
   return async function handlePeerActionRequest(request, response, requestUrl) {
-    const isOwner = requestUrl.pathname === OWNER_PATH;
-    const threadId = isOwner ? null : browserThreadId(requestUrl.pathname);
-    if (!isOwner && threadId === null) return false;
+    const ownerKind = OWNER_PATHS[requestUrl.pathname] || null;
+    const browser = ownerKind ? null : browserRoute(requestUrl.pathname);
+    if (!ownerKind && !browser) return false;
     if (request.method !== "POST") {
       sendJson(response, 405, { status: "error", message: "Method not allowed" });
       return true;
     }
     assertJsonContentType(request);
-    if (!isOwner) {
+    if (!ownerKind) {
       assertExactMutationOrigin(request, dashboardOrigin);
       const deviceId = requestUrl.searchParams.get("device");
       if (!deviceId) throw httpError(400, "缺少会话所属设备");
       const input = await readJsonBody(request, 16 * 1024);
-      const result = await adapter.sendMessage(threadId, deviceId, input.prompt, input.expectedDraftRevision);
+      const result = browser.kind === "message"
+        ? await adapter.sendMessage(browser.threadId, deviceId, input.prompt, input.expectedDraftRevision)
+        : browser.kind === "control"
+          ? await adapter.control(browser.threadId, deviceId, input)
+          : await adapter.updateSettings(browser.threadId, deviceId, input.changes);
       if (!result) throw httpError(404, "会话所属节点不可用");
       sendJson(response, 202, { status: "ok", ...result });
       return true;
@@ -44,7 +54,12 @@ export function createPeerActionHttpHandler({ adapter, remoteMessageService, das
       sendJson(response, 202, { status: "ok", accepted: true, duplicate: true });
       return true;
     }
-    const result = await remoteMessageService.submit(parseBody(body));
+    const input = parseBody(body);
+    const result = ownerKind === "message"
+      ? await remoteMessageService.submit(input)
+      : ownerKind === "control"
+        ? await remoteMessageService.control(input)
+        : await remoteThreadSettingsService.update(input);
     sendJson(response, 202, { status: "ok", ...result });
     return true;
   };

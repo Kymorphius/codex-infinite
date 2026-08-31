@@ -1,6 +1,7 @@
 import { createDomServices } from "./core/dom.js";
 import { formatDate, formatDuration, formatTokens, taskStatusLabel } from "./core/format.js";
 import { createNavigation } from "./core/navigation.js";
+import { createAdaptiveRefreshScheduler, taskRefreshDelay } from "./core/refresh-policy.js";
 import { createAppState, MODULES } from "./core/state.js";
 import { createTaskSource } from "./core/tasks.js";
 import { createConsoleFeature } from "./features/console/index.js";
@@ -66,5 +67,8 @@ import { createZoteroFeature } from "./features/zotero/index.js";
   if (state.module === "zotero") void zoteroFeature.load();
   if (state.module === "context") void contextFeature.load();
   setInterval(() => void dispatchFeature.load({ quiet: true }), 2500);
-  setInterval(() => void taskSource.load({ quiet: true }), 15000);
+  createAdaptiveRefreshScheduler({
+    refresh: () => taskSource.load({ quiet: true }),
+    nextDelay: () => taskRefreshDelay(state.tasks)
+  }).start();
 })();

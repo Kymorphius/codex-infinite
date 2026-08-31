@@ -30,7 +30,7 @@ export function buildInjectionScript(dashboardUrl) {
   const TITLEBAR_SESSION_ENTRY_SELECTOR = '[' + TITLEBAR_SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-08-30.7';
+  const INJECTION_VERSION = '2026-08-31.1';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
   const SESSION_ENTRY_TEXT = '会话中心';
@@ -98,7 +98,22 @@ export function buildInjectionScript(dashboardUrl) {
   function dashboardUrlFor(module) {
     const url = new URL(DASHBOARD_URL);
     url.searchParams.set('module', ['console', 'sessions', 'priority'].includes(module) ? module : 'board');
+    url.searchParams.set('theme', nativeTheme());
     return url.toString();
+  }
+
+  function nativeTheme() {
+    const scheme = getComputedStyle(document.documentElement).colorScheme;
+    if (scheme === 'dark') return 'dark';
+    if (scheme === 'light') return 'light';
+    for (const element of [workspaceCandidate(), document.body, document.documentElement]) {
+      if (!element) continue;
+      const values = getComputedStyle(element).backgroundColor.match(/[\\d.]+/g)?.map(Number) || [];
+      if (values.length < 3 || (values.length > 3 && values[3] < 0.2)) continue;
+      const luminance = values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+      return luminance < 128 ? 'dark' : 'light';
+    }
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
   function openWorkspace(module = 'board') {
@@ -137,16 +152,19 @@ export function buildInjectionScript(dashboardUrl) {
     const overlay = document.createElement('section');
     overlay.setAttribute(WORKSPACE_ATTRIBUTE, '');
     overlay.setAttribute('aria-label', 'Codex 控制台工作区');
-    overlay.style.cssText = 'display:flex;position:relative;flex:1;min-width:0;min-height:0;width:100%;height:100%;background:#f7f7f8;overflow:hidden;';
+    const dark = nativeTheme() === 'dark';
+    const workspaceBackground = dark ? '#1f1f20' : '#f7f7f8';
+    const loadingColor = dark ? '#96969c' : '#6b6b6b';
+    overlay.style.cssText = 'display:flex;position:relative;flex:1;min-width:0;min-height:0;width:100%;height:100%;background:' + workspaceBackground + ';overflow:hidden;';
     frame = document.createElement('iframe');
     frame.src = dashboardUrlFor(module);
     frame.title = module === 'console' ? 'Codex 控制台' : module === 'sessions' ? 'Codex 会话中心' : module === 'priority' ? 'Codex 项目优先级' : 'Codex 看板';
     frame.setAttribute('data-codex-control-console-frame', '');
     frame.setAttribute('allow', 'clipboard-read; clipboard-write');
-    frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:#f7f7f8;';
+    frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:' + workspaceBackground + ';';
     const loading = document.createElement('div');
     loading.textContent = module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…';
-    loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:#6b6b6b;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:none;';
+    loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:' + loadingColor + ';font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:none;';
     frame.addEventListener('load', () => {
       loading.remove();
       frame.setAttribute('data-codex-control-console-frame-ready', '');

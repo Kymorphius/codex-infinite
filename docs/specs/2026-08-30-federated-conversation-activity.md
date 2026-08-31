@@ -1,6 +1,6 @@
 # Federated conversation activity
 
-- Status: shipped
+- Status: shipped; execution-detail privacy contract superseded on 2026-08-31
 - Owner: Codex Control Console
 - Date: 2026-08-30
 - Related ADRs: `docs/adr/0001-federated-nodes-through-relay.md`, `docs/adr/0002-owner-routed-conversation-access.md`
@@ -14,12 +14,15 @@ Federated nodes can see remote conversation summaries, but cannot see the native
 - Show a bounded, read-only view of recent native conversation activity from the owning node.
 - Preserve device ownership and use the existing direct-SSH-first, relay-fallback provider boundary.
 - Refresh an open remote activity view without refreshing the full page.
-- Exclude filesystem paths, reasoning content, tool inputs/outputs, credentials, and unknown native fields.
+- Exclude reasoning content, infrastructure credential stores, and unknown
+  native fields. Exact allowlisted tool inputs/outputs were added later by
+  `2026-08-31-full-fidelity-execution-transcript.md` for trusted nodes.
 
 ## Non-goals
 
 - No session-file replication, transcript database, token streaming, remote prompt submission, or remote native navigation in this increment.
-- No raw tool arguments, tool results, chain-of-thought, or arbitrary event payloads.
+- No chain-of-thought or arbitrary event payloads. The original exclusion of raw
+  tool arguments and results is superseded by the trusted-node execution spec.
 - No LAN or public HTTP listener.
 
 ## User experience
@@ -39,7 +42,10 @@ SSH remains the authenticated transport: the peer invokes a fixed loopback URL t
 ## Security and privacy
 
 - Only allowlisted native record types become normalized activity entries.
-- Assistant reasoning, encrypted content, tool input, tool output, event details, session paths, and unknown fields are dropped.
+- Assistant reasoning, encrypted content, event internals, session source-file
+  locations, infrastructure credential stores, and unknown fields are dropped.
+  Allowlisted tool input/output now crosses trusted nodes exactly as recorded;
+  see ADR 0008.
 - Browser state receives no SSH credentials or filesystem locations.
 - Responses use `no-store`; the console does not persist mirrored activity.
 - The route is read-only. Future cross-node mutations require a separate signed owner-action contract and exact owner routing.
@@ -48,14 +54,19 @@ SSH remains the authenticated transport: the peer invokes a fixed loopback URL t
 
 - [x] Remote activity is fetched from the owner through direct SSH with relay fallback.
 - [x] Local and remote thread ids are resolved with explicit owning-device identity.
-- [x] Activity parsing is bounded and drops tool payloads, reasoning, paths, and unknown fields.
+- [x] Activity parsing is bounded and drops reasoning, source-file locations,
+  event internals, and unknown fields. The later execution contract deliberately
+  exposes allowlisted tool payloads.
 - [x] The remote viewer refreshes while open and shows isolated loading, empty, and error states.
 - [x] Existing native-open behavior and standalone behavior remain unchanged.
 - [x] `npm run check` and `npm test` pass.
 
 ## Shipped evidence
 
-- MatrixBook Air fetched a 60-entry MacBook Pro conversation through `direct-ssh`; the normalized response contained 17 messages, 32 tool lifecycle entries, and 11 status markers with no forbidden raw fields.
+- MatrixBook Air fetched a 60-entry MacBook Pro conversation through
+  `direct-ssh`; the original normalized response contained 17 messages, 32 tool
+  lifecycle entries, and 11 status markers. Tool details were subsequently
+  enabled by the trusted-node execution spec.
 - The relay loopback route on `67.230.169.158:47842` independently returned the same schema-v1 owner activity when accessed through authenticated SSH on port 33699.
 - Real UI inspection opened a MacBook Pro session in the local “会话中心”, rendered the owner label and recent native activity, and preserved three-second refresh behavior without browser persistence.
 - The follow-up workspace treatment expanded the remote activity from a side drawer to the full embedded Codex work area, keeping the local native window chrome while making ownership explicit.

@@ -4,6 +4,8 @@ import path from "node:path";
 import { enrichTaskForBoard } from "./board.mjs";
 import { buildProjectPriorities } from "./priority.mjs";
 import { parseConversationActivity } from "./conversation-activity.mjs";
+import { boundedSessionTitle, userTextFromSessionRecord } from "./session-title.mjs";
+import { normalizeThreadSettings } from "./thread-settings.mjs";
 
 const DEFAULT_MAX_FILES = 160;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
@@ -31,20 +33,22 @@ export function normalizeSessionDevice(device = defaultDevice()) {
   });
 }
 
-function collapseWhitespace(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function safeTitle(value, fallback) {
-  const title = collapseWhitespace(value).replace(/[\u0000-\u001f\u007f]/g, "");
-  return (title || fallback).slice(0, 160);
-}
-
 function statusFromEvent(type, current) {
   if (["task_complete", "task_completed", "turn_complete"].includes(type)) return "completed";
   if (["task_failed", "error", "turn_failed"].includes(type)) return "error";
   if (["turn_aborted", "task_aborted"].includes(type)) return "interrupted";
-  if (["task_started", "turn_started", "user_message"].includes(type) && current === "unknown") return "active";
+  if (["task_started", "turn_started", "user_message"].includes(type)) return "active";
+  return current;
+}
+
+function statusFromResponseItem(payload, current) {
+  if (!payload) return current;
+  if (payload.type === "message" && payload.role === "user") return "active";
+  if (payload.type === "message" && payload.role === "assistant") {
+    if (payload.phase === "final") return "completed";
+    if (payload.phase === "commentary") return "active";
+  }
+  if (["reasoning", "custom_tool_call", "custom_tool_call_output", "function_call", "function_call_output"].includes(payload.type)) return "active";
   return current;
 }
 
@@ -54,8 +58,7 @@ export function parseSessionJsonl(content, filePath = "") {
   let status = "unknown";
   let lastTimestamp = null;
   let recordCount = 0;
-  let model = null;
-  let reasoningEffort = null;
+  let threadSettings = null;
   let modelContextWindow = null;
   for (const line of String(content).split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -68,13 +71,13 @@ export function parseSessionJsonl(content, filePath = "") {
     recordCount += 1;
     lastTimestamp = record.timestamp || lastTimestamp;
     if (record.type === "session_meta" && record.payload && !meta) meta = record.payload;
+    if (!firstUserMessage) firstUserMessage = userTextFromSessionRecord(record);
+    if (record.type === "response_item") status = statusFromResponseItem(record.payload, status);
     if (record.type === "event_msg" && record.payload) {
       const eventType = record.payload.type;
-      if (eventType === "user_message" && !firstUserMessage) firstUserMessage = record.payload.message || "";
       status = statusFromEvent(eventType, status);
       if (eventType === "thread_settings_applied") {
-        model = record.payload.thread_settings?.model || model;
-        reasoningEffort = record.payload.thread_settings?.reasoning_effort || reasoningEffort;
+        threadSettings = normalizeThreadSettings(record.payload.thread_settings);
       }
       if (eventType === "token_count") {
         modelContextWindow = record.payload.info?.model_context_window || modelContextWindow;
@@ -86,15 +89,19 @@ export function parseSessionJsonl(content, filePath = "") {
   const fallback = `任务 ${String(id).slice(0, 8)}`;
   return {
     id: String(id),
-    title: safeTitle(firstUserMessage, fallback),
+    title: boundedSessionTitle(firstUserMessage, fallback),
     status,
     cwd: typeof meta.cwd === "string" ? meta.cwd : null,
     createdAt: meta.timestamp || lastTimestamp || null,
     updatedAt: lastTimestamp || meta.timestamp || null,
     sourceFile: filePath || null,
     recordCount,
-    model: model || meta.base_instructions?.provenance?.model || null,
-    reasoningEffort,
+    model: threadSettings?.model || meta.base_instructions?.provenance?.model || null,
+    reasoningEffort: threadSettings?.reasoningEffort || null,
+    serviceTier: threadSettings?.serviceTier || null,
+    approvalPolicy: threadSettings?.approvalPolicy || null,
+    permissionProfile: threadSettings?.permissionProfile || null,
+    accessMode: threadSettings?.accessMode || "unknown",
     modelContextWindow
   };
 }
@@ -153,12 +160,28 @@ async function readFileTail(filePath, maxBytes = DEFAULT_ACTIVITY_BYTES) {
 }
 
 export class CodexTaskAdapter {
-  constructor({ sessionRoot, archivedSessionRoot, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device } = {}) {
+  constructor({ sessionRoot, archivedSessionRoot, titleIndex, runtimeStatusProvider, contextWindowStore = null, sessionSettingsIndex = null, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device } = {}) {
     this.sessionRoot = sessionRoot;
     this.archivedSessionRoot = archivedSessionRoot;
     this.maxFiles = maxFiles;
     this.maxBytesPerFile = maxBytesPerFile;
+    this.titleIndex = titleIndex;
+    this.runtimeStatusProvider = runtimeStatusProvider;
+    this.contextWindowStore = contextWindowStore;
+    this.sessionSettingsIndex = sessionSettingsIndex;
     this.device = normalizeSessionDevice(device);
+  }
+
+  contextProjection(threadId) {
+    if (!this.contextWindowStore?.get) return { contextOverrideState: "unknown", requestedContextWindow: null };
+    try {
+      const item = this.contextWindowStore.get(threadId);
+      return item
+        ? { contextOverrideState: "extended", requestedContextWindow: item.requestedContextWindow }
+        : { contextOverrideState: "default", requestedContextWindow: null };
+    } catch {
+      return { contextOverrideState: "unknown", requestedContextWindow: null };
+    }
   }
 
   async listTasks() {
@@ -170,10 +193,23 @@ export class CodexTaskAdapter {
       if (this.archivedSessionRoot) await collectJsonlFiles(this.archivedSessionRoot, files);
       const stats = await Promise.all(files.map(async (filePath) => ({ filePath, stat: await fs.stat(filePath) })));
       stats.sort((left, right) => right.stat.mtimeMs - left.stat.mtimeMs);
+      const indexedTitles = await this.titleIndex?.read() || new Map();
+      const runtimeStatuses = await this.runtimeStatusProvider?.readThreadStatuses() || new Map();
       const tasks = [];
       for (const { filePath } of stats.slice(0, this.maxFiles)) {
-        const task = await readTaskFile(filePath, this.maxBytesPerFile);
-        if (task) tasks.push({ ...enrichTaskForBoard(task), device: this.device });
+        let task = await readTaskFile(filePath, this.maxBytesPerFile);
+        const status = task ? runtimeStatuses.get(task.id) || task.status : null;
+        if (task && status === "active" && this.sessionSettingsIndex?.read) {
+          try {
+            const latest = await this.sessionSettingsIndex.read(task.sourceFile);
+            if (latest) task = { ...task, ...latest };
+          } catch {}
+        }
+        if (task) tasks.push({
+          ...enrichTaskForBoard({ ...task, title: indexedTitles.get(task.id) || task.title, status }),
+          ...this.contextProjection(task.id),
+          device: this.device
+        });
       }
       tasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
       if (tasks.length === 0) {
@@ -187,13 +223,30 @@ export class CodexTaskAdapter {
 
   async getTask(id) {
     const result = await this.listTasks();
-    return result.tasks.find((task) => task.id === id) || null;
+    const task = result.tasks.find((candidate) => candidate.id === id) || null;
+    if (!task?.sourceFile || !this.sessionSettingsIndex?.read) return task;
+    const latest = await this.sessionSettingsIndex.read(task.sourceFile);
+    return latest ? { ...task, ...latest } : task;
   }
 
   async getActivity(id) {
     const task = await this.getTask(id);
     if (!task?.sourceFile) return null;
     const activity = parseConversationActivity(await readFileTail(task.sourceFile), { threadId: task.id });
-    return { ...activity, title: task.title, updatedAt: task.updatedAt, device: this.device };
+    return {
+      ...activity,
+      title: task.title,
+      updatedAt: task.updatedAt,
+      model: task.model,
+      reasoningEffort: task.reasoningEffort,
+      serviceTier: task.serviceTier,
+      approvalPolicy: task.approvalPolicy,
+      permissionProfile: task.permissionProfile,
+      accessMode: task.accessMode,
+      contextOverrideState: task.contextOverrideState,
+      requestedContextWindow: task.requestedContextWindow,
+      modelContextWindow: task.modelContextWindow,
+      device: this.device
+    };
   }
 }

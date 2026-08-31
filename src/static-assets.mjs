@@ -4,17 +4,18 @@ import { fileURLToPath } from "node:url";
 
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const javascriptType = "text/javascript; charset=utf-8";
-const coreNames = ["dom", "format", "navigation", "state", "tasks", "transport"];
+const coreNames = ["dom", "format", "navigation", "refresh-policy", "state", "tasks", "transport"];
 const featureNames = ["console", "context", "dispatch", "priority", "sessions", "zotero"];
-const sessionSupportFiles = ["disclosure", "model"];
+const sessionSupportFiles = ["approval-model", "conversation-model", "disclosure", "execution-view", "model", "remote-approvals", "remote-conversation", "settings-controller"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
-const styleNames = ["base", "tasks", "sessions-priority", "states", "zotero", "responsive"];
+const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "responsive"];
 const panelFiles = ["board", "context", "console", "sessions", "priority", "zotero"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
   ["/", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],
   ["/index.html", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],
   ...styleNames.map((name) => [`/styles/${name}.css`, { file: `styles/${name}.css`, type: "text/css; charset=utf-8" }]),
   ["/app.js", { file: "app.js", type: javascriptType }],
+  ["/theme.js", { file: "theme.js", type: javascriptType }],
   ...coreNames.map((name) => [`/core/${name}.js`, { file: `core/${name}.js`, type: javascriptType }]),
   ...featureNames.map((name) => [`/features/${name}/index.js`, { file: `features/${name}/index.js`, type: javascriptType }]),
   ...sessionSupportFiles.map((name) => [`/features/sessions/${name}.js`, { file: `features/sessions/${name}.js`, type: javascriptType }]),

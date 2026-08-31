@@ -30,8 +30,8 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   const source = buildNativeContextInjectionScript();
   assert.match(source, /method, params/);
   assert.match(source, /request\('thread\/resume'/);
-  assert.match(source, /model_context_window: contextWindow/);
-  assert.match(source, /model_auto_compact_token_limit: contextWindow/);
+  assert.match(source, /config\.model_context_window = contextWindow/);
+  assert.match(source, /config\.model_auto_compact_token_limit = contextWindow/);
   assert.match(source, /data-app-action-sidebar-thread-id/);
   assert.match(source, /__codexControlConsoleOpenNativeThread/);
   assert.match(source, /data-codex-control-console-context-toggle/);
@@ -40,6 +40,20 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /百万上下文/);
   assert.match(source, /__codexControlConsoleDrainContextActions/);
   assert.match(source, /__codexControlConsolePersistContext/);
+  assert.match(source, /__codexControlConsoleReadThreadStatuses/);
+  assert.match(source, /request\('thread\/list'/);
+  assert.match(source, /__codexControlConsoleInterruptThread/);
+  assert.match(source, /request\('turn\/interrupt'/);
+  assert.match(source, /__codexControlConsoleApplyThreadSettings/);
+  assert.match(source, /request\('thread\/settings\/update'/);
+  assert.match(source, /thread not found/);
+  assert.match(source, /await resume\(params\.threadId\)/);
+  assert.match(source, /results\.settings = await updateThreadSettings\(update\)/);
+  assert.match(source, /update\.effort = settings\.reasoningEffort/);
+  assert.match(source, /update\.serviceTier = settings\.serviceTier/);
+  assert.match(source, /update\.permissions = settings\.permissionProfile/);
+  assert.match(source, /'default', 'priority', 'ultrafast'/);
+  assert.match(source, /':read-only', ':workspace', ':danger-full-access'/);
 });
 
 test("native snapshot script contains normalized data only", () => {

@@ -17,6 +17,15 @@ import { SshPeerAdapter } from "./ssh-peer-adapter.mjs";
 import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
 import { RemoteMessageService } from "./remote-message-service.mjs";
 import { NativeConversationAdapter } from "./native-conversation-adapter.mjs";
+import { NodeRuntimeService } from "./node-runtime.mjs";
+import { SessionTitleIndex } from "./session-title-index.mjs";
+import { NativeThreadStatusProvider } from "./native-thread-status.mjs";
+import { NativeThreadSettingsAdapter } from "./native-thread-settings-adapter.mjs";
+import { RemoteThreadSettingsService } from "./thread-settings-control.mjs";
+import { SessionSettingsIndex } from "./session-settings-index.mjs";
+import { NativeWriterLocator } from "./native-writer-locator.mjs";
+import { NativeDesktopRouter } from "./native-desktop-router.mjs";
+import { NativeOwnerInjector } from "./native-owner-injector.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,14 +33,28 @@ const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 export async function run() {
   const config = getConfig();
+  const contextWindowStore = new ContextWindowStore({ filePath: path.join(sourceDirectory, ".runtime", "context-windows.json") });
+  await contextWindowStore.init();
+  const sessionSettingsIndex = new SessionSettingsIndex({ filePath: path.join(sourceDirectory, ".runtime", "session-settings-index.json") });
+  await sessionSettingsIndex.init();
+  const modelCatalog = new ModelCatalog({ filePath: config.modelCatalogPath });
   const wrapper = await prepareWrapperCodexHome({
     sourceHome: config.sourceCodexHome,
     wrapperHome: config.wrapperCodexHome,
     contextWindow: config.perThreadContextWindow
   });
+  const nativeConversationAdapter = new NativeConversationAdapter({ cdpOrigin: config.cdpOrigin });
+  const writerLocator = new NativeWriterLocator({ config });
+  const nativeDesktopRouter = new NativeDesktopRouter({ writerLocator });
+  const nativeThreadSettingsAdapter = new NativeThreadSettingsAdapter({ router: nativeDesktopRouter });
+  const runtimeStatusProvider = new NativeThreadStatusProvider({ desktopBridge: nativeConversationAdapter });
   const localAdapter = new CodexTaskAdapter({
     sessionRoot: config.sessionRoot,
     archivedSessionRoot: config.archivedSessionRoot,
+    titleIndex: new SessionTitleIndex({ filePath: config.sessionTitleIndexPath }),
+    runtimeStatusProvider,
+    contextWindowStore,
+    sessionSettingsIndex,
     device: config.nodeDevice
   });
   const projectOrder = new AppServerProjectOrder({
@@ -59,20 +82,26 @@ export async function run() {
     credentialStore: zoteroCredentials
   });
   const dispatchStore = new DispatchBoardStore({ filePath: path.join(sourceDirectory, ".runtime", "dispatch-board.json") });
-  const contextWindowStore = new ContextWindowStore({ filePath: path.join(sourceDirectory, ".runtime", "context-windows.json") });
-  const modelCatalog = new ModelCatalog({ filePath: config.modelCatalogPath });
-  await Promise.all([dispatchStore.init(), contextWindowStore.init()]);
+  await dispatchStore.init();
   const dispatcher = new CodexCliDispatcher({
     codexPath: path.join(config.appPath, "Contents", "Resources", "codex"),
     codexHome: config.wrapperCodexHome,
     contextWindowStore
   });
-  const nativeConversationAdapter = new NativeConversationAdapter({ cdpOrigin: config.cdpOrigin });
+  const nodeRuntimeService = new NodeRuntimeService({ nativeConversationAdapter });
   const remoteMessageService = new RemoteMessageService({ localAdapter, nativeConversationAdapter });
+  const remoteThreadSettingsService = new RemoteThreadSettingsService({
+    localAdapter,
+    nativeAdapter: nativeThreadSettingsAdapter,
+    contextWindowStore,
+    modelCatalog,
+    contextWindow: config.perThreadContextWindow
+  });
   const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher });
-  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
+  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, nodeRuntimeService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
   await dashboard.listen();
   let injector;
+  let nativeOwnerInjector = null;
   try {
     const codex = await ensureDedicatedCodex(config);
     injector = new CodexInjector({
@@ -81,6 +110,10 @@ export async function run() {
       contextWindowStore
     });
     await injector.start();
+    if (config.primaryCdpEnabled) {
+      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore });
+      await nativeOwnerInjector.start();
+    }
     scheduler.start();
     console.log(`[codex-control-console] dashboard listening at ${config.dashboardOrigin}`);
     console.log(`[codex-control-console] CDP ${codex.mode} on ${config.cdpOrigin}`);
@@ -96,13 +129,14 @@ export async function run() {
 
   const shutdown = async () => {
     await injector.stop();
+    await nativeOwnerInjector?.stop();
     scheduler.stop();
     zoteroAdapter.close();
     await dashboard.close();
   };
   process.once("SIGINT", () => void shutdown().finally(() => process.exit(0)));
   process.once("SIGTERM", () => void shutdown().finally(() => process.exit(0)));
-  return { config, dashboard, injector, zoteroAdapter, zoteroLocalApi };
+  return { config, dashboard, injector, nativeOwnerInjector, zoteroAdapter, zoteroLocalApi };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

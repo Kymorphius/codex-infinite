@@ -43,3 +43,18 @@ test("model catalog reports clamped and effective context windows truthfully", a
   assert.equal(result.clamped, true);
   assert.equal(result.observedContextWindow, 258_400);
 });
+
+test("model catalog advertises only bounded visible model and reasoning choices", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-model-options-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const filePath = path.join(directory, "models.json");
+  await fs.writeFile(filePath, JSON.stringify({ models: [
+    { slug: "gpt-5.6-sol", display_name: "Sol", description: "Frontier", default_reasoning_level: "high", supported_reasoning_levels: [{ effort: "low" }, { effort: "high", description: "Deep" }], service_tiers: [{ id: "priority", name: "Fast", description: "1.5x speed" }] },
+    { slug: "hidden", visibility: "hide", supported_reasoning_levels: [] }
+  ] }));
+  const options = await new ModelCatalog({ filePath }).listOptions();
+  assert.deepEqual(options.map((item) => item.id), ["gpt-5.6-sol"]);
+  assert.equal(options[0].defaultReasoningEffort, "high");
+  assert.deepEqual(options[0].reasoningEfforts.map((item) => item.effort), ["low", "high"]);
+  assert.deepEqual(options[0].serviceTiers.map((item) => item.id), ["default", "priority"]);
+});

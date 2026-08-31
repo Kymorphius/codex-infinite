@@ -25,5 +25,9 @@ export function assertLoopbackConfig(config) {
   assertLoopbackHost(config.cdpHost, "cdpHost");
   assertLoopbackUrl(config.dashboardOrigin, "dashboardOrigin");
   assertLoopbackUrl(config.cdpOrigin, "cdpOrigin");
+  if (config.primaryCdpEnabled || config.primaryCdpHost !== undefined || config.primaryCdpOrigin !== undefined) {
+    assertLoopbackHost(config.primaryCdpHost, "primaryCdpHost");
+    assertLoopbackUrl(config.primaryCdpOrigin, "primaryCdpOrigin");
+  }
   return config;
 }

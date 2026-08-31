@@ -25,15 +25,52 @@ export class ModelCatalog {
     this.filePath = filePath;
   }
 
-  async get(slug) {
-    if (!slug || !this.filePath) return null;
+  async readModels() {
+    if (!this.filePath) return [];
     try {
       const data = JSON.parse(await fs.readFile(this.filePath, "utf8"));
       const models = Array.isArray(data) ? data : data.models;
-      return (Array.isArray(models) ? models : []).find((model) => model.slug === slug) || null;
+      return Array.isArray(models) ? models : [];
     } catch {
-      return null;
+      return [];
     }
+  }
+
+  async get(slug) {
+    if (!slug) return null;
+    return (await this.readModels()).find((model) => model.slug === slug) || null;
+  }
+
+  async listOptions({ limit = 16 } = {}) {
+    const clean = (value, maxLength) => typeof value === "string"
+      ? value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, maxLength)
+      : "";
+    return (await this.readModels()).flatMap((model) => {
+      const id = clean(model?.slug, 120);
+      if (!id || model?.visibility === "hide" || model?.supported_in_api === false) return [];
+      const efforts = (Array.isArray(model?.supported_reasoning_levels) ? model.supported_reasoning_levels : []).flatMap((item) => {
+        const effort = clean(item?.effort, 40);
+        return effort ? [{ effort, description: clean(item?.description, 180) || null }] : [];
+      }).slice(0, 8);
+      const fallbackEffort = clean(model?.default_reasoning_level, 40) || efforts[0]?.effort || null;
+      const serviceTiers = [
+        { id: "default", name: "Standard", description: "Default speed" },
+        ...(Array.isArray(model?.service_tiers) ? model.service_tiers : [])
+      ].flatMap((item) => {
+        const rawId = clean(item?.id, 40).toLowerCase();
+        const id = rawId === "fast" ? "priority" : rawId;
+        if (!["default", "priority", "ultrafast"].includes(id)) return [];
+        return [{ id, name: clean(item?.name, 80) || id, description: clean(item?.description, 180) || null }];
+      }).filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index).slice(0, 4);
+      return [{
+        id,
+        displayName: clean(model?.display_name, 120) || id,
+        description: clean(model?.description, 240) || null,
+        defaultReasoningEffort: fallbackEffort,
+        reasoningEfforts: efforts,
+        serviceTiers
+      }];
+    }).slice(0, Math.max(1, Math.min(16, Number(limit) || 16)));
   }
 
   async resolve(slug, requestedContextWindow) {

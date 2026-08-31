@@ -1,0 +1,177 @@
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --native-ui-canvas: var(--native-ui-dark-canvas);
+  --native-ui-surface: #1b1b1d;
+  --native-ui-surface-raised: #202022;
+  --native-ui-surface-hover: #29292b;
+  --native-ui-border: #303032;
+  --native-ui-border-strong: #3c3c3f;
+  --native-ui-text: var(--native-ui-dark-text);
+  --native-ui-text-secondary: #a6a6ac;
+  --native-ui-text-tertiary: #7f7f85;
+  --native-ui-shadow: none;
+  color: var(--native-ui-text);
+  background: var(--native-ui-canvas);
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .app-shell { background: var(--native-ui-canvas); color: var(--native-ui-text); }
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .module-nav { border-color: var(--native-ui-border); background: rgba(20,20,20,.94); backdrop-filter: blur(18px); }
+:root[data-theme="dark"] .module-tab { color: var(--native-ui-text-tertiary); }
+:root[data-theme="dark"] .module-tab.is-active { border-bottom-color: var(--native-ui-text); color: var(--native-ui-text); }
+:root[data-theme="dark"] .module-caption,
+:root[data-theme="dark"] .eyebrow,
+:root[data-theme="dark"] .muted,
+:root[data-theme="dark"] .state-card p { color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .loopback-pill,
+:root[data-theme="dark"] .section-status { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface-raised); color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .quiet-button { color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .quiet-button:hover { background: var(--native-ui-surface-hover); color: #fff; }
+:root[data-theme="dark"] .primary-button { background: #ededf0; color: #202022; }
+:root[data-theme="dark"] .primary-button:hover { background: #fff; }
+
+:root[data-theme="dark"] .intro-card { border-color: var(--native-ui-border); background: var(--native-ui-surface); box-shadow: none; }
+:root[data-theme="dark"] .profile-chip,
+:root[data-theme="dark"] .formula-card,
+:root[data-theme="dark"] .metric-card { border-color: var(--native-ui-border); background: var(--native-ui-surface-raised); }
+:root[data-theme="dark"] code { color: var(--native-ui-text-secondary); }
+
+:root[data-theme="dark"] .project-filter select,
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field select,
+:root[data-theme="dark"] .field textarea,
+:root[data-theme="dark"] .session-search input,
+:root[data-theme="dark"] .session-status-filter select,
+:root[data-theme="dark"] .zotero-search-field input,
+:root[data-theme="dark"] .zotero-select-field select { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface-raised); color: var(--native-ui-text); }
+:root[data-theme="dark"] .field input:focus,
+:root[data-theme="dark"] .field select:focus,
+:root[data-theme="dark"] .field textarea:focus,
+:root[data-theme="dark"] .session-search input:focus,
+:root[data-theme="dark"] .session-status-filter select:focus { border-color: #66666b; background: var(--native-ui-surface-hover); box-shadow: 0 0 0 3px rgba(255,255,255,.04); }
+
+:root[data-theme="dark"] .board-column,
+:root[data-theme="dark"] .session-device-card { border-color: var(--native-ui-border); background: var(--native-ui-surface); }
+:root[data-theme="dark"] .composer-card,
+:root[data-theme="dark"] .context-card,
+:root[data-theme="dark"] .dispatch-card,
+:root[data-theme="dark"] .task-card,
+:root[data-theme="dark"] .priority-card,
+:root[data-theme="dark"] .session-project-card,
+:root[data-theme="dark"] .zotero-sidebar,
+:root[data-theme="dark"] .zotero-browser,
+:root[data-theme="dark"] .zotero-item-card,
+:root[data-theme="dark"] .zotero-editor-form,
+:root[data-theme="dark"] .zotero-note-section,
+:root[data-theme="dark"] .zotero-collection-form,
+:root[data-theme="dark"] .zotero-confirmation { border-color: var(--native-ui-border); background: var(--native-ui-surface-raised); box-shadow: none; }
+:root[data-theme="dark"] .context-values > div,
+:root[data-theme="dark"] .session-scope-summary span,
+:root[data-theme="dark"] .session-device-role,
+:root[data-theme="dark"] .zotero-tag { background: var(--native-ui-surface-hover); color: var(--native-ui-text-secondary) !important; }
+:root[data-theme="dark"] .task-open,
+:root[data-theme="dark"] .session-view-actions { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface-raised); color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .task-open:hover,
+:root[data-theme="dark"] .session-view-actions button:hover:not(:disabled),
+:root[data-theme="dark"] .session-clear-filter:hover { background: var(--native-ui-surface-hover); color: #fff; }
+
+:root[data-theme="dark"] .session-controls { border-color: var(--native-ui-border); background: rgba(27,27,29,.94); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+:root[data-theme="dark"] .session-device-header { border-color: var(--native-ui-border); background: var(--native-ui-surface-raised); }
+:root[data-theme="dark"] .session-device-header:hover { background: var(--native-ui-surface-hover); }
+:root[data-theme="dark"] .session-project-card > summary,
+:root[data-theme="dark"] .session-row { background: var(--native-ui-surface-raised); }
+:root[data-theme="dark"] .session-row-list { border-color: var(--native-ui-border); background: var(--native-ui-border); }
+:root[data-theme="dark"] .session-device-identity h3,
+:root[data-theme="dark"] .session-project-identity h3,
+:root[data-theme="dark"] .session-row-heading h4,
+:root[data-theme="dark"] .priority-card-heading h3,
+:root[data-theme="dark"] .priority-score strong { color: var(--native-ui-text); }
+:root[data-theme="dark"] .session-filter-empty,
+:root[data-theme="dark"] .state-card { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface); }
+:root[data-theme="dark"] .state-icon { background: var(--native-ui-surface-hover); color: var(--native-ui-text-secondary); }
+
+:root[data-theme="dark"] .zotero-toolbar { border-color: var(--native-ui-border); background: var(--native-ui-surface); }
+:root[data-theme="dark"] .zotero-collection-button { color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .zotero-collection-button:hover,
+:root[data-theme="dark"] .zotero-collection-button[aria-pressed="true"] { background: var(--native-ui-surface-hover); color: #fff; }
+:root[data-theme="dark"] .zotero-editor-panel { background: var(--native-ui-surface); }
+
+:root[data-theme="dark"] .board-column-header h3,
+:root[data-theme="dark"] .context-card-heading h3,
+:root[data-theme="dark"] .context-values strong,
+:root[data-theme="dark"] .dispatch-card h4,
+:root[data-theme="dark"] .task-title,
+:root[data-theme="dark"] .session-scope-summary strong,
+:root[data-theme="dark"] .priority-rank strong,
+:root[data-theme="dark"] .zotero-bridge-chip strong,
+:root[data-theme="dark"] .zotero-sidebar-heading h3,
+:root[data-theme="dark"] .zotero-item-title { color: var(--native-ui-text); }
+:root[data-theme="dark"] .project-filter,
+:root[data-theme="dark"] .field,
+:root[data-theme="dark"] .dispatch-route,
+:root[data-theme="dark"] .dispatch-card p,
+:root[data-theme="dark"] .task-meta,
+:root[data-theme="dark"] .session-device-identity span,
+:root[data-theme="dark"] .session-device-stats,
+:root[data-theme="dark"] .session-project-stats,
+:root[data-theme="dark"] .session-row-meta,
+:root[data-theme="dark"] .priority-latest-task,
+:root[data-theme="dark"] .priority-stats,
+:root[data-theme="dark"] .zotero-item-meta,
+:root[data-theme="dark"] .zotero-publication { color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .column-kicker,
+:root[data-theme="dark"] .context-values span,
+:root[data-theme="dark"] .context-card-footer,
+:root[data-theme="dark"] .form-footer,
+:root[data-theme="dark"] .dispatch-meta,
+:root[data-theme="dark"] .session-result-count,
+:root[data-theme="dark"] .priority-card-heading span,
+:root[data-theme="dark"] .priority-score small,
+:root[data-theme="dark"] .zotero-item-key,
+:root[data-theme="dark"] .zotero-item-footer { color: var(--native-ui-text-tertiary); }
+
+:root[data-theme="dark"] .conversation-workspace,
+:root[data-theme="dark"] .conversation-shell { background: var(--native-chat-dark-background); color: var(--native-chat-dark-text); }
+:root[data-theme="dark"] .conversation-header { border-color: #303032; background: rgba(20,20,20,.94); }
+:root[data-theme="dark"] .conversation-identity h3 { color: var(--native-chat-dark-text); }
+:root[data-theme="dark"] .conversation-identity code,
+:root[data-theme="dark"] .conversation-state,
+:root[data-theme="dark"] .conversation-footer { color: #8f8f95; }
+:root[data-theme="dark"] .conversation-back { color: #b2b2b8; }
+:root[data-theme="dark"] .conversation-back:hover { background: #303033; color: #fff; }
+:root[data-theme="dark"] .conversation-owner { border-color: #414145; background: #29292c; color: #aab5c4; }
+:root[data-theme="dark"] .conversation-turn-state { background: #303033; color: #aaaab0; }
+:root[data-theme="dark"] .conversation-turn-state[data-state="active"] { background: rgba(45,170,113,.14); color: #69c99a; }
+:root[data-theme="dark"] .conversation-turn-state[data-state="interrupted"] { background: rgba(205,94,78,.14); color: #dc8a7c; }
+:root[data-theme="dark"] .conversation-stop,
+:root[data-theme="dark"] .conversation-state button { border-color: #4b4b4f; color: #b7b7bd; }
+:root[data-theme="dark"] .conversation-stop:hover:not(:disabled) { border-color: #985c53; background: rgba(205,94,78,.1); color: #dc8a7c; }
+:root[data-theme="dark"] .conversation-entry-label { color: #a6a6ac; }
+:root[data-theme="dark"] .conversation-entry p { color: var(--native-chat-dark-text); }
+:root[data-theme="dark"] .conversation-entry time { color: #77777d; }
+:root[data-theme="dark"] .conversation-codex-mark { border-color: #414144; background: #29292b; color: #ededf0; }
+:root[data-theme="dark"] .conversation-entry[data-role="user"] .conversation-entry-body { background: #303033; }
+:root[data-theme="dark"] .conversation-entry[data-kind="tool"] .conversation-entry-body,
+:root[data-theme="dark"] .conversation-entry[data-kind="status"] .conversation-entry-body { border-color: #363639; }
+:root[data-theme="dark"] .conversation-entry[data-kind="tool"] p,
+:root[data-theme="dark"] .conversation-entry[data-kind="status"] p { color: #aaaab0; }
+:root[data-theme="dark"] .conversation-bottom { border-color: #303032; background: linear-gradient(to bottom, rgba(20,20,20,.94), var(--native-chat-dark-background) 22%); }
+:root[data-theme="dark"] .conversation-composer-box { border-color: #48484c; background: #29292b; box-shadow: 0 7px 24px rgba(0,0,0,.24); }
+:root[data-theme="dark"] .conversation-composer-box:focus-within { border-color: #67676c; box-shadow: 0 7px 25px rgba(0,0,0,.3); }
+:root[data-theme="dark"] .conversation-composer textarea { color: var(--native-chat-dark-text); }
+:root[data-theme="dark"] .conversation-composer textarea::placeholder { color: #85858b; }
+:root[data-theme="dark"] .conversation-composer-box > button { background: #ededf0; color: #202022; }
+:root[data-theme="dark"] .conversation-composer-box > button:hover:not(:disabled) { background: #fff; }
+:root[data-theme="dark"] .conversation-setting { color: #a6a6ac; }
+:root[data-theme="dark"] .conversation-setting[data-tone="available"] { color: #c9c9ce; }
+:root[data-theme="dark"] .conversation-setting[data-tone="unknown"] { color: #707076; }
+:root[data-theme="dark"] .conversation-setting[data-setting="context"][data-tone="enabled"] { background: #252a27; color: #86c5a2; }
+:root[data-theme="dark"] .conversation-setting:hover:not(:disabled),
+:root[data-theme="dark"] .conversation-setting[aria-expanded="true"] { background: #303033; color: #ededf0; }
+:root[data-theme="dark"] .conversation-settings-menu { border-color: #48484c; background: rgba(41,41,43,.98); box-shadow: 0 17px 46px rgba(0,0,0,.42); }
+:root[data-theme="dark"] .conversation-settings-menu-option { color: #ededf0; }
+:root[data-theme="dark"] .conversation-settings-menu-option:hover,
+:root[data-theme="dark"] .conversation-settings-menu-option:focus-visible { background: #38383b; }
+:root[data-theme="dark"] .conversation-settings-menu-check { color: #ededf0; }
+:root[data-theme="dark"] .conversation-settings-menu-copy small { color: #929298; }

@@ -24,8 +24,12 @@ async function start(t) {
     async getTask(id) { return id === localTask.id ? localTask : null; },
     async getActivity(id) { calls.push(["local-activity", id]); return id === localTask.id ? { schemaVersion: 1, threadId: id, entries: [] } : null; }
   };
-  const remoteMessageService = { async readDraft(id) { calls.push(["draft", id]); return { text: "owner draft", revision: "a".repeat(64) }; } };
-  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter, remoteMessageService });
+  const remoteMessageService = {
+    async readDraft(id) { calls.push(["draft", id]); return { text: "owner draft", revision: "a".repeat(64) }; },
+    async readPendingApprovals(id) { calls.push(["approvals", id]); return []; }
+  };
+  const nodeRuntimeService = { async read() { calls.push(["runtime"]); return { authority: "owner-native-desktop", health: "connected", submission: "native-composer", activity: "rollout-projection", featurePolicy: "owner-native" }; } };
+  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter, remoteMessageService, nodeRuntimeService });
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
@@ -60,10 +64,11 @@ test("node snapshot is local-only, bounded, and excludes filesystem paths", asyn
   const response = await request("/api/node/snapshot");
   assert.equal(response.status, 200);
   const result = await response.json();
-  assert.equal(result.schemaVersion, 1);
+  assert.equal(result.schemaVersion, 3);
+  assert.equal(result.node.runtime.authority, "owner-native-desktop");
   assert.equal(result.tasks[0].id, "local-one");
   assert.equal(result.tasks[0].sourceFile, undefined);
-  assert.deepEqual(calls, [["local-list"]]);
+  assert.deepEqual(calls, [["local-list"], ["runtime"]]);
   assert.equal((await request("/api/node/snapshot", { method: "POST" })).status, 405);
 });
 
@@ -74,11 +79,12 @@ test("activity routes preserve explicit owner identity and local-only node expor
   const ownerActivity = await owner.json();
   assert.equal(ownerActivity.schemaVersion, 1);
   assert.equal(ownerActivity.draft.text, "owner draft");
+  assert.deepEqual(ownerActivity.approvals, []);
   const remote = await request("/api/tasks/thread%2Fone/activity?device=remote");
   assert.equal(remote.status, 200);
   assert.equal((await remote.json()).activity.threadId, "thread/one");
   assert.equal((await request("/api/tasks/thread%2Fone/activity")).status, 400);
   assert.equal((await request("/api/node/activity/%3Bbad")).status, 400);
   assert.equal((await request("/api/node/activity/local-one", { method: "POST" })).status, 405);
-  assert.deepEqual(calls, [["local-activity", "local-one"], ["draft", "local-one"], ["activity", "thread/one", "remote"]]);
+  assert.deepEqual(calls, [["local-activity", "local-one"], ["draft", "local-one"], ["approvals", "local-one"], ["activity", "thread/one", "remote"]]);
 });

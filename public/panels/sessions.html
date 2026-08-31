@@ -34,23 +34,31 @@
             <div class="session-filter-empty hidden" data-testid="session-filter-empty"><div class="state-icon">⌕</div><h3>没有匹配的会话</h3><p>换一个关键词或状态试试。</p></div>
             <div class="session-project-list hidden" data-testid="session-project-list" aria-live="polite"></div>
           </section>
-          <section class="session-activity-layer hidden" data-testid="session-activity-layer" aria-label="远端会话实时过程">
-            <article class="session-activity-panel" aria-labelledby="session-activity-title">
-              <header class="session-activity-header">
-                <button class="session-activity-back" type="button" data-session-activity-close aria-label="返回会话中心">← <span>会话中心</span></button>
-                <div class="session-activity-identity"><h3 id="session-activity-title" data-testid="session-activity-title">远端原生对话</h3><code data-testid="session-activity-directory">—</code></div>
-                <span class="session-activity-owner" data-testid="session-activity-owner">远端节点 · 原生 Codex · 可交互</span>
+          <section class="conversation-workspace hidden" data-testid="session-activity-layer" aria-label="远端会话">
+            <article class="conversation-shell" aria-labelledby="session-activity-title">
+              <header class="conversation-header">
+                <button class="conversation-back" type="button" data-session-activity-close aria-label="返回会话中心">← <span>会话中心</span></button>
+                <div class="conversation-identity"><h3 id="session-activity-title" data-testid="session-activity-title">远端会话</h3><code data-testid="session-activity-directory">—</code></div>
+                <div class="conversation-header-actions">
+                  <span class="conversation-turn-state" data-testid="session-activity-turn-state" data-state="unknown">状态同步中</span>
+                  <span class="conversation-owner" data-testid="session-activity-owner">远端设备 · 远程</span>
+                  <button class="conversation-stop hidden" type="button" data-testid="session-remote-stop">停止</button>
+                </div>
               </header>
-              <div class="session-activity-state" data-testid="session-activity-state">正在读取所属节点…</div>
-              <div class="session-activity-list hidden" data-testid="session-activity-list" aria-live="polite"></div>
-              <div class="session-activity-bottom">
-                <form class="session-remote-composer" data-testid="session-remote-composer">
+              <div class="conversation-state" data-testid="session-activity-state"><span data-testid="session-activity-state-message">正在打开会话…</span><button class="hidden" type="button" data-testid="session-activity-retry">重试</button></div>
+              <div class="conversation-list hidden" data-testid="session-activity-list" aria-live="polite"></div>
+              <div class="conversation-bottom">
+                <section class="conversation-approvals hidden" data-testid="session-approval-list" aria-label="等待确认的操作" aria-live="polite"></section>
+                <form class="conversation-composer" data-testid="session-remote-composer">
                   <label class="sr-only" for="session-remote-prompt">向远端 Codex 发送消息</label>
-                  <textarea id="session-remote-prompt" data-testid="session-remote-prompt" rows="2" maxlength="12000" placeholder="向所属节点的 Codex 发送消息…"></textarea>
-                  <button class="primary-button" type="submit" data-testid="session-remote-send">发送</button>
+                  <div class="conversation-composer-box">
+                    <textarea id="session-remote-prompt" data-testid="session-remote-prompt" rows="1" maxlength="12000" placeholder="发送消息"></textarea>
+                    <button type="submit" data-testid="session-remote-send" aria-label="发送消息">↑</button>
+                  </div>
+                  <div class="conversation-settings" data-testid="session-remote-settings" aria-label="远端会话设置" role="toolbar"></div>
                 </form>
-                <div class="session-remote-send-status" data-testid="session-remote-send-status" aria-live="polite"></div>
-                <footer class="session-activity-footer"><span><strong>远端执行</strong> · 消息由所属节点写入原生会话，本机持续显示结果</span><span data-testid="session-activity-updated">—</span></footer>
+                <div class="conversation-send-status" data-testid="session-remote-send-status" aria-live="polite"></div>
+                <footer class="conversation-footer"><span>任务在所属设备上执行</span><span data-testid="session-activity-updated">—</span></footer>
               </div>
             </article>
           </section>
