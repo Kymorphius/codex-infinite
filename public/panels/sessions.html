@@ -1,0 +1,65 @@
+        <section class="sessions-panel hidden" data-module-panel="sessions">
+          <section class="sessions-section">
+            <div class="section-heading sessions-heading">
+              <div><p class="eyebrow">PROJECT → SESSION</p><h2>项目与会话</h2></div>
+              <span class="section-status" data-testid="session-connection-status">连接中…</span>
+            </div>
+            <div class="session-controls" aria-label="筛选会话">
+              <label class="session-search"><span class="sr-only">搜索会话</span><input type="search" data-testid="session-search" placeholder="搜索项目、目录、会话或模型"></label>
+              <label class="session-status-filter"><span class="sr-only">状态</span><select data-testid="session-status-filter"><option value="all">全部状态</option><option value="active">进行中</option><option value="completed">已完成</option><option value="error">异常</option></select></label>
+              <button class="session-clear-filter hidden" type="button" data-testid="session-clear-filter">清除筛选</button>
+              <div class="session-scope-summary" aria-label="会话数据范围">
+                <span><strong data-testid="session-device-count">—</strong> 设备</span>
+                <span><strong data-testid="session-project-count">—</strong> 目录</span>
+                <span><strong data-testid="session-count">—</strong> 总会话</span>
+              </div>
+              <div class="session-view-actions" aria-label="展开或折叠会话层级">
+                <button type="button" data-session-disclosure="expand">全部展开</button>
+                <button type="button" data-session-disclosure="collapse">全部折叠</button>
+              </div>
+              <span class="session-result-count" data-testid="session-result-count">—</span>
+            </div>
+            <div class="sessions-state state-card" data-sessions-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在读取原生会话</h3><p>从包装版共享的 Codex 会话目录建立只读索引。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="empty">
+              <div class="state-icon">○</div><h3>还没有可显示的会话</h3><p>在包装版中新建或打开原生 Codex 对话后，会话会出现在这里。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法读取原生会话</h3><p data-sessions-state-message>Codex 本地会话记录不可用。</p>
+            </div>
+            <div class="sessions-state state-card hidden" data-sessions-state="error">
+              <div class="state-icon">!</div><h3>读取会话时遇到问题</h3><p data-sessions-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="session-filter-empty hidden" data-testid="session-filter-empty"><div class="state-icon">⌕</div><h3>没有匹配的会话</h3><p>换一个关键词或状态试试。</p></div>
+            <div class="session-project-list hidden" data-testid="session-project-list" aria-live="polite"></div>
+          </section>
+          <section class="conversation-workspace hidden" data-testid="session-activity-layer" aria-label="远端会话">
+            <article class="conversation-shell" aria-labelledby="session-activity-title">
+              <header class="conversation-header">
+                <button class="conversation-back" type="button" data-session-activity-close aria-label="返回会话中心">← <span>会话中心</span></button>
+                <div class="conversation-identity"><h3 id="session-activity-title" data-testid="session-activity-title">远端会话</h3><code data-testid="session-activity-directory">—</code></div>
+                <div class="conversation-header-actions">
+                  <span class="conversation-turn-state" data-testid="session-activity-turn-state" data-state="unknown">状态同步中</span>
+                  <span class="conversation-owner" data-testid="session-activity-owner">远端设备 · 远程</span>
+                  <button class="conversation-stop hidden" type="button" data-testid="session-remote-stop">停止</button>
+                </div>
+              </header>
+              <div class="conversation-state" data-testid="session-activity-state"><span data-testid="session-activity-state-message">正在打开会话…</span><button class="hidden" type="button" data-testid="session-activity-retry">重试</button></div>
+              <div class="conversation-list hidden" data-testid="session-activity-list" aria-live="polite"></div>
+              <div class="conversation-bottom">
+                <section class="conversation-approvals hidden" data-testid="session-approval-list" aria-label="等待确认的操作" aria-live="polite"></section>
+                <form class="conversation-composer" data-testid="session-remote-composer">
+                  <label class="sr-only" for="session-remote-prompt">向远端 Codex 发送消息</label>
+                  <div class="conversation-composer-box">
+                    <textarea id="session-remote-prompt" data-testid="session-remote-prompt" rows="1" maxlength="12000" placeholder="发送消息"></textarea>
+                    <button type="submit" data-testid="session-remote-send" aria-label="发送消息">↑</button>
+                  </div>
+                  <div class="conversation-settings" data-testid="session-remote-settings" aria-label="远端会话设置" role="toolbar"></div>
+                </form>
+                <div class="conversation-send-status" data-testid="session-remote-send-status" aria-live="polite"></div>
+                <footer class="conversation-footer"><span>任务在所属设备上执行</span><span data-testid="session-activity-updated">—</span></footer>
+              </div>
+            </article>
+          </section>
+        </section>

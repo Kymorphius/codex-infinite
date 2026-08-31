@@ -1,0 +1,39 @@
+.conversation-approvals { display: grid; width: min(760px, 100%); max-height: min(38vh, 320px); gap: 8px; margin: 0 auto 10px; overflow-y: auto; }
+.conversation-approval-card { display: grid; gap: 8px; border: 1px solid #dedee2; border-radius: 14px; padding: 12px 13px; background: #fafafa; box-shadow: 0 5px 18px rgba(0,0,0,.045); }
+.conversation-approval-heading, .conversation-approval-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.conversation-approval-heading span:first-child { display: block; margin-bottom: 2px; color: #8d8d93; font-size: 8px; font-weight: 680; }
+.conversation-approval-heading h4 { margin: 0; color: #303034; font-size: 11px; }
+.conversation-approval-scope { flex: 0 0 auto; border-radius: 999px; padding: 4px 7px; background: #ececef; color: #77777c; font-size: 8px; font-weight: 700; }
+.conversation-approval-card > p { margin: 0; color: #55555a; font-size: 10px; line-height: 1.5; }
+.conversation-approval-facts { display: grid; gap: 3px; border-radius: 9px; padding: 7px 9px; background: #f0f0f2; }
+.conversation-approval-fact { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: start; gap: 7px; font-size: 9px; line-height: 1.45; }
+.conversation-approval-fact span { color: #96969b; }
+.conversation-approval-fact code, .conversation-approval-fact strong { overflow-wrap: anywhere; color: #414146; font: inherit; font-weight: 550; white-space: pre-wrap; }
+.conversation-approval-footer > span { color: #929297; font-size: 8px; }
+.conversation-approval-footer > div { display: flex; gap: 6px; }
+.conversation-approval-action { border: 1px solid #d1d1d5; border-radius: 999px; padding: 6px 11px; background: transparent; color: #66666b; font: inherit; font-size: 9px; font-weight: 700; cursor: pointer; }
+.conversation-approval-action:hover:not(:disabled) { border-color: #b75a4d; background: rgba(184,79,64,.07); color: #a14b40; }
+.conversation-approval-action.is-primary { border-color: #29292d; background: #29292d; color: #fff; }
+.conversation-approval-action.is-primary:hover:not(:disabled) { border-color: #08080a; background: #08080a; color: #fff; }
+.conversation-approval-action:disabled { cursor: wait; opacity: .45; }
+
+:root[data-theme="dark"] .conversation-approval-card { border-color: #46464a; background: #29292b; box-shadow: 0 7px 22px rgba(0,0,0,.22); }
+:root[data-theme="dark"] .conversation-approval-heading h4 { color: #ededf0; }
+:root[data-theme="dark"] .conversation-approval-heading span:first-child,
+:root[data-theme="dark"] .conversation-approval-footer > span { color: #929298; }
+:root[data-theme="dark"] .conversation-approval-scope { background: #38383b; color: #b6b6bc; }
+:root[data-theme="dark"] .conversation-approval-card > p { color: #c9c9ce; }
+:root[data-theme="dark"] .conversation-approval-facts { background: #222224; }
+:root[data-theme="dark"] .conversation-approval-fact span { color: #85858b; }
+:root[data-theme="dark"] .conversation-approval-fact code,
+:root[data-theme="dark"] .conversation-approval-fact strong { color: #d8d8dc; }
+:root[data-theme="dark"] .conversation-approval-action { border-color: #505055; color: #c2c2c7; }
+:root[data-theme="dark"] .conversation-approval-action:hover:not(:disabled) { border-color: #986057; background: rgba(205,94,78,.1); color: #dc8a7c; }
+:root[data-theme="dark"] .conversation-approval-action.is-primary { border-color: #ededf0; background: #ededf0; color: #202022; }
+:root[data-theme="dark"] .conversation-approval-action.is-primary:hover:not(:disabled) { border-color: #fff; background: #fff; color: #111; }
+
+@media (max-width: 720px) {
+  .conversation-approval-heading, .conversation-approval-footer { align-items: flex-start; }
+  .conversation-approval-footer { flex-direction: column; }
+  .conversation-approval-footer > div { align-self: flex-end; }
+}

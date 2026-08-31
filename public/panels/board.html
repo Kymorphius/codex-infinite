@@ -1,0 +1,52 @@
+        <section data-module-panel="board">
+          <section class="intro-card">
+            <div>
+              <p class="eyebrow">DISPATCH BOARD</p>
+              <h2>任务看板</h2>
+              <p class="muted">创建任务、指派项目和目标对话，按时间进入单通道发送队列。任务到期后会真实续接所选 Codex 对话。</p>
+            </div>
+            <div class="profile-chip">
+              <span class="chip-label">发送策略</span>
+              <code>单并发 · 按入队时间执行</code>
+            </div>
+          </section>
+
+          <section class="metrics" aria-label="看板概览">
+            <div class="metric-card"><span>调度任务</span><strong data-testid="dispatch-count">—</strong></div>
+            <div class="metric-card"><span>等待执行</span><strong data-testid="dispatch-waiting-count">—</strong></div>
+            <div class="metric-card"><span>目标对话</span><strong data-testid="dispatch-target-count">—</strong></div>
+          </section>
+
+          <section class="composer-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">NEW TASK</p><h2>安排一个任务</h2></div>
+              <span class="section-status" data-testid="connection-status">连接中…</span>
+            </div>
+            <form data-testid="dispatch-form" class="dispatch-form">
+              <label class="field field-wide"><span>任务标题</span><input name="title" maxlength="160" required placeholder="例如：检查发布流程并给出修复"></label>
+              <label class="field"><span>项目</span><select name="project" data-testid="dispatch-project" required><option value="">选择项目</option></select></label>
+              <label class="field"><span>目标对话</span><select name="targetThreadId" data-testid="dispatch-thread" disabled><option value="">先选择项目</option></select></label>
+              <label class="field"><span>发送时间</span><input name="scheduledAt" type="datetime-local"></label>
+              <label class="field"><span>初始状态</span><select name="mode"><option value="queue">立即排队</option><option value="schedule">按时间发送</option><option value="backlog">先放入待排期</option></select></label>
+              <label class="field field-full"><span>发送给 Codex 的任务说明</span><textarea name="prompt" maxlength="12000" rows="4" required placeholder="写清目标、范围、验收条件和限制。"></textarea></label>
+              <div class="form-footer"><span>只会发送到你选择的项目对话；发送后由该对话继续执行。</span><button class="primary-button" type="submit">加入任务看板</button></div>
+            </form>
+          </section>
+
+          <section class="board-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">TASK PIPELINE</p><h2>发送队列</h2></div>
+              <button class="quiet-button" type="button" data-action="refresh-dispatches">刷新队列</button>
+            </div>
+            <div class="state-card" data-dispatch-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取发送队列</h3><p>队列保存在本机控制台目录。</p></div>
+            <div class="state-card hidden" data-dispatch-state="error"><div class="state-icon">!</div><h3>发送队列暂时不可用</h3><p data-dispatch-state-message>请稍后重试。</p></div>
+            <div class="dispatch-board hidden" data-testid="dispatch-board" aria-live="polite">
+              <section class="board-column" data-dispatch-column="backlog"><header class="board-column-header"><h3>待排期</h3><span class="column-count" data-dispatch-count="backlog">0</span></header><div class="board-column-list" data-dispatch-list="backlog"></div></section>
+              <section class="board-column" data-dispatch-column="scheduled"><header class="board-column-header"><h3>已排期</h3><span class="column-count" data-dispatch-count="scheduled">0</span></header><div class="board-column-list" data-dispatch-list="scheduled"></div></section>
+              <section class="board-column" data-dispatch-column="queued"><header class="board-column-header"><h3>排队中</h3><span class="column-count" data-dispatch-count="queued">0</span></header><div class="board-column-list" data-dispatch-list="queued"></div></section>
+              <section class="board-column" data-dispatch-column="sending"><header class="board-column-header"><h3>发送中</h3><span class="column-count" data-dispatch-count="sending">0</span></header><div class="board-column-list" data-dispatch-list="sending"></div></section>
+              <section class="board-column" data-dispatch-column="sent"><header class="board-column-header"><h3>已发送</h3><span class="column-count" data-dispatch-count="sent">0</span></header><div class="board-column-list" data-dispatch-list="sent"></div></section>
+              <section class="board-column" data-dispatch-column="failed"><header class="board-column-header"><h3>异常</h3><span class="column-count" data-dispatch-count="failed">0</span></header><div class="board-column-list" data-dispatch-list="failed"></div></section>
+            </div>
+          </section>
+        </section>

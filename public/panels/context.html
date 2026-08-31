@@ -1,0 +1,40 @@
+        <section class="context-panel hidden" data-module-panel="context">
+          <section class="intro-card">
+            <div>
+              <p class="eyebrow">PER-CONVERSATION CONTEXT</p>
+              <h2>按会话启用扩展上下文</h2>
+              <p class="muted">在原生对话输入框旁直接点击“百万上下文”即可即时开关。这里保留所有已开启会话的集中查看和管理；不会影响其他聊天。</p>
+            </div>
+            <div class="profile-chip">
+              <span class="chip-label">默认模式</span>
+              <code>模型默认 · 按需开启</code>
+            </div>
+          </section>
+
+          <section class="metrics context-metrics" aria-label="会话上下文概览">
+            <div class="metric-card"><span>已配置会话</span><strong data-testid="context-count">—</strong></div>
+            <div class="metric-card"><span>百万请求</span><strong data-testid="context-million-count">—</strong></div>
+            <div class="metric-card"><span>状态</span><strong data-testid="context-status">读取中</strong></div>
+          </section>
+
+          <section class="composer-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">NATIVE THREAD OVERRIDE</p><h2>集中管理已扩展会话</h2><p class="muted">平时直接使用原生输入框旁的即时开关；这里也可以按会话选择、修改或移除。</p></div>
+              <button class="quiet-button" type="button" data-action="refresh-context">刷新</button>
+            </div>
+            <form class="context-form" data-testid="context-form">
+              <label class="field field-wide"><span>会话 ID</span><input name="threadId" data-testid="context-thread-id" list="context-thread-options" maxlength="36" required placeholder="01a015ac-363f-7472-961a-f31d174ad2c8"></label>
+              <datalist id="context-thread-options" data-testid="context-thread-options"></datalist>
+              <label class="field"><span>请求窗口（tokens）</span><input name="contextWindow" data-testid="context-window" type="number" min="32000" max="2000000" step="1" value="1000000" required></label>
+              <div class="context-submit"><button class="primary-button" type="submit">保存单会话覆盖</button></div>
+              <p class="form-hint field-full">“100 万”是只提交给这一条会话的请求值。模型仍会按自身上限决定实际窗口；最近观测值会在该会话下一次真实对话后更新。</p>
+            </form>
+          </section>
+
+          <section class="context-section">
+            <div class="state-card" data-context-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取会话覆盖</h3><p>配置保存在本机控制台目录。</p></div>
+            <div class="state-card hidden" data-context-state="empty"><div class="state-icon">○</div><h3>尚未配置会话上下文</h3><p>输入会话 ID 和窗口大小后保存。</p></div>
+            <div class="state-card hidden" data-context-state="error"><div class="state-icon">!</div><h3>读取配置失败</h3><p data-context-state-message>请稍后重试。</p></div>
+            <div class="context-list hidden" data-context-state="connected" data-testid="context-list" aria-live="polite"></div>
+          </section>
+        </section>
