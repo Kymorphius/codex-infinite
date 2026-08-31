@@ -1,0 +1,121 @@
+        <section class="zotero-panel hidden" data-module-panel="zotero">
+          <section class="intro-card zotero-intro">
+            <div>
+              <p class="eyebrow">LOCAL RESEARCH LIBRARY</p>
+              <h2>文献库</h2>
+              <p class="muted">本地数据库用于快速浏览；回写通过 Zotero 10+ Local API 单独授权。只传文献元数据，不提供附件文件访问。</p>
+            </div>
+            <div class="zotero-bridge-chip profile-chip" data-zotero-write-state="loading">
+              <span class="chip-label">Zotero 回写</span>
+              <strong data-testid="zotero-write-status-badge">检测中…</strong>
+              <small data-testid="zotero-write-status-message">正在检测本机 Local API。</small>
+              <div class="zotero-bridge-actions">
+                <button class="primary-button small-button" type="button" data-action="zotero-authorize" data-testid="zotero-authorize">连接 Zotero 回写</button>
+                <button class="quiet-button small-button hidden" type="button" data-action="zotero-forget" data-testid="zotero-forget">忘记本地授权</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="metrics zotero-metrics" aria-label="文献库概览">
+            <div class="metric-card"><span>文献</span><strong data-testid="zotero-item-count">—</strong></div>
+            <div class="metric-card"><span>集合</span><strong data-testid="zotero-collection-count">—</strong></div>
+            <div class="metric-card"><span>附件</span><strong data-testid="zotero-attachment-count">—</strong></div>
+            <div class="metric-card"><span>笔记</span><strong data-testid="zotero-note-count">—</strong></div>
+          </section>
+
+          <section class="zotero-library-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">READ-ONLY LIBRARY</p><h2>浏览文献</h2></div>
+              <div class="zotero-heading-actions">
+                <button class="quiet-button" type="button" data-action="zotero-create-collection" data-testid="zotero-create-collection" disabled>新建集合</button>
+                <button class="primary-button small-button" type="button" data-action="zotero-create-item" data-testid="zotero-create-item" disabled>新建文献</button>
+                <span class="section-status" data-testid="zotero-connection-status">连接中…</span>
+              </div>
+            </div>
+
+            <div class="zotero-layout">
+              <aside class="zotero-sidebar" aria-label="Zotero 集合">
+                <div class="zotero-sidebar-heading"><div><p class="eyebrow">COLLECTIONS</p><h3>集合</h3></div><span data-testid="zotero-collection-count-label">—</span></div>
+                <div class="zotero-collection-list" data-testid="zotero-collection-list" aria-live="polite"></div>
+              </aside>
+
+              <div class="zotero-browser">
+                <form class="zotero-toolbar" data-testid="zotero-search-form">
+                  <label class="zotero-search-field"><span class="sr-only">搜索文献</span><input data-testid="zotero-search" name="q" type="search" maxlength="200" placeholder="搜索标题、作者、出版物或标签" autocomplete="off"><button class="quiet-button" type="submit">搜索</button></label>
+                  <label class="zotero-select-field"><span>集合</span><select data-testid="zotero-collection-filter" name="collection"><option value="">全部文献</option></select></label>
+                  <button class="quiet-button" type="button" data-action="zotero-clear">清除</button>
+                </form>
+
+                <div class="zotero-state state-card" data-zotero-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取 Zotero</h3><p>连接本机文献库并读取集合索引。</p></div>
+                <div class="zotero-state state-card hidden" data-zotero-state="empty"><div class="state-icon">○</div><h3>没有匹配的文献</h3><p data-zotero-state-message>清空搜索或切换集合后重试。</p></div>
+                <div class="zotero-state state-card hidden" data-zotero-state="disconnected"><div class="state-icon">⟂</div><h3>Zotero 暂时不可用</h3><p data-zotero-state-message>本机 Zotero 数据库不可读。控制台没有伪造文献。</p><button class="primary-button" type="button" data-action="zotero-refresh">重试连接</button></div>
+                <div class="zotero-state state-card hidden" data-zotero-state="error"><div class="state-icon">!</div><h3>读取文献时遇到问题</h3><p data-zotero-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="zotero-refresh">重试</button></div>
+                <div class="zotero-item-list hidden" data-testid="zotero-item-list" aria-live="polite"></div>
+                <div class="zotero-pagination hidden" data-testid="zotero-pagination">
+                  <button class="quiet-button" type="button" data-action="zotero-page" data-page-direction="previous" data-testid="zotero-previous">上一页</button>
+                  <span data-testid="zotero-page-label">—</span>
+                  <button class="quiet-button" type="button" data-action="zotero-page" data-page-direction="next" data-testid="zotero-next">下一页</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="zotero-editor hidden" data-testid="zotero-editor" aria-hidden="true">
+            <div class="zotero-editor-backdrop" data-action="zotero-close-editor" aria-hidden="true"></div>
+            <div class="zotero-editor-panel" role="dialog" aria-modal="true" aria-labelledby="zotero-editor-title">
+              <div class="zotero-editor-header">
+                <div><p class="eyebrow">LOCAL API WRITEBACK</p><h2 id="zotero-editor-title" data-testid="zotero-editor-title">编辑文献</h2></div>
+                <button class="quiet-button" type="button" data-action="zotero-close-editor" aria-label="关闭编辑器">关闭</button>
+              </div>
+              <div class="zotero-editor-message hidden" data-testid="zotero-editor-message" role="status"></div>
+              <div class="zotero-editor-conflict hidden" data-testid="zotero-editor-conflict" role="alert">
+                <strong>检测到版本冲突</strong>
+                <p>这条文献在打开后已被其他位置更新。重新加载当前数据后再编辑，不会自动覆盖对方修改。</p>
+                <button class="quiet-button" type="button" data-action="zotero-reload-editor" data-testid="zotero-reload-editor">重新加载当前数据</button>
+              </div>
+
+              <form class="zotero-editor-form" data-testid="zotero-item-form">
+                <input type="hidden" name="version">
+                <div class="zotero-form-grid">
+                  <label class="field"><span>条目类型</span><select name="itemType" data-testid="zotero-item-type"><option value="book">图书</option><option value="journalArticle">期刊文章</option><option value="webpage">网页</option></select></label>
+                  <label class="field field-wide"><span>标题</span><input name="title" maxlength="4000" required></label>
+                  <label class="field"><span>日期</span><input name="date" maxlength="4000"></label>
+                  <label class="field"><span>出版物</span><input name="publicationTitle" maxlength="4000"></label>
+                  <label class="field"><span>URL</span><input name="url" type="url" maxlength="4000"></label>
+                  <label class="field"><span>DOI</span><input name="DOI" maxlength="4000"></label>
+                  <label class="field"><span>ISBN</span><input name="ISBN" maxlength="4000"></label>
+                  <label class="field field-full"><span>摘要</span><textarea name="abstractNote" maxlength="50000" rows="4"></textarea></label>
+                </div>
+                <div class="zotero-complete-list-grid">
+                  <label class="field"><span>作者（完整替换列表）</span><textarea name="creators" data-testid="zotero-creators" rows="5" placeholder="每行一位：author|姓名；机构作者可直接写 author|机构名"></textarea></label>
+                  <label class="field"><span>标签（完整替换列表）</span><textarea name="tags" data-testid="zotero-tags" rows="5" placeholder="每行一个标签"></textarea></label>
+                  <label class="field"><span>集合 key（完整替换列表）</span><textarea name="collections" data-testid="zotero-collections" rows="5" placeholder="每行一个 Zotero 集合 key"></textarea></label>
+                </div>
+                <p class="form-hint">作者、标签、集合会以你提交的完整列表替换现有列表；留空表示清空该列表。每次写入都会先显示确认摘要。</p>
+                <div class="form-footer"><span data-testid="zotero-editor-version">版本 —</span><button class="primary-button" type="submit" data-testid="zotero-save-item">检查并提交修改</button></div>
+              </form>
+
+              <section class="zotero-note-section" data-testid="zotero-note-section">
+                <div class="zotero-subheading"><div><p class="eyebrow">CHILD NOTE</p><h3>添加子笔记</h3></div><span>不会修改或删除原文献</span></div>
+                <form class="zotero-note-form" data-testid="zotero-note-form">
+                  <label class="field"><span>标题（可选）</span><input name="title" maxlength="500"></label>
+                  <label class="field field-full"><span>笔记内容</span><textarea name="note" maxlength="100000" rows="4" required></textarea></label>
+                  <div class="form-footer"><span>笔记将作为当前文献的子条目创建。</span><button class="quiet-button" type="submit">检查并添加笔记</button></div>
+                </form>
+              </section>
+
+              <form class="zotero-collection-form hidden" data-testid="zotero-collection-form">
+                <label class="field"><span>集合名称</span><input name="name" maxlength="500" required></label>
+                <label class="field"><span>父集合 key（可选）</span><input name="parentCollection" maxlength="64"></label>
+                <div class="form-footer"><span>只创建集合，不会移动或删除现有内容。</span><button class="primary-button" type="submit">检查并创建集合</button></div>
+              </form>
+
+              <section class="zotero-confirmation hidden" data-testid="zotero-confirmation" role="dialog" aria-live="assertive">
+                <p class="eyebrow">CONFIRM WRITE</p>
+                <h3>确认这次 Zotero 回写</h3>
+                <p data-testid="zotero-confirmation-summary"></p>
+                <div class="zotero-confirmation-actions"><button class="primary-button" type="button" data-action="zotero-confirm" data-testid="zotero-confirm">确认写入</button><button class="quiet-button" type="button" data-action="zotero-cancel-confirm">返回修改</button></div>
+              </section>
+            </div>
+          </section>
+        </section>

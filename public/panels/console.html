@@ -1,0 +1,39 @@
+        <section class="console-panel hidden" data-module-panel="console">
+          <section class="intro-card">
+            <div>
+              <p class="eyebrow">WORKSPACE OVERVIEW</p>
+              <h2>控制台</h2>
+              <p class="muted">控制台读取本机 Codex 任务记录；任务打开仍交给 Codex 原生侧边栏处理。</p>
+            </div>
+            <div class="profile-chip">
+              <span class="chip-label">Dedicated profile</span>
+              <code>Codex Control Console</code>
+            </div>
+          </section>
+
+          <section class="metrics" aria-label="控制台概览">
+            <div class="metric-card"><span>任务</span><strong data-testid="console-task-count">—</strong></div>
+            <div class="metric-card"><span>数据来源</span><strong data-testid="console-task-source">读取中</strong></div>
+            <div class="metric-card"><span>权限</span><strong>只读</strong></div>
+          </section>
+
+          <section class="task-section">
+            <div class="section-heading">
+              <div><p class="eyebrow">CURRENT TASKS</p><h2>当前任务</h2></div>
+              <span class="section-status" data-testid="console-connection-status">连接中…</span>
+            </div>
+            <div class="console-state state-card" data-console-state="loading">
+              <div class="spinner" aria-hidden="true"></div><h3>正在读取 Codex 任务</h3><p>从本机任务记录获取最新状态。</p>
+            </div>
+            <div class="console-state state-card hidden" data-console-state="empty">
+              <div class="state-icon">○</div><h3>还没有可显示的任务</h3><p>当 Codex 创建任务后，任务会出现在这里。</p>
+            </div>
+            <div class="console-state state-card hidden" data-console-state="disconnected">
+              <div class="state-icon">⟂</div><h3>暂时无法连接到任务记录</h3><p data-console-state-message>Codex 本地任务数据不可用。控制台没有伪造任务。</p>
+            </div>
+            <div class="console-state state-card hidden" data-console-state="error">
+              <div class="state-icon">!</div><h3>读取任务时遇到问题</h3><p data-console-state-message>请稍后重试。</p><button class="primary-button" type="button" data-action="refresh">重试</button>
+            </div>
+            <div class="task-list hidden" data-testid="console-task-list" aria-live="polite"></div>
+          </section>
+        </section>
