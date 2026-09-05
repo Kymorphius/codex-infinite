@@ -1,6 +1,25 @@
-# Codex Control Console
+# Codex Infinite
 
-这是一个嵌入 OpenAI Codex 桌面应用的本机包装版控制台。包装版保留 Codex 原生的常规聊天方式；普通会话使用模型默认上下文，只有明确标记的会话才请求扩展上下文。本机普通 Codex 的配置不受影响。它还通过已验证的 loopback CDP 连接注入本地 dashboard，提供“控制台”、“看板”、“会话中心”、“项目优先级”、“上下文状态”和“文献库”等辅助工作区。
+> 给 Codex Desktop 加上一层跨设备、可调度、可观测、可扩展的控制平面。
+
+Codex Infinite 是一个面向重度 Codex 用户的桌面增强层。它保留原生 Codex 的聊天、项目和会话体验，不替换应用、不修改应用包；同时通过经过约束的本机桥接，把原生客户端扩展成能够管理多设备、多项目和长时间任务的统一工作台。
+
+## 我们增强了什么
+
+| 增强能力 | 带来的变化 |
+| --- | --- |
+| **跨设备完整节点** | macOS 与 Windows 都可以作为会话所有者运行；在一个会话中心查看不同设备、工作目录和原生会话。 |
+| **远程会话控制** | 从当前设备读取远端会话的完整执行记录，发送新消息、继续对话、处理审批并调整线程设置；动作始终路由回真正拥有该会话的桌面。 |
+| **按会话扩展上下文** | 为指定会话单独请求最高 1,000,000 tokens 的上下文，并展示模型接受值、预计有效值和原生引擎实际回报值，不污染全局配置。 |
+| **Turbo 模式** | 为需要更高吞吐的任务提供显式、可见、可回退的全局加速入口，同时保留默认模式和安全边界。 |
+| **任务看板与可靠调度** | 把任务放入待排期、定时或立即发送队列；单并发交付、尝试编号、脱敏审计和“交付结果未知”状态避免重启后误重发。 |
+| **原生会话工作区** | 顶部标签、多会话切换、需关注会话聚合、项目搜索、新建项目、复制路径和跨设备项目复制，让大量项目与对话仍然可管理。 |
+| **跨设备 Skill 共享** | 查看、同步和管理各节点的 Codex Skills，让常用能力不再困在某一台机器。 |
+| **项目优先级** | 根据近期活动、活跃会话和运行跨度计算透明的 0–100 优先级，帮助决定下一步该关注什么。 |
+| **Zotero 文献工作区** | 只读索引本机文献库，并通过独立、授权受控的 Local API 桥安全编辑条目、创建笔记和集合。 |
+| **原生视觉与运行诊断** | 主题跟随、统一图标和自适应刷新保持原生观感；分层诊断明确区分 dashboard、桌面桥、调度器和状态存储是否就绪。 |
+
+这些增强建立在明确的安全边界上：网络与 CDP 默认只监听 `127.0.0.1`，所有写操作检查精确 Origin，凭据与普通 Codex profile 隔离，节点只导出经过验证且有界的数据，Zotero 数据库始终以只读方式访问。
 
 本项目按长期产品维护。功能开发采用 [SDD 流程](docs/development.md)，模块边界见 [架构说明](docs/architecture.md)，产品规格与架构决策分别保存在 `docs/specs/` 和 `docs/adr/`。`npm run check` 会执行语法检查和结构预算，阻止巨型文件继续增长。
 
@@ -30,6 +49,31 @@
 
 ```bash
 npm start
+```
+
+### Windows 完整节点
+
+Windows 节点使用已登录用户安装的统一 `OpenAI.Codex` ChatGPT 包，并在
+`%LOCALAPPDATA%\Codex Control Console\Profile` 建立独立 Chromium profile；
+普通 ChatGPT 的包内 profile 不会被复用或重置。首次安装需要从提升权限的
+PowerShell 运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1 `
+  -NodeId windows-desktop `
+  -NodeName "Windows Desktop" `
+  -NodeLocation "Windows workstation"
+```
+
+安装器检查 Node.js 22+、Codex CLI、OpenSSH 与 `OpenAI.Codex` 包，准备包装版
+`CODEX_HOME` 的 allowlist 链接，然后注册只在当前用户交互登录会话中运行的
+`Codex Control Console` 计划任务。持久运行任务使用普通用户权限；提升权限
+仅用于首次准备链接和注册任务。dashboard 与 CDP 仍只监听 `127.0.0.1`。
+
+卸载常驻任务但保留应用、普通 ChatGPT 和全部用户数据：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1 -Uninstall
 ```
 
 启动器会：
@@ -70,7 +114,9 @@ npm run inspect -- --open-priority --screenshot=/tmp/codex-control-console-prior
 
 例如，会话 `01a015ac-363f-7472-961a-f31d174ad2c8` 保存 `1,000,000` tokens 后，无论从会话中心进入、从原生侧栏打开，还是由看板后台续接，都只为这一条会话请求扩展窗口。
 
-调度状态保存在 `src/.runtime/dispatch-board.json`，会话上下文覆盖保存在 `src/.runtime/context-windows.json`；文件权限均为当前用户读写，并已加入 `.gitignore`。服务重启时，未完成的“发送中”任务会回到队列；发送失败会保留错误信息，用户可手动重试。所有写接口仍只监听 `127.0.0.1`，并拒绝来自其他浏览器 Origin 的写请求。
+调度状态保存在 `src/.runtime/dispatch-board.json`，脱敏的调度尝试审计记录追加到 `src/.runtime/dispatch-audit.jsonl`，会话上下文覆盖保存在 `src/.runtime/context-windows.json`；文件权限均为当前用户读写，并已加入 `.gitignore`。服务重启时，未完成的“发送中”任务会标记为“交付结果未知”而不会自动重发；用户核对目标对话后可以明确重试，每次实际领取都会产生新的尝试编号，旧尝试结果不会被覆盖。发送失败会保留错误信息，用户可手动重试。所有写接口仍只监听 `127.0.0.1`，并拒绝来自其他浏览器 Origin 的写请求。
+
+`GET /api/diagnostics` 提供只读、无副作用的分层运行诊断，分别报告 dashboard、原生 Codex 桌面、调度状态存储、审计存储和调度器是否就绪。该接口不会发送测试消息，也不会为了诊断而恢复或修改任何会话。
 
 侧栏中的“控制台”和“看板”是分开的入口：控制台展示平铺的当前任务列表；看板展示项目/状态四列。工作区内的模块切换也会同步切换这两个视图。
 
