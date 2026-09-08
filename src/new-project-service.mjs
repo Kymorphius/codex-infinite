@@ -1,4 +1,5 @@
 import { readChecklistProjectIds } from './project-checklist-identity.mjs';
+import { readProjectSearchThreads } from './project-search-threads.mjs';
 import { buildProjectSearchCatalog } from "./project-search.mjs";
 import { readOriginalProjectDates } from "./new-project-metadata.mjs";
 import fs from 'node:fs/promises';
@@ -31,6 +32,7 @@ export class NewProjectService {
     const checklistIds = await readChecklistProjectIds(this.projectStatePaths);
     const client = this.clientFactory();
     const projects = [];
+    let searchTasks;
     try {
       await client.initialize();
       let cursor = null;
@@ -47,6 +49,7 @@ export class NewProjectService {
         if (cursor && seen.has(cursor)) throw new Error('repeated project cursor');
         if (cursor) seen.add(cursor);
       } while (cursor);
+      searchTasks = await readProjectSearchThreads(client);
     } finally { client.close(); }
     const snapshot = await this.taskAdapter.listTasks();
     if (!Array.isArray(snapshot?.tasks)) throw new Error('invalid task snapshot');
@@ -69,7 +72,7 @@ export class NewProjectService {
     this.snapshot = derived.projects.map((project) => ({ ...project,
       name: String(project.name || '未命名项目').slice(0, 160), tasks: tasksByProject.get(project.id)
     }));
-    this.searchSnapshot = { projects: buildProjectSearchCatalog(ordered, snapshot.tasks, task => matchProjectForTask(projects, task)).map(project => ({ ...project, checklistKey: checklistIds.get(project.id) || project.id })), stale: false };
+    this.searchSnapshot = { projects: buildProjectSearchCatalog(ordered, searchTasks, task => matchProjectForTask(projects, task)).map(project => ({ ...project, checklistKey: checklistIds.get(project.id) || project.id })), stale: false };
     this.nextRefresh = this.clock() + this.cacheMs;
   }
 

@@ -3,7 +3,7 @@ import { filterProjectNames } from './project-search.mjs';
 import { installNativeProjectSearchActions } from './native-project-search-actions.mjs';
 
 export function installNativeProjectSearch(filter) {
-  const VERSION = '2026-09-07.4';
+  const VERSION = '2026-09-09.1';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -111,7 +111,7 @@ export function installNativeProjectSearch(filter) {
       button.addEventListener('keydown', event => { if (event.target === button && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); button.click(); } });
       results.append(button);
       if (!open) continue;
-      if (!project.tasks.length) results.append(make('div', 'ps-6 py-1 text-sm text-tertiary', '暂无最近会话'));
+      if (!project.tasks.length) results.append(make('div', 'ps-6 py-1 text-sm text-tertiary', '暂无未归档会话'));
       for (const task of project.tasks) {
         const row = make('button', style.thread + ' flex w-full min-w-0 items-center text-start');
         row.style.paddingInlineStart = 'calc(var(--padding-row-cell-x,var(--padding-row-x)) + 24px)';

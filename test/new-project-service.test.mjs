@@ -16,6 +16,7 @@ async function fixture(t) {
     clientFactory: () => ({ initialize: async () => {}, close: () => calls.push('close'), request: async (method, params) => {
       calls.push(method);
       if (data.fail) throw Error('offline');
+      if (method === 'thread/list') return { data: data.tasks.map(task => ({ ...task, name: task.title })) };
       return params.cursor ? { data: data.projects.slice(1) } : { data: data.projects.slice(0, 1), nextCursor: 'second' };
     } }) };
   return { data, calls, options, service: new NewProjectService(options) };
@@ -28,8 +29,8 @@ test('reads all pages once per cache period, coalesces, returns only normalized 
   assert.equal(f.calls.filter(c => c === 'project/list').length, 2);
   assert.equal(JSON.stringify(results).includes('/new'), false);
   await f.service.read();
-  assert.equal(f.calls.length, 3);
-  assert.deepEqual(f.calls, ['project/list', 'project/list', 'close']);
+  assert.equal(f.calls.length, 4);
+  assert.deepEqual(f.calls, ['project/list', 'project/list', 'thread/list', 'close']);
 });
 test('top-ten graduation persists through restart and later no-score state', async t => {
   const f = await fixture(t);
