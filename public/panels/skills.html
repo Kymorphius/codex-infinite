@@ -1,0 +1,18 @@
+        <section class="skills-panel hidden" data-module-panel="skills">
+          <section class="intro-card skills-intro">
+            <div><p class="eyebrow">CROSS-DEVICE CODEX SKILLS</p><h2>技能共享</h2><p class="muted">查看各设备上的个人与项目 Skill，可以单独或按组启停、共享到其他可信设备。系统 Skill、插件和凭据不会参与同步。</p></div>
+            <button class="quiet-button" type="button" data-action="skills-refresh">刷新技能</button>
+          </section>
+          <section class="metrics skills-metrics" aria-label="技能共享概览">
+            <div class="metric-card"><span>设备</span><strong data-testid="skills-device-count">—</strong></div>
+            <div class="metric-card"><span>全部 Skill</span><strong data-testid="skills-count">—</strong></div>
+            <div class="metric-card"><span>已同步</span><strong data-testid="skills-synced-count">—</strong></div>
+          </section>
+          <section class="skills-section">
+            <div class="section-heading"><div><p class="eyebrow">DEVICE INVENTORY</p><h2>设备技能</h2></div><span class="section-status" data-testid="skills-status">读取中…</span></div>
+            <div class="skills-state state-card" data-skills-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取设备 Skill</h3><p>从每个节点的个人目录和已知项目生成内容指纹。</p></div>
+            <div class="skills-state state-card hidden" data-skills-state="empty"><div class="state-icon">○</div><h3>还没有可共享的 Skill</h3><p>在个人目录或项目的 .agents/skills 中创建 Skill 后再刷新。</p></div>
+            <div class="skills-state state-card hidden" data-skills-state="error"><div class="state-icon">!</div><h3>技能清单暂时不可用</h3><p data-skills-error>请稍后重试。</p></div>
+            <div class="skills-device-list hidden" data-testid="skills-device-list" aria-live="polite"></div>
+          </section>
+        </section>

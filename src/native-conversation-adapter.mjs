@@ -7,8 +7,16 @@ import { nativeThreadStatusExpression, normalizeNativeThreadStatuses } from "./n
 const LOCAL_THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function draftRevision(text) {
-  const value = String(text || "").trim();
+  const value = canonicalDraftText(text);
   return value ? crypto.createHash("sha256").update(value).digest("hex") : null;
+}
+
+export function canonicalDraftText(text) {
+  return String(text || "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[ \t]+$/g, "")).filter((line) => line.trim()).join("\n").trim();
+}
+
+function sameDraftText(left, right) {
+  return canonicalDraftText(left) === canonicalDraftText(right);
 }
 
 function openThreadExpression(threadId) {
@@ -75,32 +83,47 @@ const composerTextExpression = `(() => {
   return editor ? (editor.innerText || editor.textContent || "").trim() : null;
 })()`;
 
-const clickSendExpression = `(() => {
+function submitComposerExpression(deliveryMode) {
+  return `(() => {
   const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-  if (!editor) return false;
+  if (!editor) return { ok: false };
   let root = editor;
-  let send = null;
-  while (root && !send) {
-    send = Array.from(root.querySelectorAll('button')).find((button) => ["发送", "Send"].includes(button.getAttribute("aria-label")));
+  const labels = {
+    "new-turn": ["发送", "Send"],
+    steer: ["调整方向", "Steer", "引導"],
+    queue: ["加入队列", "Queue", "加入佇列"]
+  };
+  let button = null;
+  let action = null;
+  while (root && !button) {
+    for (const candidate of root.querySelectorAll('button[aria-label]')) {
+      const label = candidate.getAttribute('aria-label');
+      for (const [kind, values] of Object.entries(labels)) if (values.includes(label)) { button = candidate; action = kind; break; }
+      if (button) break;
+    }
     root = root.parentElement;
   }
-  if (!send || send.disabled) return false;
-  send.click();
-  return true;
+  if (!button || button.disabled) return { ok: false };
+  const desired = ${JSON.stringify(deliveryMode)};
+  if (action === desired) { button.click(); return { ok: true, inverted: false, action }; }
+  if (["queue", "steer"].includes(action) && ["queue", "steer"].includes(desired)) return { ok: true, inverted: true, action };
+  return { ok: false, action };
 })()`;
+}
 
 function pause(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 export class NativeConversationAdapter {
-  constructor({ cdpOrigin, timeoutMs = 5_000, pollMs = 50, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, platform = process.platform, timeoutMs = 5_000, pollMs = 50, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
     this.timeoutMs = timeoutMs;
     this.pollMs = pollMs;
     this.discover = discover;
     this.choose = choose;
     this.connectionFactory = connectionFactory;
+    this.selectAllModifiers = platform === "win32" ? 2 : 4;
     this.active = false;
   }
 
@@ -133,12 +156,15 @@ export class NativeConversationAdapter {
     }
   }
 
-  async readThreadStatuses() {
+  async readThreadStatuses({ strict = false } = {}) {
     let connection;
     try {
       connection = await this.connect();
-      return normalizeNativeThreadStatuses(await connection.evaluate(nativeThreadStatusExpression));
-    } catch {
+      const items = await connection.evaluate(nativeThreadStatusExpression);
+      if (strict && !Array.isArray(items)) throw new Error("Native runtime status unavailable");
+      return normalizeNativeThreadStatuses(items);
+    } catch (error) {
+      if (strict) throw error;
       return new Map();
     } finally {
       await connection?.close().catch(() => {});
@@ -176,17 +202,53 @@ export class NativeConversationAdapter {
   }
 
   async replaceDraft(connection, prompt) {
-    await connection.send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 4 });
-    await connection.send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: 4 });
+    await connection.send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: this.selectAllModifiers });
+    await connection.send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: this.selectAllModifiers });
     await connection.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace" });
     await connection.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace" });
     const cleared = await this.waitFor(connection, composerTextExpression, (value) => value === "");
     if (cleared === null) throw httpError(503, "无法安全更新所属节点的原生草稿");
-    await connection.send("Input.insertText", { text: prompt });
+    if (prompt) await connection.send("Input.insertText", { text: prompt });
   }
 
-  async sendMessage({ threadId, prompt, expectedDraftRevision = null }) {
+  async submitComposer(connection, deliveryMode) {
+    const submission = await connection.evaluate(submitComposerExpression(deliveryMode));
+    if (!submission?.ok) return false;
+    if (!submission.inverted) return true;
+    const modifiers = this.selectAllModifiers | 8;
+    await connection.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers });
+    await connection.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers });
+    return true;
+  }
+
+  async updateDraft({ threadId, text, expectedDraftRevision = null }) {
     if (!LOCAL_THREAD_ID.test(threadId)) throw httpError(400, "原生 Codex 会话标识无效");
+    let connection;
+    try {
+      connection = await this.connect();
+      await connection.evaluate(openThreadExpression(threadId));
+      const state = await this.waitFor(connection, composerStateExpression(threadId), (value) => value?.ready);
+      if (!state) throw httpError(503, "无法在所属节点打开这个原生会话");
+      const currentRevision = draftRevision(state.draft);
+      if (currentRevision !== (expectedDraftRevision || null)) throw httpError(409, "所属节点的原生草稿已经变化，请先处理两端草稿冲突");
+      if (sameDraftText(state.draft, text)) return text ? { text, revision: draftRevision(text) } : null;
+      if (!await connection.evaluate(focusComposerExpression)) throw httpError(503, "无法聚焦所属节点的原生输入框");
+      if (state.draft) await this.replaceDraft(connection, text);
+      else if (text) await connection.send("Input.insertText", { text });
+      const updated = await this.waitFor(connection, composerTextExpression, (value) => sameDraftText(value, text));
+      if (updated === null) throw httpError(503, "无法确认所属节点的原生草稿已更新");
+      return text ? { text, revision: draftRevision(text) } : null;
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      throw httpError(503, "所属节点的原生 Codex 草稿服务不可用");
+    } finally {
+      await connection?.close().catch(() => {});
+    }
+  }
+
+  async sendMessage({ threadId, prompt, expectedDraftRevision = null, deliveryMode = "new-turn" }) {
+    if (!LOCAL_THREAD_ID.test(threadId)) throw httpError(400, "原生 Codex 会话标识无效");
+    if (!["new-turn", "queue", "steer"].includes(deliveryMode)) throw httpError(400, "原生消息处理方式无效");
     if (this.active) throw httpError(409, "所属节点正在接收另一条远端消息");
     this.active = true;
     let connection;
@@ -198,11 +260,11 @@ export class NativeConversationAdapter {
       const currentRevision = draftRevision(state.draft);
       if (currentRevision !== (expectedDraftRevision || null)) throw httpError(409, "所属节点的原生草稿已经变化，请同步后再发送");
       if (!await connection.evaluate(focusComposerExpression)) throw httpError(503, "无法聚焦所属节点的原生输入框");
-      if (state.draft && state.draft !== prompt.trim()) await this.replaceDraft(connection, prompt);
+      if (state.draft && !sameDraftText(state.draft, prompt.trim())) await this.replaceDraft(connection, prompt);
       else if (!state.draft) await connection.send("Input.insertText", { text: prompt });
-      const inserted = await this.waitFor(connection, composerTextExpression, (value) => value === prompt.trim());
+      const inserted = await this.waitFor(connection, composerTextExpression, (value) => sameDraftText(value, prompt.trim()));
       if (inserted === null) throw httpError(503, "原生输入框没有接收到完整内容");
-      if (!await connection.evaluate(clickSendExpression)) throw httpError(503, "原生 Codex 暂时不能发送这条消息");
+      if (!await this.submitComposer(connection, deliveryMode)) throw httpError(503, deliveryMode === "new-turn" ? "原生 Codex 暂时不能发送这条消息" : "原生 Codex 暂时不能处理这条运行中消息");
       const cleared = await this.waitFor(connection, composerTextExpression, (value) => value === "");
       if (cleared === null) throw httpError(503, "无法确认原生 Codex 已接收消息");
       return { accepted: true, threadId };

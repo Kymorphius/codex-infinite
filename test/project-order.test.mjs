@@ -15,6 +15,39 @@ test("task matching supports multiple roots and prefers the longest containing r
   assert.equal(matchProjectForTask(projects, { cwd: "/unknown" }), null);
 });
 
+test("Windows extended drive paths match native roots regardless of calculation host", () => {
+  const windows = [
+    { id: "parent", roots: [{ path: "D:\\333.开发" }] },
+    { id: "nested", roots: [{ path: "D:\\333.开发\\WorldManager" }] }
+  ];
+  assert.equal(matchProjectForTask(windows, { cwd: "\\\\?\\D:\\333.开发\\WorldManager\\src" }).id, "nested");
+  assert.equal(matchProjectForTask(windows, { cwd: "d:/333.开发/worldmanager" }).id, "nested");
+  assert.equal(matchProjectForTask(windows, { cwd: "D:\\333.开发-extra\\WorldManager" }), null);
+  assert.equal(matchProjectForTask(windows, { cwd: "D:WorldManager" }), null);
+  assert.equal(matchProjectForTask(windows, { cwd: "/333.开发/WorldManager" }), null);
+  assert.equal(matchProjectForTask([{ id: "extended", roots: [{ path: "\\\\?\\D:\\repo" }] }], { cwd: "D:\\repo\\..data" }).id, "extended");
+});
+
+test("Windows UNC and extended UNC paths match only their own share and root", () => {
+  const shares = [{ id: "share", roots: [{ path: "\\\\server\\share\\repo" }] }];
+  assert.equal(matchProjectForTask(shares, { cwd: "\\\\?\\UNC\\SERVER\\share\\repo\\src" }).id, "share");
+  assert.equal(matchProjectForTask(shares, { cwd: "\\\\server\\other\\repo" }), null);
+  assert.equal(matchProjectForTask(shares, { cwd: "\\\\server\\share\\repo-other" }), null);
+});
+
+test("Windows namespaced sessions contribute to native priority ordering", () => {
+  const windows = [
+    { id: "idle", position: 0, roots: [{ path: "D:\\idle" }] },
+    { id: "active", position: 1, roots: [{ path: "D:\\active" }] }
+  ];
+  const ordered = buildNativeProjectOrder(windows, [
+    { cwd: "\\\\?\\D:\\active", createdAt: "2026-09-05T10:00:00Z", updatedAt: "2026-09-05T11:59:00Z", status: "completed" }
+  ], new Date("2026-09-05T12:00:00Z"));
+  assert.deepEqual(ordered.map(({ project }) => project.id), ["active", "idle"]);
+  assert.ok(ordered[0].score.priorityScore > 0);
+  assert.equal(ordered[1].score, null);
+});
+
 test("native projects use the existing priority score and keep idle native order", () => {
   const now = new Date("2026-08-30T12:00:00Z");
   const tasks = [

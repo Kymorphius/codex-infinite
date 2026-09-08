@@ -1,0 +1,10 @@
+import { installRestartButton } from './index.js';
+const theme = new URLSearchParams(location.search).get('theme');
+if (theme === 'dark') document.documentElement.style.colorScheme = 'dark';
+const button = document.querySelector('#restart');
+const status = document.querySelector('#status');
+const cancel = document.querySelector('#cancel');
+cancel.addEventListener('click', () => { if (!button.disabled) parent.postMessage({ type: 'codex-control-console-restart-cancel' }, '*'); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') cancel.click(); });
+installRestartButton({ button, confirmImpl: () => true, showToast: message => { status.textContent = message; }, reload: () => { status.textContent = '后台已恢复，正在恢复窗口…'; } });
+cancel.focus();

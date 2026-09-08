@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { acceptedMessageLabel, conversationOwnerLabel, deviceHostLabel, filterSessions, groupSessionsByDevice, groupSessionsByDirectory, presentSessionSettings } from "../public/features/sessions/model.js";
+import { acceptedMessageLabel, conversationOwnerLabel, deviceHostLabel, deviceRoleLabel, filterSessions, groupSessionsByDevice, groupSessionsByDirectory, presentSessionSettings, provisionalRemoteTaskReference, resolveRemoteTaskReference } from "../public/features/sessions/model.js";
 import { SessionDisclosureState, summarizeSessionDevice } from "../public/features/sessions/disclosure.js";
 import { conversationEntryKey, conversationEntrySignature, conversationTurnPresentation, presentConversationEntries, presentConversationEntry, shouldFollowConversationLatest } from "../public/features/sessions/conversation-model.js";
+import { shouldStartConversationLoad } from "../public/features/sessions/remote-conversation.js";
 import { renderExecutionEntry } from "../public/features/sessions/execution-view.js";
 import { approvalControlRequest, presentApproval } from "../public/features/sessions/approval-model.js";
 import { mergeSessionSettings, settingsMenuOptions, settingsSavedLabel } from "../public/features/sessions/settings-controller.js";
@@ -15,16 +16,49 @@ const tasks = [
   { id: "3", title: "remote failure", project: "gamma", cwd: "/srv/gamma", model: "luna", status: "interrupted", updatedAt: "2026-08-30T12:00:00Z", device: remote }
 ];
 
-test("session directories remain distinct and newest directory is first", () => {
+test("session directories remain distinct and weighted project priority is first", () => {
   const groups = groupSessionsByDirectory(tasks.slice(0, 2));
   assert.deepEqual(groups.map((group) => group.directory), ["/work/beta", "/work/alpha"]);
   assert.deepEqual(groups.map((group) => group.tasks[0].id), ["2", "1"]);
 });
 
-test("session devices group normalized tasks and order by latest activity", () => {
+test("session projects use full weight rather than only the newest conversation", () => {
+  const now = Date.now();
+  const recent = new Date(now - 60 * 60 * 1000).toISOString();
+  const slightlyNewer = new Date(now - 30 * 60 * 1000).toISOString();
+  const olderStart = new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString();
+  const groups = groupSessionsByDirectory([
+    { id: "newest", project: "newest", cwd: "/work/newest", status: "completed", createdAt: slightlyNewer, updatedAt: slightlyNewer },
+    { id: "weighted-1", project: "weighted", cwd: "/work/weighted", status: "completed", createdAt: olderStart, updatedAt: recent },
+    { id: "weighted-2", project: "weighted", cwd: "/work/weighted", status: "completed", createdAt: olderStart, updatedAt: recent }
+  ]);
+  assert.deepEqual(groups.map((group) => group.directory), ["/work/weighted", "/work/newest"]);
+  assert.ok(groups[0].priorityScore > groups[1].priorityScore);
+});
+
+test("session directories prefer the current project display name", () => {
+  const groups = groupSessionsByDirectory([{ ...tasks[0], project: "mulitca", projectDisplayName: "看板" }]);
+  assert.equal(groups[0].project, "看板");
+});
+
+test("session devices put remote first and local last while sessions stay newest-first", () => {
   const devices = groupSessionsByDevice([local, remote], tasks);
   assert.deepEqual(devices.map((device) => device.id), ["remote", "local"]);
   assert.equal(devices[1].projects.length, 2);
+  assert.deepEqual(devices[1].tasks.map((task) => task.id), ["2", "1"]);
+});
+
+test("session device role order does not flap when another node becomes newest", () => {
+  const first = groupSessionsByDevice([local, remote], tasks);
+  const refreshed = tasks.map((task) => task.device.id === "local" ? { ...task, updatedAt: "2026-08-31T12:00:00Z" } : task);
+  const second = groupSessionsByDevice([local, remote], refreshed);
+  assert.deepEqual(first.map((device) => device.id), ["remote", "local"]);
+  assert.deepEqual(second.map((device) => device.id), ["remote", "local"]);
+});
+
+test("session device cards retain explicit remote and local role labels", () => {
+  assert.equal(deviceRoleLabel(remote), "远端");
+  assert.equal(deviceRoleLabel(local), "本机");
 });
 
 test("an unavailable peer remains visible even without readable sessions", () => {
@@ -37,6 +71,32 @@ test("session filtering searches metadata and normalizes interrupted as error", 
   assert.deepEqual(filterSessions(tasks, { query: "TERRA" }).map((task) => task.id), ["1"]);
   assert.deepEqual(filterSessions(tasks, { status: "active" }).map((task) => task.id), ["2"]);
   assert.deepEqual(filterSessions(tasks, { status: "error" }).map((task) => task.id), ["3"]);
+});
+
+test("remote sidebar references resolve only the exact connected remote owner", () => {
+  const tasks = [
+    { id: "same", device: { id: "local", kind: "local-codex", status: "connected" } },
+    { id: "same", device: { id: "remote-a", kind: "remote-codex", status: "connected" } },
+    { id: "offline", device: { id: "remote-a", kind: "remote-codex", status: "offline" } }
+  ];
+  assert.equal(resolveRemoteTaskReference(tasks, { id: "same", deviceId: "remote-a" }), tasks[1]);
+  assert.equal(resolveRemoteTaskReference(tasks, { id: "same", deviceId: "local" }), null);
+  assert.equal(resolveRemoteTaskReference(tasks, { id: "offline", deviceId: "remote-a" }), null);
+  assert.equal(resolveRemoteTaskReference(tasks, { id: "same", deviceId: "remote-b" }), null);
+});
+
+test("switching remote conversations starts the new body load while the previous request is pending", () => {
+  const first = { id: "first", device: { id: "remote" } };
+  const second = { id: "second", device: { id: "remote" } };
+  assert.equal(shouldStartConversationLoad(first, first), false);
+  assert.equal(shouldStartConversationLoad(second, first), true);
+  assert.equal(shouldStartConversationLoad(null, first), false);
+});
+
+test("remote sidebar metadata opens the exact conversation before the task index finishes", () => {
+  const task = provisionalRemoteTaskReference({ id: "thread-2", deviceId: "windows", title: "二维码登录", cwd: "D:\\work", deviceName: "Windows Desktop" });
+  assert.deepEqual(task, { id: "thread-2", title: "二维码登录", cwd: "D:\\work", status: "unknown", device: { id: "windows", name: "Windows Desktop", kind: "remote-codex", location: "远端", status: "connected" } });
+  assert.equal(provisionalRemoteTaskReference({ id: "thread-2" }), null);
 });
 
 test("device summaries stay useful while a device is collapsed", () => {

@@ -10,9 +10,16 @@ export class FederatedTaskAdapter {
   constructor({ localAdapter, peerAdapters = [] } = {}) {
     this.localAdapter = localAdapter;
     this.peerAdapters = peerAdapters;
+    this.listing = null;
   }
 
-  async listTasks() {
+  listTasks() {
+    if (this.listing) return this.listing;
+    this.listing = this.listTasksFresh().finally(() => { this.listing = null; });
+    return this.listing;
+  }
+
+  async listTasksFresh() {
     const results = await Promise.all([this.localAdapter.listTasks(), ...this.peerAdapters.map((adapter) => adapter.listTasks())]);
     const tasks = results.flatMap((result) => result.tasks || []).sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
     const failedPeers = results.slice(1).filter((result) => result.status === "error").length;
@@ -43,10 +50,16 @@ export class FederatedTaskAdapter {
     return peer.getActivity(id);
   }
 
-  async sendMessage(id, deviceId, prompt, expectedDraftRevision = null) {
+  async sendMessage(id, deviceId, prompt, expectedDraftRevision = null, deliveryMode = "new-turn") {
     const peer = this.peerAdapters.find((adapter) => adapter.peer?.id === deviceId);
     if (!peer) return null;
-    return peer.sendMessage(id, prompt, expectedDraftRevision);
+    return peer.sendMessage(id, prompt, expectedDraftRevision, deliveryMode);
+  }
+
+  async updateDraft(id, deviceId, text, expectedDraftRevision = null) {
+    const peer = this.peerAdapters.find((adapter) => adapter.peer?.id === deviceId);
+    if (!peer) return null;
+    return peer.updateDraft(id, text, expectedDraftRevision);
   }
 
   async control(id, deviceId, input) {

@@ -14,30 +14,46 @@
     <link rel="stylesheet" href="/styles/states.css">
     <link rel="stylesheet" href="/styles/zotero.css">
     <link rel="stylesheet" href="/styles/theme.css">
+    <link rel="stylesheet" href="/styles/turbo.css">
+    <link rel="stylesheet" href="/styles/skills.css">
     <link rel="stylesheet" href="/styles/responsive.css">
   </head>
   <body>
     <div class="app-shell" data-testid="control-console">
+      <nav class="workspace-tabbar" aria-label="已打开会话">
+        <div class="workspace-tabbar-inner" role="tablist" aria-label="工作区">
+          <button class="workspace-tab workspace-home-tab is-active" type="button" role="tab" data-workspace-home aria-selected="true">
+            <span class="workspace-tab-icon" aria-hidden="true">✣</span><span class="workspace-tab-title">控制台</span>
+          </button>
+          <div class="workspace-session-tabs" data-testid="workspace-session-tabs"></div>
+        </div>
+      </nav>
+
       <header class="topbar">
         <div>
           <p class="eyebrow">CODEX CONTROL CONSOLE</p>
           <h1 data-testid="module-title">看板</h1>
         </div>
         <div class="topbar-actions">
+          <button class="turbo-toggle" type="button" data-turbo-toggle data-enabled="false" aria-pressed="false" title="为所有设备的新一轮启用最高推理强度与 Fast"><span class="turbo-toggle-dot" aria-hidden="true"></span><strong data-turbo-label>Turbo</strong><small data-turbo-state>关闭</small></button>
           <span class="loopback-pill"><span class="status-dot"></span>仅本机</span>
           <button class="quiet-button" type="button" data-action="refresh">刷新</button>
+          <span class="console-version" data-console-version aria-label="Codex Infinite 版本"><!-- CONTROL_CONSOLE_VERSION --></span>
+          <button class="quiet-button" type="button" data-action="restart" title="重启当前设备的控制台窗口和后台服务">重启</button>
           <button class="quiet-button" type="button" data-action="close">返回对话</button>
         </div>
       </header>
 
-      <nav class="module-nav" aria-label="控制台模块">
-        <div class="module-nav-inner">
-          <button class="module-tab is-active" type="button" data-module-target="board" data-action="module" aria-current="page">看板</button>
-          <button class="module-tab" type="button" data-module-target="console" data-action="module">控制台</button>
-          <button class="module-tab" type="button" data-module-target="sessions" data-action="module">会话中心</button>
-          <button class="module-tab" type="button" data-module-target="context" data-action="module">上下文状态</button>
-          <button class="module-tab" type="button" data-module-target="priority" data-action="module">项目优先级</button>
-          <button class="module-tab" type="button" data-module-target="zotero" data-action="module">文献库</button>
+      <nav class="module-nav" aria-label="控制台功能">
+        <div class="module-nav-inner" role="tablist" aria-label="功能">
+          <span class="module-nav-label" aria-hidden="true">功能</span>
+          <button class="module-tab is-active" type="button" role="tab" data-module-target="board" data-action="module" aria-selected="true">看板</button>
+          <button class="module-tab" type="button" role="tab" data-module-target="console" data-action="module" aria-selected="false" tabindex="-1">控制台</button>
+          <button class="module-tab" type="button" role="tab" data-module-target="sessions" data-action="module" aria-selected="false" tabindex="-1">会话中心</button>
+          <button class="module-tab" type="button" role="tab" data-module-target="context" data-action="module" aria-selected="false" tabindex="-1">上下文状态</button>
+          <button class="module-tab" type="button" role="tab" data-module-target="priority" data-action="module" aria-selected="false" tabindex="-1">项目优先级</button>
+          <button class="module-tab" type="button" role="tab" data-module-target="skills" data-action="module" aria-selected="false" tabindex="-1">技能共享</button>
+          <button class="module-tab" type="button" role="tab" data-module-target="zotero" data-action="module" aria-selected="false" tabindex="-1">文献库</button>
           <span class="module-caption" data-testid="module-caption">只读项目任务视图</span>
         </div>
       </nav>

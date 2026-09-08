@@ -9,7 +9,6 @@ import { ZoteroAdapter } from "../src/zotero-adapter.mjs";
 async function makeFixture(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-zotero-test-"));
   const databasePath = path.join(directory, "zotero.sqlite");
-  t.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
   const database = new DatabaseSync(databasePath);
   database.exec(`
@@ -86,7 +85,10 @@ test("Zotero adapter reads status, hierarchy, and bounded metadata without write
       return openedDatabase;
     }
   });
-  t.after(() => adapter.close());
+  t.after(async () => {
+    adapter.close();
+    await fs.rm(path.dirname(databasePath), { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  });
 
   const status = adapter.getStatus();
   assert.equal(status.status, "connected");

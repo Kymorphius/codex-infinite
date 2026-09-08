@@ -13,16 +13,17 @@ function parseProcesses(stdout) {
 }
 
 export class PrimaryOwnerLauncher {
-  constructor({ config, execFileImpl = execFile, spawnImpl = nodeSpawn, killImpl = process.kill, waitImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
+  constructor({ config, execFileImpl = execFile, spawnImpl = nodeSpawn, killImpl = process.kill, accessImpl = fs.access, waitImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
     this.config = config;
     this.execFile = execFileImpl;
     this.spawn = spawnImpl;
     this.kill = killImpl;
+    this.access = accessImpl;
     this.wait = waitImpl;
   }
 
   async findPrimaryProcess() {
-    const executable = path.join(this.config.appPath, "Contents", "MacOS", "ChatGPT");
+    const executable = path.posix.join(this.config.appPath, "Contents", "MacOS", "ChatGPT");
     const { stdout } = await this.execFile("/bin/ps", ["-axo", "pid=,command="]);
     return parseProcesses(stdout).find(({ command }) => command === executable || (
       command.startsWith(`${executable} `) && !command.includes(`--user-data-dir=${this.config.profileDirectory}`)
@@ -32,8 +33,8 @@ export class PrimaryOwnerLauncher {
   async relaunch({ confirmIdle = false, activeThreadIds = [] } = {}) {
     if (!confirmIdle) throw new Error("必须明确确认原生 ChatGPT 当前空闲");
     if (activeThreadIds.length) throw new Error(`原生 ChatGPT 仍有 ${activeThreadIds.length} 个任务在运行，已拒绝重启`);
-    const executable = path.join(this.config.appPath, "Contents", "MacOS", "ChatGPT");
-    await fs.access(executable);
+    const executable = path.posix.join(this.config.appPath, "Contents", "MacOS", "ChatGPT");
+    await this.access(executable);
     const existing = await this.findPrimaryProcess();
     if (existing) {
       this.kill(existing.pid, "SIGTERM");

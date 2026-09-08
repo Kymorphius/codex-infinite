@@ -10,6 +10,7 @@
     "check": "node scripts/check.mjs && node scripts/structure-check.mjs",
     "check:structure": "node scripts/structure-check.mjs",
     "inspect": "node scripts/inspect.mjs",
+    "prepare:wrapper": "node scripts/prepare-wrapper.mjs",
     "enable:primary-bridge": "node scripts/enable-primary-owner-bridge.mjs"
   },
   "engines": {

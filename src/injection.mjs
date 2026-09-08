@@ -1,7 +1,9 @@
+import { buildNativeConversationTabsInjectionSource } from "./native-conversation-tabs.mjs";
+import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
+
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
 export const SESSION_ENTRY_ATTRIBUTE = "data-codex-control-console-session-entry";
-export const TITLEBAR_SESSION_ENTRY_ATTRIBUTE = "data-codex-control-console-titlebar-session-entry";
 export const PRIORITY_ENTRY_ATTRIBUTE = "data-codex-control-console-priority-entry";
 export const CONTROL_WORKSPACE_ATTRIBUTE = "data-codex-control-console-workspace";
 
@@ -15,34 +17,37 @@ export function buildInjectionScript(dashboardUrl) {
   const dashboardLiteral = JSON.stringify(dashboardUrl);
   const entryAttribute = JSON.stringify(CONTROL_ENTRY_ATTRIBUTE);
   const workspaceAttribute = JSON.stringify(CONTROL_WORKSPACE_ATTRIBUTE);
+  const nativeConversationTabsSource = buildNativeConversationTabsInjectionSource();
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
   const ENTRY_ATTRIBUTE = ${entryAttribute};
   const KANBAN_ENTRY_ATTRIBUTE = ${JSON.stringify(KANBAN_ENTRY_ATTRIBUTE)};
   const SESSION_ENTRY_ATTRIBUTE = ${JSON.stringify(SESSION_ENTRY_ATTRIBUTE)};
-  const TITLEBAR_SESSION_ENTRY_ATTRIBUTE = ${JSON.stringify(TITLEBAR_SESSION_ENTRY_ATTRIBUTE)};
   const PRIORITY_ENTRY_ATTRIBUTE = ${JSON.stringify(PRIORITY_ENTRY_ATTRIBUTE)};
   const WORKSPACE_ATTRIBUTE = ${workspaceAttribute};
   const ENTRY_SELECTOR = '[' + ENTRY_ATTRIBUTE + ']';
   const KANBAN_ENTRY_SELECTOR = '[' + KANBAN_ENTRY_ATTRIBUTE + ']';
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
-  const TITLEBAR_SESSION_ENTRY_SELECTOR = '[' + TITLEBAR_SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-08-31.1';
+  const INJECTION_VERSION = '2026-09-08.1';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
   const SESSION_ENTRY_TEXT = '会话中心';
   const PRIORITY_ENTRY_TEXT = '项目优先级';
   const DASHBOARD_ORIGIN = new URL(DASHBOARD_URL).origin;
+  const FRAME_ALLOW = 'clipboard-read; clipboard-write';
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
 
-  if (window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && document.querySelector(ENTRY_SELECTOR) && document.querySelector(KANBAN_ENTRY_SELECTOR) && document.querySelector(SESSION_ENTRY_SELECTOR) && document.querySelector(TITLEBAR_SESSION_ENTRY_SELECTOR) && document.querySelector(PRIORITY_ENTRY_SELECTOR) && window.__codexControlConsoleObserver) return;
+${nativeConversationTabsSource}
+
+  if (window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && document.querySelector(ENTRY_SELECTOR) && document.querySelector(KANBAN_ENTRY_SELECTOR) && document.querySelector(SESSION_ENTRY_SELECTOR) && document.querySelector(PRIORITY_ENTRY_SELECTOR) && document.querySelector('[data-codex-control-console-native-tabs]') && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
+    if (window.__codexControlConsoleNativeThreadListener) document.removeEventListener('click', window.__codexControlConsoleNativeThreadListener, true);
     window.__codexControlConsoleClose?.();
-    document.querySelectorAll(ENTRY_SELECTOR + ',' + KANBAN_ENTRY_SELECTOR + ',' + SESSION_ENTRY_SELECTOR + ',' + TITLEBAR_SESSION_ENTRY_SELECTOR + ',' + PRIORITY_ENTRY_SELECTOR + ',[data-codex-control-console-fallback]').forEach((element) => element.remove());
+    document.querySelectorAll(ENTRY_SELECTOR + ',' + KANBAN_ENTRY_SELECTOR + ',' + SESSION_ENTRY_SELECTOR + ',' + PRIORITY_ENTRY_SELECTOR + ',[data-codex-control-console-titlebar-session-entry],[data-codex-control-console-fallback]').forEach((element) => element.remove());
     window.__codexControlConsoleObserver = null;
   }
   window.__codexControlConsoleInjected = true;
@@ -51,7 +56,7 @@ export function buildInjectionScript(dashboardUrl) {
   let observerTimer = null;
   let workspaceHost = null;
   let frame = null;
-  const iconMarkup = '<span aria-hidden="true" style="display:inline-flex;width:1.1rem;height:1.1rem;align-items:center;justify-content:center;font-size:15px;line-height:1">⌘</span>';
+  const entryIcons = ${JSON.stringify(NATIVE_ENTRY_ICONS)};
 
   function nativeAnchor() {
     return Array.from(document.querySelectorAll('button.sidebar-item, button')).find((element) => {
@@ -99,6 +104,7 @@ export function buildInjectionScript(dashboardUrl) {
     const url = new URL(DASHBOARD_URL);
     url.searchParams.set('module', ['console', 'sessions', 'priority'].includes(module) ? module : 'board');
     url.searchParams.set('theme', nativeTheme());
+    url.searchParams.set('embedded', 'native');
     return url.toString();
   }
 
@@ -116,7 +122,8 @@ export function buildInjectionScript(dashboardUrl) {
     return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  function openWorkspace(module = 'board') {
+  function openWorkspace(module = 'board', loadingLabel = '', activateConsole = true) {
+    if (activateConsole) window.__codexControlConsoleConversationTabs?.showConsole?.(module);
     let existing = document.querySelector(WORKSPACE_SELECTOR);
     const candidate = workspaceCandidate();
     if (existing) {
@@ -133,11 +140,12 @@ export function buildInjectionScript(dashboardUrl) {
     }
     if (existing) {
       const activeFrame = frame || existing.querySelector('[data-codex-control-console-frame]');
+      activeFrame?.setAttribute('allow', FRAME_ALLOW);
       const targetUrl = dashboardUrlFor(module);
       if (!activeFrame || activeFrame.getAttribute('src') !== targetUrl) {
         if (workspaceHost) restoreWorkspace();
         else existing.remove();
-        openWorkspace(module);
+        openWorkspace(module, loadingLabel, activateConsole);
         return;
       }
       activeFrame?.focus();
@@ -160,10 +168,10 @@ export function buildInjectionScript(dashboardUrl) {
     frame.src = dashboardUrlFor(module);
     frame.title = module === 'console' ? 'Codex 控制台' : module === 'sessions' ? 'Codex 会话中心' : module === 'priority' ? 'Codex 项目优先级' : 'Codex 看板';
     frame.setAttribute('data-codex-control-console-frame', '');
-    frame.setAttribute('allow', 'clipboard-read; clipboard-write');
+    frame.setAttribute('allow', FRAME_ALLOW);
     frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:' + workspaceBackground + ';';
     const loading = document.createElement('div');
-    loading.textContent = module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…';
+    loading.textContent = loadingLabel || (module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…');
     loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:' + loadingColor + ';font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:none;';
     frame.addEventListener('load', () => {
       loading.remove();
@@ -183,11 +191,39 @@ export function buildInjectionScript(dashboardUrl) {
     window.__codexControlConsoleClose = restoreWorkspace;
   }
 
+  function openSessionsAction(message) {
+    const openingRemote = message?.type === 'codex-control-console-open-remote-conversation';
+    const loadingLabel = openingRemote ? '正在打开会话…' : '';
+    openWorkspace('sessions', loadingLabel, !openingRemote);
+    const activeFrame = frame || document.querySelector('[data-codex-control-console-frame]');
+    if (!activeFrame?.contentWindow) return false;
+    const send = () => activeFrame.contentWindow?.postMessage(message, DASHBOARD_ORIGIN);
+    if (activeFrame.hasAttribute('data-codex-control-console-frame-ready')) send();
+    else activeFrame.addEventListener('load', send, { once: true });
+    return true;
+  }
+  function openRemoteConversation(reference) {
+    const id = normalize(reference?.id).slice(0, 160), deviceId = normalize(reference?.deviceId).slice(0, 120);
+    const title = normalize(reference?.title).slice(0, 160), cwd = normalize(reference?.cwd).slice(0, 1024), deviceName = normalize(reference?.deviceName).slice(0, 80);
+    const normalized = { id, deviceId, title, cwd, deviceName };
+    const opened = Boolean(id && deviceId) && openSessionsAction({ type: 'codex-control-console-open-remote-conversation', reference: normalized });
+    if (opened) window.__codexControlConsoleConversationTabs?.openRemote?.(normalized);
+    return opened;
+  }
+  function copyRemoteProject(reference) {
+    const deviceId = normalize(reference?.deviceId).slice(0, 120), projectName = normalize(reference?.projectName).slice(0, 100);
+    const sourceDirectory = String(reference?.sourceDirectory || '').trim().slice(0, 1024);
+    return Boolean(deviceId && sourceDirectory && !/[\\u0000\\r\\n]/.test(sourceDirectory)) && openSessionsAction({ type: 'codex-control-console-copy-remote-project', reference: { deviceId, sourceDirectory, projectName } });
+  }
+  window.__codexControlConsoleOpenRemoteConversation = openRemoteConversation;
+  window.__codexControlConsoleCopyRemoteProject = copyRemoteProject;
+
   async function openTask(task) {
     const title = normalize(task?.title);
     const taskId = normalize(task?.id);
     const localThreadId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId) ? taskId : null;
     if (localThreadId) {
+      window.__codexControlConsoleConversationTabs?.openLocal?.({ id: localThreadId, title });
       const activation = typeof window.__codexControlConsoleOpenNativeThread === 'function'
         ? await window.__codexControlConsoleOpenNativeThread(localThreadId)
         : (window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(localThreadId) }, '*'), { applied: false });
@@ -230,26 +266,11 @@ export function buildInjectionScript(dashboardUrl) {
       button.setAttribute(definition.attribute, '');
       button.setAttribute('aria-label', definition.text);
       button.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(0,0,0,.12);border-radius:10px;background:#fff;color:#2f2f2f;box-shadow:0 5px 18px rgba(0,0,0,.12);font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;';
-      button.innerHTML = iconMarkup + '<span>' + definition.text + '</span>';
+      button.innerHTML = entryIcons[definition.module] + '<span>' + definition.text + '</span>';
       button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace(definition.module); });
       rail.append(button);
     }
     document.body.append(rail);
-  }
-
-  function installTitlebarEntry() {
-    if (!document.body || document.querySelector(TITLEBAR_SESSION_ENTRY_SELECTOR)) return;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.setAttribute(TITLEBAR_SESSION_ENTRY_ATTRIBUTE, '');
-    button.setAttribute('aria-label', '打开会话中心');
-    button.title = '会话中心';
-    button.style.cssText = 'position:fixed;left:200px;top:8px;z-index:2147483000;display:grid;width:28px;height:28px;padding:0;place-items:center;border:0;border-radius:7px;background:transparent;color:rgba(255,255,255,.52);cursor:pointer;-webkit-app-region:no-drag;app-region:no-drag;';
-    button.innerHTML = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2.25" y="2.75" width="13.5" height="12.5" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 6.5h7M5.5 9h7M5.5 11.5h4.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-    button.addEventListener('mouseenter', () => { button.style.background = 'rgba(255,255,255,.09)'; button.style.color = 'rgba(255,255,255,.82)'; });
-    button.addEventListener('mouseleave', () => { button.style.background = 'transparent'; button.style.color = 'rgba(255,255,255,.52)'; });
-    button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace('sessions'); });
-    document.body.append(button);
   }
 
   function installEntry() {
@@ -275,7 +296,7 @@ export function buildInjectionScript(dashboardUrl) {
       entry.className = anchor.className;
       entry.setAttribute(definition.attribute, '');
       entry.setAttribute('aria-label', definition.text);
-      entry.innerHTML = iconMarkup + '<span class="truncate">' + definition.text + '</span>';
+      entry.innerHTML = entryIcons[definition.module] + '<span class="truncate">' + definition.text + '</span>';
       entry.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace(definition.module); });
       anchor.parentElement?.insertBefore(entry, insertionPoint);
     }
@@ -294,7 +315,11 @@ export function buildInjectionScript(dashboardUrl) {
 
   function scheduleInstall() {
     if (observerTimer) clearTimeout(observerTimer);
-    observerTimer = setTimeout(() => { installEntry(); installTitlebarEntry(); }, 30);
+    observerTimer = setTimeout(installEntry, 30);
+  }
+
+  function handleNativeThreadSelection(event) {
+    const conversation = event.target?.closest?.('[data-app-action-sidebar-thread-id],[data-sidebar-chatgpt-conversation-key],[data-codex-control-console-ordinary-chat-row]'); if (!conversation || !document.querySelector(WORKSPACE_SELECTOR)) return; setTimeout(restoreWorkspace, 0);
   }
 
   function boot() {
@@ -304,7 +329,18 @@ export function buildInjectionScript(dashboardUrl) {
       return;
     }
     installEntry();
-    installTitlebarEntry();
+    window.__codexControlConsoleConversationTabs = installNativeConversationTabs({
+      workspaceCandidate,
+      openConsole: (module) => openWorkspace(module || 'board'),
+      openLocal: (tab) => {
+        restoreWorkspace();
+        window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(tab.id) }, '*');
+      },
+      openChatgpt: (tab) => { restoreWorkspace(); window.postMessage({ type: 'navigate-to-route', path: '/c/' + encodeURIComponent(tab.id) }, '*'); },
+      openRemote: (tab) => openRemoteConversation(tab)
+    });
+    window.__codexControlConsoleNativeThreadListener = handleNativeThreadSelection;
+    document.addEventListener('click', handleNativeThreadSelection, true);
     window.__codexControlConsoleObserver = new MutationObserver(scheduleInstall);
     window.__codexControlConsoleObserver.observe(document.documentElement, { childList: true, subtree: true });
   }

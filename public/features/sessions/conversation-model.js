@@ -42,12 +42,15 @@ export function presentConversationEntry(entry) {
 }
 
 function visibleMessageText(entry) {
-  const text = String(entry.text || "");
+  let text = String(entry.text || "");
   if (entry.role !== "user") return text;
-  return text
+  text = text
     .replace(/<recommended_plugins>[\s\S]*?<\/recommended_plugins>/g, "")
     .replace(/<environment_context>[\s\S]*?<\/environment_context>/g, "")
     .trim();
+  const request = text.match(/(?:^|\n)## My request:\s*\n([\s\S]*)$/i);
+  if (request) text = request[1];
+  return text.replace(/<image\b[^>]*>[\s\S]*?<\/image>/gi, "").trim();
 }
 
 export function presentConversationEntries(entries) {

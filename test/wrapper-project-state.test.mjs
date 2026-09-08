@@ -7,8 +7,8 @@ import { mergeWrapperProjectState, orderWrapperProjectState, repairWrapperProjec
 
 const sourceHome = "/Users/demo/.codex";
 const wrapperHome = "/Users/demo/.codex-control-console";
-const sourceHost = `local:${sourceHome}`;
-const wrapperHost = `local:${wrapperHome}`;
+const sourceHost = `local:${path.posix.resolve(sourceHome)}`;
+const wrapperHost = `local:${path.posix.resolve(wrapperHome)}`;
 
 function sourceState() {
   return {
@@ -59,7 +59,7 @@ test("project bootstrap persists atomically with private permissions", async (t)
   const saved = JSON.parse(await fs.readFile(path.join(wrapper, ".codex-global-state.json"), "utf8"));
   assert.deepEqual(result, { changed: true, projectCount: 1 });
   assert.equal(saved["app-server-project-id-by-legacy-project-id-by-host"][`local:${wrapper}`].legacy, "server-project");
-  assert.equal((await fs.stat(path.join(wrapper, ".codex-global-state.json"))).mode & 0o777, 0o600);
+  if (process.platform !== "win32") assert.equal((await fs.stat(path.join(wrapper, ".codex-global-state.json"))).mode & 0o777, 0o600);
 });
 
 test("invalid target state fails closed", async (t) => {

@@ -19,7 +19,7 @@ test("remembered Zotero keys are partitioned by server id and written with mode 
   assert.equal(await store.get("server-two"), null);
 
   const stats = await fs.stat(store.filePath);
-  assert.equal(stats.mode & 0o777, 0o600);
+  if (process.platform !== "win32") assert.equal(stats.mode & 0o777, 0o600);
   const document = JSON.parse(await fs.readFile(store.filePath, "utf8"));
   assert.equal(document.version, 1);
   assert.equal(document.keys["server-one"].key, "key-one");

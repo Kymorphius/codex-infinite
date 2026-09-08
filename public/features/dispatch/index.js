@@ -1,10 +1,11 @@
 import { requestJson } from "../../core/transport.js";
 import { isLocalTask } from "../../core/tasks.js";
+import { createDispatchDetails, scheduleRelativeLabel } from "./details.js";
 
 export const DISPATCH_COLUMNS = ["backlog", "scheduled", "queued", "sending", "sent", "failed"];
 
 export function dispatchColumnStatus(status) {
-  return status === "cancelled" ? "failed" : status;
+  return ["cancelled", "delivery_unknown"].includes(status) ? "failed" : status;
 }
 
 export function dispatchMetrics(items = []) {
@@ -19,12 +20,29 @@ export function destinationProjectNames(tasks = []) {
   return [...new Set(tasks.map((task) => task.project || "未归类"))].sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
+export function filterDispatches(items = [], { query = "", project = "" } = {}) {
+  const needle = String(query).trim().toLocaleLowerCase("zh-CN");
+  return items.filter((item) => {
+    if (project && item.project !== project) return false;
+    if (!needle) return true;
+    return [item.title, item.prompt, item.project, item.targetThreadTitle, item.lastError]
+      .some((value) => String(value || "").toLocaleLowerCase("zh-CN").includes(needle));
+  });
+}
+
 export function createDispatchFeature({ state, $, formatDate, showToast }) {
   const panel = $('[data-module-panel="board"]');
   const board = $('[data-testid="dispatch-board"]');
   const form = $('[data-testid="dispatch-form"]');
   const projectSelect = $('[data-testid="dispatch-project"]');
   const threadSelect = $('[data-testid="dispatch-thread"]');
+  const search = $('[data-testid="dispatch-search"]');
+  const projectFilter = $('[data-testid="dispatch-filter-project"]');
+  const clearFilter = $('[data-testid="dispatch-clear-filter"]');
+  const composer = $('[data-testid="dispatch-composer"]');
+  const results = $('[data-testid="dispatch-results"]');
+  const filter = { query: "", project: "" };
+  const details = createDispatchDetails({ state, $, formatDate, showToast, onSaved: () => load({ quiet: true }) });
 
   function updateThreadSelector() {
     const tasks = state.tasks.filter((task) => isLocalTask(task) && task.project === projectSelect.value);
@@ -45,6 +63,14 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     projectSelect.replaceChildren(new Option("选择项目", ""), ...names.map((name) => new Option(name, name)));
     if (names.includes(currentProject)) projectSelect.value = currentProject;
     updateThreadSelector();
+  }
+
+  function updateProjectFilter() {
+    const currentProject = projectFilter.value;
+    const names = destinationProjectNames(state.dispatches);
+    projectFilter.replaceChildren(new Option("全部项目", ""), ...names.map((name) => new Option(name, name)));
+    if (names.includes(currentProject)) projectFilter.value = currentProject;
+    else filter.project = "";
   }
 
   function dispatchAction(label, action, item, className = "task-open") {
@@ -70,7 +96,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     prompt.textContent = item.prompt;
     const meta = document.createElement("div");
     meta.className = "dispatch-meta";
-    meta.textContent = item.status === "scheduled" ? `计划 ${formatDate(item.scheduledAt)}` : item.status === "sending" ? `开始 ${formatDate(item.startedAt)}` : `更新 ${formatDate(item.updatedAt)}`;
+    meta.textContent = item.status === "scheduled" ? `计划 ${formatDate(item.scheduledAt)} · ${scheduleRelativeLabel(item.scheduledAt)}` : item.status === "sending" ? `开始 ${formatDate(item.startedAt)}` : `更新 ${formatDate(item.updatedAt)}`;
     card.append(title, route, prompt, meta);
     if (item.lastError) {
       const error = document.createElement("div");
@@ -80,16 +106,19 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     }
     const actions = document.createElement("div");
     actions.className = "dispatch-actions";
-    if (["backlog", "scheduled", "failed", "cancelled"].includes(item.status)) actions.append(dispatchAction("立即排队", "queue", item, "primary-button small-button"));
-    if (["queued", "scheduled"].includes(item.status)) actions.append(dispatchAction("移到待排期", "backlog", item));
+    actions.append(dispatchAction(["backlog", "scheduled"].includes(item.status) ? "编辑" : "查看详情", "details", item));
+    if (["backlog", "scheduled", "failed", "cancelled", "delivery_unknown"].includes(item.status)) actions.append(dispatchAction(["failed", "cancelled", "delivery_unknown"].includes(item.status) ? "重新尝试" : "立即排队", "queue", item, "primary-button small-button"));
+    if (["queued", "scheduled"].includes(item.status)) actions.append(dispatchAction(item.status === "scheduled" ? "取消排期" : "移到待排期", "backlog", item));
     if (item.status !== "sending") actions.append(dispatchAction("删除", "delete", item, "quiet-button small-button"));
     card.append(actions);
     return card;
   }
 
   function render() {
+    updateProjectFilter();
+    const visibleItems = filterDispatches(state.dispatches, filter);
     for (const column of DISPATCH_COLUMNS) {
-      const items = state.dispatches.filter((item) => dispatchColumnStatus(item.status) === column);
+      const items = visibleItems.filter((item) => dispatchColumnStatus(item.status) === column);
       $(`[data-dispatch-count="${column}"]`).textContent = String(items.length);
       const list = $(`[data-dispatch-list="${column}"]`);
       list.replaceChildren(...items.map(dispatchCard));
@@ -104,6 +133,18 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     $('[data-testid="dispatch-count"]').textContent = String(metrics.count);
     $('[data-testid="dispatch-waiting-count"]').textContent = String(metrics.waitingCount);
     $('[data-testid="dispatch-target-count"]').textContent = String(metrics.targetCount);
+    const resultCount = visibleItems.filter((item) => ["sent", "failed", "cancelled", "delivery_unknown"].includes(item.status)).length;
+    $('[data-testid="dispatch-result-count"]').textContent = filter.query || filter.project ? `${visibleItems.length} / ${state.dispatches.length} 条任务` : `${state.dispatches.length} 条任务`;
+    $('[data-testid="dispatch-results-summary"]').textContent = `${resultCount} 条记录`;
+    clearFilter.classList.toggle("hidden", !filter.query && !filter.project);
+    results.classList.toggle("hidden", state.dispatchStatus !== "connected");
+    details.sync();
+  }
+
+  function setComposerOpen(open) {
+    composer.classList.toggle("hidden", !open);
+    for (const button of panel.querySelectorAll('[data-action="toggle-dispatch-composer"]')) button.setAttribute("aria-expanded", String(open));
+    if (open) form.elements.title.focus();
   }
 
   function setState(status, message = "") {
@@ -112,12 +153,14 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     const messageElement = panel.querySelector("[data-dispatch-state-message]");
     if (message && messageElement) messageElement.textContent = message;
     board.classList.toggle("hidden", status !== "connected");
+    results.classList.toggle("hidden", status !== "connected");
   }
 
   function setTaskState(status, label) {
     const connected = status === "connected";
     $('[data-testid="connection-status"]').textContent = connected ? "目标已连接" : label;
     for (const element of form.elements) element.disabled = !connected;
+    panel.querySelector(".dispatch-create-toggle").disabled = !connected;
   }
 
   async function load({ quiet = false } = {}) {
@@ -151,6 +194,11 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
   async function handleClick(event) {
     const button = event.target.closest("[data-dispatch-action]");
     if (button) {
+      if (button.dataset.dispatchAction === "details") {
+        const item = state.dispatches.find((candidate) => candidate.id === button.dataset.dispatchId);
+        if (item) details.open(item, button);
+        return;
+      }
       button.disabled = true;
       try {
         const path = `/api/dispatches/${encodeURIComponent(button.dataset.dispatchId)}`;
@@ -164,12 +212,18 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
       return;
     }
     if (event.target.closest('[data-action="refresh-dispatches"]')) await load();
+    const composerToggle = event.target.closest('[data-action="toggle-dispatch-composer"]');
+    if (composerToggle) setComposerOpen(composer.classList.contains("hidden"));
   }
 
   function bind() {
     projectSelect.addEventListener("change", updateThreadSelector);
+    search.addEventListener("input", () => { filter.query = search.value.trim().slice(0, 200); render(); });
+    projectFilter.addEventListener("change", () => { filter.project = projectFilter.value; render(); });
+    clearFilter.addEventListener("click", () => { search.value = ""; projectFilter.value = ""; filter.query = ""; filter.project = ""; render(); search.focus(); });
     form.addEventListener("submit", submit);
     panel.addEventListener("click", handleClick);
+    details.bind();
   }
 
   return { bind, load, render, setTaskState, updateDestinations };

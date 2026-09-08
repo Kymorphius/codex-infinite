@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>重启控制台</title>
+<style>html{color-scheme:light dark}body{margin:0;padding:20px;font:14px/1.5 system-ui;background:Canvas;color:CanvasText}h2{font-size:16px;margin:0 0 12px}p{margin:8px 0}footer{display:flex;justify-content:flex-end;gap:12px;margin-top:16px}button{font:inherit;padding:6px 14px;border:1px solid #8886;border-radius:6px;cursor:pointer;background:ButtonFace;color:ButtonText}button:disabled{opacity:.5}#status{font-size:12px;min-height:18px}</style>
+<script type="module" src="/features/runtime/sidebar.js"></script></head>
+<body><h2>重启控制台？</h2><p>重启当前设备上我们自己的窗口和后台服务。正在执行的任务可能被中断。</p><p>其他设备和原生 GPT 窗口不受影响。</p><p id="status" role="status"></p><footer><button id="cancel" type="button">取消</button><button id="restart" type="button">重启</button></footer></body>
+</html>

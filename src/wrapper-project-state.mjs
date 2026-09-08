@@ -29,6 +29,10 @@ function record(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
+function resolveHostPath(value) {
+  return /^[A-Za-z]:[\\/]/.test(String(value)) ? path.win32.resolve(value) : path.posix.resolve(value);
+}
+
 export function mergeWrapperProjectState(source, target, { sourceHome, wrapperHome }) {
   const sourceProjects = record(source[LOCAL_PROJECTS]);
   if (Object.keys(sourceProjects).length === 0) return { changed: false, state: target };
@@ -38,8 +42,8 @@ export function mergeWrapperProjectState(source, target, { sourceHome, wrapperHo
   let changed = JSON.stringify(mergedProjects) !== JSON.stringify(targetProjects);
   state[LOCAL_PROJECTS] = mergedProjects;
 
-  const sourceHost = `local:${path.resolve(sourceHome)}`;
-  const wrapperHost = `local:${path.resolve(wrapperHome)}`;
+  const sourceHost = `local:${resolveHostPath(sourceHome)}`;
+  const wrapperHost = `local:${resolveHostPath(wrapperHome)}`;
   const sourceMappings = record(record(source[PROJECT_MAPPINGS])[sourceHost]);
   if (Object.keys(sourceMappings).length > 0) {
     const allMappings = record(state[PROJECT_MAPPINGS]);
@@ -85,7 +89,7 @@ export async function orderWrapperProjectState({ wrapperHome, serverProjectIds }
   const projects = record(state[LOCAL_PROJECTS]);
   const entries = Object.entries(projects);
   if (entries.length === 0) return { changed: false, projectCount: 0 };
-  const wrapperHost = `local:${path.resolve(wrapperHome)}`;
+  const wrapperHost = `local:${resolveHostPath(wrapperHome)}`;
   const mappings = record(record(state[PROJECT_MAPPINGS])[wrapperHost]);
   const ranks = new Map((serverProjectIds || []).map((id, index) => [id, index]));
   const ordered = entries.map(([id, project], index) => ({ id, project, index, rank: ranks.get(mappings[id]) }));

@@ -44,21 +44,26 @@ function nativeSnapshot(id = "remote-one") {
 }
 
 test("peer definitions validate ordered direct and relay transports", () => {
+  assert.equal(peer.platform, "posix");
   assert.deepEqual(peer.transports.map((item) => item.type), ["direct-ssh", "ssh-relay"]);
   assert.throws(() => normalizePeerDefinition({ id: "bad id", transports: [{}] }), /Peer id/);
   assert.throws(() => normalizePeerDefinition({ id: "peer", transports: [{ type: "direct-ssh", host: "host;rm", user: "root" }] }), /host/);
+  assert.throws(() => normalizePeerDefinition({ id: "peer", platform: "plan9", transports: [{ type: "direct-ssh", host: "host", user: "root" }] }), /platform/);
 });
 
 test("local node snapshots drop source paths and peer identity is configuration-owned", () => {
   const local = projectLocalNodeSnapshot({
     status: "connected",
     devices: [{ id: "local", name: "Local", location: "本机" }],
-    tasks: [{ ...snapshot().tasks[0], sourceFile: "/private/native.jsonl", approvalPolicy: "never", permissionProfile: ":danger-full-access", accessMode: "full-access", contextOverrideState: "extended", requestedContextWindow: 1_000_000 }]
+    tasks: [{ ...snapshot().tasks[0], projectId: "project-123", projectDisplayName: "远程项目", sourceFile: "/private/native.jsonl", approvalPolicy: "never", permissionProfile: ":danger-full-access", accessMode: "full-access", contextOverrideState: "extended", requestedContextWindow: 1_000_000 }]
   });
   assert.equal(local.schemaVersion, 3);
   assert.equal(local.tasks[0].sourceFile, undefined);
   assert.equal(local.tasks[0].accessMode, "full-access");
   assert.equal(local.tasks[0].contextOverrideState, "extended");
+  assert.equal(local.tasks[0].project, "remote");
+  assert.equal(local.tasks[0].projectId, "project-123");
+  assert.equal(local.tasks[0].projectDisplayName, "远程项目");
   const remote = normalizePeerSnapshot(peer, snapshot());
   assert.equal(remote.tasks[0].device.id, "forest-mac");
   assert.equal(remote.tasks[0].device.name, "MacBook Pro");
@@ -72,6 +77,7 @@ test("local node snapshots drop source paths and peer identity is configuration-
   const current = normalizePeerSnapshot(peer, local);
   assert.equal(current.devices[0].runtime.authority, "unknown");
   assert.equal(current.tasks[0].permissionProfile, ":danger-full-access");
+  assert.equal(current.tasks[0].projectId, "project-123");
   assert.throws(() => normalizePeerSnapshot(peer, { ...local, tasks: [{ ...local.tasks[0], accessMode: "root" }] }), /settings are invalid/);
 });
 
@@ -83,10 +89,18 @@ test("SSH transport arguments are fixed and relay requests only relay loopback",
   assert.ok(relay.includes("root@67.230.169.158"));
   assert.ok(relay.includes("http://127.0.0.1:47842/api/node/snapshot"));
   assert.ok(relay.includes("StrictHostKeyChecking=yes"));
+  assert.equal(direct[direct.indexOf("--max-time") + 1], "25");
   const activity = sshActivityArguments(peer.transports[0], "thread/one");
+  assert.equal(activity[activity.indexOf("--max-time") + 1], "12");
   assert.ok(activity.includes("http://127.0.0.1:47831/api/node/activity/thread%2Fone"));
   assert.equal(activity.some((argument) => argument.includes(";")), false);
   assert.throws(() => sshActivityArguments(peer.transports[0], "thread;unsafe"), /invalid/);
+  const action = sshActionArguments(peer.transports[0], {
+    "x-codex-node-timestamp": "1",
+    "x-codex-node-nonce": "nonce",
+    "x-codex-node-signature": "a".repeat(64)
+  });
+  assert.equal(action[action.indexOf("--max-time") + 1], "10");
 });
 
 test("federated activity routing requires the owning device even when thread ids collide", async () => {
@@ -169,6 +183,7 @@ test("peer messages send bodies over stdin and keep prompts out of SSH arguments
   assert.equal(invocation.args.some((argument) => argument.includes("private prompt body")), false);
   assert.equal(JSON.parse(invocation.body()).prompt, "private prompt body");
   assert.equal(JSON.parse(invocation.body()).expectedDraftRevision, null);
+  assert.equal(JSON.parse(invocation.body()).deliveryMode, "new-turn");
   assert.ok(invocation.args.includes("--data-binary"));
   assert.equal(invocation.args.filter((argument) => argument.includes("x-codex-node-")).some((argument) => argument.includes(" ")), false);
   assert.ok(sshActionArguments(peer.transports[0], { "x-codex-node-timestamp": "1", "x-codex-node-nonce": "nonce", "x-codex-node-signature": "a".repeat(64) }).includes("http://127.0.0.1:47831/api/node/actions/message"));
@@ -277,5 +292,6 @@ test("peer configuration requires owner-only permissions", async (t) => {
   await fs.writeFile(file, JSON.stringify({ peers: [peer] }), { mode: 0o600 });
   assert.equal((await loadPeerConfig(file))[0].id, "forest-mac");
   await fs.chmod(file, 0o644);
-  await assert.rejects(() => loadPeerConfig(file), /0600/);
+  if (process.platform === "win32") assert.equal((await loadPeerConfig(file))[0].id, "forest-mac");
+  else await assert.rejects(() => loadPeerConfig(file), /0600/);
 });

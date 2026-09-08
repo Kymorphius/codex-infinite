@@ -4,27 +4,23 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { assertLoopbackConfig } from "./loopback.mjs";
 import { fetchJson } from "./cdp-client.mjs";
+import { desktopSpawnOptions, listDesktopProcesses, processSwitchValue, resolveDesktopExecutable } from "./desktop-host.mjs";
 
 const execFile = promisify(nodeExecFile);
-export const WRAPPER_DISABLED_FEATURES = "LocalNetworkAccessChecks";
+export const WRAPPER_DISABLED_FEATURES = "LocalNetworkAccessForSubframeNavigations";
 
 export function extractCdpProfile(command, port) {
   const portPattern = new RegExp(`--remote-debugging-port=${port}(?:\\s|$)`);
   if (!portPattern.test(command)) return null;
-  const match = command.match(/--user-data-dir=(.+?)(?= --[a-z-]+(?:=|\s)|$)/);
-  return match ? match[1] : null;
+  return processSwitchValue(command, "user-data-dir");
 }
 
-export async function findCdpProcess({ port, execFileImpl = execFile } = {}) {
+export async function findCdpProcess({ port, executable, platform = process.platform, execFileImpl = execFile } = {}) {
   try {
-    const { stdout } = await execFileImpl("ps", ["-axo", "pid=,command="]);
-    const lines = String(stdout).split(/\n/).map((line) => line.trim()).filter(Boolean);
-    for (const line of lines) {
-      if (!line.includes("/Applications/ChatGPT.app/") || !line.includes(`--remote-debugging-port=${port}`)) continue;
-      const firstSpace = line.indexOf(" ");
-      const pid = Number.parseInt(firstSpace > 0 ? line.slice(0, firstSpace) : line, 10);
-      const command = firstSpace > 0 ? line.slice(firstSpace).trim() : line;
-      return { pid: Number.isInteger(pid) ? pid : null, command, profileDirectory: extractCdpProfile(command, port) };
+    const processes = await listDesktopProcesses({ executable, platform, execFileImpl });
+    for (const processInfo of processes) {
+      if (!processInfo.command.includes(`--remote-debugging-port=${port}`)) continue;
+      return { ...processInfo, profileDirectory: extractCdpProfile(processInfo.command, port) };
     }
   } catch {
     return null;
@@ -32,14 +28,44 @@ export async function findCdpProcess({ port, execFileImpl = execFile } = {}) {
   return null;
 }
 
-function wrapperSignature(config) {
-  return Buffer.from(`per-thread-v3-lna\n${path.resolve(config.wrapperCodexHome || "")}\n${config.perThreadContextWindow || ""}`, "utf8").toString("base64url");
+export function wrapperSignature(config) {
+  return Buffer.from(`per-thread-v6-lna-subframe-only\n${path.resolve(config.wrapperCodexHome || "")}\n${path.resolve(config.nativeCodexHome || config.wrapperCodexHome || "")}\n${config.perThreadContextWindow || ""}`, "utf8").toString("base64url");
 }
 
-async function processWrapperSignature(pid, execFileImpl) {
-  if (!pid) return null;
+export async function inspectDedicatedCodex(config, {
+  fetchImpl = globalThis.fetch,
+  execFileImpl = execFile,
+  platform = process.platform
+} = {}) {
+  assertLoopbackConfig(config);
+  const executable = await resolveDesktopExecutable({ config, platform, execFileImpl });
+  const endpoint = `${config.cdpOrigin}/json/version`;
+  const existingProcess = await findCdpProcess({ port: config.cdpPort, executable, platform, execFileImpl });
+  let existingEndpoint = null;
   try {
-    const { stdout } = await execFileImpl("ps", ["eww", "-p", String(pid), "-o", "command="]);
+    existingEndpoint = await fetchJson(endpoint, { fetchImpl, timeoutMs: 1500 });
+  } catch {
+    return null;
+  }
+  const profileDirectory = existingProcess?.profileDirectory;
+  if (profileDirectory && path.resolve(profileDirectory) === path.resolve(config.profileDirectory)) {
+    const activeSignature = await processWrapperSignature(existingProcess, platform, execFileImpl);
+    if (config.wrapperCodexHome && activeSignature !== wrapperSignature(config)) {
+      throw new Error("包装版 Codex 仍在使用旧配置。请完全退出专用 Codex 窗口后重新运行 npm start，以启用单会话扩展上下文。");
+    }
+    return { mode: "attached", pid: existingProcess.pid, profileDirectory, version: existingEndpoint.Browser || null };
+  }
+  const detail = profileDirectory ? `profile ${profileDirectory}` : "an unknown process";
+  throw new Error(`CDP port ${config.cdpPort} is already owned by ${detail}; refusing to disturb it. Close that dedicated instance or choose another port.`);
+}
+
+async function processWrapperSignature(processInfo, platform, execFileImpl) {
+  if (!processInfo?.pid) return null;
+  const argumentSignature = processSwitchValue(processInfo.command, "codex-control-wrapper-signature");
+  if (argumentSignature) return argumentSignature;
+  if (platform !== "darwin") return null;
+  try {
+    const { stdout } = await execFileImpl("/bin/ps", ["eww", "-p", String(processInfo.pid), "-o", "command="]);
     return String(stdout).match(/(?:^|\s)CODEX_CONTROL_WRAPPER_SIGNATURE=([^\s]+)/)?.[1] || null;
   } catch {
     return null;
@@ -54,36 +80,20 @@ export async function ensureDedicatedCodex(config, {
   fetchImpl = globalThis.fetch,
   spawnImpl = nodeSpawn,
   execFileImpl = execFile,
+  accessImpl = fs.access,
   waitImpl = wait,
+  platform = process.platform,
   maxWaitMs = 30000,
   pollMs = 300
 } = {}) {
   assertLoopbackConfig(config);
+  const executable = await resolveDesktopExecutable({ config, platform, execFileImpl });
   const endpoint = `${config.cdpOrigin}/json/version`;
-  const existingProcess = await findCdpProcess({ port: config.cdpPort, execFileImpl });
-  let existingEndpoint = null;
-  try {
-    existingEndpoint = await fetchJson(endpoint, { fetchImpl, timeoutMs: 1500 });
-  } catch {
-    existingEndpoint = null;
-  }
+  const attached = await inspectDedicatedCodex(config, { fetchImpl, execFileImpl, platform });
+  if (attached) return attached;
 
-  if (existingEndpoint) {
-    const profileDirectory = existingProcess?.profileDirectory;
-    if (profileDirectory && path.resolve(profileDirectory) === path.resolve(config.profileDirectory)) {
-      const activeSignature = await processWrapperSignature(existingProcess.pid, execFileImpl);
-      if (config.wrapperCodexHome && activeSignature !== wrapperSignature(config)) {
-        throw new Error("包装版 Codex 仍在使用旧配置。请完全退出专用 Codex 窗口后重新运行 npm start，以启用单会话扩展上下文。");
-      }
-      return { mode: "attached", pid: existingProcess.pid, profileDirectory, version: existingEndpoint.Browser || null };
-    }
-    const detail = profileDirectory ? `profile ${profileDirectory}` : "an unknown process";
-    throw new Error(`CDP port ${config.cdpPort} is already owned by ${detail}; refusing to disturb it. Close that dedicated instance or choose another port.`);
-  }
-
-  const executable = path.join(config.appPath, "Contents", "MacOS", "ChatGPT");
   try {
-    await fs.access(executable);
+    await accessImpl(executable);
   } catch {
     throw new Error(`ChatGPT.app executable not found at ${executable}`);
   }
@@ -93,24 +103,25 @@ export async function ensureDedicatedCodex(config, {
     `--remote-debugging-address=${config.cdpHost}`,
     `--remote-debugging-port=${config.cdpPort}`,
     `--remote-allow-origins=${config.cdpOrigin}`,
-    `--disable-features=${WRAPPER_DISABLED_FEATURES}`
-  ], {
-    detached: true,
-    stdio: "ignore",
-    env: {
+    `--disable-features=${WRAPPER_DISABLED_FEATURES}`,
+    `--codex-control-wrapper-signature=${wrapperSignature(config)}`
+  ], desktopSpawnOptions({
+    platform,
+    environment: {
       ...process.env,
-      ...(config.wrapperCodexHome ? { CODEX_HOME: config.wrapperCodexHome } : {}),
+      ...(config.nativeCodexHome || config.wrapperCodexHome ? { CODEX_HOME: config.nativeCodexHome || config.wrapperCodexHome } : {}),
+      CODEX_ELECTRON_USER_DATA_PATH: config.profileDirectory,
       CODEX_CONTROL_PER_THREAD_CONTEXT_WINDOW: String(config.perThreadContextWindow || ""),
       CODEX_CONTROL_WRAPPER_SIGNATURE: wrapperSignature(config)
     }
-  });
+  }));
   child.unref?.();
 
   const deadline = Date.now() + maxWaitMs;
   while (Date.now() < deadline) {
     try {
       const version = await fetchJson(endpoint, { fetchImpl, timeoutMs: Math.min(1500, Math.max(200, deadline - Date.now())) });
-      const processInfo = await findCdpProcess({ port: config.cdpPort, execFileImpl });
+      const processInfo = await findCdpProcess({ port: config.cdpPort, executable, platform, execFileImpl });
       if (processInfo?.profileDirectory && path.resolve(processInfo.profileDirectory) !== path.resolve(config.profileDirectory)) {
         throw new Error(`CDP port ${config.cdpPort} was claimed by a different profile while launching`);
       }

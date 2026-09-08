@@ -37,6 +37,25 @@
 body { margin: 0; min-width: 320px; background: var(--native-ui-canvas); font: inherit; }
 button { font: inherit; }
 .app-shell { min-height: 100vh; background: var(--native-ui-canvas); }
+.workspace-tabbar { position: sticky; top: 0; z-index: 60; height: 42px; border-bottom: 1px solid var(--native-ui-border); background: #ececef; }
+.workspace-tabbar-inner { display: flex; height: 100%; min-width: 0; align-items: end; gap: 3px; padding: 5px 7px 0; }
+.workspace-session-tabs { display: flex; min-width: 0; flex: 1 1 auto; align-items: end; gap: 3px; overflow-x: auto; overflow-y: hidden; scroll-padding-inline: 8px; scrollbar-width: none; }
+.workspace-session-tabs::-webkit-scrollbar { display: none; }
+.workspace-tab { position: relative; display: flex; height: 36px; min-width: 0; align-items: center; gap: 8px; border: 1px solid transparent; border-bottom: 0; border-radius: 10px 10px 0 0; padding: 0 11px; background: transparent; color: var(--native-ui-text-secondary); font-size: 12px; line-height: 18px; text-align: left; cursor: pointer; }
+.workspace-tab:hover { background: rgba(255,255,255,.52); color: var(--native-ui-text); }
+.workspace-tab:focus-visible { z-index: 1; outline: 2px solid var(--native-ui-text); outline-offset: -3px; }
+.workspace-tab.is-active { border-color: var(--native-ui-border); background: var(--native-ui-canvas); color: var(--native-ui-text); }
+.workspace-home-tab { flex: 0 0 142px; }
+.workspace-conversation-tab { flex: 0 1 228px; min-width: 138px; }
+.workspace-tab-icon { display: grid; flex: 0 0 18px; width: 18px; height: 18px; place-items: center; border-radius: 5px; background: var(--native-ui-text); color: var(--native-ui-canvas); font-size: 10px; }
+.workspace-tab-status { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--native-ui-text-tertiary); }
+.workspace-tab-status[data-status="active"] { background: #29a568; box-shadow: 0 0 0 3px rgba(41,165,104,.12); }
+.workspace-tab-status[data-status="interrupted"], .workspace-tab-status[data-status="error"] { background: #c96355; }
+.workspace-tab-title { min-width: 0; flex: 1 1 auto; overflow: hidden; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-tab-close { display: grid; flex: 0 0 20px; width: 20px; height: 20px; place-items: center; border: 0; border-radius: 5px; padding: 0; background: transparent; color: inherit; font: inherit; font-size: 17px; line-height: 20px; cursor: pointer; opacity: .72; }
+.workspace-tab-close:hover { background: var(--native-ui-surface-hover); opacity: 1; }
+:root[data-embedded="native"] .workspace-tabbar { display: none; }
+:root[data-embedded="native"] .module-nav { top: 0; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px clamp(22px, 4vw, 52px) 14px; border-bottom: 1px solid var(--native-ui-border); background: rgba(255,255,255,.9); }
 .eyebrow { margin: 0 0 4px; color: var(--native-ui-text-tertiary); font-size: 11px; line-height: var(--native-ui-meta-line); font-weight: 600; letter-spacing: .11em; }
 h1, h2, h3, p { margin-top: 0; }
@@ -45,11 +64,15 @@ h2 { margin-bottom: 6px; font-size: var(--native-ui-page-title-size); line-heigh
 h3 { margin-bottom: 6px; font-size: var(--native-ui-section-title-size); line-height: var(--native-ui-section-title-line); }
 .muted, .state-card p { color: var(--native-ui-text-secondary); font-size: var(--native-ui-body-size); line-height: var(--native-ui-body-line); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
-.module-nav { border-bottom: 1px solid var(--native-ui-border); background: rgba(255,255,255,.9); }
-.module-nav-inner { display: flex; align-items: center; gap: 18px; width: min(1400px, 100%); margin: 0 auto; padding: 0 clamp(22px, 4vw, 52px); }
-.module-tab { border: 0; border-bottom: 2px solid transparent; padding: 10px 3px 9px; background: transparent; color: var(--native-ui-text-tertiary); font-size: 13px; line-height: 18px; font-weight: 600; cursor: pointer; }
-.module-tab.is-active { border-bottom-color: var(--native-ui-text); color: var(--native-ui-text); }
-.module-caption { color: var(--native-ui-text-tertiary); font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
+.console-version { color: var(--native-ui-text-tertiary); font-size: 11px; line-height: var(--native-ui-meta-line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.module-nav { position: sticky; top: 42px; z-index: 30; border-bottom: 1px solid var(--native-ui-border); background: rgba(255,255,255,.94); backdrop-filter: blur(18px); }
+.module-nav-inner { display: flex; align-items: center; gap: 4px; width: min(1400px, 100%); min-height: 48px; margin: 0 auto; padding: 6px clamp(22px, 4vw, 52px); scroll-padding-inline: clamp(22px, 4vw, 52px); }
+.module-nav-label { flex: 0 0 auto; margin-right: 10px; color: var(--native-ui-text-tertiary); font-size: 11px; line-height: var(--native-ui-meta-line); font-weight: 700; letter-spacing: .08em; }
+.module-tab { flex: 0 0 auto; border: 1px solid transparent; border-radius: 8px; padding: 7px 10px; background: transparent; color: var(--native-ui-text-secondary); font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.module-tab:hover { background: var(--native-ui-surface-hover); color: var(--native-ui-text); }
+.module-tab:focus-visible { outline: 2px solid var(--native-ui-text); outline-offset: 2px; }
+.module-tab.is-active { border-color: var(--native-ui-border); background: var(--native-ui-surface); color: var(--native-ui-text); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.module-caption { min-width: 0; margin-left: auto; overflow: hidden; color: var(--native-ui-text-tertiary); font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); text-overflow: ellipsis; white-space: nowrap; }
 .loopback-pill, .section-status { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--native-ui-border); border-radius: 999px; padding: 6px 10px; background: var(--native-ui-surface); color: var(--native-ui-text-secondary); font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); font-weight: 500; white-space: nowrap; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #29a568; box-shadow: 0 0 0 3px rgba(41,165,104,.12); }
 .quiet-button, .primary-button { border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }

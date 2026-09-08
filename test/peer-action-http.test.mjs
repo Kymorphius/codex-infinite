@@ -19,12 +19,14 @@ test("browser remote messages require exact origin and owner actions require a n
   };
   const adapter = {
     async listTasks() { return { status: "empty", tasks: [], projects: [], devices: [] }; },
-    async sendMessage(id, device, prompt, revision) { calls.push(["route", id, device, prompt, revision]); return { accepted: true, transport: "direct-ssh" }; },
+    async sendMessage(id, device, prompt, revision, deliveryMode) { calls.push(["route", id, device, prompt, revision, deliveryMode]); return { accepted: true, transport: "direct-ssh" }; },
+    async updateDraft(id, device, text, revision) { calls.push(["draft-route", id, device, text, revision]); return { accepted: true, draft: null }; },
     async control(id, device, input) { calls.push(["control-route", id, device, input.action, input.turnId]); return { accepted: true, interrupted: input.action === "interrupt", approvalResolved: input.action === "resolveApproval" }; },
     async updateSettings(id, device, changes) { calls.push(["settings-route", id, device, changes]); return { accepted: true, settings: { reasoningEffort: changes.reasoningEffort } }; }
   };
   const remoteMessageService = {
     async submit(input) { calls.push(["owner", input.threadId, input.prompt]); return { accepted: true, requestId: "request-1" }; },
+    async updateDraft(input) { calls.push(["draft-owner", input.threadId, input.text, input.expectedDraftRevision]); return { accepted: true, draft: null }; },
     async control(input) { calls.push(["control-owner", input.threadId, input.turnId, input.action]); return { accepted: true, interrupted: input.action === "interrupt", approvalResolved: input.action === "resolveApproval" }; }
   };
   const remoteThreadSettingsService = {
@@ -34,9 +36,12 @@ test("browser remote messages require exact origin and owner actions require a n
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
-  const browserBody = JSON.stringify({ prompt: "continue remotely" });
+  const browserBody = JSON.stringify({ prompt: "continue remotely", deliveryMode: "steer" });
   assert.equal((await fetch(`${origin}/api/tasks/thread-1/messages?device=forest-mac`, { method: "POST", headers: { "content-type": "application/json" }, body: browserBody })).status, 403);
   assert.equal((await fetch(`${origin}/api/tasks/thread-1/messages?device=forest-mac`, { method: "POST", headers: { origin: config.dashboardOrigin, "content-type": "application/json" }, body: browserBody })).status, 202);
+  const browserDraft = JSON.stringify({ text: "", expectedDraftRevision: "a".repeat(64) });
+  assert.equal((await fetch(`${origin}/api/tasks/thread-1/draft?device=forest-mac`, { method: "POST", headers: { "content-type": "application/json" }, body: browserDraft })).status, 403);
+  assert.equal((await fetch(`${origin}/api/tasks/thread-1/draft?device=forest-mac`, { method: "POST", headers: { origin: config.dashboardOrigin, "content-type": "application/json" }, body: browserDraft })).status, 202);
   const browserControl = JSON.stringify({ action: "interrupt", turnId: "01a04446-8d03-7243-a4d3-181180bb626e" });
   assert.equal((await fetch(`${origin}/api/tasks/thread-1/control?device=forest-mac`, { method: "POST", headers: { "content-type": "application/json" }, body: browserControl })).status, 403);
   assert.equal((await fetch(`${origin}/api/tasks/thread-1/control?device=forest-mac`, { method: "POST", headers: { origin: config.dashboardOrigin, "content-type": "application/json" }, body: browserControl })).status, 202);
@@ -61,6 +66,17 @@ test("browser remote messages require exact origin and owner actions require a n
   assert.equal(duplicate.status, 202);
   assert.equal((await duplicate.json()).duplicate, true);
   assert.equal((await fetch(`${origin}${ownerPath}`, { method: "POST", headers: { ...headers, [ACTION_HEADERS.signature]: "0".repeat(64) }, body: ownerBody })).status, 401);
+  const draftOwnerPath = "/api/node/actions/draft";
+  const draftOwnerBody = Buffer.from(JSON.stringify({ threadId: "thread-1", text: "", expectedDraftRevision: "a".repeat(64) }));
+  const draftTimestamp = String(Date.now());
+  const draftNonce = "nonce_4234567890123456";
+  const draftHeaders = {
+    "content-type": "application/json",
+    [ACTION_HEADERS.timestamp]: draftTimestamp,
+    [ACTION_HEADERS.nonce]: draftNonce,
+    [ACTION_HEADERS.signature]: signPeerAction(key, { method: "POST", path: draftOwnerPath, timestamp: draftTimestamp, nonce: draftNonce, body: draftOwnerBody })
+  };
+  assert.equal((await fetch(`${origin}${draftOwnerPath}`, { method: "POST", headers: draftHeaders, body: draftOwnerBody })).status, 202);
   const controlOwnerPath = "/api/node/actions/control";
   const controlOwnerBody = Buffer.from(JSON.stringify({ threadId: "thread-1", action: "interrupt", turnId: "01a04446-8d03-7243-a4d3-181180bb626e" }));
   const controlTimestamp = String(Date.now());
@@ -84,11 +100,13 @@ test("browser remote messages require exact origin and owner actions require a n
   };
   assert.equal((await fetch(`${origin}${settingsOwnerPath}`, { method: "POST", headers: settingsHeaders, body: settingsOwnerBody })).status, 202);
   assert.deepEqual(calls, [
-    ["route", "thread-1", "forest-mac", "continue remotely", undefined],
+    ["route", "thread-1", "forest-mac", "continue remotely", undefined, "steer"],
+    ["draft-route", "thread-1", "forest-mac", "", "a".repeat(64)],
     ["control-route", "thread-1", "forest-mac", "interrupt", "01a04446-8d03-7243-a4d3-181180bb626e"],
     ["control-route", "thread-1", "forest-mac", "resolveApproval", "01a04446-8d03-7243-a4d3-181180bb626e"],
     ["settings-route", "thread-1", "forest-mac", { reasoningEffort: "high" }],
     ["owner", "thread-1", "owner executes"],
+    ["draft-owner", "thread-1", "", "a".repeat(64)],
     ["control-owner", "thread-1", "01a04446-8d03-7243-a4d3-181180bb626e", "interrupt"],
     ["settings-owner", "01a04445-8d03-7243-a4d3-181180bb626d", { reasoningEffort: "high" }]
   ]);

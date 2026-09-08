@@ -3,6 +3,7 @@ import { loadActionKey, NonceReplayWindow, verifyPeerAction } from "./peer-actio
 
 const OWNER_PATHS = Object.freeze({
   "/api/node/actions/message": "message",
+  "/api/node/actions/draft": "draft",
   "/api/node/actions/control": "control",
   "/api/node/actions/settings": "settings"
 });
@@ -10,7 +11,7 @@ const OWNER_PATHS = Object.freeze({
 function browserRoute(pathname) {
   const prefix = "/api/tasks/";
   if (!pathname.startsWith(prefix)) return null;
-  for (const [suffix, kind] of [["/messages", "message"], ["/control", "control"], ["/settings", "settings"]]) {
+  for (const [suffix, kind] of [["/messages", "message"], ["/draft", "draft"], ["/control", "control"], ["/settings", "settings"]]) {
     if (pathname.endsWith(suffix)) return { kind, threadId: decodePathSegment(pathname.slice(prefix.length, -suffix.length)) };
   }
   return null;
@@ -37,7 +38,9 @@ export function createPeerActionHttpHandler({ adapter, remoteMessageService, rem
       if (!deviceId) throw httpError(400, "缺少会话所属设备");
       const input = await readJsonBody(request, 16 * 1024);
       const result = browser.kind === "message"
-        ? await adapter.sendMessage(browser.threadId, deviceId, input.prompt, input.expectedDraftRevision)
+        ? await adapter.sendMessage(browser.threadId, deviceId, input.prompt, input.expectedDraftRevision, input.deliveryMode)
+        : browser.kind === "draft"
+          ? await adapter.updateDraft(browser.threadId, deviceId, input.text, input.expectedDraftRevision)
         : browser.kind === "control"
           ? await adapter.control(browser.threadId, deviceId, input)
           : await adapter.updateSettings(browser.threadId, deviceId, input.changes);
@@ -57,6 +60,8 @@ export function createPeerActionHttpHandler({ adapter, remoteMessageService, rem
     const input = parseBody(body);
     const result = ownerKind === "message"
       ? await remoteMessageService.submit(input)
+      : ownerKind === "draft"
+        ? await remoteMessageService.updateDraft(input)
       : ownerKind === "control"
         ? await remoteMessageService.control(input)
         : await remoteThreadSettingsService.update(input);

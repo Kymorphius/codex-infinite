@@ -42,20 +42,31 @@ export class DispatchScheduler {
     this.logger = logger;
     this.timer = null;
     this.busy = false;
+    this.lastTickAt = null;
+    this.lastSuccessAt = null;
+    this.lastFailureAt = null;
   }
 
   async tick() {
     if (this.busy) return;
     this.busy = true;
+    this.lastTickAt = new Date().toISOString();
     try {
       await this.store.promoteDue();
       const item = await this.store.claimNext();
       if (!item) return;
       try {
+        await this.store.audit?.("submitted", item);
         await this.dispatcher.dispatch(item);
-        await this.store.finish(item.id, { ok: true });
+        const outcome = { ok: true };
+        if (item.activeAttemptId) outcome.attemptId = item.activeAttemptId;
+        await this.store.finish(item.id, outcome);
+        this.lastSuccessAt = new Date().toISOString();
       } catch (error) {
-        await this.store.finish(item.id, { ok: false, error: error.message });
+        const outcome = { ok: false, error: error.message };
+        if (item.activeAttemptId) outcome.attemptId = item.activeAttemptId;
+        await this.store.finish(item.id, outcome);
+        this.lastFailureAt = new Date().toISOString();
         this.logger.warn(`[codex-control-console] dispatch failed: ${error.message}`);
       }
     } finally {
@@ -72,5 +83,15 @@ export class DispatchScheduler {
   stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+  }
+
+  diagnostics() {
+    return Object.freeze({
+      status: this.timer ? "ready" : "unavailable",
+      busy: this.busy,
+      lastTickAt: this.lastTickAt,
+      lastSuccessAt: this.lastSuccessAt,
+      lastFailureAt: this.lastFailureAt
+    });
   }
 }

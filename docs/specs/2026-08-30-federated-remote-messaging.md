@@ -21,14 +21,34 @@ The remote conversation workspace can mirror another node's native Codex session
 
 ## Non-goals
 
-- No token-level streaming, remote cancellation, queued offline delivery, multi-writer session files, or browser-side credentials in this increment.
+- No token-level streaming, queued offline delivery while the owner device is
+  unreachable, multi-writer session files, or browser-side credentials in this
+  increment. Native online follow-ups may use the owner's built-in queue or
+  steer the active turn.
 - No local import of the remote session and no attempt to navigate the local native Codex router to a remote thread.
 
 ## User experience
 
 The full remote conversation workspace includes a multiline composer. Enter sends and Shift+Enter inserts a newline. If the selected owner-native conversation contains an unsent draft, activity refresh copies it into the remote composer. The user may continue editing it or send it unchanged. The owner node opens the actual thread in its Codex desktop application and submits through the native composer. The existing three-second activity refresh shows the new user message, Codex progress, tools, and final answer.
 
-Draft updates use compare-and-swap semantics. The remote composer sends the revision it originally read. The owner replaces its draft only when that revision still matches; otherwise it returns a conflict and the remote side refreshes instead of silently overwriting concurrent owner input.
+When the owner reports an active turn, the remote composer exposes two explicit
+follow-up choices matching native Codex: `调整方向` submits a steering message
+to the active turn, while `加入队列` holds the message in the owner-native queue
+until the current turn finishes. Submission uses the owner's visible native
+action. If its configured default is the opposite choice, the bridge invokes
+the native one-message inverse shortcut; it does not maintain a separate server
+queue. A completed turn returns the composer to ordinary new-turn submission.
+
+Draft updates are bidirectional and use compare-and-swap semantics. After the
+remote composer receives an owner-native draft and revision, every remote edit,
+including deleting all text, is debounced and written back to the owner-native
+composer with the revision it originally read. Owner-native changes continue to
+flow back through activity refresh. The owner replaces its draft only when that
+revision still matches. If both sides edit concurrently, the remote composer
+keeps its local text, reports the conflict, and does not silently overwrite or
+  restore either side.
+Native draft replacement uses the owning platform's standard select-all
+modifier (Control on Windows, Command on macOS) before changing existing text.
 
 The workspace always shows its owner. Sending does not optimistically invent an assistant response.
 
@@ -56,6 +76,17 @@ Each file is base64-encoded random 32-byte key material and must have mode 0600.
 
 ## Acceptance criteria
 
+- If the dedicated native Codex window exits while the node service remains
+  healthy, the injector relaunches it and restores the CDP target automatically;
+  read-only federation staying online must not leave message sending permanently
+  unavailable.
+- Windows direct-SSH action commands encode one syntactically contiguous
+  PowerShell `try { ... } catch { ... }` statement. Command composition must not
+  insert a statement separator between the `try` block and its `catch` block.
+- Windows PowerShell reads the signed action body as UTF-8 and submits the same
+  explicit UTF-8 byte sequence to the owner endpoint. Non-ASCII prompts must
+  verify against the signature calculated over the original request bytes.
+
 - [x] MacBook Pro can submit a message into a MatrixBook Air native conversation and observe it in the owner session file/activity stream.
 - [x] MatrixBook Air can do the symmetric operation against MacBook Pro.
 - [x] Missing/wrong keys, stale timestamps, modified bodies, and repeated nonces fail closed; repeats never execute twice.
@@ -65,12 +96,28 @@ Each file is base64-encoded random 32-byte key material and must have mode 0600.
 - [x] The owner Codex desktop application remains the only live writer and submits the prompt through its native conversation UI.
 - [x] Opening the owner conversation never reports that it is open in another application because of a remote message.
 - [x] A visible unsent owner-native draft is mirrored to the remote composer, can be continued remotely, and is replaced only when its revision still matches.
+- [x] Editing or clearing a mirrored draft remotely updates the owner-native
+  composer without sending the message; polling cannot resurrect locally
+  deleted text while that update is pending.
+- [x] Concurrent edits fail closed and preserve the remote user's current text
+  instead of silently choosing one side.
+- [x] An active owner turn exposes explicit queue and steer choices; each is
+  acknowledged only after the owner-native composer accepts that exact action.
+- [x] Queueing remains owner-native and online-only; the relay does not become
+  an offline task authority.
 - [x] Both nodes pass full tests and structure checks after deployment.
 
 ## Shipped evidence
 
 - MatrixBook Air submitted marker `NATIVE_OWNER_TEST_20260830` to MacBook Pro over direct SSH. MacBook Pro selected native route `local:01a04445-8d03-7243-a4d3-181180bb626d`, displayed the prompt and assistant reply “原生界面续接成功。” in the owner Codex window, and completed the turn without an ownership-conflict or retry banner.
 - MacBook Pro then held an unsent native draft. MatrixBook Air read its text and revision through the activity contract, extended it with marker `DRAFT_SYNC_TEST_20260830`, and submitted it with the matching revision. MacBook Pro replaced the unchanged draft, sent it through the native composer, displayed “草稿同步续接成功。”, and cleared the composer without an ownership conflict.
+- Native contenteditable editors may expose one logical line break as multiple
+  `innerText` line breaks, especially for pasted Markdown lists on Windows.
+  Draft revisions and write confirmation therefore compare normalized
+  non-blank lines while preserving the exact user-facing text on both sides.
+  A presentation-only blank-line difference confirms the existing sync base;
+  it is not reported as a concurrent edit and does not rewrite the local
+  textarea with the native editor's expanded spacing.
 - Process inspection during the native-owner test found no `codex exec resume` process. The desktop application was the only live conversation writer.
 - A relay-only signed request reached MacBook Pro through `67.230.169.158:33699` and its loopback-forwarded owner endpoint. The valid signature passed and the owner truthfully rejected the deliberately missing thread without executing anything.
 - Both owner keys and peer copies are 32-byte base64 material stored in mode-0600 files. Neither peer JSON contains action credentials.

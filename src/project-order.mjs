@@ -2,12 +2,16 @@ import path from "node:path";
 import { calculateProjectPriority } from "./priority.mjs";
 
 function normalizedRoot(value) {
-  return typeof value === "string" && path.isAbsolute(value) ? path.resolve(value) : null;
+  if (typeof value !== "string" || !value) return null;
+  const clean = value.replace(/^\\\\\?\\UNC\\/i, "\\\\").replace(/^\\\\\?\\/, "");
+  const api = /^[A-Za-z]:[\\/]/.test(clean) || clean.startsWith("\\\\") ? path.win32 : path.posix;
+  return api.isAbsolute(clean) ? { api, value: api.resolve(clean) } : null;
 }
 
 function contains(root, cwd) {
-  const relative = path.relative(root, cwd);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  if (root.api !== cwd.api) return false;
+  const relative = root.api.relative(root.value, cwd.value);
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${root.api.sep}`) && !root.api.isAbsolute(relative));
 }
 
 export function matchProjectForTask(projects, task) {
@@ -18,9 +22,9 @@ export function matchProjectForTask(projects, task) {
   for (const project of projects || []) {
     for (const root of project?.roots || []) {
       const rootPath = normalizedRoot(root?.path);
-      if (rootPath && rootPath.length > matchLength && contains(rootPath, cwd)) {
+      if (rootPath && rootPath.value.length > matchLength && contains(rootPath, cwd)) {
         match = project;
-        matchLength = rootPath.length;
+        matchLength = rootPath.value.length;
       }
     }
   }

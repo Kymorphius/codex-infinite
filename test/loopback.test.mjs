@@ -12,6 +12,20 @@ test("config defaults bind both listeners to 127.0.0.1", () => {
   assert.equal(config.primaryCdpHost, "127.0.0.1");
   assert.equal(config.primaryCdpPort, 9232);
   assert.equal(config.primaryCdpEnabled, false);
+  assert.equal(config.cspReloadRequired, true);
+  assertLoopbackConfig(config);
+});
+
+test("Windows config isolates wrapper and primary package profiles", () => {
+  const config = getConfig({ LOCALAPPDATA: "C:\\Users\\Admin\\AppData\\Local" }, "C:\\Users\\Admin", "win32");
+  assert.equal(config.appPath, "");
+  assert.equal(config.cspReloadRequired, true);
+  assert.equal(config.nativeCodexHome, "C:\\Users\\Admin\\.codex");
+  assert.notEqual(config.nativeCodexHome, config.wrapperCodexHome);
+  assert.equal(config.codexPath, "C:\\Users\\Admin\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin\\codex.exe");
+  assert.equal(config.profileDirectory, "C:\\Users\\Admin\\AppData\\Local\\Codex Control Console\\Profile");
+  assert.match(config.primaryProfileDirectory, /OpenAI\.Codex_2p2nqsd0c76g0/);
+  assert.notEqual(config.profileDirectory, config.primaryProfileDirectory);
   assertLoopbackConfig(config);
 });
 

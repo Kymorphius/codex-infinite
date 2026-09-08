@@ -31,6 +31,41 @@ test("session adapter derives titles from current response items", () => {
   assert.equal(parseSessionJsonl(content).title, "修复远端任务的标题 并保持稳定");
 });
 
+test("session adapter adds a current display name without changing the dispatch project key", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-project-name-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  await fs.writeFile(path.join(directory, "renamed.jsonl"), [
+    JSON.stringify({ type: "session_meta", timestamp: "2026-08-31T01:00:00Z", payload: { id: "renamed", cwd: "/workspace/mulitca" } }),
+    JSON.stringify({ type: "response_item", timestamp: "2026-08-31T01:00:01Z", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "检查项目名" }] } })
+  ].join("\n"));
+  const adapter = new CodexTaskAdapter({
+    sessionRoot: directory,
+    projectNameIndex: { async read() { return { nameFor(cwd) { return cwd === "/workspace/mulitca" ? "看板" : null; } }; } }
+  });
+  const task = (await adapter.listTasks()).tasks[0];
+  assert.equal(task.project, "mulitca");
+  assert.equal(task.projectDisplayName, "看板");
+});
+
+test("session adapter overlays moved threads with current native project membership", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-current-project-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  await fs.writeFile(path.join(directory, "moved.jsonl"), [
+    JSON.stringify({ type: "session_meta", timestamp: "2026-09-01T01:00:00Z", payload: { id: "moved", cwd: "/temporary/referenced-chat" } }),
+    JSON.stringify({ type: "response_item", timestamp: "2026-09-01T01:00:01Z", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "实现实体系统" }] } })
+  ].join("\n"));
+  const adapter = new CodexTaskAdapter({
+    sessionRoot: directory,
+    projectNameIndex: { async read() { return { nameFor() { return "原项目"; } }; } },
+    threadProjectIndex: { async read(ids) { assert.deepEqual(ids, ["moved"]); return { currentFor() { return { cwd: "D:\\333.开发\\真仙幸存者", projectId: "game", projectName: "真仙幸存者" }; } }; } }
+  });
+  const task = (await adapter.listTasks()).tasks[0];
+  assert.equal(task.cwd, "D:\\333.开发\\真仙幸存者");
+  assert.equal(task.project, "真仙幸存者");
+  assert.equal(task.projectId, "game");
+  assert.equal(task.projectDisplayName, "真仙幸存者");
+});
+
 test("session adapter exposes latest native settings and exact per-thread context state", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-session-settings-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
@@ -74,6 +109,60 @@ test("session adapter exposes latest native settings and exact per-thread contex
   assert.equal(activity.contextOverrideState, "extended");
   assert.equal(activity.accessMode, "full-access");
   assert.equal(JSON.stringify(activity).includes("developer_instructions"), false);
+});
+
+test("session adapter reuses unchanged parses and invalidates a changed file", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-session-cache-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const filePath = path.join(directory, "cached.jsonl");
+  const content = (text) => [
+    JSON.stringify({ type: "session_meta", payload: { id: "cached", cwd: "/tmp/cache" } }),
+    JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text }] } })
+  ].join("\n");
+  await fs.writeFile(filePath, content("first title"));
+  let reads = 0;
+  const adapter = new CodexTaskAdapter({
+    sessionRoot: directory,
+    async readTaskFileImpl(target) {
+      reads += 1;
+      return parseSessionJsonl(await fs.readFile(target, "utf8"), target);
+    }
+  });
+  assert.equal((await adapter.listTasks()).tasks[0].title, "first title");
+  assert.equal((await adapter.listTasks()).tasks[0].title, "first title");
+  assert.equal(reads, 1);
+  await fs.writeFile(filePath, content("second title is longer"));
+  assert.equal((await adapter.listTasks()).tasks[0].title, "second title is longer");
+  assert.equal(reads, 2);
+});
+
+test("session adapter coalesces overlapping listings", async () => {
+  let release;
+  let reads = 0;
+  const blocker = new Promise((resolve) => { release = resolve; });
+  const adapter = new CodexTaskAdapter({ sessionRoot: "/sessions" });
+  adapter.listTasksFresh = async () => { reads += 1; await blocker; return { status: "empty", tasks: [] }; };
+  const first = adapter.listTasks();
+  const second = adapter.listTasks();
+  assert.equal(reads, 1);
+  release();
+  assert.deepEqual(await Promise.all([first, second]), [{ status: "empty", tasks: [] }, { status: "empty", tasks: [] }]);
+});
+
+test("indexed activity lookup reads the exact conversation without rescanning every session", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-activity-index-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const threadId = "01a05cc2-a041-7da3-bc6d-4fecf184d05c";
+  await fs.writeFile(path.join(directory, `${threadId}.jsonl`), [
+    JSON.stringify({ type: "session_meta", timestamp: "2026-09-02T01:00:00Z", payload: { id: threadId, cwd: "D:\\project" } }),
+    JSON.stringify({ type: "response_item", timestamp: "2026-09-02T01:00:01Z", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "读取目标正文" }] } })
+  ].join("\n"));
+  const adapter = new CodexTaskAdapter({ sessionRoot: directory });
+  await adapter.listTasks();
+  adapter.listTasks = async () => { throw new Error("unexpected full rescan"); };
+  const activity = await adapter.getActivity(threadId);
+  assert.equal(activity.threadId, threadId);
+  assert.equal(activity.entries.some((entry) => entry.text === "读取目标正文"), true);
 });
 
 test("active session listing and activity replace a stale bounded head sample with indexed settings", async (t) => {

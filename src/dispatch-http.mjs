@@ -1,5 +1,7 @@
 import { assertExactMutationOrigin, assertJsonContentType, decodePathSegment, readJsonBody, sendJson } from "./http-utils.mjs";
 
+const BROWSER_DISPATCH_STATUSES = new Set(["backlog", "scheduled", "queued", "cancelled"]);
+
 export function resolveDispatchTarget(tasks, { project, targetThreadId }) {
   const projectTasks = (tasks || []).filter((task) => task.project === project);
   if (targetThreadId) return projectTasks.find((task) => task.id === targetThreadId) || null;
@@ -18,6 +20,14 @@ export function createDispatchHttpHandler({ adapter, dispatchStore, dashboardOri
     }
     if (isCollection && (request.method === "GET" || request.method === "HEAD")) {
       sendJson(response, 200, { status: "ok", items: dispatchStore.list() });
+      return true;
+    }
+    if (isItem && requestUrl.pathname.endsWith("/audit") && (request.method === "GET" || request.method === "HEAD")) {
+      const encodedId = requestUrl.pathname.slice("/api/dispatches/".length, -"/audit".length);
+      const id = decodePathSegment(encodedId);
+      const current = dispatchStore.get?.(id) || dispatchStore.list().find((item) => item.id === id);
+      if (!current) sendJson(response, 404, { status: "error", message: "调度任务不存在" });
+      else sendJson(response, 200, { status: "ok", events: await dispatchStore.auditStore?.list?.(id) || [] });
       return true;
     }
 
@@ -50,7 +60,31 @@ export function createDispatchHttpHandler({ adapter, dispatchStore, dashboardOri
       const id = decodePathSegment(requestUrl.pathname.slice("/api/dispatches/".length));
       if (request.method === "PATCH") {
         assertJsonContentType(request);
-        const item = await dispatchStore.update(id, await readJsonBody(request));
+        const input = await readJsonBody(request);
+        const current = dispatchStore.get?.(id) || dispatchStore.list().find((item) => item.id === id);
+        if (!current) {
+          sendJson(response, 404, { status: "error", message: "调度任务不存在" });
+          return true;
+        }
+        const changes = {};
+        for (const key of ["title", "prompt", "status", "scheduledAt"]) if (Object.hasOwn(input, key)) changes[key] = input[key];
+        if (Object.hasOwn(changes, "status") && !BROWSER_DISPATCH_STATUSES.has(changes.status)) {
+          sendJson(response, 400, { status: "error", message: "任务状态不能由页面这样设置" });
+          return true;
+        }
+        if (Object.hasOwn(input, "project") || Object.hasOwn(input, "targetThreadId")) {
+          const taskResult = await adapter.listTasks();
+          const target = resolveDispatchTarget(taskResult.tasks, {
+            project: Object.hasOwn(input, "project") ? input.project : current.project,
+            targetThreadId: Object.hasOwn(input, "targetThreadId") ? input.targetThreadId : current.targetThreadId
+          });
+          if (!target) {
+            sendJson(response, 400, { status: "error", message: "所选项目或目标对话不可用" });
+            return true;
+          }
+          Object.assign(changes, { project: target.project, targetThreadId: target.id, targetThreadTitle: target.title, cwd: target.cwd });
+        }
+        const item = await dispatchStore.update(id, changes);
         if (!item) sendJson(response, 404, { status: "error", message: "调度任务不存在" });
         else sendJson(response, 200, { status: "ok", item });
         return true;

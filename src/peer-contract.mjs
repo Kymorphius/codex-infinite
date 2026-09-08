@@ -58,8 +58,11 @@ export function normalizePeerDefinition(input = {}) {
   if (!NODE_ID_PATTERN.test(id)) throw new Error("Peer id is invalid");
   const transports = Array.isArray(input.transports) ? input.transports : [];
   if (transports.length < 1 || transports.length > 4) throw new Error("Peer transports must contain 1 to 4 entries");
+  const platform = input.platform == null ? "posix" : input.platform;
+  if (!["posix", "windows"].includes(platform)) throw new Error("Peer platform is unsupported");
   return Object.freeze({
     id,
+    platform,
     name: text(input.name, 80, id),
     location: text(input.location, 80, "远程"),
     transports: Object.freeze(transports.map(normalizePeerTransport))
@@ -87,6 +90,8 @@ function publicTask(task, device) {
     requestedContextWindow: Number.isSafeInteger(task?.requestedContextWindow) && task.requestedContextWindow > 0 && task.requestedContextWindow <= MAX_CONTEXT_WINDOW ? task.requestedContextWindow : null,
     modelContextWindow: Number.isSafeInteger(task?.modelContextWindow) && task.modelContextWindow > 0 ? task.modelContextWindow : null,
     project: text(task?.project, 160, "未归类"),
+    projectId: text(task?.projectId, 160) || null,
+    projectDisplayName: text(task?.projectDisplayName, 160) || null,
     boardStatus: text(task?.boardStatus, 24, "pending"),
     device
   });

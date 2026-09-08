@@ -1,6 +1,6 @@
 # Writer-owning native interface bridge
 
-- Status: implemented; live primary activation pending an idle owner desktop
+- Status: implemented and accepted on MacBook Pro; Windows Desktop rollout in progress
 - Owner: Codex Control Console
 - Date: 2026-08-31
 - Related ADRs: `docs/adr/0003-signed-owner-actions.md`,
@@ -45,6 +45,8 @@ the desktop process that already owns the writer.
   subsequent turns under the existing contract.
 - Reuse the same routing primitive for message, interrupt, draft, and approval
   actions in later increments.
+- Support the same writer-matched owner bridge on Windows after an explicit,
+  idle-only relaunch of the ordinary ChatGPT desktop with loopback CDP.
 
 ## Non-goals
 
@@ -56,7 +58,8 @@ the desktop process that already owns the writer.
 - Exposing CDP or App Server listeners on a LAN or public interface.
 - Automatically quitting or restarting the user's primary ChatGPT desktop.
 - Restarting a primary desktop while any task is active.
-- Supporting cross-platform owner discovery in this first macOS increment.
+- Automatically enabling or relaunching the Windows primary desktop during
+  normal service startup.
 
 ## User experience
 
@@ -94,6 +97,14 @@ The private node configuration adds:
 - `CODEX_CONTROL_PRIMARY_CDP_HOST`, default `127.0.0.1`;
 - `CODEX_CONTROL_PRIMARY_CDP_PORT`, default `9232`;
 - `CODEX_CONTROL_PRIMARY_CDP_ENABLED`, default false.
+- `CODEX_CONTROL_PRIMARY_PROFILE_DIR`, the ordinary desktop profile used only
+  to distinguish it from the dedicated control-console profile.
+
+The Windows scheduled-task launcher projects these private values from
+`windows-node.json` into the service environment. A fresh installation writes
+the fields with the bridge disabled; an explicit maintenance rollout changes
+only `primaryCdpEnabled` after the ordinary desktop has been relaunched on the
+matching loopback port.
 
 The primary endpoint is never included in peer snapshots or browser responses.
 No source-controlled or migrated application data is required.
@@ -101,7 +112,8 @@ No source-controlled or migrated application data is required.
 ## Design and ownership
 
 - `src/native-writer-locator.mjs` owns macOS writer-lock holder discovery and
-  maps only configured ChatGPT parent processes to normalized owner surfaces.
+  maps only configured ChatGPT parent processes to normalized owner surfaces
+  on macOS and Windows.
 - `src/native-desktop-router.mjs` owns fail-closed selection between the primary
   owner bridge and the dedicated wrapper bridge.
 - `src/native-owner-injector.mjs` installs only the allowlisted native bridge
@@ -111,6 +123,9 @@ No source-controlled or migrated application data is required.
 - `src/primary-owner-launch.mjs` provides read-only planning and an explicit
   maintenance relaunch operation; it is never called from normal service
   startup.
+- `scripts/start-windows-primary-bridge.ps1` performs the Windows interactive
+  launch only after explicit idle confirmation; it never stops an existing
+  ordinary desktop and accepts only literal loopback.
 - `src/main.mjs` wires configured endpoints and lifecycles without containing
   discovery or routing policy.
 
@@ -152,6 +167,11 @@ wait until the primary desktop is idle, explicitly relaunch only that primary
 desktop with loopback CDP enabled, then enable its private configuration and
 restart only the control service.
 
+On Windows, preserve the ordinary packaged-app profile, relaunch only its root
+ChatGPT process with port 9232 bound to literal loopback, set the private
+runtime configuration to enabled, and restart the scheduled control task. The
+dedicated profile on port 9231 is not stopped or modified.
+
 Rollback disables the primary endpoint and restarts the control service. The
 primary desktop can later be launched normally without CDP. No session, project,
 context, or credential migration is reversed.
@@ -167,11 +187,13 @@ context, or credential migration is reversed.
   bounded setup message and never attempts a second writer.
 - [x] Model, reasoning, speed, access, and context changes use the same validated
   contract on either owner surface.
-- [ ] The MacBook Pro native interface visibly reflects one reversible test
+- [x] The MacBook Pro native interface visibly reflects one reversible test
   change and the remote console reads back the same value.
-- [ ] The test value is restored and no active task, draft, or approval is lost.
+- [x] The test value is restored and no active task, draft, or approval is lost.
 - [x] CDP remains loopback-only and no owner internals enter HTTP responses.
 - [x] `npm test`, `npm run check`, and `git diff --check` pass.
+- [ ] The Windows Desktop ordinary interface accepts and visibly reflects one
+  reversible reasoning-effort change through `primary-native`.
 
 ## Verification plan
 
@@ -187,6 +209,8 @@ context, or credential migration is reversed.
 
 ## Shipped deviations
 
-The MacBook Pro deployment is intentionally left with the primary bridge
-disabled while its `自动驾驶` task is active. Real native UI acceptance and the
-reversible setting change remain pending that desktop becoming idle.
+None. After `自动驾驶` became idle, the MacBook Pro primary desktop was
+explicitly relaunched with its loopback-only bridge. A writer-matched request
+changed reasoning effort from `medium` to `high` through `primary-native`, and a
+second writer-matched request restored `medium`; both returned the owner-issued
+202 confirmation without starting a turn.

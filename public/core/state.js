@@ -4,6 +4,7 @@ export const MODULES = Object.freeze({
   sessions: { title: "会话中心", caption: "按工作目录查看原生 Codex 会话" },
   context: { title: "上下文状态", caption: "普通会话使用模型默认窗口；需要时按会话扩展" },
   priority: { title: "项目优先级", caption: "按会话活跃度与运行时间排序" },
+  skills: { title: "技能共享", caption: "查看并同步各设备的个人 Codex Skill" },
   zotero: { title: "文献库", caption: "本机 Zotero 文献与安全回写" }
 });
 

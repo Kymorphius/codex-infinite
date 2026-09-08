@@ -1,12 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RemoteMessageService, validateRemoteControl, validateRemoteMessage } from "../src/remote-message-service.mjs";
+import { RemoteMessageService, validateRemoteControl, validateRemoteDraft, validateRemoteMessage } from "../src/remote-message-service.mjs";
 
-test("remote messaging validates bounded thread and prompt contracts", () => {
-  assert.deepEqual(validateRemoteMessage({ threadId: "thread-1", prompt: "  continue\nnow  " }), { threadId: "thread-1", prompt: "continue\nnow", expectedDraftRevision: null });
+test("remote messaging validates bounded thread, prompt, and delivery contracts", () => {
+  assert.deepEqual(validateRemoteMessage({ threadId: "thread-1", prompt: "  continue\nnow  " }), { threadId: "thread-1", prompt: "continue\nnow", expectedDraftRevision: null, deliveryMode: "new-turn" });
+  assert.equal(validateRemoteMessage({ threadId: "thread-1", prompt: "change", deliveryMode: "steer" }).deliveryMode, "steer");
+  assert.throws(() => validateRemoteMessage({ threadId: "thread-1", prompt: "change", deliveryMode: "later" }), /处理方式/);
   assert.throws(() => validateRemoteMessage({ threadId: "bad;id", prompt: "go" }), /标识/);
   assert.throws(() => validateRemoteMessage({ threadId: "thread-1", prompt: " " }), /不能为空/);
   assert.throws(() => validateRemoteMessage({ threadId: "thread-1", prompt: "x".repeat(12_001) }), /过长/);
+});
+
+test("remote drafts preserve exact text and allow an empty deletion", () => {
+  assert.deepEqual(validateRemoteDraft({ threadId: "thread-1", text: " line one\nline two ", expectedDraftRevision: "a".repeat(64) }), {
+    threadId: "thread-1", text: " line one\nline two ", expectedDraftRevision: "a".repeat(64)
+  });
+  assert.deepEqual(validateRemoteDraft({ threadId: "thread-1", text: "" }), { threadId: "thread-1", text: "", expectedDraftRevision: null });
+  assert.throws(() => validateRemoteDraft({ threadId: "thread-1", text: "x".repeat(12_001) }), /过长/);
 });
 
 test("remote control accepts only exact interrupt or one-turn approval contracts", () => {
@@ -32,13 +42,31 @@ test("owner service submits through the owner native UI and prevents concurrent 
   });
   const first = service.submit({ threadId: "thread-1", prompt: "continue" });
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(dispatched[0], { threadId: "thread-1", prompt: "continue", expectedDraftRevision: null });
+  assert.deepEqual(dispatched[0], { threadId: "thread-1", prompt: "continue", expectedDraftRevision: null, deliveryMode: "new-turn" });
   await assert.rejects(() => service.submit({ threadId: "thread-1", prompt: "again" }), (error) => error.statusCode === 409);
   release();
   const result = await first;
   assert.equal(result.requestId, "request-1");
   assert.equal(result.executionAuthority, "owner-native-desktop");
   await assert.rejects(() => service.submit({ threadId: "missing", prompt: "go" }), (error) => error.statusCode === 404);
+});
+
+test("owner service updates or clears the native draft with compare-and-swap", async () => {
+  const calls = [];
+  const service = new RemoteMessageService({
+    localAdapter: { async getTask(id) { return id === "thread-1" ? { id } : null; } },
+    nativeConversationAdapter: {
+      async updateDraft(input) { calls.push(input); return input.text ? { text: input.text, revision: "b".repeat(64) } : null; }
+    }
+  });
+  const changed = await service.updateDraft({ threadId: "thread-1", text: "remote edit", expectedDraftRevision: "a".repeat(64) });
+  const cleared = await service.updateDraft({ threadId: "thread-1", text: "", expectedDraftRevision: "b".repeat(64) });
+  assert.equal(changed.draft.text, "remote edit");
+  assert.equal(cleared.draft, null);
+  assert.deepEqual(calls, [
+    { threadId: "thread-1", text: "remote edit", expectedDraftRevision: "a".repeat(64) },
+    { threadId: "thread-1", text: "", expectedDraftRevision: "b".repeat(64) }
+  ]);
 });
 
 test("owner service interrupts only a currently active native turn", async () => {
