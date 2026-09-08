@@ -12,7 +12,7 @@ import {
 test("injection decision is idempotent once the marker exists", () => {
   assert.equal(injectionDecision({ hasEntry: true, hasAnchor: true }), "already-installed");
   assert.equal(injectionDecision({ hasEntry: false, hasAnchor: true }), "install-native-entry");
-  assert.equal(injectionDecision({ hasEntry: false, hasAnchor: false }), "install-fallback-entry");
+  assert.equal(injectionDecision({ hasEntry: false, hasAnchor: false }), "wait-for-native-entry");
 });
 
 test("injection source includes a duplicate guard and dashboard origin", () => {
@@ -70,4 +70,10 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /http:\/\/127\.0\.0\.1:47831/);
   assert.doesNotMatch(source, /127\.0\.0\.1:9231/);
   assert.doesNotThrow(() => new Function(source));
+});
+
+test("loading and error pages never receive a floating fallback button rail", () => {
+  const source=buildInjectionScript("http://127.0.0.1:47831");
+  assert.doesNotMatch(source,/function createFallbackEntry|document\.body\.append\(rail\)/);
+  assert.match(source,/if \(!anchor\) \{\s+fallback\?\.remove\(\);\s+return;/);
 });

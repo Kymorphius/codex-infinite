@@ -16,9 +16,9 @@ test("all four entry icons are distinct, theme-aware and decorative", () => {
   }
 });
 
-test("native and fallback entries both select their module icon", () => {
+test("native entries retain module icons without a floating fallback", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831");
-  assert.match(source, /button\.innerHTML = entryIcons\[definition\.module\]/);
+  assert.doesNotMatch(source, /button\.innerHTML = entryIcons\[definition\.module\]/);
   assert.match(source, /entry\.innerHTML = entryIcons\[definition\.module\]/);
   assert.doesNotMatch(source, /const iconMarkup/);
   assert.doesNotThrow(() => new Function(source));

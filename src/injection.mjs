@@ -10,7 +10,7 @@ export const CONTROL_WORKSPACE_ATTRIBUTE = "data-codex-control-console-workspace
 export function injectionDecision({ hasEntry, hasAnchor }) {
   if (hasEntry) return "already-installed";
   if (hasAnchor) return "install-native-entry";
-  return "install-fallback-entry";
+  return "wait-for-native-entry";
 }
 
 export function buildInjectionScript(dashboardUrl) {
@@ -32,6 +32,7 @@ export function buildInjectionScript(dashboardUrl) {
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
   const INJECTION_VERSION = '2026-09-08.1';
+  const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
   const SESSION_ENTRY_TEXT = '会话中心';
@@ -42,7 +43,7 @@ export function buildInjectionScript(dashboardUrl) {
 
 ${nativeConversationTabsSource}
 
-  if (window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && document.querySelector(ENTRY_SELECTOR) && document.querySelector(KANBAN_ENTRY_SELECTOR) && document.querySelector(SESSION_ENTRY_SELECTOR) && document.querySelector(PRIORITY_ENTRY_SELECTOR) && document.querySelector('[data-codex-control-console-native-tabs]') && window.__codexControlConsoleObserver) return;
+  if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && document.querySelector(ENTRY_SELECTOR) && document.querySelector(KANBAN_ENTRY_SELECTOR) && document.querySelector(SESSION_ENTRY_SELECTOR) && document.querySelector(PRIORITY_ENTRY_SELECTOR) && document.querySelector('[data-codex-control-console-native-tabs]') && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
     if (window.__codexControlConsoleNativeThreadListener) document.removeEventListener('click', window.__codexControlConsoleNativeThreadListener, true);
@@ -52,6 +53,7 @@ ${nativeConversationTabsSource}
   }
   window.__codexControlConsoleInjected = true;
   window.__codexControlConsoleInjectionVersion = INJECTION_VERSION;
+  window.__codexControlConsoleEntryPolicyVersion = ENTRY_POLICY_VERSION;
 
   let observerTimer = null;
   let workspaceHost = null;
@@ -250,29 +252,6 @@ ${nativeConversationTabsSource}
     if (frame?.contentWindow) frame.contentWindow.postMessage(message, DASHBOARD_ORIGIN);
   }
 
-  function createFallbackEntry() {
-    if (document.querySelector('[data-codex-control-console-fallback]')) return;
-    const rail = document.createElement('aside');
-    rail.setAttribute('data-codex-control-console-fallback', '');
-    rail.style.cssText = 'position:fixed;left:8px;top:58px;z-index:2147483000;display:flex;align-items:center;gap:6px;';
-    for (const definition of [
-      { attribute: ENTRY_ATTRIBUTE, text: ENTRY_TEXT, module: 'console' },
-      { attribute: KANBAN_ENTRY_ATTRIBUTE, text: KANBAN_ENTRY_TEXT, module: 'board' },
-      { attribute: SESSION_ENTRY_ATTRIBUTE, text: SESSION_ENTRY_TEXT, module: 'sessions' },
-      { attribute: PRIORITY_ENTRY_ATTRIBUTE, text: PRIORITY_ENTRY_TEXT, module: 'priority' }
-    ]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.setAttribute(definition.attribute, '');
-      button.setAttribute('aria-label', definition.text);
-      button.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(0,0,0,.12);border-radius:10px;background:#fff;color:#2f2f2f;box-shadow:0 5px 18px rgba(0,0,0,.12);font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;';
-      button.innerHTML = entryIcons[definition.module] + '<span>' + definition.text + '</span>';
-      button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace(definition.module); });
-      rail.append(button);
-    }
-    document.body.append(rail);
-  }
-
   function installEntry() {
     if (!document.body) return;
     const anchor = nativeAnchor();
@@ -285,7 +264,7 @@ ${nativeConversationTabsSource}
     ];
     const missing = definitions.filter((definition) => !document.querySelector('[' + definition.attribute + ']'));
     if (!anchor) {
-      if (missing.length && !fallback) createFallbackEntry();
+      fallback?.remove();
       return;
     }
     fallback?.remove();
