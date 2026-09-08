@@ -24,10 +24,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-08-31.10') return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-08-31.11') return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-08-31.10';
+  window.__codexControlConsoleNativeContextVersion = '2026-08-31.11';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const overrides = new Map();
   const actions = [];
@@ -178,6 +178,11 @@ export function buildNativeContextInjectionScript() {
     }
     scheduleToggle();
     return { count: overrides.size };
+  };
+
+  window.__codexControlConsoleGetContextWindow = (threadId) => {
+    const normalized = String(threadId || '').trim().toLowerCase();
+    return UUID.test(normalized) ? overrides.get(normalized) || null : null;
   };
 
   window.__codexControlConsoleDrainContextActions = () => actions.splice(0, actions.length);

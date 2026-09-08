@@ -1,7 +1,7 @@
 # 0005: Scope Chromium LNA and CSP compatibility to the dedicated wrapper
 
 - Status: accepted
-- Date: 2026-08-30
+- Date: 2026-08-30; amended 2026-09-03
 - Deciders: Codex Control Console maintainers
 - Related specs: `docs/specs/2026-08-30-chromium-lna-local-dashboard.md`
 
@@ -15,13 +15,22 @@ navigation with `ERR_BLOCKED_BY_CSP`. The opaque application origin has no
 supported web path to request LNA permission, while the embedded workspace is a
 core product surface.
 
+Chromium 152 moved iframe navigation enforcement behind
+`LocalNetworkAccessForSubframeNavigations`. Disabling the umbrella
+`LocalNetworkAccessChecks` feature makes Chromium select its legacy Private
+Network Access navigation path, which still blocks the frame. The renderer also
+reports the iframe `local-network-access` permission-policy token as unsupported.
+
 ## Decision
 
 Launch only the dedicated wrapper process with
-`--disable-features=LocalNetworkAccessChecks`. Retain the dedicated profile,
-fixed loopback dashboard/CDP origins, exact-origin mutation validation, bounded
-contracts, and credential isolation. Version the wrapper process signature so
-an instance without this compatibility mode is never reused.
+`--disable-features=LocalNetworkAccessForSubframeNavigations`, leaving the
+umbrella LNA feature enabled so Chromium does not fall back to its legacy
+navigation check. Retain the dedicated profile, fixed loopback dashboard/CDP origins,
+exact-origin mutation validation, bounded contracts, and credential isolation.
+Omit the unsupported iframe permission-policy token while retaining the
+clipboard permissions. Version the wrapper process signature so an instance
+without this compatibility mode is never reused.
 
 Enable `Page.setBypassCSP` only on the selected dedicated Codex main-page target.
 Register the injection and compatibility marker as new-document scripts, then
@@ -53,16 +62,16 @@ Never modify the application archive or replace the live React document.
 
 ## Consequences
 
-The embedded dashboard works on the current runtime. LNA checks are disabled
-for every renderer in the dedicated wrapper process, which is a broader browser
-capability than the one dashboard iframe. CSP enforcement is bypassed for the
-dedicated main-page target, which is broader than adding one `frame-src` origin
-but narrower than disabling web security for the process. The exposure is
-contained to an isolated profile and compensated by loopback-only listeners,
-fixed injected URLs, and exact-origin mutations; normal Codex and external
-browsers remain unchanged. Future desktop versions should be re-evaluated for a
-host-supported permission grant so both compatibility relaxations can be
-removed.
+The embedded dashboard works on the current runtime. LNA subframe-navigation
+checks are disabled for every renderer in the dedicated wrapper process, which
+is a broader browser capability than the one dashboard iframe.
+CSP enforcement is bypassed for the dedicated main-page target, which is
+broader than adding one `frame-src` origin but narrower than disabling web
+security for the process. The exposure is contained to an isolated profile and
+compensated by loopback-only listeners, fixed injected URLs, and exact-origin
+mutations; normal Codex and external browsers remain unchanged. Future desktop
+versions should be re-evaluated for a host-supported permission grant so both
+compatibility relaxations can be removed.
 
 ## Supersedes / superseded by
 

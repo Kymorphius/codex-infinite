@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { draftRevision, NativeConversationAdapter } from "../src/native-conversation-adapter.mjs";
+import { canonicalDraftText, draftRevision, NativeConversationAdapter } from "../src/native-conversation-adapter.mjs";
 
-function harness({ draft = "", approvals = [], approvalResult = { ok: true } } = {}) {
+function harness({ draft = "", approvals = [], approvalResult = { ok: true }, platform, nativeAction = "new-turn" } = {}) {
   const calls = [];
   let inserted = draft;
   const connection = {
@@ -15,7 +15,12 @@ function harness({ draft = "", approvals = [], approvalResult = { ok: true } } =
       if (expression.includes("navigate-to-route")) return true;
       if (expression.includes("data-app-action-sidebar-thread-id")) return { ready: true, draft };
       if (expression.includes("document.activeElement")) return true;
-      if (expression.includes("send.click")) { inserted = ""; return true; }
+      if (expression.includes("button.click")) {
+        const desired = expression.includes('const desired = "queue"') ? "queue" : expression.includes('const desired = "steer"') ? "steer" : "new-turn";
+        const inverted = ["queue", "steer"].includes(desired) && desired !== nativeAction;
+        if (!inverted) inserted = "";
+        return { ok: desired === nativeAction || inverted, inverted, action: nativeAction };
+      }
       if (expression.includes("innerText")) return inserted;
       return true;
     },
@@ -23,11 +28,13 @@ function harness({ draft = "", approvals = [], approvalResult = { ok: true } } =
       calls.push(["send", method, params]);
       if (method === "Input.insertText") inserted = params.text;
       if (method === "Input.dispatchKeyEvent" && params.key === "Backspace" && params.type === "keyDown") inserted = "";
+      if (method === "Input.dispatchKeyEvent" && params.key === "Enter" && params.type === "rawKeyDown") inserted = "";
     },
     async close() { calls.push(["close"]); }
   };
   const adapter = new NativeConversationAdapter({
     cdpOrigin: "http://127.0.0.1:9231",
+    platform,
     pollMs: 0,
     discover: async () => [{ id: "native" }],
     choose: () => ({ webSocketDebuggerUrl: "ws://127.0.0.1/native" }),
@@ -59,6 +66,17 @@ test("native conversation adapter reads and safely replaces an unchanged owner d
   assert.ok(calls.some((call) => call[0] === "send" && call[1] === "Input.dispatchKeyEvent"));
 });
 
+test("native draft comparison ignores contenteditable-only blank-line expansion", async () => {
+  const logical = "说明：\n\n- 第一项\n- 第二项";
+  const windowsInnerText = "说明：\n\n\n\n\n- 第一项\n\n- 第二项";
+  assert.equal(canonicalDraftText(windowsInnerText), canonicalDraftText(logical));
+  assert.equal(draftRevision(windowsInnerText), draftRevision(logical));
+  const { adapter, calls } = harness({ draft: windowsInnerText });
+  const result = await adapter.updateDraft({ threadId: "01a04445-8d03-7243-a4d3-181180bb626d", text: logical, expectedDraftRevision: draftRevision(logical) });
+  assert.equal(result.revision, draftRevision(logical));
+  assert.equal(calls.some((call) => call[0] === "send"), false);
+});
+
 test("native conversation adapter rejects a stale draft revision without changing the composer", async () => {
   const { adapter, calls } = harness({ draft: "new owner draft" });
   await assert.rejects(adapter.sendMessage({
@@ -67,6 +85,37 @@ test("native conversation adapter rejects a stale draft revision without changin
     expectedDraftRevision: draftRevision("old owner draft")
   }), /已经变化/);
   assert.equal(calls.some((call) => call[0] === "send"), false);
+});
+
+test("native conversation adapter synchronizes edits and deletions without sending", async () => {
+  const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
+  const edited = harness({ draft: "owner draft" });
+  assert.deepEqual(await edited.adapter.updateDraft({ threadId, text: "remote edit", expectedDraftRevision: draftRevision("owner draft") }), {
+    text: "remote edit", revision: draftRevision("remote edit")
+  });
+  assert.equal(edited.calls.some((call) => call[0] === "evaluate" && call[1].includes("send.click")), false);
+  const cleared = harness({ draft: "remote edit" });
+  assert.equal(await cleared.adapter.updateDraft({ threadId, text: "", expectedDraftRevision: draftRevision("remote edit") }), null);
+  assert.ok(cleared.calls.some((call) => call[0] === "send" && call[2]?.key === "Backspace"));
+});
+
+test("native conversation adapter selects all with the owner platform modifier", async () => {
+  const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
+  const windows = harness({ draft: "owner draft", platform: "win32" });
+  await windows.adapter.updateDraft({ threadId, text: "", expectedDraftRevision: draftRevision("owner draft") });
+  const selectAll = windows.calls.find((call) => call[0] === "send" && call[2]?.key === "a");
+  assert.equal(selectAll[2].modifiers, 2);
+});
+
+test("native conversation adapter submits explicit queue or steer follow-ups", async () => {
+  const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
+  const queue = harness({ platform: "win32", nativeAction: "steer" });
+  await queue.adapter.sendMessage({ threadId, prompt: "do this next", deliveryMode: "queue" });
+  const inverted = queue.calls.find((call) => call[0] === "send" && call[2]?.key === "Enter");
+  assert.equal(inverted[2].modifiers, 10);
+  const steer = harness({ nativeAction: "steer" });
+  await steer.adapter.sendMessage({ threadId, prompt: "change direction", deliveryMode: "steer" });
+  assert.equal(steer.calls.some((call) => call[0] === "send" && call[2]?.key === "Enter"), false);
 });
 
 test("native conversation adapter interrupts only an exact owner turn through the desktop bridge", async () => {

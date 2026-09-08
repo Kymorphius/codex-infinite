@@ -35,12 +35,30 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 ## Current module ownership
 
 - `src/main.mjs` — composition root and lifecycle only.
-- `src/board.mjs`, `src/priority.mjs` — pure derived domain views.
+- `src/board.mjs`, `src/priority.mjs`, `public/core/project-priority.js` — pure
+  derived domain views and the browser-compatible shared priority policy.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.
+- `src/dispatch-audit.mjs` — bounded append-only dispatch attempt history; the
+  dispatch snapshot remains authoritative and the audit is never replayed.
+- `src/runtime-diagnostics.mjs`, `src/diagnostics-http.mjs` — passive normalized
+  readiness checks and their read-only loopback transport.
 - `src/context-http.mjs`, `src/dispatch-http.mjs`, `src/tasks-http.mjs`, `src/zotero-http.mjs` — bounded-context HTTP route orchestration.
 - `src/http-utils.mjs`, `src/static-assets.mjs` — shared loopback transport primitives and allowlisted public assets.
-- `src/task-adapter.mjs`, `src/zotero-adapter.mjs`, `src/zotero-read-contract.mjs`, `src/zotero-read-metadata.mjs` — external providers and normalized Zotero read boundaries.
-- `src/peer-contract.mjs`, `src/peer-config.mjs`, `src/ssh-peer-adapter.mjs`, `src/federated-task-adapter.mjs` — trusted node definitions, local-only snapshot/activity contracts, adaptive direct/relay SSH transport, and owner-routed aggregate read views.
+- `src/task-adapter.mjs`, `src/current-project-names.mjs`, `src/zotero-adapter.mjs`, `src/zotero-read-contract.mjs`, `src/zotero-read-metadata.mjs` — external providers, read-only current-project display-name resolution, and normalized Zotero read boundaries.
+- `src/peer-contract.mjs`, `src/peer-config.mjs`, `src/ssh-peer-commands.mjs`, `src/ssh-peer-adapter.mjs`, `src/federated-task-adapter.mjs` — trusted node definitions, local-only snapshot/activity contracts, fixed POSIX/Windows peer commands, adaptive direct/relay SSH transport, and owner-routed aggregate read views.
+- `src/skill-contract.mjs`, `src/local-skill-adapter.mjs`,
+  `src/skill-config-store.mjs`, `src/ssh-peer-skills.mjs`,
+  `src/skill-sync-service.mjs`, `src/skills-http.mjs` — bounded personal and
+  repository Skill catalogs and packages, task-index-derived project discovery,
+  narrow native Codex enablement configuration, atomic backup/install, peer
+  transport, explicit multi-device coordination, and loopback/signed HTTP
+  boundaries.
+- `src/project-copy-contract.mjs`, `src/windows-project-copy-adapter.mjs`,
+  `src/project-copy-service.mjs`, `src/project-copy-http.mjs`,
+  `src/native-project-import-adapter.mjs` — fail-closed
+  remote-project selection, stdin-only Windows manifest inspection, SFTP
+  staging transport, verified local promotion, native fork/import conversation
+  cloning, and exact-origin HTTP workflow.
 - `src/approval-contract.mjs` — pure bounded contract for owner-issued approval
   capabilities; only one-turn acceptance and denial cross the node boundary.
 - `src/execution-transcript.mjs` — pure, bounded full-fidelity projection and
@@ -53,10 +71,36 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   loopback desktop boundary for passively retaining live App Server approval
   requests, reading revisioned native drafts, opening the owner task, and
   applying exact owner-routed actions through native Codex.
+- `src/chatgpt-project-move-contract.mjs`,
+  `src/native-chatgpt-project-adapter.mjs` — pure fail-closed policy and the
+  loopback CDP adapter that invokes an exact native ChatGPT project-menu action
+  by stable conversation/project IDs and verifies native project ownership.
 - `src/node-runtime.mjs` — normalized owner-runtime capability contract and cached
   native-host health policy; it describes routing without claiming feature installation.
 - `src/zotero-local-api.mjs`, `src/zotero-local-contract.mjs`, `src/zotero-write-validation.mjs`, `src/zotero-credentials.mjs` — credential-isolated Zotero write orchestration, safe protocol mapping, and allowlisted validation.
-- `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs` — dedicated Codex integration infrastructure.
+- `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs`, `src/desktop-host.mjs` — dedicated Codex integration infrastructure and platform-specific desktop hosting.
+- `src/native-conversation-tabs.mjs` — ephemeral native-shell tab state and
+  bounded presentation injection; native routes and owner-routed readers remain
+  owned by their existing adapters.
+- `src/native-sidebar-labels.mjs` — bounded read-only sidebar decoration for
+  current project and execution-device labels; native ordering, navigation,
+  expansion, and pin state remain native-owned.
+- `src/native-remote-sidebar.mjs` and `src/native-remote-sidebar-render.mjs` —
+  bounded remote-device/project/conversation rendering and owner-routed actions.
+- `src/native-unified-sidebar.mjs` — optional unified presentation and local
+  remote-project section assignments; owned lists follow native section collapse
+  without moving native nodes or changing project ownership.
+- `src/new-project-policy.mjs`, `src/new-project-service.mjs`, and
+  `src/native-new-projects.mjs` — pure new-project eligibility, read-only native
+  project/task adapter with private graduation persistence, and an additive
+  native-style sidebar view that preserves original membership.
+- `src/native-attention-sticky.mjs` — scoped sticky positioning for the four
+  native attention-layer headings without changing section ownership.
+- `src/native-open-local-project.mjs` — bounded native-sidebar affordance that
+  delegates local directory selection to the desktop's existing project flow.
+- `src/native-writer-locator.mjs`, `src/windows-writer-inspection.mjs` —
+  fail-closed active-writer routing with macOS process inspection and Windows
+  Restart Manager ownership discovery behind one normalized contract.
 - `src/http-server.mjs` — loopback server lifecycle and top-level route composition; bounded contexts own their handlers.
 - `src/dashboard-handlers.mjs` — ordered bounded-context handler registry used by the loopback server.
 - `src/health-http.mjs`, `src/tasks-http.mjs` — health and aggregate/local-only node snapshot route ownership.

@@ -1,3 +1,4 @@
+import { inputSourceFromSessionRecord } from "./session-input-source.mjs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -54,6 +55,7 @@ function statusFromResponseItem(payload, current) {
 
 export function parseSessionJsonl(content, filePath = "") {
   let meta = null;
+  let latestInputSource = null;
   let firstUserMessage = "";
   let status = "unknown";
   let lastTimestamp = null;
@@ -68,6 +70,7 @@ export function parseSessionJsonl(content, filePath = "") {
     } catch {
       continue;
     }
+    latestInputSource = inputSourceFromSessionRecord(record) || latestInputSource;
     recordCount += 1;
     lastTimestamp = record.timestamp || lastTimestamp;
     if (record.type === "session_meta" && record.payload && !meta) meta = record.payload;
@@ -96,6 +99,7 @@ export function parseSessionJsonl(content, filePath = "") {
     updatedAt: lastTimestamp || meta.timestamp || null,
     sourceFile: filePath || null,
     recordCount,
+    latestInputSource,
     model: threadSettings?.model || meta.base_instructions?.provenance?.model || null,
     reasoningEffort: threadSettings?.reasoningEffort || null,
     serviceTier: threadSettings?.serviceTier || null,
@@ -160,7 +164,7 @@ async function readFileTail(filePath, maxBytes = DEFAULT_ACTIVITY_BYTES) {
 }
 
 export class CodexTaskAdapter {
-  constructor({ sessionRoot, archivedSessionRoot, titleIndex, runtimeStatusProvider, contextWindowStore = null, sessionSettingsIndex = null, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device } = {}) {
+  constructor({ sessionRoot, archivedSessionRoot, titleIndex, runtimeStatusProvider, contextWindowStore = null, sessionSettingsIndex = null, projectNameIndex = null, threadProjectIndex = null, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device, readTaskFileImpl = readTaskFile } = {}) {
     this.sessionRoot = sessionRoot;
     this.archivedSessionRoot = archivedSessionRoot;
     this.maxFiles = maxFiles;
@@ -169,7 +173,13 @@ export class CodexTaskAdapter {
     this.runtimeStatusProvider = runtimeStatusProvider;
     this.contextWindowStore = contextWindowStore;
     this.sessionSettingsIndex = sessionSettingsIndex;
+    this.projectNameIndex = projectNameIndex;
+    this.threadProjectIndex = threadProjectIndex;
     this.device = normalizeSessionDevice(device);
+    this.readTaskFile = readTaskFileImpl;
+    this.fileCache = new Map();
+    this.listing = null;
+    this.taskIndex = new Map();
   }
 
   contextProjection(threadId) {
@@ -184,7 +194,13 @@ export class CodexTaskAdapter {
     }
   }
 
-  async listTasks() {
+  listTasks() {
+    if (this.listing) return this.listing;
+    this.listing = this.listTasksFresh().finally(() => { this.listing = null; });
+    return this.listing;
+  }
+
+  async listTasksFresh() {
     if (!this.sessionRoot) {
       return { status: "disconnected", source: "codex-session-metadata-read-only", readOnly: true, tasks: [], projects: [], devices: [{ ...this.device, status: "disconnected" }], message: "未配置 Codex 本地任务目录。" };
     }
@@ -195,9 +211,21 @@ export class CodexTaskAdapter {
       stats.sort((left, right) => right.stat.mtimeMs - left.stat.mtimeMs);
       const indexedTitles = await this.titleIndex?.read() || new Map();
       const runtimeStatuses = await this.runtimeStatusProvider?.readThreadStatuses() || new Map();
+      let projectNames = null;
+      try { projectNames = await this.projectNameIndex?.read?.() || null; } catch {}
       const tasks = [];
-      for (const { filePath } of stats.slice(0, this.maxFiles)) {
-        let task = await readTaskFile(filePath, this.maxBytesPerFile);
+      const selected = stats.slice(0, this.maxFiles);
+      const selectedPaths = new Set(selected.map(({ filePath }) => filePath));
+      for (const { filePath, stat } of selected) {
+        const signature = `${stat.size}:${stat.mtimeMs}`;
+        const cached = this.fileCache.get(filePath);
+        let task;
+        if (cached?.signature === signature) task = cached.task ? { ...cached.task } : null;
+        else {
+          const parsed = await this.readTaskFile(filePath, this.maxBytesPerFile);
+          this.fileCache.set(filePath, { signature, task: parsed });
+          task = parsed ? { ...parsed } : null;
+        }
         const status = task ? runtimeStatuses.get(task.id) || task.status : null;
         if (task && status === "active" && this.sessionSettingsIndex?.read) {
           try {
@@ -205,25 +233,46 @@ export class CodexTaskAdapter {
             if (latest) task = { ...task, ...latest };
           } catch {}
         }
-        if (task) tasks.push({
-          ...enrichTaskForBoard({ ...task, title: indexedTitles.get(task.id) || task.title, status }),
+        if (task) {
+          const enriched = enrichTaskForBoard({ ...task, title: indexedTitles.get(task.id) || task.title, status });
+          tasks.push({
+          ...enriched,
+          projectDisplayName: projectNames?.nameFor?.(task.cwd) || enriched.project,
           ...this.contextProjection(task.id),
           device: this.device
-        });
+          });
+        }
       }
-      tasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
-      if (tasks.length === 0) {
+      for (const filePath of this.fileCache.keys()) if (!selectedPaths.has(filePath)) this.fileCache.delete(filePath);
+      let currentProjects = null;
+      try { currentProjects = await this.threadProjectIndex?.read?.(tasks.map((task) => task.id)) || null; } catch {}
+      const currentTasks = tasks.map((task) => {
+        const current = currentProjects?.currentFor?.(task.id);
+        if (!current) return task;
+        const cwd = current.cwd || task.cwd;
+        const enriched = enrichTaskForBoard({ ...task, cwd });
+        return {
+          ...enriched,
+          projectId: current.projectId,
+          projectDisplayName: current.projectId
+            ? current.projectName || projectNames?.nameFor?.(cwd) || enriched.project
+            : projectNames?.nameFor?.(cwd) || current.projectName || enriched.project
+        };
+      });
+      currentTasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+      this.taskIndex = new Map(currentTasks.map((task) => [task.id, task]));
+      if (currentTasks.length === 0) {
         return { status: "empty", source: "codex-session-metadata-read-only", readOnly: true, tasks: [], projects: [], devices: [this.device], message: "尚未发现可读取的 Codex 任务记录。" };
       }
-      return { status: "connected", source: "codex-session-metadata-read-only", readOnly: true, tasks, projects: buildProjectPriorities(tasks), devices: [this.device] };
+      return { status: "connected", source: "codex-session-metadata-read-only", readOnly: true, tasks: currentTasks, projects: buildProjectPriorities(currentTasks), devices: [this.device] };
     } catch (error) {
       return { status: "error", source: "codex-session-metadata-read-only", readOnly: true, tasks: [], projects: [], devices: [{ ...this.device, status: "error" }], message: `读取 Codex 任务记录失败：${error.message}` };
     }
   }
 
   async getTask(id) {
-    const result = await this.listTasks();
-    const task = result.tasks.find((candidate) => candidate.id === id) || null;
+    const indexed = this.taskIndex.get(String(id || "")) || null;
+    const task = indexed || (await this.listTasks()).tasks.find((candidate) => candidate.id === id) || null;
     if (!task?.sourceFile || !this.sessionSettingsIndex?.read) return task;
     const latest = await this.sessionSettingsIndex.read(task.sourceFile);
     return latest ? { ...task, ...latest } : task;

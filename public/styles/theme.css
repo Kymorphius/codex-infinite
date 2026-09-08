@@ -16,10 +16,17 @@
 
 :root[data-theme="dark"] body,
 :root[data-theme="dark"] .app-shell { background: var(--native-ui-canvas); color: var(--native-ui-text); }
+:root[data-theme="dark"] .workspace-tabbar { border-color: var(--native-ui-border); background: #202022; }
+:root[data-theme="dark"] .workspace-tab { color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .workspace-tab:hover { background: #29292b; color: var(--native-ui-text); }
+:root[data-theme="dark"] .workspace-tab.is-active { border-color: var(--native-ui-border-strong); background: var(--native-ui-canvas); color: var(--native-ui-text); }
+:root[data-theme="dark"] .workspace-tab-icon { background: #ededf0; color: #202022; }
+:root[data-theme="dark"] .workspace-tab-close:hover { background: #38383b; }
 :root[data-theme="dark"] .topbar,
 :root[data-theme="dark"] .module-nav { border-color: var(--native-ui-border); background: rgba(20,20,20,.94); backdrop-filter: blur(18px); }
 :root[data-theme="dark"] .module-tab { color: var(--native-ui-text-tertiary); }
-:root[data-theme="dark"] .module-tab.is-active { border-bottom-color: var(--native-ui-text); color: var(--native-ui-text); }
+:root[data-theme="dark"] .module-tab:hover { background: var(--native-ui-surface-hover); color: var(--native-ui-text); }
+:root[data-theme="dark"] .module-tab.is-active { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface-raised); color: var(--native-ui-text); box-shadow: none; }
 :root[data-theme="dark"] .module-caption,
 :root[data-theme="dark"] .eyebrow,
 :root[data-theme="dark"] .muted,
@@ -70,6 +77,8 @@
 :root[data-theme="dark"] .session-scope-summary span,
 :root[data-theme="dark"] .session-device-role,
 :root[data-theme="dark"] .zotero-tag { background: var(--native-ui-surface-hover); color: var(--native-ui-text-secondary) !important; }
+:root[data-theme="dark"] .session-device-role[data-role="remote"] { background: #20334f; color: #8fbdff !important; }
+:root[data-theme="dark"] .session-device-role[data-role="local"] { background: #35284d; color: #c3a7ff !important; }
 :root[data-theme="dark"] .task-open,
 :root[data-theme="dark"] .session-view-actions { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface-raised); color: var(--native-ui-text-secondary); }
 :root[data-theme="dark"] .task-open:hover,
@@ -149,6 +158,12 @@
 :root[data-theme="dark"] .conversation-stop:hover:not(:disabled) { border-color: #985c53; background: rgba(205,94,78,.1); color: #dc8a7c; }
 :root[data-theme="dark"] .conversation-entry-label { color: #a6a6ac; }
 :root[data-theme="dark"] .conversation-entry p { color: var(--native-chat-dark-text); }
+:root[data-theme="dark"] .conversation-markdown { color: var(--native-chat-dark-text); }
+:root[data-theme="dark"] .conversation-markdown blockquote { border-color: #4b4b50; color: #aaaab0; }
+:root[data-theme="dark"] .conversation-markdown code { background: #333337; }
+:root[data-theme="dark"] .conversation-markdown pre { border-color: #3d3d41; background: #242427; }
+:root[data-theme="dark"] .conversation-markdown pre code { background: transparent; }
+:root[data-theme="dark"] .conversation-markdown a { color: #77aee7; }
 :root[data-theme="dark"] .conversation-entry time { color: #77777d; }
 :root[data-theme="dark"] .conversation-codex-mark { border-color: #414144; background: #29292b; color: #ededf0; }
 :root[data-theme="dark"] .conversation-entry[data-role="user"] .conversation-entry-body { background: #303033; }
@@ -169,6 +184,10 @@
 :root[data-theme="dark"] .conversation-setting[data-setting="context"][data-tone="enabled"] { background: #252a27; color: #86c5a2; }
 :root[data-theme="dark"] .conversation-setting:hover:not(:disabled),
 :root[data-theme="dark"] .conversation-setting[aria-expanded="true"] { background: #303033; color: #ededf0; }
+:root[data-theme="dark"] .conversation-follow-up { color: #8f8f95; }
+:root[data-theme="dark"] .conversation-follow-up button { color: #a6a6ac; }
+:root[data-theme="dark"] .conversation-follow-up button:hover,
+:root[data-theme="dark"] .conversation-follow-up button[aria-pressed="true"] { background: #303033; color: #ededf0; }
 :root[data-theme="dark"] .conversation-settings-menu { border-color: #48484c; background: rgba(41,41,43,.98); box-shadow: 0 17px 46px rgba(0,0,0,.42); }
 :root[data-theme="dark"] .conversation-settings-menu-option { color: #ededf0; }
 :root[data-theme="dark"] .conversation-settings-menu-option:hover,

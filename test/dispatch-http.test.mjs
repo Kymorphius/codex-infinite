@@ -25,7 +25,9 @@ async function start(t, { dispatchStore } = {}) {
 function memoryDispatchStore() {
   const items = new Map();
   return {
+    auditStore: { async list(id) { return [{ eventId: "event-1", dispatchId: id, type: "created" }]; } },
     list() { return [...items.values()]; },
+    get(id) { return items.get(id) || null; },
     async create(input) { const item = { id: "dispatch-1", status: "queued", ...input }; items.set(item.id, item); return item; },
     async update(id, patch) { const item = items.get(id); if (!item) return null; const updated = { ...item, ...patch }; items.set(id, updated); return updated; },
     async remove(id) { return items.delete(id); }
@@ -46,8 +48,15 @@ test("dispatch HTTP routes preserve create, list, update, and remove contracts",
 
   const listed = await request("/api/dispatches");
   assert.equal((await listed.json()).items.length, 1);
+  const audit = await request("/api/dispatches/dispatch-1/audit");
+  assert.deepEqual((await audit.json()).events.map((event) => event.type), ["created"]);
   const updated = await request("/api/dispatches/dispatch-1", { method: "PATCH", headers, body: JSON.stringify({ status: "backlog" }) });
   assert.equal((await updated.json()).item.status, "backlog");
+  const edited = await request("/api/dispatches/dispatch-1", { method: "PATCH", headers, body: JSON.stringify({ title: "Edited", prompt: "Updated prompt", project: "demo", targetThreadId: "thread-1" }) });
+  const editedItem = (await edited.json()).item;
+  assert.equal(editedItem.title, "Edited");
+  assert.equal(editedItem.targetThreadTitle, "Demo");
+  assert.equal(editedItem.cwd, "/tmp/demo");
   assert.equal((await request("/api/dispatches/dispatch-1", { method: "DELETE", headers: { origin: config().dashboardOrigin } })).status, 200);
   assert.equal((await request("/api/dispatches/dispatch-1", { method: "DELETE", headers: { origin: config().dashboardOrigin } })).status, 404);
 });
@@ -66,6 +75,16 @@ test("dispatch mutations fail closed on origin, content type, and body limits", 
   assert.equal((await request("/api/dispatches/%ZZ", {
     method: "DELETE", headers: { origin: config().dashboardOrigin }
   })).status, 400);
+  assert.equal((await request("/api/dispatches", {
+    method: "POST", headers: { origin: config().dashboardOrigin, "content-type": "application/json" }, body
+  })).status, 201);
+  const forged = await request("/api/dispatches/dispatch-1", {
+    method: "PATCH", headers: { origin: config().dashboardOrigin, "content-type": "application/json" },
+    body: JSON.stringify({ status: "delivery_unknown", attemptCount: 99, activeAttemptId: "forged" })
+  });
+  assert.equal(forged.status, 400);
+  const unchanged = await request("/api/dispatches");
+  assert.equal((await unchanged.json()).items[0].status, "queued");
   assert.equal((await request("/api/dispatches", { method: "PUT" })).status, 405);
 });
 

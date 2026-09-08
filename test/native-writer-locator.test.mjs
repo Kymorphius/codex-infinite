@@ -30,7 +30,7 @@ test("writer locator maps a lock holder through its parent to the primary native
     "200 150 /Applications/ChatGPT.app/Contents/Resources/codex app-server",
     "150 1 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/Users/test/Library/Application Support/Codex --remote-debugging-address=127.0.0.1 --remote-debugging-port=9232"
   ].join("\n");
-  const locator = new NativeWriterLocator({ config, execFileImpl: executor({ ps }) });
+  const locator = new NativeWriterLocator({ config, platform: "darwin", execFileImpl: executor({ ps }) });
   assert.deepEqual(await locator.locate(threadId), {
     state: "ready", surface: "primary-native", bridge: "writer-matched", cdpOrigin: "http://127.0.0.1:9232"
   });
@@ -41,7 +41,7 @@ test("writer locator refuses to route a primary-owned thread when its bridge is 
     "200 150 codex app-server",
     "150 1 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT"
   ].join("\n");
-  const locator = new NativeWriterLocator({ config: { ...config, primaryCdpEnabled: false }, execFileImpl: executor({ ps }) });
+  const locator = new NativeWriterLocator({ config: { ...config, primaryCdpEnabled: false }, platform: "darwin", execFileImpl: executor({ ps }) });
   assert.deepEqual(await locator.locate(threadId), { state: "bridge-unavailable", surface: "primary-native", bridge: "writer-matched" });
 });
 
@@ -50,20 +50,45 @@ test("writer locator keeps a dedicated-profile-owned thread on its own native su
     "200 150 codex app-server",
     "150 1 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/Users/test/Library/Application Support/Codex Control Console --remote-debugging-address=127.0.0.1 --remote-debugging-port=9231"
   ].join("\n");
-  const locator = new NativeWriterLocator({ config, execFileImpl: executor({ ps }) });
+  const locator = new NativeWriterLocator({ config, platform: "darwin", execFileImpl: executor({ ps }) });
   assert.deepEqual(await locator.locate(threadId), {
     state: "ready", surface: "dedicated-native", bridge: "writer-matched", cdpOrigin: "http://127.0.0.1:9231"
   });
 });
 
 test("writer locator uses the dedicated native surface only when the thread is dormant", async () => {
-  const locator = new NativeWriterLocator({ config, execFileImpl: executor({ lsof: "" }) });
+  const locator = new NativeWriterLocator({ config, platform: "darwin", execFileImpl: executor({ lsof: "" }) });
   assert.deepEqual(await locator.locate(threadId), {
     state: "ready", surface: "dedicated-native", bridge: "dormant-fallback", cdpOrigin: "http://127.0.0.1:9231"
   });
 });
 
 test("writer locator fails closed for an unknown writer parent", async () => {
-  const locator = new NativeWriterLocator({ config, execFileImpl: executor({ ps: "200 1 /usr/local/bin/other-server" }) });
+  const locator = new NativeWriterLocator({ config, platform: "darwin", execFileImpl: executor({ ps: "200 1 /usr/local/bin/other-server" }) });
   assert.deepEqual(await locator.locate(threadId), { state: "unknown-writer" });
+});
+
+test("Windows writer locator follows the Restart Manager holder to the dedicated desktop", async () => {
+  const windowsConfig = {
+    ...config,
+    sourceCodexHome: "C:\\Users\\Admin\\.codex",
+    profileDirectory: "C:\\Users\\Admin\\AppData\\Local\\Codex Control Console\\Profile",
+    primaryProfileDirectory: "C:\\Users\\Admin\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Roaming\\Codex\\web\\Codex"
+  };
+  const locator = new NativeWriterLocator({
+    config: windowsConfig,
+    platform: "win32",
+    async execFileImpl() {
+      return { stdout: JSON.stringify({
+        HolderPids: [200],
+        Processes: [
+          { ProcessId: 200, ParentProcessId: 150, ExecutablePath: "C:\\Users\\Admin\\AppData\\Local\\Programs\\OpenAI\\Codex\\bin\\codex.exe", CommandLine: "codex app-server" },
+          { ProcessId: 150, ParentProcessId: 1, ExecutablePath: "C:\\Program Files\\WindowsApps\\OpenAI.Codex_1\\app\\ChatGPT.exe", CommandLine: 'ChatGPT.exe --user-data-dir="C:\\Users\\Admin\\AppData\\Local\\Codex Control Console\\Profile" --remote-debugging-port=9231' }
+        ]
+      }) };
+    }
+  });
+  assert.deepEqual(await locator.locate(threadId), {
+    state: "ready", surface: "dedicated-native", bridge: "writer-matched", cdpOrigin: "http://127.0.0.1:9231"
+  });
 });

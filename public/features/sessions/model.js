@@ -1,21 +1,27 @@
+import { calculateProjectPriority } from "../../core/project-priority.js";
+
 export function groupSessionsByDirectory(tasks = []) {
   const groups = new Map();
   for (const task of tasks) {
     const directory = typeof task.cwd === "string" && task.cwd.trim() ? task.cwd.trim() : "";
     const key = directory || "__unclassified__";
-    if (!groups.has(key)) groups.set(key, { key, directory, project: task.project || "未归类", tasks: [] });
+    if (!groups.has(key)) groups.set(key, { key, directory, project: task.projectDisplayName || task.project || "未归类", tasks: [] });
     groups.get(key).tasks.push(task);
   }
   return Array.from(groups.values()).map((group) => ({
     ...group,
-    tasks: group.tasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
+    tasks: group.tasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || ""))),
+    ...calculateProjectPriority(group.tasks)
   })).sort((left, right) => (
-    String(right.tasks[0]?.updatedAt || "").localeCompare(String(left.tasks[0]?.updatedAt || ""))
+    right.priorityScore - left.priorityScore
+    || String(right.lastConversationAt || "").localeCompare(String(left.lastConversationAt || ""))
     || left.project.localeCompare(right.project, "zh-CN")
+    || left.directory.localeCompare(right.directory)
   ));
 }
 
 export function groupSessionsByDevice(devices = [], tasks = []) {
+  const configuredOrder = new Map(devices.map((device, index) => [device.id, index]));
   const configured = new Map(devices.map((device) => [device.id, { ...device, tasks: [] }]));
   for (const task of tasks) {
     const device = task.device || devices[0] || { id: "local", name: "本机", kind: "local-codex", location: "本机", status: "connected" };
@@ -26,7 +32,16 @@ export function groupSessionsByDevice(devices = [], tasks = []) {
     ...device,
     projects: groupSessionsByDirectory(device.tasks),
     latestAt: device.tasks.reduce((latest, task) => String(task.updatedAt || "") > latest ? String(task.updatedAt || "") : latest, "")
-  })).sort((left, right) => String(right.latestAt || "").localeCompare(String(left.latestAt || "")) || left.name.localeCompare(right.name, "zh-CN"));
+  })).sort((left, right) => (
+    Number(left.kind === "local-codex") - Number(right.kind === "local-codex")
+    || (configuredOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (configuredOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER)
+    || String(left.name || left.id).localeCompare(String(right.name || right.id), "zh-CN")
+    || String(left.id).localeCompare(String(right.id))
+  ));
+}
+
+export function deviceRoleLabel(device = {}) {
+  return device.kind === "local-codex" ? "本机" : "远端";
 }
 
 export function filterSessions(tasks = [], { query = "", status = "all" } = {}) {
@@ -37,6 +52,31 @@ export function filterSessions(tasks = [], { query = "", status = "all" } = {}) 
     if (!normalizedQuery) return true;
     return [task.title, task.project, task.cwd, task.model, task.id]
       .some((value) => String(value || "").toLocaleLowerCase("zh-CN").includes(normalizedQuery));
+  });
+}
+
+export function resolveRemoteTaskReference(tasks = [], reference = {}) {
+  const id = typeof reference?.id === "string" ? reference.id.trim().slice(0, 160) : "";
+  const deviceId = typeof reference?.deviceId === "string" ? reference.deviceId.trim().slice(0, 120) : "";
+  if (!id || !deviceId) return null;
+  return tasks.find((task) => (
+    task?.id === id
+    && task?.device?.id === deviceId
+    && task.device.kind !== "local-codex"
+    && task.device.status === "connected"
+  )) || null;
+}
+
+export function provisionalRemoteTaskReference(reference = {}) {
+  const id = typeof reference.id === "string" ? reference.id.trim().slice(0, 160) : "";
+  const deviceId = typeof reference.deviceId === "string" ? reference.deviceId.trim().slice(0, 120) : "";
+  if (!id || !deviceId) return null;
+  const title = typeof reference.title === "string" ? reference.title.trim().slice(0, 160) : "";
+  const cwd = typeof reference.cwd === "string" ? reference.cwd.trim().slice(0, 1024) : "";
+  const deviceName = typeof reference.deviceName === "string" ? reference.deviceName.trim().slice(0, 80) : "";
+  return Object.freeze({
+    id, title: title || `任务 ${id.slice(0, 8)}`, cwd, status: "unknown",
+    device: Object.freeze({ id: deviceId, name: deviceName || "远端设备", kind: "remote-codex", location: "远端", status: "connected" })
   });
 }
 

@@ -16,6 +16,15 @@ The current app-server protocol provides `project/list` and `project/move`. This
 
 ## Scoring and matching
 
+- Windows compatibility repair (2026-09-05): normalize drive paths and UNC
+  paths with or without the `\\?\` extended-length prefix before containment
+  matching. Select Windows/POSIX path semantics from the path, independently of
+  the host running the calculation. Reject relative paths and cross-platform
+  matches; preserve directory boundaries and longest-root precedence.
+- Live Windows evidence: the latest 160 native threads matched zero projects
+  before removing their extended-length prefix, and 153 after normalization.
+  Regression coverage must exercise these paths on both macOS and Windows.
+
 - Reuse `calculateProjectPriority` unchanged: latest-conversation recency contributes up to 70 points, the seven-day session count up to 15, and runtime up to 15.
 - Match a conversation to the project with the longest root path containing its working directory. This supports multi-directory projects and avoids ambiguous parent-directory matches.
 - Sort matched projects by score, then latest conversation time, then existing native position.

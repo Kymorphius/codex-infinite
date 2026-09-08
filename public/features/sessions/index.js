@@ -1,7 +1,9 @@
 import { isLocalTask } from "../../core/tasks.js";
 import { SessionDisclosureState, summarizeSessionDevice } from "./disclosure.js";
-import { deviceHostLabel, filterSessions, groupSessionsByDevice } from "./model.js";
+import { deviceHostLabel, deviceRoleLabel, filterSessions, groupSessionsByDevice, provisionalRemoteTaskReference, resolveRemoteTaskReference } from "./model.js";
 import { createRemoteConversation } from "./remote-conversation.js";
+import { createProjectCopyControl } from "./project-copy.js";
+import { createConversationTabs } from "./conversation-tabs.js";
 
 export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
@@ -10,7 +12,14 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   const statusFilter = $('[data-testid="session-status-filter"]');
   const clearFilter = $('[data-testid="session-clear-filter"]');
   const filterEmpty = $('[data-testid="session-filter-empty"]');
-  const remoteConversation = createRemoteConversation({ $, formatDate, fetchImpl });
+  let remoteConversation;
+  const conversationTabs = createConversationTabs({
+    element: $('[data-testid="workspace-session-tabs"]'),
+    onActivateTask(task) { remoteConversation?.open(task); },
+    onActivateHome() { remoteConversation?.close(); }
+  });
+  remoteConversation = createRemoteConversation({ $, formatDate, fetchImpl, onRequestClose: () => conversationTabs.showHome() });
+  const projectCopy = createProjectCopyControl({ fetchImpl });
   const filter = { query: "", status: "all" };
   const disclosure = new SessionDisclosureState();
   let visibleDevices = [];
@@ -44,7 +53,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     open.className = "task-open session-open";
     const local = isLocalTask(task);
     open.textContent = local ? "打开原生对话" : "打开远端对话";
-    open.addEventListener("click", () => local ? requestOpen(task) : remoteConversation.open(task));
+    open.addEventListener("click", () => local ? requestOpen(task) : conversationTabs.open(task));
     row.append(main, open);
     return row;
   }
@@ -71,7 +80,12 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
       item.textContent = text;
       stats.append(item);
     }
-    summary.append(identity, stats);
+    const actions = document.createElement("div");
+    actions.className = "session-project-actions";
+    const copy = projectCopy.button(device, group);
+    if (copy) actions.append(copy);
+    actions.append(stats);
+    summary.append(identity, actions);
     const rows = document.createElement("div");
     rows.className = "session-row-list";
     rows.replaceChildren(...group.tasks.map(sessionRow));
@@ -98,7 +112,8 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     name.textContent = device.name || "未知设备";
     const role = document.createElement("span");
     role.className = "session-device-role";
-    role.textContent = device.kind === "local-codex" ? "本机" : "远端";
+    role.textContent = deviceRoleLabel(device);
+    role.dataset.role = device.kind === "local-codex" ? "local" : "remote";
     identityTop.append(name, role);
     const source = document.createElement("span");
     source.textContent = `${device.location || "远程"} · ${deviceHostLabel(device)}`;
@@ -172,7 +187,27 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
       button.addEventListener("click", () => { disclosure.setAll(visibleDevices, button.dataset.sessionDisclosure === "expand"); render(); });
     }
     remoteConversation.bind();
+    conversationTabs.bind();
   }
 
-  return { bind, render, setTaskState };
+  function openRemoteReference(reference) {
+    const task = resolveRemoteTaskReference(state.tasks, reference) || provisionalRemoteTaskReference(reference);
+    if (!task) return false;
+    conversationTabs.open(task);
+    return true;
+  }
+
+  function copyRemoteProjectReference(reference) {
+    const deviceId = typeof reference?.deviceId === "string" ? reference.deviceId : "";
+    const sourceDirectory = typeof reference?.sourceDirectory === "string" ? reference.sourceDirectory : "";
+    const device = groupSessionsByDevice(state.devices, state.tasks).find((item) => item.id === deviceId);
+    const group = device?.projects.find((item) => item.directory === sourceDirectory);
+    if (!device || !group) return false;
+    const card = Array.from(list.querySelectorAll(".session-project-card")).find((item) => item.dataset.directory === sourceDirectory);
+    const button = card?.querySelector(".session-project-copy") || { disabled: false, textContent: "复制项目" };
+    void projectCopy.copy(device, group, button);
+    return true;
+  }
+
+  return { bind, render, setTaskState, openRemoteReference, copyRemoteProjectReference };
 }

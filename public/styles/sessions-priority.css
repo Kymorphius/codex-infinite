@@ -31,6 +31,8 @@
 .session-device-identity h3 { margin: 0; overflow: hidden; color: #26262a; font-size: var(--native-ui-section-title-size); line-height: var(--native-ui-section-title-line); text-overflow: ellipsis; white-space: nowrap; }
 .session-device-identity span { color: #8e8e93; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
 .session-device-role { flex: 0 0 auto; border-radius: 999px; padding: 3px 6px; background: #f0f0f2; color: #77777c !important; font-size: 11px !important; line-height: var(--native-ui-meta-line); font-weight: 600; }
+.session-device-role[data-role="remote"] { background: #e8f1ff; color: #2f6fcb !important; }
+.session-device-role[data-role="local"] { background: #f1eaff; color: #7651bd !important; }
 .session-device-stats { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 5px 10px; max-width: 430px; color: #8b8b90; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
 .session-device-trailing { display: flex; align-items: center; gap: 10px; }
 .session-device-status { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 9px; background: #edf7f1; color: #27845a; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); font-weight: 600; white-space: nowrap; }
@@ -50,6 +52,10 @@
 .session-project-identity h3 { margin: 0 0 4px; color: #303034; font-size: var(--native-ui-body-size); line-height: var(--native-ui-body-line); }
 .session-project-identity code { display: block; overflow: hidden; max-width: min(660px, 58vw); color: #96969b; text-overflow: ellipsis; white-space: nowrap; }
 .session-project-stats { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px 12px; margin-left: auto; color: #89898e; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
+.session-project-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.session-project-copy { border: 1px solid #d5d5d9; border-radius: 8px; padding: 7px 11px; background: #fafafa; color: #45454a; font: inherit; cursor: pointer; white-space: nowrap; }
+.session-project-copy:hover { border-color: #9b9ba1; background: #fff; }
+.session-project-copy:disabled { cursor: progress; opacity: .65; }
 .session-row-list { display: grid; gap: 1px; border-top: 1px solid #ededee; background: #ededee; }
 .session-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 15px; background: #fafafa; }
 .session-row-main { min-width: 0; }

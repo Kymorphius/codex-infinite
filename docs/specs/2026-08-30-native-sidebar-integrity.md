@@ -11,7 +11,10 @@ The wrapper intentionally uses an independent Chromium profile and an independen
 ## Goals
 
 - Preserve the independent wrapper profile and million-context configuration.
-- Let native ChatGPT/Codex exclusively own GPT workspace and Codex project rendering, expansion, ordering, and pin state.
+- Let native ChatGPT/Codex own GPT workspace and Codex project structure,
+  expansion, ordering, and pin state. Later accepted product behavior may add
+  bounded, read-only metadata tags to existing native entries without moving or
+  cloning them.
 - Keep project ranking in the control console's own read-only “项目优先级” view.
 - Preserve existing shared session/project state and all safety boundaries.
 

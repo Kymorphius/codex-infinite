@@ -6,57 +6,17 @@ import { normalizePeerSnapshot } from "./peer-contract.mjs";
 import { normalizePeerActivity, normalizePeerSessionSettings, normalizePeerSettingsOptions } from "./conversation-activity.mjs";
 import { ACTION_HEADERS, loadActionKey, signPeerAction } from "./peer-action-auth.mjs";
 import { validateThreadSettingsTransport } from "./thread-settings-control.mjs";
+import { SshPeerSkills } from "./ssh-peer-skills.mjs";
+import { CONTROL_ACTION_PATH, DRAFT_ACTION_PATH, MESSAGE_ACTION_PATH, SETTINGS_ACTION_PATH, TURBO_ACTION_PATH, sshActionArguments, sshActivityArguments, sshSnapshotArguments } from "./ssh-peer-commands.mjs";
+
+export { sshActionArguments, sshActivityArguments, sshSkillContentArguments, sshSkillsArguments, sshSnapshotArguments } from "./ssh-peer-commands.mjs";
 
 const execFile = promisify(nodeExecFile);
 const MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024;
 const MAX_ACTIVITY_BYTES = 2 * 1024 * 1024;
 const THREAD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/;
-const MESSAGE_ACTION_PATH = "/api/node/actions/message";
-const CONTROL_ACTION_PATH = "/api/node/actions/control";
-const SETTINGS_ACTION_PATH = "/api/node/actions/settings";
-
-export function sshSnapshotArguments(transport) {
-  const relay = transport.type === "ssh-relay";
-  const target = relay ? `${transport.relayUser}@${transport.relayHost}` : `${transport.user}@${transport.host}`;
-  const sshPort = relay ? transport.relayPort : transport.port;
-  const dashboardPort = relay ? transport.forwardedPort : transport.dashboardPort;
-  return [
-    "-o", "BatchMode=yes",
-    "-o", "ConnectTimeout=4",
-    "-o", "StrictHostKeyChecking=yes",
-    "-o", "ServerAliveInterval=3",
-    "-o", "ServerAliveCountMax=1",
-    "-p", String(sshPort),
-    target,
-    "/usr/bin/curl", "--fail", "--silent", "--show-error", "--max-time", "6",
-    `http://127.0.0.1:${dashboardPort}/api/node/snapshot`
-  ];
-}
-
-export function sshActivityArguments(transport, threadId) {
-  if (!THREAD_ID_PATTERN.test(String(threadId || ""))) throw new Error("Peer activity thread id is invalid");
-  const arguments_ = sshSnapshotArguments(transport);
-  arguments_[arguments_.length - 1] = arguments_[arguments_.length - 1].replace("/api/node/snapshot", `/api/node/activity/${encodeURIComponent(threadId)}`);
-  return arguments_;
-}
-
-export function sshActionArguments(transport, headers, actionPath = MESSAGE_ACTION_PATH) {
-  if (![MESSAGE_ACTION_PATH, CONTROL_ACTION_PATH, SETTINGS_ACTION_PATH].includes(actionPath)) throw new Error("Peer action path is invalid");
-  const arguments_ = sshSnapshotArguments(transport);
-  const url = arguments_.pop().replace("/api/node/snapshot", actionPath);
-  const failIndex = arguments_.indexOf("--fail");
-  if (failIndex >= 0) arguments_.splice(failIndex, 1);
-  arguments_.push(
-    "-X", "POST",
-    "-H", "content-type:application/json",
-    "-H", `${ACTION_HEADERS.timestamp}:${headers[ACTION_HEADERS.timestamp]}`,
-    "-H", `${ACTION_HEADERS.nonce}:${headers[ACTION_HEADERS.nonce]}`,
-    "-H", `${ACTION_HEADERS.signature}:${headers[ACTION_HEADERS.signature]}`,
-    "--data-binary", "@-",
-    url
-  );
-  return arguments_;
-}
+const SNAPSHOT_PROCESS_TIMEOUT_MS = 32_000;
+const ACTIVITY_PROCESS_TIMEOUT_MS = 20_000;
 
 function executeAction(spawnImpl, args, body) {
   return new Promise((resolve, reject) => {
@@ -83,57 +43,101 @@ function executeAction(spawnImpl, args, body) {
 }
 
 export class SshPeerAdapter {
-  constructor({ peer, actionKeyPath = null, execFileImpl = execFile, spawnImpl = nodeSpawn, logger = console } = {}) {
+  constructor({ peer, actionKeyPath = null, execFileImpl = execFile, spawnImpl = nodeSpawn, logger = console, clock = () => Date.now(), backoffBaseMs = 5_000, backoffMaxMs = 60_000 } = {}) {
     this.peer = peer;
     this.execFile = execFileImpl;
     this.spawn = spawnImpl;
     this.actionKeyPath = actionKeyPath;
     this.logger = logger;
+    this.clock = clock;
+    this.backoffBaseMs = backoffBaseMs;
+    this.backoffMaxMs = backoffMaxMs;
+    this.readFailures = 0;
+    this.nextReadAt = 0;
+    this.snapshotRequest = null;
+    this.lastSnapshot = null;
+    this.skills = new SshPeerSkills({ peer, execFile: execFileImpl, spawn: spawnImpl, actionKeyPath, logger });
+  }
+  unavailableSnapshot() {
+    const device = Object.freeze({ id: this.peer.id, name: this.peer.name, kind: "remote-codex", location: this.peer.location, status: "error" });
+    return { status: "error", source: "federated-peer-snapshot", readOnly: true, tasks: [], devices: [device], message: `${this.peer.name} 暂时不可达。` };
+  }
+  registerReadFailure() {
+    this.readFailures += 1;
+    const delay = Math.min(this.backoffMaxMs, this.backoffBaseMs * (2 ** (this.readFailures - 1)));
+    this.nextReadAt = this.clock() + delay;
+  }
+  registerReadSuccess() {
+    this.readFailures = 0;
+    this.nextReadAt = 0;
   }
 
-  async listTasks() {
+  listTasks() {
+    if (this.nextReadAt > this.clock()) return Promise.resolve(this.lastSnapshot || this.unavailableSnapshot());
+    if (this.snapshotRequest) return this.snapshotRequest;
+    this.snapshotRequest = this.fetchSnapshot().finally(() => { this.snapshotRequest = null; });
+    return this.snapshotRequest;
+  }
+
+  async fetchSnapshot() {
     for (const transport of this.peer.transports) {
       try {
-        const { stdout } = await this.execFile("ssh", sshSnapshotArguments(transport), {
+        const { stdout } = await this.execFile("ssh", sshSnapshotArguments(transport, { remotePlatform: this.peer.platform }), {
           encoding: "utf8",
-          timeout: 12000,
+          timeout: SNAPSHOT_PROCESS_TIMEOUT_MS,
           maxBuffer: MAX_SNAPSHOT_BYTES
         });
         const result = normalizePeerSnapshot(this.peer, JSON.parse(stdout));
-        return { ...result, transport: transport.type };
+        this.registerReadSuccess();
+        this.lastSnapshot = { ...result, transport: transport.type };
+        return this.lastSnapshot;
       } catch (error) {
         this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} transport ${transport.type} unavailable`);
       }
     }
-    const device = Object.freeze({ id: this.peer.id, name: this.peer.name, kind: "remote-codex", location: this.peer.location, status: "error" });
-    return { status: "error", source: "federated-peer-snapshot", readOnly: true, tasks: [], devices: [device], message: `${this.peer.name} 暂时不可达。` };
+    this.registerReadFailure();
+    this.lastSnapshot = this.unavailableSnapshot();
+    return this.lastSnapshot;
   }
 
   async getActivity(threadId) {
     if (!THREAD_ID_PATTERN.test(String(threadId || ""))) throw new Error("Peer activity thread id is invalid");
+    if (this.nextReadAt > this.clock()) {
+      const error = new Error(`${this.peer.name} 暂时不可达。`);
+      error.statusCode = 503;
+      throw error;
+    }
     for (const transport of this.peer.transports) {
       try {
-        const { stdout } = await this.execFile("ssh", sshActivityArguments(transport, threadId), {
+        const { stdout } = await this.execFile("ssh", sshActivityArguments(transport, threadId, { remotePlatform: this.peer.platform }), {
           encoding: "utf8",
-          timeout: 12000,
+          timeout: ACTIVITY_PROCESS_TIMEOUT_MS,
           maxBuffer: MAX_ACTIVITY_BYTES
         });
+        this.registerReadSuccess();
         return { ...normalizePeerActivity(this.peer, JSON.parse(stdout)), transport: transport.type };
       } catch {
         this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} activity transport ${transport.type} unavailable`);
       }
     }
+    this.registerReadFailure();
     const error = new Error(`${this.peer.name} 暂时不可达。`);
     error.statusCode = 503;
     throw error;
   }
 
-  async sendMessage(threadId, prompt, expectedDraftRevision = null) {
+  async listSkills() { return this.skills.list(); }
+  async exportSkill(scope, name, sourceId = scope) { return this.skills.export(scope, name, sourceId); }
+  async installSkill(package_, expectedCurrentHash) { return this.skills.install(package_, expectedCurrentHash); }
+  async toggleSkill(input) { return this.skills.toggle(input); }
+
+  async sendMessage(threadId, prompt, expectedDraftRevision = null, deliveryMode = "new-turn") {
     if (!THREAD_ID_PATTERN.test(String(threadId || ""))) throw new Error("Peer action thread id is invalid");
+    if (!["new-turn", "queue", "steer"].includes(deliveryMode)) throw new Error("Peer message delivery mode is invalid");
     const key = await loadActionKey(this.actionKeyPath);
     const timestamp = String(Date.now());
     const nonce = crypto.randomUUID();
-    const body = Buffer.from(JSON.stringify({ threadId, prompt, expectedDraftRevision, requestId: nonce }), "utf8");
+    const body = Buffer.from(JSON.stringify({ threadId, prompt, expectedDraftRevision, deliveryMode, requestId: nonce }), "utf8");
     const headers = {
       [ACTION_HEADERS.timestamp]: timestamp,
       [ACTION_HEADERS.nonce]: nonce
@@ -141,7 +145,7 @@ export class SshPeerAdapter {
     headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: MESSAGE_ACTION_PATH, timestamp, nonce, body });
     for (const transport of this.peer.transports) {
       try {
-        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, MESSAGE_ACTION_PATH), body));
+        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, MESSAGE_ACTION_PATH, { remotePlatform: this.peer.platform }), body));
         if (payload.status !== "ok" || !payload.accepted) {
           const rejected = new Error(payload.message || "所属节点拒绝了消息");
           rejected.remoteRejected = true;
@@ -152,6 +156,7 @@ export class SshPeerAdapter {
           accepted: true,
           duplicate: Boolean(payload.duplicate),
           executionAuthority: payload.executionAuthority === "owner-native-desktop" ? "owner-native-desktop" : "unknown",
+          deliveryMode: ["new-turn", "queue", "steer"].includes(payload.deliveryMode) ? payload.deliveryMode : deliveryMode,
           transport: transport.type
         };
       } catch (error) {
@@ -160,6 +165,43 @@ export class SshPeerAdapter {
       }
     }
     const error = new Error(`${this.peer.name} 暂时不可达，消息未发送。`);
+    error.statusCode = 503;
+    throw error;
+  }
+
+  async updateDraft(threadId, text, expectedDraftRevision = null) {
+    if (!THREAD_ID_PATTERN.test(String(threadId || ""))) throw new Error("Peer draft thread id is invalid");
+    if (typeof text !== "string" || text.length > 12_000) throw new Error("Peer draft is invalid");
+    if (expectedDraftRevision !== null && !/^[0-9a-f]{64}$/.test(String(expectedDraftRevision))) throw new Error("Peer draft revision is invalid");
+    const key = await loadActionKey(this.actionKeyPath);
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const body = Buffer.from(JSON.stringify({ threadId, text, expectedDraftRevision, requestId: nonce }), "utf8");
+    const headers = { [ACTION_HEADERS.timestamp]: timestamp, [ACTION_HEADERS.nonce]: nonce };
+    headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: DRAFT_ACTION_PATH, timestamp, nonce, body });
+    for (const transport of this.peer.transports) {
+      try {
+        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, DRAFT_ACTION_PATH, { remotePlatform: this.peer.platform }), body));
+        if (payload.status !== "ok" || !payload.accepted) {
+          const rejected = new Error(payload.message || "所属节点拒绝了草稿同步");
+          rejected.remoteRejected = true;
+          rejected.statusCode = 409;
+          throw rejected;
+        }
+        const draft = payload.draft == null ? null : payload.draft;
+        if (draft !== null && (typeof draft.text !== "string" || draft.text.length > 12_000 || !/^[0-9a-f]{64}$/.test(String(draft.revision || "")))) {
+          const invalid = new Error("所属节点返回的草稿确认无效");
+          invalid.remoteRejected = true;
+          invalid.statusCode = 502;
+          throw invalid;
+        }
+        return { accepted: true, draft, duplicate: Boolean(payload.duplicate), transport: transport.type };
+      } catch (error) {
+        if (error.remoteRejected) throw error;
+        this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} draft transport ${transport.type} unavailable`);
+      }
+    }
+    const error = new Error(`${this.peer.name} 暂时不可达，草稿未同步。`);
     error.statusCode = 503;
     throw error;
   }
@@ -181,7 +223,7 @@ export class SshPeerAdapter {
     headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: CONTROL_ACTION_PATH, timestamp, nonce, body });
     for (const transport of this.peer.transports) {
       try {
-        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, CONTROL_ACTION_PATH), body));
+        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, CONTROL_ACTION_PATH, { remotePlatform: this.peer.platform }), body));
         if (payload.status !== "ok" || !payload.accepted) {
           const rejected = new Error(payload.message || (input.action === "resolveApproval" ? "所属节点拒绝了审批操作" : "所属节点拒绝了停止请求"));
           rejected.remoteRejected = true;
@@ -215,7 +257,7 @@ export class SshPeerAdapter {
     headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: SETTINGS_ACTION_PATH, timestamp, nonce, body });
     for (const transport of this.peer.transports) {
       try {
-        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, SETTINGS_ACTION_PATH), body));
+        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, SETTINGS_ACTION_PATH, { remotePlatform: this.peer.platform }), body));
         if (payload.status !== "ok" || !payload.accepted) {
           const rejected = new Error(payload.message || "所属节点拒绝了设置变更");
           rejected.remoteRejected = true;
@@ -263,6 +305,43 @@ export class SshPeerAdapter {
       }
     }
     const error = new Error(`${this.peer.name} 暂时不可达，设置未更改。`);
+    error.statusCode = 503;
+    throw error;
+  }
+
+  async updateTurbo(change) {
+    change = typeof change === "boolean" ? { enabled: change } : change;
+    if (!change || typeof change !== "object" || Array.isArray(change)) throw new Error("Turbo setting is invalid");
+    const keys = Object.keys(change);
+    const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "accessMode", "deviceIds"];
+    if (!keys.length || keys.some((key) => !allowed.includes(key))) throw new Error("Turbo setting is invalid");
+    if (Object.hasOwn(change, "enabled") && typeof change.enabled !== "boolean") throw new Error("Turbo switch is invalid");
+    if (Object.hasOwn(change, "model") && change.model !== null && typeof change.model !== "string") throw new Error("Turbo model setting is invalid");
+    if (Object.hasOwn(change, "reasoningEffort") && typeof change.reasoningEffort !== "string") throw new Error("Turbo reasoning setting is invalid");
+    if (Object.hasOwn(change, "fast") && typeof change.fast !== "boolean") throw new Error("Turbo speed setting is invalid");
+    if (Object.hasOwn(change, "millionContext") && typeof change.millionContext !== "boolean") throw new Error("Turbo context setting is invalid");
+    if (Object.hasOwn(change, "accessMode") && typeof change.accessMode !== "string") throw new Error("Turbo access setting is invalid");
+    if (Object.hasOwn(change, "deviceIds") && !Array.isArray(change.deviceIds)) throw new Error("Turbo device setting is invalid");
+    const key = await loadActionKey(this.actionKeyPath);
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    const body = Buffer.from(JSON.stringify({ ...change, requestId: nonce }), "utf8");
+    const headers = { [ACTION_HEADERS.timestamp]: timestamp, [ACTION_HEADERS.nonce]: nonce };
+    headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: TURBO_ACTION_PATH, timestamp, nonce, body });
+    for (const transport of this.peer.transports) {
+      try {
+        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, TURBO_ACTION_PATH, { remotePlatform: this.peer.platform }), body));
+        if (payload.status !== "ok" || !payload.accepted || typeof payload.enabled !== "boolean" || typeof payload.millionContext !== "boolean") throw new Error("所属节点拒绝了 Turbo 设置");
+        return {
+          accepted: true, enabled: payload.enabled, model: typeof payload.model === "string" ? payload.model : null,
+          reasoningEffort: payload.reasoningEffort, fast: payload.fast !== false, millionContext: payload.millionContext,
+          accessMode: payload.accessMode, deviceIds: Array.isArray(payload.deviceIds) ? payload.deviceIds : [], transport: transport.type
+        };
+      } catch {
+        this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} turbo transport ${transport.type} unavailable`);
+      }
+    }
+    const error = new Error(`${this.peer.name} 暂时不可达，Turbo 设置未同步。`);
     error.statusCode = 503;
     throw error;
   }

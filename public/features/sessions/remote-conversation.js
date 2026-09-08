@@ -4,8 +4,18 @@ import { acceptedMessageLabel, conversationOwnerLabel } from "./model.js";
 import { createRemoteApprovals } from "./remote-approvals.js";
 import { createSessionSettingsController } from "./settings-controller.js";
 import { createAdaptiveRefreshScheduler, OPEN_CONVERSATION_REFRESH_MS } from "../../core/refresh-policy.js";
+import { renderMarkdown } from "./markdown-view.js";
+import { createRemoteDraftSync } from "./draft-sync.js";
 
-export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
+export function shouldStartConversationLoad(task, loadingTask) {
+  return Boolean(task && loadingTask !== task);
+}
+
+export function messageDeliveryMode(activeTurnId, selectedMode) {
+  return activeTurnId && ["queue", "steer"].includes(selectedMode) ? selectedMode : "new-turn";
+}
+
+export function createRemoteConversation({ $, formatDate, fetchImpl = fetch, onRequestClose = null }) {
   const layer = $('[data-testid="session-activity-layer"]');
   const list = $('[data-testid="session-activity-list"]');
   const state = $('[data-testid="session-activity-state"]');
@@ -18,14 +28,21 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
   const sendStatus = $('[data-testid="session-remote-send-status"]');
   const stop = $('[data-testid="session-remote-stop"]');
   const turnState = $('[data-testid="session-activity-turn-state"]');
+  const followUpMode = $('[data-testid="session-follow-up-mode"]');
   const approvalList = $('[data-testid="session-approval-list"]');
   let selectedTask = null;
-  let loading = false;
+  let loadingTask = null;
+  let loadController = null;
   let sending = false;
   let stopping = false;
   let activeTurnId = null;
-  let draftRevision = null;
-  let syncedDraftText = "";
+  let deliveryMode = "steer";
+  const drafts = createRemoteDraftSync({
+    prompt, fetchImpl,
+    getTask: () => selectedTask,
+    isSending: () => sending,
+    status(message, tone) { sendStatus.dataset.status = tone; sendStatus.textContent = message; }
+  });
   const refreshScheduler = createAdaptiveRefreshScheduler({
     refresh: () => selectedTask ? load({ quiet: true }) : Promise.resolve(),
     nextDelay: () => OPEN_CONVERSATION_REFRESH_MS
@@ -61,8 +78,8 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
     const label = document.createElement("span");
     label.className = "conversation-entry-label";
     label.textContent = entry.label;
-    const text = document.createElement("p");
-    text.textContent = entry.text;
+    const text = entry.kind === "message" ? renderMarkdown(entry.text) : document.createElement("p");
+    if (entry.kind !== "message") text.textContent = entry.text;
     body.append(label, text);
     if (entry.timestamp) {
       const time = document.createElement("time");
@@ -111,43 +128,32 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
     turnState.textContent = presentation.label;
     activeTurnId = value === "active" ? activity?.turnId || null : null;
     stop.classList.toggle("hidden", !activeTurnId);
+    followUpMode.classList.toggle("hidden", !activeTurnId);
     stop.disabled = stopping;
   }
 
-  function syncDraft(task, draft) {
-    if (draft?.text && draft.revision && (!prompt.value.trim() || prompt.value === syncedDraftText)) {
-      prompt.value = draft.text;
-      syncedDraftText = draft.text;
-      draftRevision = draft.revision;
-      if (!sending) {
-        sendStatus.dataset.status = "accepted";
-        sendStatus.textContent = `已接入 ${task.device?.name || "所属设备"} 上尚未发送的草稿`;
-      }
-    } else if (!draft && prompt.value === syncedDraftText) {
-      prompt.value = "";
-      syncedDraftText = "";
-      draftRevision = null;
-    }
-  }
-
   async function load({ quiet = false } = {}) {
-    if (!selectedTask || loading) return;
-    loading = true;
     const task = selectedTask;
+    if (!shouldStartConversationLoad(task, loadingTask)) return;
+    loadController?.abort();
+    const controller = new AbortController();
+    loadController = controller;
+    loadingTask = task;
     if (!quiet) {
       stateMessage.textContent = "正在打开会话…";
       retry.classList.add("hidden");
       state.classList.remove("hidden");
       list.classList.add("hidden");
+      list.replaceChildren();
     }
     try {
       const url = `/api/tasks/${encodeURIComponent(task.id)}/activity?device=${encodeURIComponent(task.device.id)}`;
-      const response = await fetchImpl(url, { cache: "no-store" });
+      const response = await fetchImpl(url, { cache: "no-store", signal: controller.signal });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
       if (selectedTask !== task) return;
       const entries = Array.isArray(result.activity?.entries) ? result.activity.entries : [];
-      syncDraft(task, result.activity?.draft);
+      drafts.syncRemote(task, result.activity?.draft);
       const presentedEntries = presentConversationEntries(entries);
       const previousScrollTop = list.scrollTop;
       const followLatest = shouldFollowConversationLatest({ quiet, scrollHeight: list.scrollHeight, scrollTop: previousScrollTop, clientHeight: list.clientHeight });
@@ -163,25 +169,26 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
       $('[data-testid="session-activity-updated"]').textContent = `更新于 ${formatDate(result.activity?.updatedAt || new Date().toISOString())}`;
       list.scrollTo({ top: followLatest ? list.scrollHeight : previousScrollTop, behavior: "instant" });
     } catch (error) {
+      if (error?.name === "AbortError") return;
       if (selectedTask !== task) return;
       stateMessage.textContent = `暂时无法打开这个会话：${error.message}`;
       retry.classList.remove("hidden");
       state.classList.remove("hidden");
       if (!quiet) list.classList.add("hidden");
     } finally {
-      loading = false;
+      if (loadingTask === task) { loadingTask = null; loadController = null; }
     }
   }
 
   function open(task) {
+    if (selectedTask && selectedTask !== task && drafts.dirty) void drafts.flush();
     selectedTask = task;
     $('[data-testid="session-activity-title"]').textContent = task.title;
     $('[data-testid="session-activity-directory"]').textContent = task.cwd || "未记录工作目录";
     $('[data-testid="session-activity-owner"]').textContent = conversationOwnerLabel(task);
     prompt.placeholder = `发送消息到 ${task.device?.name || "远端设备"}`;
     prompt.value = "";
-    syncedDraftText = "";
-    draftRevision = null;
+    drafts.reset();
     activeTurnId = null;
     renderTurnState({ turnState: task.status === "active" ? "active" : "unknown", turnId: null }, task);
     settingsController.render(task);
@@ -192,6 +199,11 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
   }
 
   function close() {
+    if (selectedTask && drafts.dirty) void drafts.flush();
+    drafts.cancelTimer();
+    loadController?.abort();
+    loadController = null;
+    loadingTask = null;
     selectedTask = null;
     approvals.reset();
     settingsController.reset();
@@ -200,8 +212,15 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
 
   async function submit() {
     const task = selectedTask;
+    drafts.cancelTimer();
+    if (drafts.dirty) await drafts.flush();
     const message = prompt.value.trim();
     if (!task || !message || sending) return;
+    if (drafts.dirty) {
+      sendStatus.dataset.status = "error";
+      sendStatus.textContent = "草稿尚未同步，请先处理两端草稿冲突";
+      return;
+    }
     sending = true;
     send.disabled = true;
     prompt.disabled = true;
@@ -209,15 +228,15 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
     sendStatus.textContent = `正在发送到 ${task.device?.name || "远端设备"}…`;
     try {
       const url = `/api/tasks/${encodeURIComponent(task.id)}/messages?device=${encodeURIComponent(task.device.id)}`;
-      const response = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: message, expectedDraftRevision: draftRevision }) });
+      const requestedDeliveryMode = messageDeliveryMode(activeTurnId, deliveryMode);
+      const response = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: message, expectedDraftRevision: drafts.revision, deliveryMode: requestedDeliveryMode }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
       if (selectedTask !== task) return;
       prompt.value = "";
-      syncedDraftText = "";
-      draftRevision = null;
+      drafts.reset();
       sendStatus.dataset.status = "accepted";
-      sendStatus.textContent = acceptedMessageLabel(task, result);
+      sendStatus.textContent = requestedDeliveryMode === "queue" ? "消息已加入所属设备的原生队列" : requestedDeliveryMode === "steer" ? "已向当前任务发送调整方向" : acceptedMessageLabel(task, result);
       setTimeout(() => void load({ quiet: true }), 1000);
     } catch (error) {
       if (selectedTask !== task) return;
@@ -263,18 +282,28 @@ export function createRemoteConversation({ $, formatDate, fetchImpl = fetch }) {
   function bind() {
     settingsController.bind();
     for (const button of layer.querySelectorAll("[data-session-activity-close]")) {
-      button.addEventListener("pointerdown", (event) => { if (event.button === 0) close(); });
-      button.addEventListener("click", close);
+      button.addEventListener("pointerdown", (event) => { if (event.button === 0) (onRequestClose || close)(); });
+      button.addEventListener("click", onRequestClose || close);
     }
-    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && selectedTask) close(); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && selectedTask) (onRequestClose || close)(); });
     composer.addEventListener("submit", (event) => { event.preventDefault(); void submit(); });
     stop.addEventListener("click", () => void interrupt());
+    followUpMode.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-follow-up-mode]");
+      if (!button) return;
+      deliveryMode = button.dataset.followUpMode;
+      for (const option of followUpMode.querySelectorAll("[data-follow-up-mode]")) option.setAttribute("aria-pressed", option === button ? "true" : "false");
+      prompt.focus();
+    });
     retry.addEventListener("click", () => void load());
     prompt.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); composer.requestSubmit(); }
     });
+    prompt.addEventListener("input", () => {
+      drafts.markLocalChange();
+    });
     refreshScheduler.start();
   }
 
-  return { bind, open };
+  return { bind, open, close };
 }

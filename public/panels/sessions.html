@@ -56,6 +56,11 @@
                     <button type="submit" data-testid="session-remote-send" aria-label="发送消息">↑</button>
                   </div>
                   <div class="conversation-settings" data-testid="session-remote-settings" aria-label="远端会话设置" role="toolbar"></div>
+                  <div class="conversation-follow-up hidden" data-testid="session-follow-up-mode" aria-label="运行中消息处理方式" role="group">
+                    <span>任务进行中</span>
+                    <button type="button" data-follow-up-mode="steer" aria-pressed="true">调整方向</button>
+                    <button type="button" data-follow-up-mode="queue" aria-pressed="false">加入队列</button>
+                  </div>
                 </form>
                 <div class="conversation-send-status" data-testid="session-remote-send-status" aria-live="polite"></div>
                 <footer class="conversation-footer"><span>任务在所属设备上执行</span><span data-testid="session-activity-updated">—</span></footer>

@@ -13,7 +13,19 @@ export function validateRemoteMessage(input = {}) {
   if (prompt.length > 12_000) throw httpError(413, "发送内容过长");
   const expectedDraftRevision = input.expectedDraftRevision == null ? null : String(input.expectedDraftRevision);
   if (expectedDraftRevision !== null && !/^[0-9a-f]{64}$/.test(expectedDraftRevision)) throw httpError(400, "草稿版本无效");
-  return { threadId, prompt, expectedDraftRevision };
+  const deliveryMode = input.deliveryMode == null ? "new-turn" : String(input.deliveryMode);
+  if (!["new-turn", "queue", "steer"].includes(deliveryMode)) throw httpError(400, "消息处理方式无效");
+  return { threadId, prompt, expectedDraftRevision, deliveryMode };
+}
+
+export function validateRemoteDraft(input = {}) {
+  const threadId = String(input.threadId || "").trim();
+  const text = String(input.text ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
+  if (!THREAD_ID_PATTERN.test(threadId)) throw httpError(400, "会话标识无效");
+  if (text.length > 12_000) throw httpError(413, "草稿内容过长");
+  const expectedDraftRevision = input.expectedDraftRevision == null ? null : String(input.expectedDraftRevision);
+  if (expectedDraftRevision !== null && !/^[0-9a-f]{64}$/.test(expectedDraftRevision)) throw httpError(400, "草稿版本无效");
+  return { threadId, text, expectedDraftRevision };
 }
 
 export function validateRemoteControl(input = {}) {
@@ -40,7 +52,7 @@ export class RemoteMessageService {
   }
 
   async submit(input) {
-    const { threadId, prompt, expectedDraftRevision } = validateRemoteMessage(input);
+    const { threadId, prompt, expectedDraftRevision, deliveryMode } = validateRemoteMessage(input);
     if (!this.nativeConversationAdapter) throw httpError(503, "所属节点发送服务不可用");
     const task = await this.localAdapter.getTask(threadId);
     if (!task) throw httpError(404, "所属节点不存在这个会话");
@@ -48,8 +60,8 @@ export class RemoteMessageService {
     const requestId = this.idFactory();
     this.activeThreads.add(threadId);
     try {
-      await this.nativeConversationAdapter.sendMessage({ threadId, prompt, expectedDraftRevision });
-      return { accepted: true, requestId, threadId, executionAuthority: "owner-native-desktop" };
+      await this.nativeConversationAdapter.sendMessage({ threadId, prompt, expectedDraftRevision, deliveryMode });
+      return { accepted: true, requestId, threadId, deliveryMode, executionAuthority: "owner-native-desktop" };
     } finally {
       this.activeThreads.delete(threadId);
     }
@@ -57,6 +69,21 @@ export class RemoteMessageService {
 
   async readDraft(threadId) {
     return this.nativeConversationAdapter?.readDraft?.(threadId) || null;
+  }
+
+  async updateDraft(input) {
+    const { threadId, text, expectedDraftRevision } = validateRemoteDraft(input);
+    if (!this.nativeConversationAdapter?.updateDraft) throw httpError(503, "所属节点草稿同步服务不可用");
+    const task = await this.localAdapter.getTask(threadId);
+    if (!task) throw httpError(404, "所属节点不存在这个会话");
+    if (this.activeThreads.has(threadId)) throw httpError(409, "这个会话正在处理另一项远端输入");
+    this.activeThreads.add(threadId);
+    try {
+      const draft = await this.nativeConversationAdapter.updateDraft({ threadId, text, expectedDraftRevision });
+      return { accepted: true, threadId, draft, executionAuthority: "owner-native-desktop" };
+    } finally {
+      this.activeThreads.delete(threadId);
+    }
   }
 
   async readPendingApprovals(threadId) {

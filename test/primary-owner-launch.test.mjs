@@ -22,6 +22,7 @@ test("primary launcher relaunches only the primary profile with loopback CDP", a
   const spawned = [];
   const launcher = new PrimaryOwnerLauncher({
     config,
+    accessImpl: async () => {},
     async execFileImpl() {
       psCalls += 1;
       return { stdout: psCalls === 1 ? "77 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT\n88 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/Users/test/Library/Application Support/Codex Control Console" : "" };

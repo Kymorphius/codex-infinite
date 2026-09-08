@@ -12,7 +12,8 @@ test("owner action keys require 32-byte material and owner-only permissions", as
   await fs.writeFile(file, Buffer.alloc(32, 7).toString("base64"), { mode: 0o600 });
   assert.equal((await loadActionKey(file)).length, 32);
   await fs.chmod(file, 0o644);
-  await assert.rejects(() => loadActionKey(file), /0600/);
+  if (process.platform === "win32") assert.equal((await loadActionKey(file)).length, 32);
+  else await assert.rejects(() => loadActionKey(file), /0600/);
 });
 
 test("signed owner actions detect body changes, stale timestamps, and nonce replay", () => {
@@ -30,4 +31,3 @@ test("signed owner actions detect body changes, stale timestamps, and nonce repl
   assert.equal(verifyPeerAction({ key, method: "POST", path, headers, body: Buffer.from("changed"), replayWindow: new NonceReplayWindow(), now }).ok, false);
   assert.equal(verifyPeerAction({ key, method: "POST", path, headers: { ...headers, [ACTION_HEADERS.timestamp]: String(now - 31_000) }, body, replayWindow: new NonceReplayWindow(), now }).reason, "stale");
 });
-
