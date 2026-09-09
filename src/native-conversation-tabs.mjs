@@ -1,4 +1,5 @@
 import { installNativeConversationTabDragging, reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
+import { installNativeConversationTabWheelPreferences, nativeConversationTabWheelOffset, normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
   advanceNativeTabClickSequence,
   advanceNativeWheelMomentum,
@@ -20,15 +21,21 @@ export {
 export function buildNativeConversationTabsInjectionSource() {
   const clickSequenceSource = advanceNativeTabClickSequence.toString();
   const wheelMomentumSource = advanceNativeWheelMomentum.toString();
+  const wheelDirectionSource = normalizeNativeConversationTabWheelDirection.toString();
+  const wheelOffsetSource = nativeConversationTabWheelOffset.toString();
+  const wheelPreferencesSource = installNativeConversationTabWheelPreferences.toString();
   const reorderTabsSource = reorderNativeConversationTabs.toString();
   const dragInstallerSource = installNativeConversationTabDragging.toString();
   return `
   ${clickSequenceSource}
   ${wheelMomentumSource}
+  ${wheelDirectionSource}
+  ${wheelOffsetSource}
+  ${wheelPreferencesSource}
   ${reorderTabsSource}
   ${dragInstallerSource}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-08.1';
+    const VERSION = '2026-09-10.wheel-direction1';
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
     const TITLE_HIDDEN_ATTRIBUTE = 'data-codex-control-console-native-title-hidden';
@@ -42,9 +49,9 @@ export function buildNativeConversationTabsInjectionSource() {
     previous?.destroy?.();
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
-    let state = { tabs: [], activeKey: 'console', consoleModule: 'board', dismissedLocalKeys: [] };
+    let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
     let observer = null, renderPending = false, root = null, stableWorkspaceLeft = null, titleTakeoverNodes = new Set();
-    let tabClickSequence = {}, wheelAccumulator = 0, wheelMomentum = {};
+    let tabClickSequence = {};
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
 
@@ -74,13 +81,14 @@ export function buildNativeConversationTabsInjectionSource() {
       }
       const activeKey = input?.activeKey === 'console' || keys.has(input?.activeKey) ? input.activeKey : 'console';
       const consoleModule = ['board', 'console', 'sessions', 'context', 'priority', 'zotero'].includes(input?.consoleModule) ? input.consoleModule : 'board';
+      const wheelDirection = normalizeNativeConversationTabWheelDirection(input?.wheelDirection);
       const dismissedLocalKeys = [], dismissed = new Set();
       for (const candidate of Array.isArray(input?.dismissedLocalKeys) ? input.dismissedLocalKeys : []) {
         const key = clean(candidate, 50).toLowerCase();
         if (!key.startsWith('local:') || !UUID.test(key.slice(6)) || keys.has(key) || dismissed.has(key)) continue;
         dismissed.add(key); dismissedLocalKeys.push(key); if (dismissedLocalKeys.length >= MAX_TABS) break;
       }
-      return { tabs, activeKey, consoleModule, dismissedLocalKeys };
+      return { tabs, activeKey, consoleModule, wheelDirection, dismissedLocalKeys };
     }
 
     function readHistory() {
@@ -88,7 +96,7 @@ export function buildNativeConversationTabsInjectionSource() {
     }
 
     function snapshot() {
-      return { tabs: state.tabs.map((tab) => ({ ...tab })), activeKey: state.activeKey, consoleModule: state.consoleModule, dismissedLocalKeys: [...state.dismissedLocalKeys] };
+      return { tabs: state.tabs.map((tab) => ({ ...tab })), activeKey: state.activeKey, consoleModule: state.consoleModule, wheelDirection: state.wheelDirection, dismissedLocalKeys: [...state.dismissedLocalKeys] };
     }
 
     function persist() {
@@ -273,22 +281,9 @@ export function buildNativeConversationTabsInjectionSource() {
     const list = document.createElement('div'); list.className = 'ccc-native-tab-list'; list.dataset.nativeTabList = ''; list.setAttribute('role', 'tablist');
     root.append(consoleTab, list); document.body.append(root);
     const dragController = installNativeConversationTabDragging({ root, state, keyFor, render });
+    const wheelPreferences = installNativeConversationTabWheelPreferences({ root, state, persist, adjacentKey, activate, advanceMomentum: advanceNativeWheelMomentum });
 
     root.addEventListener('click', (event) => { const closeButton = event.target.closest('[data-close-key]'); if (closeButton) { tabClickSequence = {}; event.stopPropagation(); close(closeButton.dataset.closeKey); return; } const tab = event.target.closest('[data-tab-key]'); if (!tab) return; tabClickSequence = advanceNativeTabClickSequence(tabClickSequence, tab.dataset.tabKey, performance.now()); if (tabClickSequence.close) { event.preventDefault(); close(tab.dataset.tabKey); return; } activate(tab.dataset.tabKey); });
-    root.addEventListener('wheel', (event) => {
-      if (!event.deltaY || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-      event.preventDefault();
-      const delta = event.deltaY * (event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? innerHeight : 1);
-      wheelMomentum = advanceNativeWheelMomentum(wheelMomentum, delta, performance.now());
-      if (wheelMomentum.resetAccumulator) wheelAccumulator = 0;
-      if (wheelMomentum.ignoring) return;
-      if (wheelAccumulator && Math.sign(wheelAccumulator) !== Math.sign(delta)) wheelAccumulator = 0;
-      wheelAccumulator += delta;
-      if (Math.abs(wheelAccumulator) < 32) return;
-      const next = adjacentKey(-Math.sign(wheelAccumulator));
-      wheelAccumulator = 0;
-      if (next !== state.activeKey) activate(next);
-    }, { passive: false });
     root.addEventListener('keydown', (event) => { if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; const tabs = [consoleTab, ...list.querySelectorAll('[role="tab"]')], index = tabs.indexOf(event.target.closest('[role="tab"]')); if (index < 0) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; tabs[nextIndex].focus(); activate(tabs[nextIndex].dataset.tabKey); });
     const nativeClick = (event) => {
       const localRow = event.target?.closest?.('[data-app-action-sidebar-thread-id^="local:"]');
@@ -301,7 +296,7 @@ export function buildNativeConversationTabsInjectionSource() {
     observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; position(); scheduleSync(); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-title'] });
 
-    const controller = { version: VERSION, openLocal: (tab) => open({ ...tab, kind: 'local' }, true, true), openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { observer?.disconnect(); dragController.destroy(); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', position); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
+    const controller = { version: VERSION, openLocal: (tab) => open({ ...tab, kind: 'local' }, true, true), openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { observer?.disconnect(); dragController.destroy(); wheelPreferences.destroy(); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', position); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
     render(); scheduleSync(); return controller;
   }
   `;

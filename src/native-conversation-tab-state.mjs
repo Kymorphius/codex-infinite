@@ -1,4 +1,5 @@
 import { reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
+import { normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LOCAL_TAB_KEY = /^local:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -48,7 +49,8 @@ export function normalizeNativeConversationTabHistory(value = {}) {
     dismissedLocalKeys.push(key);
     if (dismissedLocalKeys.length >= MAX_PERSISTED_TABS) break;
   }
-  return Object.freeze({ tabs: Object.freeze(tabs), activeKey, consoleModule, dismissedLocalKeys: Object.freeze(dismissedLocalKeys) });
+  const wheelDirection = normalizeNativeConversationTabWheelDirection(value?.wheelDirection);
+  return Object.freeze({ tabs: Object.freeze(tabs), activeKey, consoleModule, wheelDirection, dismissedLocalKeys: Object.freeze(dismissedLocalKeys) });
 }
 
 export function adjacentNativeConversationTabKey(tabs = [], activeKey = "console", direction = 0) {
@@ -96,6 +98,7 @@ export class NativeConversationTabState {
     this.tabs = [...normalized.tabs];
     this.activeKey = normalized.activeKey;
     this.consoleModule = normalized.consoleModule;
+    this.wheelDirection = normalized.wheelDirection;
     this.dismissedLocalKeys = [...normalized.dismissedLocalKeys];
   }
 
@@ -147,6 +150,11 @@ export class NativeConversationTabState {
   move(movingKey, targetKey, placeAfter = false) {
     this.tabs = reorderNativeConversationTabs(this.tabs, movingKey, targetKey, placeAfter);
     return this.active();
+  }
+
+  setWheelDirection(direction) {
+    this.wheelDirection = normalizeNativeConversationTabWheelDirection(direction);
+    return this.wheelDirection;
   }
 
   active() {

@@ -51,7 +51,7 @@ test("native conversation tab history is bounded, deduplicated, and restorable",
   assert.equal(restored.tabs.length, 40);
   assert.equal(restored.active().kind, "chatgpt");
   assert.equal(restored.showConsole().module, "sessions");
-  assert.deepEqual(normalizeNativeConversationTabHistory({ tabs: [{ kind: "bad" }], activeKey: "unknown", consoleModule: "bad" }), { tabs: [], activeKey: "console", consoleModule: "board", dismissedLocalKeys: [] });
+  assert.deepEqual(normalizeNativeConversationTabHistory({ tabs: [{ kind: "bad" }], activeKey: "unknown", consoleModule: "bad" }), { tabs: [], activeKey: "console", consoleModule: "board", wheelDirection: "standard", dismissedLocalKeys: [] });
 });
 
 test("closed local tabs ignore automatic history sync until explicitly reopened", () => {
@@ -122,6 +122,14 @@ test("wheel adjacency wraps between the permanent Console and final conversation
   assert.equal(adjacentNativeConversationTabKey(tabs, `local:${localTwo.id}`, 1), normalizeNativeConversationTab(remote).key);
   assert.equal(adjacentNativeConversationTabKey(tabs, normalizeNativeConversationTab(remote).key, 1), "console");
   assert.equal(adjacentNativeConversationTabKey([], "console", -1), "console");
+});
+
+test("native tab history persists a normalized wheel direction", () => {
+  assert.equal(normalizeNativeConversationTabHistory({ wheelDirection: "reversed" }).wheelDirection, "reversed");
+  assert.equal(normalizeNativeConversationTabHistory({ wheelDirection: "sideways" }).wheelDirection, "standard");
+  const state = new NativeConversationTabState({ wheelDirection: "reversed" });
+  assert.equal(state.wheelDirection, "reversed");
+  assert.equal(state.setWheelDirection("invalid"), "standard");
 });
 
 test("double-click recognition survives tab rerenders and never closes Console", () => {
@@ -203,14 +211,16 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /position\(\); scheduleSync\(\)/);
   assert.match(source, /background:var\(--color-background-primary,#202022\)/);
   assert.doesNotMatch(source, /const takeoverActive =/);
-  assert.match(source, /addEventListener\('wheel'/);
+  assert.match(source, /addEventListener\(["']wheel["']/);
   assert.match(source, /\{ passive: false \}/);
   assert.match(source, /Math\.abs\(event\.deltaY\) <= Math\.abs\(event\.deltaX\)/);
-  assert.match(source, /wheelAccumulator = 0;/);
+  assert.match(source, /accumulator = 0;/);
   assert.doesNotMatch(source, /wheelGestureHandled|wheelResetTimer/);
-  assert.match(source, /advanceNativeWheelMomentum\(wheelMomentum, delta, performance\.now\(\)\)/);
-  assert.match(source, /wheelMomentum\.ignoring/);
-  assert.match(source, /adjacentKey\(-Math\.sign\(wheelAccumulator\)\)/);
+  assert.match(source, /advanceMomentum\(momentum, delta, performance\.now\(\)\)/);
+  assert.match(source, /momentum\.ignoring/);
+  assert.match(source, /installNativeConversationTabWheelPreferences/);
+  assert.match(source, /nativeConversationTabWheelOffset\(accumulator, state\.wheelDirection\)/);
+  assert.match(source, /wheelDirection: state\.wheelDirection/);
   assert.match(source, /\+ keys\.length\) % keys\.length/);
   assert.match(source, /advanceNativeTabClickSequence\(tabClickSequence/);
   assert.match(source, /tabClickSequence\.close/);

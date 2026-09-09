@@ -68,11 +68,14 @@ narrowing or visible title flash.
 
 While the pointer is anywhere over the strip—including Console, an active or
 inactive conversation tab, or empty strip space—vertical wheel or trackpad movement
-switches relative to the currently active tab: upward selects the tab to the right
-and downward selects the tab to the left. Selection wraps across both edges: moving
-right from the final conversation returns to Console, while moving left from
-Console selects the final conversation. Small trackpad deltas accumulate until a
-short distance threshold is reached, which prevents noise from switching tabs. After each step the
+switches relative to the currently active tab. The strip's visible settings button
+offers two persisted mappings: Standard selects the tab to the right when scrolling
+up and the tab to the left when scrolling down; Reversed selects left when scrolling
+up and right when scrolling down. Existing histories without the preference retain
+Standard behavior. Selection wraps across both edges: moving right from the final
+conversation returns to Console, while moving left from Console selects the final
+conversation. Small trackpad deltas accumulate until a short distance threshold is
+reached, which prevents noise from switching tabs. After each step the
 accumulator resets immediately, so continued movement can select the next tab
 without waiting for a gesture-end cooldown. One wheel event activates at most one
 tab. Horizontal scrolling remains available for overflow.
@@ -97,12 +100,12 @@ dragged or displaced. Reordering changes only the ephemeral order in the current
 native window; it does not activate, close, move, archive, or otherwise mutate a
 conversation, and it does not reorder the native sidebar.
 
-The current open-tab set, order, active key, and last Console module are saved
-after every open, close, activation, and reorder. A renderer reload restores the
-bounded set without automatically navigating or reopening conversations. During
-an injection upgrade, the new controller prefers the previous controller's
-validated in-memory snapshot so a service sync does not lose changes that have
-not yet been read back from storage.
+The current open-tab set, order, active key, last Console module, and normalized
+wheel direction are saved after every open, close, activation, reorder, and
+preference change. A renderer reload restores the bounded set without automatically
+navigating or reopening conversations. During an injection upgrade, the new
+controller prefers the previous controller's validated in-memory snapshot so a
+service sync does not lose changes that have not yet been read back from storage.
 
 Closing a local tab also records a bounded dismissal marker. Native sidebar
 selection observed during route remount or application-history restoration must
@@ -122,7 +125,8 @@ A ChatGPT tab key is the normalized conversation UUID prefixed with
 `chatgpt:`. It is distinct from a local Codex thread with the same UUID.
 
 The local persistence contract contains at most 40 normalized tab records, at
-most 40 dismissed local-tab keys, the active key, and the Console module. An
+most 40 dismissed local-tab keys, the active key, the Console module, and a wheel
+direction enum limited to `standard` or `reversed`. An
 open tab takes precedence over a conflicting dismissal marker. Invalid,
 oversized, unknown-kind, or duplicate records are ignored on restore. No prompt,
 message body, credential, filesystem content, or remote response is stored.
@@ -209,8 +213,10 @@ restores the previous dashboard-only strip. No migration is required.
       same local conversation clears the dismissal and creates one tab.
 - [ ] Opening a native conversation not already represented by a tab does not
       transiently narrow or flash the duplicate native title during remount.
-- [ ] Vertical scrolling over the strip moves one adjacent tab in the expected
+- [x] Vertical scrolling over the strip moves one adjacent tab in the selected
       direction, wraps across both edges, and does not consume horizontal overflow.
+- [x] The visible tab settings menu selects Standard or Reversed, persists the
+      normalized choice, and restores existing histories to Standard.
 - [ ] A decaying touchpad momentum tail does not continue switching tabs, while
       continued deliberate movement, reversal, and re-acceleration remain responsive.
 - [ ] Double-clicking a local or remote tab closes only its ephemeral tab state;
@@ -383,3 +389,15 @@ focused interaction suite and all 495 local tests pass, with syntax and structur
 checks clean for 304 and 325 files. Per the user's request, this version is staged
 in the workspace only and has not been injected, restarted, or copied to another
 device.
+
+The 2026-09-10 local-only update adds a visible settings button to the native tab
+strip with Standard and Reversed vertical-wheel mappings. The normalized choice
+is stored with the bounded renderer-local tab snapshot; existing histories default
+to Standard. Syntax and structure checks passed with zero frozen debt, and all 577
+local tests passed in the delivery worktree. In the live dedicated renderer, both
+injection and tab versions reported `2026-09-10.wheel-direction1`, exactly one
+visible tab root and one visible settings button were present, the menu exposed
+both labeled choices, and selecting Reversed persisted `reversed`. A vertical-wheel
+event then moved from the first local tab leftward to Console as expected before the
+original local tab was restored. The MacBook Pro and Windows nodes were not copied
+or restarted.
