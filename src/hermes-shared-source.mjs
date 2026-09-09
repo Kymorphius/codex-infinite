@@ -98,10 +98,11 @@ export class HermesSharedSource {
     if (!this.nativeConversationAdapter) throw new Error('Native owner control is unavailable');
     return this.nativeConversationAdapter.interruptTurn({ threadId: item.id, turnId });
   }
-  async send(id, text) {
+  async send(id, text, { queued = false } = {}) {
     const item = await this.find(id);
     if (item.archived) throw new Error('Restore the archived conversation in GPT before continuing');
     if (!this.remoteMessageService) throw new Error('Native owner sending service is unavailable');
-    return this.remoteMessageService.submit({ threadId: item.id, prompt: text, expectedDraftRevision: null, deliveryMode: 'new-turn' });
+    const running = queued && (await this.nativeConversationAdapter.readThreadStatuses({ strict: true })).get(item.id) === 'active';
+    return this.remoteMessageService.submit({ threadId: item.id, prompt: text, expectedDraftRevision: null, deliveryMode: running ? 'queue' : 'new-turn' });
   }
 }

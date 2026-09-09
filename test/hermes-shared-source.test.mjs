@@ -44,3 +44,16 @@ test('interrupt cannot target a newer turn than the one displayed', async () => 
   await service.interrupt(sourceId(id), id);
   assert.deepEqual(calls, [{ threadId: id, turnId: id }]);
 });
+test('queued shared messages use owner queue only while the original conversation is active', async () => {
+  const calls = []; let status = 'active';
+  const service = new HermesSharedSource({
+    catalog: { snapshot: async () => ({ conversations: [{ id }], projects: [] }) },
+    nativeConversationAdapter: { readThreadStatuses: async ({ strict }) => { assert.equal(strict, true); return new Map([[id, status]]); } },
+    remoteMessageService: { submit: async input => calls.push(input) }
+  });
+  await service.send(sourceId(id), 'after this', { queued: true });
+  status = 'idle';
+  await service.send(sourceId(id), 'already finished', { queued: true });
+  assert.deepEqual(calls.map(call => call.deliveryMode), ['queue', 'new-turn']);
+  assert.ok(calls.every(call => call.threadId === id));
+});

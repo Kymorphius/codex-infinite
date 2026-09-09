@@ -99,7 +99,7 @@ function submitComposerExpression(deliveryMode, threadId) {
   if (!button || button.disabled) return { ok: false };
   if (!${composerStateExpression(threadId)}.ready) return { ok: false };
   const desired = ${JSON.stringify(deliveryMode)};
-  if (action === desired) { button.click(); return { ok: true, inverted: false, action }; }
+  if (action === desired || (desired === "queue" && action === "new-turn")) { button.click(); return { ok: true, inverted: false, action }; }
   if (["queue", "steer"].includes(action) && ["queue", "steer"].includes(desired)) return { ok: true, inverted: true, action };
   return { ok: false, action };
 })()`;
