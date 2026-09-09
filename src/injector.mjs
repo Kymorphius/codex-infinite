@@ -238,6 +238,11 @@ export class CodexInjector {
       await syncTurnAnnotations(this.connection, this.annotationStore);
       await syncProjectChecklist(this.connection, this.checklistStore);
     } catch (error) {
+      if (/CDP (command timed out|websocket closed|connection closed)/.test(error.message || '')) {
+        this.removeContextBindingListener?.(); this.removeContextBindingListener = null;
+        const stale = this.connection; this.connection = null; this.targetId = null;
+        await stale?.close().catch(() => {});
+      }
       this.logger.warn(`[codex-control-console] injector waiting: ${error.message}`);
     } finally {
       this.syncing = false;
