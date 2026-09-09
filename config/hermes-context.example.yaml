@@ -1,0 +1,13 @@
+# Merge this entry into the existing Hermes configuration's mcp_servers mapping.
+# Resolve these two paths independently on each machine. Do not copy auth stores.
+mcp_servers:
+  gpt_context:
+    command: /absolute/path/to/node
+    args:
+      - /absolute/path/to/codex-control-console/scripts/hermes-context-mcp.mjs
+    timeout: 45
+    connect_timeout: 15
+# The bridge defaults to the local user's native Codex data. If this installation
+# uses custom paths, set CODEX_CONTROL_THREAD_STATE_DB, CODEX_CONTROL_SESSION_ROOT,
+# CODEX_CONTROL_ARCHIVED_SESSION_ROOT and CODEX_CONTROL_SESSION_TITLE_INDEX under
+# this MCP entry's env mapping. These are source paths, never credentials.
