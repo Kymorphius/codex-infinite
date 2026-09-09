@@ -1,4 +1,5 @@
-export function createNativeTurnNavigation({ document, window, getNote, selectTurn, readPreview, getReadingTurn = value => value.turns.find(turn => turn.markers.some(marker => marker.getAttribute('aria-current') === 'true'))?.id }) {
+export function createNativeTurnNavigation({ document, window, getNote, selectTurn, readPreview, getReadingTurn = value => value.turns.find(turn => turn.markers.some(marker => marker.getAttribute('aria-current') === 'true'))?.id }, createGutter = () => ({ update() {}, dispose() {} })) {
+  const gutter = createGutter();
   const ROOT = 'data-ccc-turn-rail', RIGHT = 'data-ccc-message-rail-right';
   const CARD = 'w-80 max-w-[calc(100vw-1rem)] rounded-xl bg-surface-elevated-secondary/95 p-2 text-sm leading-5 text-default shadow-xl-spread ring-[0.5px] ring-border backdrop-blur-sm';
   const make = (tag, text) => { const n = document.createElement(tag); if (text) n.textContent = text; return n; };
@@ -29,8 +30,9 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
     nativeRails.clear();
   }
   function paint() {
-    if (!context || disposed) { rail.hidden = true; popup.hidden = true; clearRight(); return; }
+    if (!context || disposed) { rail.hidden = true; popup.hidden = true; gutter.update(null, null); clearRight(); return; }
     const scroll = context.content?.closest('[data-app-action-timeline-scroll]') || context.host;
+    gutter.update(context.content, scroll);
     const rect = scroll?.getBoundingClientRect();
     if (!rect?.width) { rail.hidden = true; popup.hidden = true; return; }
     rail.hidden = !context.turns.length;
@@ -122,6 +124,6 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
       }
       paint();
     },
-    dispose() { disposed = true; clearRight(); document.removeEventListener('scroll', paint, true); rail.remove(); popup.remove(); style.remove(); }
+    dispose() { disposed = true; gutter.dispose(); clearRight(); document.removeEventListener('scroll', paint, true); rail.remove(); popup.remove(); style.remove(); }
   };
 }

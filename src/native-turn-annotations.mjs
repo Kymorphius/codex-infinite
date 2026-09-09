@@ -1,10 +1,11 @@
+import { createNativeRailGutter, nativeRailContentLimit } from './native-rail-layout.mjs';
 import { selectAnnotationReadingTurn, readAnnotationReadingTurn } from './annotation-reading-turn.mjs';
 import { createNativeTurnNavigation } from './native-turn-navigation.mjs';
 import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
 import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
 export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-06.14', KEY = 'codex-control-console.annotation-drafts.v1';
+  const VERSION = '2026-09-09.native-rail-gutter', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
   let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', disposed = false, scheduled = false, layout = null, hover = null;
@@ -186,5 +187,5 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   refresh();
 }
 export function buildNativeTurnAnnotationsScript() {
-  return `(${installNativeTurnAnnotations.toString()})(${readNativeAnnotationContext.toString()},${JSON.stringify(TURN_ANNOTATION_STYLE)},${createNativeTurnNavigation.toString()},${readNativeTurnPreview.toString()},context => (${readAnnotationReadingTurn.toString()})(context,${selectAnnotationReadingTurn.toString()}))`;
+  return `(${installNativeTurnAnnotations.toString()})(${readNativeAnnotationContext.toString()},${JSON.stringify(TURN_ANNOTATION_STYLE)},options => (${createNativeTurnNavigation.toString()})(options, () => (${createNativeRailGutter.toString()})(${nativeRailContentLimit.toString()})),${readNativeTurnPreview.toString()},context => (${readAnnotationReadingTurn.toString()})(context,${selectAnnotationReadingTurn.toString()}))`;
 }
