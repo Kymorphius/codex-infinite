@@ -55,7 +55,7 @@ export async function readSharedMessages(file, { limit = 500, offset = 0, order 
           }
           if (message) messages.push({ id: byteOffset + 1, role: message.role,
             content: message.role === 'user' ? message.text.replace(/\\([\\`*{}\[\]()#+\-.!_>~|])/g, '$1') : message.text,
-            timestamp: seconds(message.timestamp), source_message_id: message.id, source_phase: message.phase });
+            timestamp: seconds(message.timestamp), source_message_id: message.id, source_phase: message.phase, source_turn_id: activeTurnId });
         }
         byteOffset += end + 1; pending = pending.subarray(end + 1);
       }

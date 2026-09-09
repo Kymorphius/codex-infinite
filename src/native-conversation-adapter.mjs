@@ -165,6 +165,16 @@ export class NativeConversationAdapter {
     }
   }
 
+  async openConversation(threadId) {
+    if (!LOCAL_THREAD_ID.test(threadId)) throw new Error('Invalid conversation');
+    const connection = await this.connect();
+    try {
+      await connection.evaluate(openThreadExpression(threadId));
+      if (!await this.waitFor(connection, composerStateExpression(threadId), state => state?.ready)) throw new Error('Original conversation did not open');
+      return { opened: true };
+    } finally { await connection.close().catch(() => {}); }
+  }
+
   async readDraft(threadId) {
     if (!LOCAL_THREAD_ID.test(threadId) || this.active) return null;
     let connection;
