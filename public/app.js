@@ -1,7 +1,7 @@
 import { installRestartButton } from "./features/runtime/index.js";
 import { createDomServices } from "./core/dom.js";
 import { formatDate, formatDuration, formatTokens, taskStatusLabel } from "./core/format.js";
-import { createNavigation } from "./core/navigation.js";
+import { announceEmbeddedReady, createNavigation } from "./core/navigation.js";
 import { createAdaptiveRefreshScheduler, taskRefreshDelay } from "./core/refresh-policy.js";
 import { createAppState, MODULES } from "./core/state.js";
 import { createTaskSource } from "./core/tasks.js";
@@ -15,6 +15,7 @@ import { createTurboFeature } from "./features/turbo/index.js";
 import { createSkillsFeature } from "./features/skills/index.js";
 
 (() => {
+  announceEmbeddedReady();
   const requestedModule = new URLSearchParams(location.search).get("module");
   const state = createAppState(requestedModule);
   const { $, setScopedState, showToast } = createDomServices();

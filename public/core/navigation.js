@@ -1,3 +1,9 @@
+export function announceEmbeddedReady(windowRef = window) {
+  if (!windowRef.parent || windowRef.parent === windowRef) return false;
+  windowRef.parent.postMessage({ type: "codex-control-console-ready" }, "app://-");
+  return true;
+}
+
 export function createNavigation({ state, modules, $, showToast, onActivate, onRefresh, onOpenRemoteConversation = () => {}, onCopyRemoteProject = () => {}, documentRef = document, windowRef = window }) {
   function updateChrome() {
     const module = modules[state.module];

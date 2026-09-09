@@ -103,6 +103,46 @@ test("injector reasserts target-scoped CSP bypass after a renderer changes behin
   assert.equal(calls.some((call) => call.method === "Page.reload"), false);
 });
 
+test("injector leaves a handshake-managed pending frame mounted for bounded recovery", async () => {
+  const calls = [];
+  const connection = {
+    __codexControlConsoleInstalled: true,
+    __codexControlConsoleRecoveryAttempted: true,
+    async send(method, params) { calls.push({ method, params }); return {}; },
+    async evaluate(source) {
+      calls.push({ method: "evaluate", source });
+      if (source.includes("frameRecoveryManaged")) {
+        return { hasEntry: true, hasFrame: true, frameReady: false, frameRecoveryManaged: true, frameRecoveryRequest: "" };
+      }
+      return false;
+    }
+  };
+  const result = await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
+  assert.equal(result.status, "already-installed");
+  assert.equal(connection.__codexControlConsoleRecoveryAttempted, false);
+  assert.equal(calls.some((call) => call.method === "evaluate" && call.source === "window.__codexControlConsoleClose?.()"), false);
+});
+
+test("injector reloads once for one handshake recovery request", async () => {
+  const calls = [];
+  const connection = {
+    __codexControlConsoleInstalled: true,
+    async send(method, params) { calls.push({ method, params }); return {}; },
+    async evaluate(source) {
+      calls.push({ method: "evaluate", source });
+      if (source.includes("frameRecoveryManaged")) {
+        return { hasEntry: true, hasFrame: true, frameReady: false, frameRecoveryManaged: true, frameRecoveryRequest: "request-1" };
+      }
+      if (source.includes("document.readyState")) return true;
+      return false;
+    }
+  };
+  await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
+  await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
+  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 1);
+  assert.equal(connection.__codexControlConsoleFrameRecoveryRequest, "request-1");
+});
+
 test("injector relaunches a missing dedicated Codex target before the next sync", async () => {
   let recoveries = 0;
   const injector = new CodexInjector({

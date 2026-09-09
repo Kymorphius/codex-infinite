@@ -1,5 +1,6 @@
 import { buildNativeConversationTabsInjectionSource } from "./native-conversation-tabs.mjs";
 import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
+import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-recovery.mjs";
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -18,6 +19,7 @@ export function buildInjectionScript(dashboardUrl) {
   const entryAttribute = JSON.stringify(CONTROL_ENTRY_ATTRIBUTE);
   const workspaceAttribute = JSON.stringify(CONTROL_WORKSPACE_ATTRIBUTE);
   const nativeConversationTabsSource = buildNativeConversationTabsInjectionSource();
+  const embeddedFrameRecoverySource = buildEmbeddedFrameRecoveryInjectionSource();
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
@@ -31,7 +33,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-09-10.wheel-direction1';
+  const INJECTION_VERSION = '2026-09-10.frame-recovery2';
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -42,6 +44,7 @@ export function buildInjectionScript(dashboardUrl) {
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
 
 ${nativeConversationTabsSource}
+${embeddedFrameRecoverySource}
 
   if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && document.querySelector(ENTRY_SELECTOR) && document.querySelector(KANBAN_ENTRY_SELECTOR) && document.querySelector(SESSION_ENTRY_SELECTOR) && document.querySelector(PRIORITY_ENTRY_SELECTOR) && document.querySelector('[data-codex-control-console-native-tabs]') && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
@@ -172,16 +175,12 @@ ${nativeConversationTabsSource}
     frame.setAttribute('data-codex-control-console-frame', '');
     frame.setAttribute('allow', FRAME_ALLOW);
     frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:' + workspaceBackground + ';';
+    const openingFrame = frame;
     const loading = document.createElement('div');
+    loading.setAttribute(FRAME_LOADING_ATTRIBUTE, '');
     loading.textContent = loadingLabel || (module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…');
     loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:' + loadingColor + ';font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:none;';
-    frame.addEventListener('load', () => {
-      loading.remove();
-      frame.setAttribute('data-codex-control-console-frame-ready', '');
-    }, { once: true });
-    setTimeout(() => {
-      if (loading.isConnected) loading.textContent = '控制台页面仍在加载，请确认 127.0.0.1:47831 可用。';
-    }, 5000);
+    monitorEmbeddedFrame(openingFrame, () => frame, loading, module);
     overlay.append(loading, frame);
     for (const child of Array.from(workspaceHost.children)) {
       if (child !== overlay && !child.hasAttribute('data-codex-control-console-original-display')) {
@@ -201,7 +200,7 @@ ${nativeConversationTabsSource}
     if (!activeFrame?.contentWindow) return false;
     const send = () => activeFrame.contentWindow?.postMessage(message, DASHBOARD_ORIGIN);
     if (activeFrame.hasAttribute('data-codex-control-console-frame-ready')) send();
-    else activeFrame.addEventListener('load', send, { once: true });
+    else activeFrame.addEventListener(FRAME_READY_TYPE, send, { once: true });
     return true;
   }
   function openRemoteConversation(reference) {
@@ -279,11 +278,17 @@ ${nativeConversationTabsSource}
       entry.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace(definition.module); });
       anchor.parentElement?.insertBefore(entry, insertionPoint);
     }
+    scheduleEmbeddedFrameRecovery(
+      () => !document.querySelector(WORKSPACE_SELECTOR) && Boolean(nativeAnchor()),
+      (recovery) => openWorkspace(recovery.module, '正在恢复控制台…')
+    );
   }
 
   window.addEventListener('message', async (event) => {
     if (!frame || event.source !== frame.contentWindow || !event.data) return;
-    if (event.data.type === 'codex-control-console-open-task') {
+    if (event.data.type === FRAME_READY_TYPE) {
+      acceptEmbeddedFrameReady(event, frame);
+    } else if (event.data.type === 'codex-control-console-open-task') {
       const result = await openTask(event.data.task || {}).catch((error) => ({ ok: false, method: 'native-route-error', message: error.message }));
       postToDashboard({ type: 'codex-control-console-open-task-result', result });
       if (result.ok) restoreWorkspace();

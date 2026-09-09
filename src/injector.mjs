@@ -138,9 +138,17 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');
       const frame = document.querySelector('[data-codex-control-console-frame]');
-      return { hasEntry: Boolean(entry), hasFrame: Boolean(frame), frameReady: Boolean(frame?.hasAttribute('data-codex-control-console-frame-ready')) };
-    })()`).catch(() => ({ hasEntry: false, hasFrame: false, frameReady: false }));
-    if (state.hasEntry && (!state.hasFrame || state.frameReady || connection.__codexControlConsoleRecoveryAttempted)) {
+      const frameRecoveryManaged = Boolean(frame && document.querySelector('[data-codex-control-console-frame-loading]'));
+      const frameRecoveryRequest = frame?.getAttribute('data-codex-control-console-frame-recovery-request') || '';
+      return { hasEntry: Boolean(entry), hasFrame: Boolean(frame), frameReady: Boolean(frame?.hasAttribute('data-codex-control-console-frame-ready')), frameRecoveryManaged, frameRecoveryRequest };
+    })()`).catch(() => ({ hasEntry: false, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: '' }));
+    if (state.frameRecoveryRequest && state.frameRecoveryRequest !== connection.__codexControlConsoleFrameRecoveryRequest) {
+      connection.__codexControlConsoleFrameRecoveryRequest = state.frameRecoveryRequest;
+      await connection.send("Page.reload", { ignoreCache: false });
+      await waitForReloadedDocument(connection);
+    }
+    if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
+    if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
       await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch);
       await connection.evaluate(buildInjectionScript(dashboardUrl));
       return { status: "already-installed" };

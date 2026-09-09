@@ -2,7 +2,8 @@
 
 ## Status
 
-Implemented on 2026-08-30 and extended for Chromium 152 on 2026-09-03.
+Implemented on 2026-08-30 and extended for Chromium 152 on 2026-09-03 and
+2026-09-10.
 
 ## Problem
 
@@ -74,6 +75,32 @@ marker prevents a background service restart from causing another reload. A
 real later renderer navigation runs the registered injection scripts again
 under the same target-scoped bypass.
 
+Later Chromium 152 desktop builds can fire the iframe `load` event for the
+generated `chrome-error://chromewebdata/` document even though
+`Page.setBypassCSP` has just been reasserted against the current parent. The
+dashboard therefore sends an explicit, fixed-shape ready message to its exact
+`app://-` parent after its own JavaScript boots. The parent accepts readiness
+only from the current iframe and exact loopback dashboard origin; an iframe
+`load` event alone is never success.
+
+If no dashboard handshake arrives within the bounded recovery interval, the
+dedicated parent records only the requested module in `sessionStorage` and marks
+the current frame with a one-time recovery request. The injector consumes that
+exact request and performs one controlled `Page.reload`; page-script
+`location.reload()` is not relied upon because the desktop `app://` shell may
+ignore it. New-document injection restores the requested module after the
+reload, now under the already enabled CSP bypass. A successful handshake clears
+the recovery marker. The restored iframe waits for the native sidebar anchor so
+it is mounted only after the React application has established its durable
+workspace rather than into a transient boot root. The injector deduplicates the
+request token, and a second failure does not loop: it leaves an actionable error
+in the workspace and
+requires a dedicated-shell restart. This conditional recovery preserves macOS
+native startup navigation because healthy startup does not reload the parent.
+While the bounded handshake timer is present, the injector leaves the
+not-yet-ready frame mounted so its older eager-close fallback cannot preempt
+recovery; unmanaged legacy frames retain that fallback.
+
 The injector never edits `ChatGPT.app` or serializes/replaces the live React
 document. The fixed dashboard URL remains the only URL created by the injected
 workspace code.
@@ -94,12 +121,23 @@ bodies, credential isolation, and the dedicated Chromium profile.
   and that a marked compatible document is not reloaded again.
 - Unit-test that repeated synchronization reasserts the target-scoped bypass
   without repeating script registration or the compatibility reload.
+- Unit-test that dashboard readiness uses an explicit exact-parent message,
+  that the parent requires the exact dashboard origin and current frame, and
+  that one failed handshake triggers one bounded parent reload rather than a
+  reload loop.
 - Run `npm run check` and `npm test`.
 - Restart only the dedicated wrapper application.
 - Observe a child frame for `http://127.0.0.1:47831/?module=sessions` in the live
   CDP frame tree and verify its document title/content instead of the Chromium
   blocked-content page.
 - Verify dashboard health remains loopback-only and the session API loads.
+- Reproduce a blocked `chrome-error://chromewebdata/` child, then verify the
+  conditional parent reload restores the exact dashboard iframe, its document
+  reaches `complete`, and the UI reports `已连接`.
+
+Live verification on 2026-09-10 reproduced `net::ERR_BLOCKED_BY_CSP`, observed
+one recovery request and exactly one parent navigation, then observed the exact
+console iframe at `complete` with its marker cleared and task status `已连接`.
 
 ## Rollback
 

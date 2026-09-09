@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createNavigation } from "../public/core/navigation.js";
+import { announceEmbeddedReady, createNavigation } from "../public/core/navigation.js";
 
 function navigationFor(windowRef, messages) {
   return createNavigation({
@@ -9,6 +9,16 @@ function navigationFor(windowRef, messages) {
     documentRef: {}, windowRef
   });
 }
+
+test("embedded dashboard announces readiness only to the exact native parent", () => {
+  const posts = [];
+  const parent = { postMessage(message, target) { posts.push({ message, target }); } };
+  assert.equal(announceEmbeddedReady({ parent }), true);
+  assert.deepEqual(posts, [{ message: { type: "codex-control-console-ready" }, target: "app://-" }]);
+  const top = {};
+  top.parent = top;
+  assert.equal(announceEmbeddedReady(top), false);
+});
 
 test("native task opening posts the stable minimal task contract to the parent frame", () => {
   const posts = [];
