@@ -57,3 +57,35 @@ test('queued shared messages use owner queue only while the original conversatio
   assert.deepEqual(calls.map(call => call.deliveryMode), ['queue', 'new-turn']);
   assert.ok(calls.every(call => call.threadId === id));
 });
+
+test('an idle owner settles an old interrupted marker without editing history', async () => {
+  let status = 'active', started = 100, reads = 0, revision = 'original';
+  const service = new HermesSharedSource({
+    catalog: { snapshot: async () => ({ conversations: [{ id }], projects: [] }), transcriptPath: async () => '/unused' },
+    messages: async () => { reads++; return { activeTurnId: id, activeTurnStartedAt: started, revision, messages: [] }; },
+    nativeConversationAdapter: { readThreadStatuses: async () => new Map([[id, status]]) },
+    now: () => 200000
+  });
+  assert.equal((await service.history(sourceId(id))).activeTurnId, id);
+  status = undefined;
+  assert.equal((await service.history(sourceId(id))).activeTurnId, id);
+  status = 'completed'; started = 190;
+  assert.equal((await service.history(sourceId(id))).activeTurnId, id);
+  started = 100;
+  const settled = await service.history(sourceId(id));
+  assert.equal(settled.activeTurnId, null);
+  assert.equal(settled.interruptedTurnId, id);
+  assert.equal(settled.revision, 'original:owner-idle');
+  assert.equal(revision, 'original');
+  assert.equal(reads, 5);
+});
+
+test('owner reconciliation does not clear a newly changed transcript', async () => {
+  let reads = 0;
+  const service = new HermesSharedSource({
+    catalog: { snapshot: async () => ({ conversations: [{ id }], projects: [] }), transcriptPath: async () => '/unused' },
+    messages: async () => ({ activeTurnId: id, activeTurnStartedAt: 100, revision: String(++reads), messages: [] }),
+    nativeConversationAdapter: { readThreadStatuses: async () => new Map([[id, 'completed']]) }, now: () => 200000
+  });
+  assert.equal((await service.history(sourceId(id))).activeTurnId, id);
+});

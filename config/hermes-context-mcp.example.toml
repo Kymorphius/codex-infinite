@@ -1,0 +1,12 @@
+# Merge only into the owning native frontend's actual CODEX_HOME/config.toml.
+# Replace the paths on each machine; never copy a profile's credentials/state.
+[mcp_servers.hermes_context]
+command = "/absolute/path/to/hermes-agent/venv/bin/python"
+args = ["-P", "-m", "agent.transports.hermes_context_mcp_server"]
+startup_timeout_sec = 30
+tool_timeout_sec = 30
+
+[mcp_servers.hermes_context.env]
+HERMES_HOME = "/absolute/path/to/selected-hermes-profile"
+PYTHONPATH = "/absolute/path/to/hermes-agent"
+HERMES_QUIET = "1"

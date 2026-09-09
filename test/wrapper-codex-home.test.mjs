@@ -53,6 +53,28 @@ test("Windows wrapper uses the same allowlist with a distinct configuration", as
   assert.equal((await fs.lstat(path.join(wrapperHome, "config.toml"))).isSymbolicLink(), false);
 });
 
+test("repeated preparation preserves native MCP, marketplace and model settings", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-persistence-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const sourceHome = path.join(directory, "source"), wrapperHome = path.join(directory, "wrapper");
+  await fs.mkdir(sourceHome);
+  const sourcePath = path.join(sourceHome, "config.toml");
+  await fs.writeFile(sourcePath, 'model = "initial"\n');
+  const options = { sourceHome, wrapperHome, contextWindow: 1_000_000 };
+  const result = await prepareWrapperCodexHome(options);
+  const local = 'model = "native-choice"\n\n[mcp_servers.hermes_context]\ncommand = "local-python"\n\n[marketplaces.openai-bundled]\nsource = "own-marketplace"\n';
+  await fs.writeFile(result.configPath, local);
+  const updatedSource = 'model = "source-changed"\n';
+  await fs.writeFile(sourcePath, updatedSource);
+  await prepareWrapperCodexHome(options);
+  await prepareWrapperCodexHome(options);
+  assert.equal(await fs.readFile(result.configPath, "utf8"), local);
+  assert.equal(await fs.readFile(sourcePath, "utf8"), updatedSource);
+  await fs.writeFile(result.configPath, 'model_context_window = 99\n' + local);
+  await prepareWrapperCodexHome(options);
+  assert.equal(await fs.readFile(result.configPath, "utf8"), local);
+});
+
 test("wrapper SQLite sidecar links survive targets appearing after preparation", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-sidecars-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));

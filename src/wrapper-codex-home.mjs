@@ -91,18 +91,32 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
   if (path.resolve(sourceHome) === path.resolve(wrapperHome)) throw new Error("包装版 CODEX_HOME 不能与普通 Codex 共用同一配置目录");
   const requestedContextWindow = positiveInteger(contextWindow, "包装版上下文窗口");
   await fs.mkdir(wrapperHome, { recursive: true, mode: 0o700 });
+  const configPath = path.join(wrapperHome, "config.toml");
   const sourceConfigPath = path.join(sourceHome, "config.toml");
-  let sourceConfig = "";
+  let existingConfig = null;
   try {
-    sourceConfig = await fs.readFile(sourceConfigPath, "utf8");
+    existingConfig = await fs.readFile(configPath, "utf8");
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const config = withoutWrapperContextConfig(sourceConfig);
-  const configPath = path.join(wrapperHome, "config.toml");
-  const temporaryPath = `${configPath}.tmp`;
-  await fs.writeFile(temporaryPath, config, { mode: 0o600 });
-  await fs.rename(temporaryPath, configPath);
+  // The source seeds a new home; the native frontend owns all later settings.
+  // Re-copying the source on startup erases native MCP/plugin configuration.
+  if (existingConfig === null) {
+    const sourceConfig = await fs.readFile(sourceConfigPath, "utf8").catch(error => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
+    await fs.writeFile(configPath, withoutWrapperContextConfig(sourceConfig), { mode: 0o600, flag: "wx" }).catch(error => {
+      if (error.code !== "EEXIST") throw error;
+    });
+  } else {
+    const config = withoutWrapperContextConfig(existingConfig);
+    if (config !== existingConfig) {
+      const temporaryPath = `${configPath}.tmp`;
+      await fs.writeFile(temporaryPath, config, { mode: 0o600 });
+      await fs.rename(temporaryPath, configPath);
+    }
+  }
   const sharedEntries = [];
   for (const name of SHARED_ENTRIES) {
     if (await ensureSharedEntry(sourceHome, wrapperHome, name, platform, allowActiveRuntimeSidecars)) sharedEntries.push(name);

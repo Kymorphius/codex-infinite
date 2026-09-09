@@ -30,7 +30,7 @@ export async function readSharedMessages(file, { limit = 500, offset = 0, order 
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > 256 * 1024 * 1024) throw new Error('Conversation history exceeds the supported read size');
     const messages = [];
-    let activeTurnId = null;
+    let activeTurnId = null, activeTurnStartedAt = null;
     let pending = Buffer.alloc(0), byteOffset = 0, position = 0;
     while (position < stat.size) {
       const chunk = Buffer.alloc(Math.min(65536, stat.size - position));
@@ -43,8 +43,12 @@ export async function readSharedMessages(file, { limit = 500, offset = 0, order 
         if (line.length) {
           let record;
           try { record = JSON.parse(line.toString('utf8')); } catch { throw new Error('Malformed conversation record'); }
-          if (record.type === 'event_msg' && record.payload?.type === 'task_started' && ID.test(record.payload.turn_id || '')) activeTurnId = record.payload.turn_id;
-          if (record.type === 'event_msg' && record.payload?.type === 'task_complete' && record.payload.turn_id === activeTurnId) activeTurnId = null;
+          if (record.type === 'event_msg' && record.payload?.type === 'task_started' && ID.test(record.payload.turn_id || '')) {
+            activeTurnId = record.payload.turn_id; activeTurnStartedAt = seconds(record.timestamp) || null;
+          }
+          if (record.type === 'event_msg' && record.payload?.type === 'task_complete' && record.payload.turn_id === activeTurnId) {
+            activeTurnId = null; activeTurnStartedAt = null;
+          }
           let message = projectGptMessage(record, byteOffset, { maxMessageChars: Infinity, includeCommentary: true });
           const content = record?.payload?.content;
           const images = record?.type === 'response_item' && record?.payload?.role === 'user' && Array.isArray(content)
@@ -63,15 +67,16 @@ export async function readSharedMessages(file, { limit = 500, offset = 0, order 
     }
     const start = order === 'latest' ? Math.max(0, messages.length - offset - limit) : offset;
     const end = order === 'latest' ? Math.max(0, messages.length - offset) : offset + limit;
-    return { messages: messages.slice(start, end), total: messages.length, activeTurnId,
+    return { messages: messages.slice(start, end), total: messages.length, activeTurnId, activeTurnStartedAt,
       revision: `${stat.dev}:${stat.ino}:${byteOffset}`, pagination: { limit, offset, order, returned: messages.slice(start, end).length } };
   } finally { await handle.close(); }
 }
 
 export class HermesSharedSource {
-  constructor({ catalog, messages = readSharedMessages, remoteMessageService, nativeConversationAdapter }) {
+  constructor({ catalog, messages = readSharedMessages, remoteMessageService, nativeConversationAdapter, now = Date.now }) {
     this.catalog = catalog; this.messages = messages; this.remoteMessageService = remoteMessageService;
     this.nativeConversationAdapter = nativeConversationAdapter;
+    this.now = now;
   }
   async snapshot() {
     const value = await this.catalog.snapshot();
@@ -90,7 +95,23 @@ export class HermesSharedSource {
   }
   async history(id, page) {
     const item = await this.find(id);
-    return { ...await this.messages(await this.catalog.transcriptPath(item), page), session_id: sourceId(item.id) };
+    const file = await this.catalog.transcriptPath(item);
+    let history = await this.messages(file, page);
+    // A process crash can leave task_started without task_complete. Only an
+    // explicitly idle native owner may settle an old marker; unknown/active
+    // status remains conservative. The grace avoids fresh-turn UI lag.
+    if (history.activeTurnId && history.activeTurnStartedAt && this.now() / 1000 - history.activeTurnStartedAt >= 60 &&
+        this.nativeConversationAdapter?.readThreadStatuses) {
+      const statuses = await this.nativeConversationAdapter.readThreadStatuses().catch(() => new Map());
+      if (statuses.get(item.id) === 'completed') {
+        const latest = await this.messages(file, page);
+        if (latest.activeTurnId === history.activeTurnId && latest.revision === history.revision) {
+          history = { ...latest, interruptedTurnId: latest.activeTurnId, activeTurnId: null,
+            revision: `${latest.revision}:owner-idle` };
+        } else history = latest;
+      }
+    }
+    return { ...history, session_id: sourceId(item.id) };
   }
   async interrupt(id, turnId) {
     const item = await this.find(id), history = await this.history(id);
