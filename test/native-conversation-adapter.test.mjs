@@ -13,7 +13,7 @@ function harness({ draft = "", approvals = [], approvalResult = { ok: true }, pl
       if (expression.includes("__codexControlConsoleResolveApproval")) return approvalResult;
       if (expression.includes("__codexControlConsoleInterruptThread")) return { ok: true };
       if (expression.includes("navigate-to-route")) return true;
-      if (expression.includes("data-app-action-sidebar-thread-id")) return { ready: true, draft };
+      if (expression.includes("data-app-action-sidebar-thread-id") && !expression.includes("button.click")) return { ready: true, draft };
       if (expression.includes("document.activeElement")) return true;
       if (expression.includes("button.click")) {
         const desired = expression.includes('const desired = "queue"') ? "queue" : expression.includes('const desired = "steer"') ? "steer" : "new-turn";

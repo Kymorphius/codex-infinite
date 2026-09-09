@@ -12,3 +12,10 @@ Hermes 宿主增加通用 appendChatDraft SDK：仅当前可见且连接就绪�
 
 ## 已完成验证
 2026-09-09：插件安装进真实 Hermes dashboard，并在 Personal Panel 内完成项目选择、标题搜索、公开消息预览和保留既有草稿的带入验证。控制台 562 项、Hermes web 200 项测试通过，构建通过。详细记录见 `docs/hermes-gpt-context-ui.md`。
+
+## 修订：迁入 Hermes Desktop
+用户明确指定 Hermes Desktop 正式聊天界面，并要求撤下 Dashboard Chat 中的旧面板。UI 改为独立桌面插件，通过原生 `composer.attachments` 的“GPT 工作上下文”菜单打开 Dialog。原生 `insertText` 保留当前草稿且不提交，写入前核对会话和配置档案。只读后端保持不变，Dashboard 插件只挂载 API，不注册 UI 槽位。独立 Hermes 与 Personal Panel 使用同一插件，详细说明以 `docs/hermes-gpt-context-ui.md` 为准。
+
+## Shared-history replacement
+
+The user clarified that both surfaces must continue the same history. The attachment-picker migration is superseded by `2026-09-09-hermes-shared-conversations.md`. The desktop plugin no longer registers a popup or attachment action. The native connection adapter supplies first-class project/session projections, retaining original GPT execution ownership.

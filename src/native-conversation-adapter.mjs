@@ -1,3 +1,4 @@
+import { nativeComposerStateExpression as composerStateExpression } from './native-composer-state.mjs';
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { httpError } from "./http-utils.mjs";
 import crypto from "node:crypto";
@@ -27,14 +28,6 @@ function openThreadExpression(threadId) {
   })()`;
 }
 
-function composerStateExpression(threadId) {
-  return `(() => {
-    const selected = document.querySelector('[data-app-action-sidebar-thread-id="local:${threadId}"][data-app-action-sidebar-thread-selected="true"]');
-    const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-    if (!selected || !editor || !(editor.offsetWidth || editor.offsetHeight)) return { ready: false };
-    return { ready: true, draft: (editor.innerText || editor.textContent || "").trim() };
-  })()`;
-}
 
 function interruptTurnExpression(threadId, turnId) {
   return `(async () => {
@@ -83,7 +76,7 @@ const composerTextExpression = `(() => {
   return editor ? (editor.innerText || editor.textContent || "").trim() : null;
 })()`;
 
-function submitComposerExpression(deliveryMode) {
+function submitComposerExpression(deliveryMode, threadId) {
   return `(() => {
   const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
   if (!editor) return { ok: false };
@@ -104,6 +97,7 @@ function submitComposerExpression(deliveryMode) {
     root = root.parentElement;
   }
   if (!button || button.disabled) return { ok: false };
+  if (!${composerStateExpression(threadId)}.ready) return { ok: false };
   const desired = ${JSON.stringify(deliveryMode)};
   if (action === desired) { button.click(); return { ok: true, inverted: false, action }; }
   if (["queue", "steer"].includes(action) && ["queue", "steer"].includes(desired)) return { ok: true, inverted: true, action };
@@ -211,8 +205,8 @@ export class NativeConversationAdapter {
     if (prompt) await connection.send("Input.insertText", { text: prompt });
   }
 
-  async submitComposer(connection, deliveryMode) {
-    const submission = await connection.evaluate(submitComposerExpression(deliveryMode));
+  async submitComposer(connection, deliveryMode, threadId) {
+    const submission = await connection.evaluate(submitComposerExpression(deliveryMode, threadId));
     if (!submission?.ok) return false;
     if (!submission.inverted) return true;
     const modifiers = this.selectAllModifiers | 8;
@@ -264,7 +258,7 @@ export class NativeConversationAdapter {
       else if (!state.draft) await connection.send("Input.insertText", { text: prompt });
       const inserted = await this.waitFor(connection, composerTextExpression, (value) => sameDraftText(value, prompt.trim()));
       if (inserted === null) throw httpError(503, "原生输入框没有接收到完整内容");
-      if (!await this.submitComposer(connection, deliveryMode)) throw httpError(503, deliveryMode === "new-turn" ? "原生 Codex 暂时不能发送这条消息" : "原生 Codex 暂时不能处理这条运行中消息");
+      if (!await this.submitComposer(connection, deliveryMode, threadId)) throw httpError(503, deliveryMode === "new-turn" ? "原生 Codex 暂时不能发送这条消息" : "原生 Codex 暂时不能处理这条运行中消息");
       const cleared = await this.waitFor(connection, composerTextExpression, (value) => value === "");
       if (cleared === null) throw httpError(503, "无法确认原生 Codex 已接收消息");
       return { accepted: true, threadId };

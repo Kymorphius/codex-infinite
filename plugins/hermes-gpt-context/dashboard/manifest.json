@@ -1,14 +1,11 @@
 {
   "name": "gpt-context",
   "label": "GPT 工作上下文",
-  "description": "浏览本机 GPT 项目与会话，将公开历史带入 Hermes 聊天草稿。",
+  "description": "供 Hermes 桌面上下文插件使用的只读项目与会话 API。",
   "icon": "FolderOpen",
-  "version": "1.0.0",
-  "slots": [
-    "chat:top"
-  ],
-  "entry": "index.js",
-  "css": "style.css",
+  "version": "1.1.0",
+  "slots": [],
+  "entry": "backend-only.js",
   "api": "plugin_api.py",
   "tab": {
     "hidden": true
