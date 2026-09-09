@@ -2,7 +2,7 @@
 # Replace the paths on each machine; never copy a profile's credentials/state.
 [mcp_servers.hermes_context]
 command = "/absolute/path/to/hermes-agent/venv/bin/python"
-args = ["-u", "-P", "-m", "agent.transports.hermes_context_mcp_server"]
+args = ["-B", "-u", "-P", "-m", "agent.transports.hermes_context_mcp_server"]
 startup_timeout_sec = 30
 tool_timeout_sec = 30
 

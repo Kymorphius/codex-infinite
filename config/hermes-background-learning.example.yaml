@@ -1,0 +1,7 @@
+# Merge into the selected Hermes profile's config.yaml.
+# Only newly completed external-engine tasks on these boards are reviewed.
+kanban:
+  background_learning:
+    enabled: true
+    boards:
+      - your-board-slug
