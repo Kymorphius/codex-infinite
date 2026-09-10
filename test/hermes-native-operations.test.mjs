@@ -45,3 +45,17 @@ test('attachment boundary rejects nonlocal inputs and protects an existing nativ
   await assert.rejects(stageNativeAttachments({}, {evaluate:async expression=>{if(expression.includes('ClipboardEvent'))pasted=true;return false}},[]),/已有附件/);
   assert.equal(pasted,false);
 });
+
+test('creation accepts only directories owned by the selected shared project', async () => {
+  const { service, calls } = fixture();
+  service.source.list = async () => ({projects:[{id,directories:[os.tmpdir()]}],sessions:[
+    {cwd:process.cwd(),shared_source:{projectId:id}},
+    {cwd:'/',shared_source:{projectId:'other'}}
+  ]});
+  await service.create({project_id:sharedId,cwd:process.cwd()});
+  assert.equal(calls[0][1].cwd,process.cwd());
+  await assert.rejects(service.create({project_id:sharedId,cwd:'/'}),/不可用/);
+  await assert.rejects(service.create({project_id:sharedId,cwd:42}),/不可用/);
+  await assert.rejects(service.create({project_id:sharedId,cwd:null}),/不可用/);
+  assert.equal(calls.filter(c=>c[0]==='thread/start').length,1);
+});

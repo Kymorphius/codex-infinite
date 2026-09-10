@@ -29,10 +29,12 @@ export class HermesNativeOperations {
       return value.result;
     } finally { await connection.close(); }
   }
-  async create({ project_id, title = '新建 GPT 会话' }) {
+  async create({ project_id, title = '新建 GPT 会话', cwd: requestedCwd }) {
     const value = await this.source.list();
     const project = value.projects.find(p => 'codex:' + p.id === project_id);
-    const cwd = project?.directories[0];
+    const allowedDirectories = new Set([...(project?.directories || []), ...(value.sessions || []).filter(s => s.shared_source?.projectId === project?.id).map(s => s.cwd)]);
+    const cwd = requestedCwd === undefined ? project?.directories[0] : requestedCwd;
+    if (typeof cwd !== 'string' || !allowedDirectories.has(cwd)) throw new Error('GPT 项目目录不可用');
     if (!project || !cwd || !(await fs.stat(cwd)).isDirectory()) throw new Error('GPT 项目目录不可用');
     if (typeof title !== 'string' || !title.trim() || title.length > 300) throw new Error('会话标题无效');
     const created = await this.request('thread/start', { cwd, projectId: project.id, ephemeral: false });
