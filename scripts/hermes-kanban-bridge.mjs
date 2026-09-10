@@ -2,7 +2,7 @@ import readline from 'node:readline';
 import { createHermesSharedServices } from '../src/hermes-shared-services.mjs';
 import { HermesKanbanBridge } from '../src/hermes-kanban-bridge.mjs';
 const bridge = new HermesKanbanBridge(createHermesSharedServices());
-const methods = new Set(['projects', 'sessions', 'resolve', 'inspect', 'send', 'interrupt', 'open']);
+const methods = new Set(['projects', 'sessions', 'resolve', 'inspect', 'send', 'interrupt', 'open', 'createSession']);
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 try {
   const { value: line } = await lines[Symbol.asyncIterator]().next();

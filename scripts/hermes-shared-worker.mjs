@@ -1,10 +1,12 @@
 import readline from 'node:readline';
 import fs from 'node:fs/promises';
 import { createHermesSharedServices } from '../src/hermes-shared-services.mjs';
-const { source, native, catalog } = createHermesSharedServices();
+const { source, native, catalog, operations } = createHermesSharedServices();
 const signatures = new Map();
 async function watch({ id }) {
-  const item = await source.find(id), file = await catalog.transcriptPath(item), stat = await fs.stat(file);
+  const item = await source.find(id);
+  let file;try { file = await catalog.transcriptPath(item); } catch { return source.history(id); }
+  const stat = await fs.stat(file);
   const signature = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;
   if (signatures.get(id) === signature) return null;
   const history = await source.history(id);
@@ -12,8 +14,8 @@ async function watch({ id }) {
   if (signatures.size > 16) signatures.delete(signatures.keys().next().value);
   return history;
 }
-const methods = { watch, interrupt: p => source.interrupt(p.id, p.turnId), list: () => source.list(), history: p => source.history(p.id, p.page),
-  send: p => source.send(p.id, p.text, { queued: p.queued === true }), statuses: async () => Object.fromEntries(await native.readThreadStatuses({ strict: true })) };
+const methods = { nativeRead: p => operations.read(p.id), nativeChange: p => operations.change(p.id, p.change), create: p => operations.create(p), watch, interrupt: p => source.interrupt(p.id, p.turnId), list: () => source.list(), history: p => source.history(p.id, p.page),
+  send: p => source.send(p.id, p.text, { queued: p.queued === true, attachments: p.attachments }), statuses: async () => Object.fromEntries(await native.readThreadStatuses({ strict: true })) };
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 lines.on('line', async line => {
   let id;

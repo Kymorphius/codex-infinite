@@ -3,8 +3,12 @@ import { canonicalDraftText } from './native-conversation-adapter.mjs';
 
 const projectId = id => typeof id === 'string' && id.startsWith('codex:') ? id.slice(6) : null;
 export class HermesKanbanBridge {
-  constructor({ source, native, device, pause = ms => new Promise(r => setTimeout(r, ms)) }) {
-    this.source = source; this.native = native; this.device = device; this.pause = pause;
+  constructor({ source, native, operations, device, pause = ms => new Promise(r => setTimeout(r, ms)) }) {
+    this.source = source; this.native = native; this.operations = operations; this.device = device; this.pause = pause;
+  }
+  async createSession(params) {
+    await this.resolve(params);
+    return this.operations.create(params);
   }
   project(row) {
     return { id: `codex:${row.id}`, slug: `codex-${row.id}`, name: row.name, primary_path: row.directories[0] || null,

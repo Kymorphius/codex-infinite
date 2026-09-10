@@ -1,3 +1,4 @@
+import { validateNativeAttachments } from './native-composer-attachments.mjs';
 import crypto from "node:crypto";
 import { validateApprovalDecision } from "./approval-contract.mjs";
 import { httpError } from "./http-utils.mjs";
@@ -15,7 +16,7 @@ export function validateRemoteMessage(input = {}) {
   if (expectedDraftRevision !== null && !/^[0-9a-f]{64}$/.test(expectedDraftRevision)) throw httpError(400, "草稿版本无效");
   const deliveryMode = input.deliveryMode == null ? "new-turn" : String(input.deliveryMode);
   if (!["new-turn", "queue", "steer"].includes(deliveryMode)) throw httpError(400, "消息处理方式无效");
-  return { threadId, prompt, expectedDraftRevision, deliveryMode };
+  return { threadId, prompt, expectedDraftRevision, deliveryMode, ...(input.attachments !== undefined ? { attachments: validateNativeAttachments(input.attachments) } : {}) };
 }
 
 export function validateRemoteDraft(input = {}) {
@@ -52,7 +53,7 @@ export class RemoteMessageService {
   }
 
   async submit(input) {
-    const { threadId, prompt, expectedDraftRevision, deliveryMode } = validateRemoteMessage(input);
+    const { threadId, prompt, expectedDraftRevision, deliveryMode, attachments } = validateRemoteMessage(input);
     if (!this.nativeConversationAdapter) throw httpError(503, "所属节点发送服务不可用");
     const task = await this.localAdapter.getTask(threadId);
     if (!task) throw httpError(404, "所属节点不存在这个会话");
@@ -60,7 +61,7 @@ export class RemoteMessageService {
     const requestId = this.idFactory();
     this.activeThreads.add(threadId);
     try {
-      await this.nativeConversationAdapter.sendMessage({ threadId, prompt, expectedDraftRevision, deliveryMode });
+      await this.nativeConversationAdapter.sendMessage({ threadId, prompt, expectedDraftRevision, deliveryMode, ...(attachments !== undefined ? { attachments } : {}) });
       return { accepted: true, requestId, threadId, deliveryMode, executionAuthority: "owner-native-desktop" };
     } finally {
       this.activeThreads.delete(threadId);

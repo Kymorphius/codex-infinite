@@ -28,7 +28,7 @@ test('sending routes the original identity through owner draft protection', asyn
   const service = new HermesSharedSource({ catalog: { snapshot: async () => ({ conversations: [item], projects: [] }) },
     remoteMessageService: { submit: async value => { input = value; return { accepted: true }; } } });
   await service.send(sourceId(id), 'hello');
-  assert.deepEqual(input, { threadId: id, prompt: 'hello', expectedDraftRevision: null, deliveryMode: 'new-turn' });
+  assert.deepEqual(input, { threadId: id, prompt: 'hello', expectedDraftRevision: null, deliveryMode: 'new-turn', attachments: [] });
   item.archived = true;
   await assert.rejects(service.send(sourceId(id), 'hello'), /archived/);
 });
@@ -88,4 +88,12 @@ test('owner reconciliation does not clear a newly changed transcript', async () 
     nativeConversationAdapter: { readThreadStatuses: async () => new Map([[id, 'completed']]) }, now: () => 200000
   });
   assert.equal((await service.history(sourceId(id))).activeTurnId, id);
+});
+
+test('new empty owner history is readable, missing history with existing turns is not hidden', async () => {
+  const service = new HermesSharedSource({ catalog: { snapshot: async () => ({conversations: [{id}], projects: []}), transcriptPath: async () => {throw new Error('missing history')} } });
+  service.readNativeThread = async () => ({thread: {turns: []}});
+  assert.equal((await service.history(sourceId(id))).total, 0);
+  service.readNativeThread = async () => ({thread: {turns: [{id}]}});
+  await assert.rejects(service.history(sourceId(id)), /missing history/);
 });

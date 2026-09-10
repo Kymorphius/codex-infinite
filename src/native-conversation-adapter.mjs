@@ -1,3 +1,4 @@
+import { stageNativeAttachments } from './native-composer-attachments.mjs';
 import { nativeComposerStateExpression as composerStateExpression } from './native-composer-state.mjs';
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { httpError } from "./http-utils.mjs";
@@ -190,15 +191,16 @@ export class NativeConversationAdapter {
     }
   }
 
-  async readPendingApprovals(threadId) {
+  async readPendingApprovals(threadId, { strict = false } = {}) {
     if (!LOCAL_THREAD_ID.test(threadId)) return [];
     let connection;
     try {
       connection = await this.connect();
       const result = await connection.evaluate(pendingApprovalsExpression(threadId.toLowerCase()));
-      if (!result?.ok) return [];
+      if (!result?.ok) { if (strict) throw new Error(result?.message || '原生审批状态不可用'); return []; }
       return normalizePendingApprovals(result.items, { expectedThreadId: threadId });
-    } catch {
+    } catch (error) {
+      if (strict) throw error;
       return [];
     } finally {
       await connection?.close().catch(() => {});
@@ -250,7 +252,7 @@ export class NativeConversationAdapter {
     }
   }
 
-  async sendMessage({ threadId, prompt, expectedDraftRevision = null, deliveryMode = "new-turn" }) {
+  async sendMessage({ threadId, prompt, expectedDraftRevision = null, deliveryMode = "new-turn", attachments }) {
     if (!LOCAL_THREAD_ID.test(threadId)) throw httpError(400, "原生 Codex 会话标识无效");
     if (!["new-turn", "queue", "steer"].includes(deliveryMode)) throw httpError(400, "原生消息处理方式无效");
     if (this.active) throw httpError(409, "所属节点正在接收另一条远端消息");
@@ -263,6 +265,7 @@ export class NativeConversationAdapter {
       if (!state) throw httpError(503, "无法在所属节点打开这个原生会话");
       const currentRevision = draftRevision(state.draft);
       if (currentRevision !== (expectedDraftRevision || null)) throw httpError(409, "所属节点的原生草稿已经变化，请同步后再发送");
+      if (attachments !== undefined) await stageNativeAttachments(this, connection, attachments);
       if (!await connection.evaluate(focusComposerExpression)) throw httpError(503, "无法聚焦所属节点的原生输入框");
       if (state.draft && !sameDraftText(state.draft, prompt.trim())) await this.replaceDraft(connection, prompt);
       else if (!state.draft) await connection.send("Input.insertText", { text: prompt });

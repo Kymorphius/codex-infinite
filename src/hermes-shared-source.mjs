@@ -95,7 +95,14 @@ export class HermesSharedSource {
   }
   async history(id, page) {
     const item = await this.find(id);
-    const file = await this.catalog.transcriptPath(item);
+    let file;
+    try { file = await this.catalog.transcriptPath(item); }
+    catch (error) {
+      if (!this.readNativeThread) throw error;
+      const result = await this.readNativeThread(item.id);
+      if (!Array.isArray(result.thread?.turns) || result.thread.turns.length) throw error;
+      return { session_id: id, messages: [], total: 0, activeTurnId: null, revision: "native-empty", pagination: { limit: page?.limit || 500, offset: page?.offset || 0, order: page?.order || "latest", returned: 0 } };
+    }
     let history = await this.messages(file, page);
     // A process crash can leave task_started without task_complete. Only an
     // explicitly idle native owner may settle an old marker; unknown/active
@@ -119,11 +126,11 @@ export class HermesSharedSource {
     if (!this.nativeConversationAdapter) throw new Error('Native owner control is unavailable');
     return this.nativeConversationAdapter.interruptTurn({ threadId: item.id, turnId });
   }
-  async send(id, text, { queued = false } = {}) {
+  async send(id, text, { queued = false, attachments = [] } = {}) {
     const item = await this.find(id);
     if (item.archived) throw new Error('Restore the archived conversation in GPT before continuing');
     if (!this.remoteMessageService) throw new Error('Native owner sending service is unavailable');
     const running = queued && (await this.nativeConversationAdapter.readThreadStatuses({ strict: true })).get(item.id) === 'active';
-    return this.remoteMessageService.submit({ threadId: item.id, prompt: text, expectedDraftRevision: null, deliveryMode: running ? 'queue' : 'new-turn' });
+    return this.remoteMessageService.submit({ threadId: item.id, prompt: text, expectedDraftRevision: null, deliveryMode: running ? 'queue' : 'new-turn', attachments });
   }
 }
