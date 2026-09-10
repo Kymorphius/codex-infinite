@@ -33,16 +33,18 @@ function normalizedRoot(value) {
   return path.resolve(String(value || ""));
 }
 
-export function registerNativeSidebarProjectState(state, { codexHome, serverProjectId, projectName, rootPath, threadIds, collaborationSectionId = null, now = Date.now(), legacyProjectId = crypto.randomUUID(), sectionProfileId = crypto.randomUUID() }) {
+export function registerNativeSidebarProjectState(state, { codexHome, serverProjectId, projectName, rootPath, rootPaths, threadIds, collaborationSectionId = null, now = Date.now(), legacyProjectId = crypto.randomUUID(), sectionProfileId = crypto.randomUUID() }) {
   const projects = record(state[LOCAL_PROJECTS]);
-  const root = normalizedRoot(rootPath);
+  const selected = rootPaths || [rootPath];
+  if (!Array.isArray(selected) || !selected.length || selected.some(root => typeof root !== 'string' || !path.isAbsolute(root))) throw new Error('项目根目录必须是绝对路径');
+  const roots = [...new Set(selected.map(normalizedRoot))];
   const existing = Object.values(projects).find((project) => (
-    Array.isArray(project?.rootPaths) && project.rootPaths.some((candidate) => normalizedRoot(candidate) === root)
+    Array.isArray(project?.rootPaths) && project.rootPaths.length === roots.length && roots.every(root => project.rootPaths.some(candidate => normalizedRoot(candidate) === root))
   ));
   const projectId = String(existing?.id || legacyProjectId);
   const next = structuredClone(state);
   next[LOCAL_PROJECTS] = { ...projects, [projectId]: {
-    ...record(existing), id: projectId, name: String(projectName), rootPaths: [root],
+    ...record(existing), id: projectId, name: String(projectName), rootPaths: roots,
     createdAt: existing?.createdAt || now, updatedAt: now
   } };
   const host = `local:${normalizedRoot(codexHome)}`;
@@ -98,14 +100,14 @@ export class NativeProjectSidebarRegistry {
     this.randomUUID = randomUUID;
   }
 
-  async register({ serverProjectId, projectName, rootPath, threadIds = [], collaborationSectionId = null }) {
+  async register({ serverProjectId, projectName, rootPath, rootPaths, threadIds = [], collaborationSectionId = null }) {
     let legacyProjectId = this.randomUUID();
     const sectionProfileId = this.randomUUID();
     for (const codexHome of this.homes) {
       const filePath = path.join(codexHome, STATE_FILE);
       const state = await readState(filePath);
       const result = registerNativeSidebarProjectState(state, {
-        codexHome, serverProjectId, projectName, rootPath, threadIds,
+        codexHome, serverProjectId, projectName, rootPath, rootPaths, threadIds,
         collaborationSectionId, now: this.now(), legacyProjectId, sectionProfileId
       });
       legacyProjectId = result.projectId;
