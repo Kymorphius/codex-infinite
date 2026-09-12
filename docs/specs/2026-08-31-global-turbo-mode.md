@@ -2,7 +2,8 @@
 
 ## Status
 
-Implemented and verified on 2026-08-31.
+Implemented and verified on 2026-08-31. Extended on 2026-09-12 for desktop
+builds that expose a frozen renderer bridge.
 
 ## Problem
 
@@ -86,6 +87,26 @@ These are turn-scoped overrides. The bridge never writes thread settings, so
 disabling Turbo restores the next turn to the native UI's unchanged model,
 effort, and service-tier choices without a restoration request or writer lock.
 
+Some later desktop builds expose `electronBridge` as a frozen, non-configurable
+context-bridge object. The injector verifies whether its turn wrapper was
+actually installed instead of treating a silent assignment failure as success.
+On those builds it lazily acquires a reversible settings lease only for the
+currently mounted native thread: it reads the authoritative model, effort,
+service tier, permission profile, and explicit context override; applies the
+Turbo values through the writer-owning App Server; and reads model, effort, and
+service tier back before decorating the UI as effective. Switching threads
+applies the same bounded lease to the newly mounted thread. Disabling or
+excluding the device restores every acquired lease and clears it only after the
+owner accepts the restoration. It never eagerly opens or rewrites the complete
+thread catalog.
+
+The sidebar header control row that hosts the native mode switch, Turbo
+controls, search, and activity buttons is explicitly marked as a draggable
+title-bar region, while every interactive descendant is marked as a no-drag
+pointer region. This preserves window dragging through the gaps and reliable
+button interaction across macOS Electron title-bar hit testing. Turbo-owned
+controls also provide visible hover feedback.
+
 Collaboration mode settings receive the same resolved model and effort inside
 their existing settings object because those settings take precedence over the
 top-level effort. Turbo does not change collaboration mode, permissions,
@@ -150,6 +171,10 @@ does not restart either desktop.
   but does not enforce it locally.
 - [x] Global responses expose partial peer failures truthfully.
 - [x] Full tests, structure checks, and diff checks pass.
+- [x] A frozen `electronBridge` uses a reversible writer-owned settings lease,
+  and the UI reports Turbo effective only after authoritative readback.
+- [x] The sidebar header buttons remain hoverable and clickable while the gaps
+  remain draggable through the real macOS title-bar hit-test path.
 
 ## Official protocol basis
 

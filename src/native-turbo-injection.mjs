@@ -1,5 +1,6 @@
 import { highestModelEfforts, TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
 import { buildNativeTurboUiSource } from "./native-turbo-ui.mjs";
+import { buildNativeTurboEnforcementSource } from "./native-turbo-enforcement.mjs";
 
 export const NATIVE_TURBO_BINDING = "__codexControlConsoleToggleTurbo";
 
@@ -49,8 +50,9 @@ export function normalizeTurboPolicy(policy = {}) {
 export function buildNativeTurboInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_TURBO_BINDING);
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
+  const enforcementSource = buildNativeTurboEnforcementSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-08-31.6') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-12.3') return;
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
   try {
     const currentSend = window.electronBridge?.sendMessageFromView;
@@ -60,7 +62,7 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-08-31.6';
+  window.__codexControlConsoleTurboVersion = '2026-09-12.3';
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
@@ -145,6 +147,7 @@ export function buildNativeTurboInjectionScript() {
   }
 
   ${uiSource}
+  ${enforcementSource}
 
   function install() {
     installButton();
@@ -160,6 +163,7 @@ export function buildNativeTurboInjectionScript() {
     wrapped.__codexControlTurboWrapped = true;
     wrapped.__codexControlTurboOriginal = current;
     try { bridge.sendMessageFromView = wrapped; } catch {}
+    void syncTurboEnforcement();
   }
 
   window.__codexControlConsoleSetTurboPolicy = (value) => {

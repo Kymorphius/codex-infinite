@@ -7,11 +7,12 @@ export function buildNativeTurboUiSource(bindingName) {
 
   function renderButton(button) {
     const active = policy.enabled && policy.active;
+    const enforced = !active || typeof turboIsEnforcedForCurrentThread !== 'function' || turboIsEnforcedForCurrentThread();
     button.dataset.enabled = active ? 'true' : 'false';
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
     button.disabled = pending;
     const badges = [policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : ''].filter(Boolean).join(' · ');
-    button.title = pending ? '正在同步所有设备…' : policy.enabled && !policy.active ? 'Turbo 已开启，但这台设备不在作用范围内' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
+    button.title = pending ? '正在同步所有设备…' : policy.enabled && !policy.active ? 'Turbo 已开启，但这台设备不在作用范围内' : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
     button.style.cssText = 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
     button.textContent = '';
     const icon = document.createElement('span'); icon.textContent = '⚡'; icon.setAttribute('aria-hidden', 'true');
@@ -40,7 +41,7 @@ export function buildNativeTurboUiSource(bindingName) {
   function decorateReasoningControl() {
     const button = document.querySelector('[data-composer-navigation-target="reasoning"]');
     if (!button) return;
-    if (!policy.enabled || !policy.active) { restoreReasoningControl(button); return; }
+    if (!policy.enabled || !policy.active || (typeof turboIsEnforcedForCurrentThread === 'function' && !turboIsEnforcedForCurrentThread())) { restoreReasoningControl(button); return; }
     const nativeText = String(button.textContent || '').replace(/\\s+/g, ' ').trim();
     const nativeModel = Array.from(policy.efforts.keys()).find((model) => nativeText.toLowerCase().includes(turboLabel(model).toLowerCase().split(' ').at(-1))) || '';
     const model = policy.model || nativeModel;
@@ -64,6 +65,21 @@ export function buildNativeTurboUiSource(bindingName) {
   }
 
   function closeSettings() { document.querySelector('[data-codex-control-console-turbo-popover]')?.remove(); }
+
+  function makeTurboHeaderInteractive(host) {
+    const row = host?.parentElement;
+    if (!row) return;
+    row.setAttribute('data-codex-control-console-interactive-header', '');
+    for (const element of [row, host]) {
+      element.style.setProperty('-webkit-app-region', 'drag', 'important');
+      element.style.setProperty('app-region', 'drag', 'important');
+    }
+    for (const element of row.querySelectorAll('button,[role="button"]')) {
+      element.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+      element.style.setProperty('app-region', 'no-drag', 'important');
+      element.style.setProperty('pointer-events', 'auto', 'important');
+    }
+  }
 
   function addSelect(form, title, name, options, selected) {
     const label = document.createElement('label'); label.style.cssText = 'display:grid;gap:5px;font-size:12px;color:#b8b8bd'; label.textContent = title;
@@ -114,9 +130,17 @@ export function buildNativeTurboUiSource(bindingName) {
 
   function installButton() {
     const search=document.querySelector('button[aria-label="搜索"],button[aria-label="Search"]'); const host=search?.parentElement?.parentElement?.parentElement; if (!host || !host.classList?.contains('ms-auto')) return;
+    makeTurboHeaderInteractive(host);
     let button=document.querySelector('[data-codex-control-console-native-turbo]'); if (!button) { button=document.createElement('button'); button.type='button'; button.setAttribute('data-codex-control-console-native-turbo',''); button.setAttribute('aria-label','Turbo 模式'); button.addEventListener('click',(event)=>{ event.preventDefault();event.stopPropagation();const bindingFn=window[${binding}];if(pending||typeof bindingFn!=='function')return;pending=true;renderButton(button);try{bindingFn(JSON.stringify({enabled:!policy.enabled}));}catch{pending=false;renderButton(button);}}); }
     renderButton(button); if(button.parentElement!==host)host.insertBefore(button,host.firstChild);
     let settings=document.querySelector('[data-codex-control-console-native-turbo-settings]'); if(!settings){settings=document.createElement('button');settings.type='button';settings.setAttribute('data-codex-control-console-native-turbo-settings','');settings.setAttribute('aria-label','Turbo 设置');settings.title='Turbo 设置';settings.textContent='⚙';settings.style.cssText='display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:1px solid rgba(128,128,128,.2);border-radius:999px;background:transparent;color:currentColor;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;opacity:.72;-webkit-app-region:no-drag;app-region:no-drag;';settings.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openSettings(settings);});} if(settings.parentElement!==host)host.insertBefore(settings,button.nextSibling);
+    for (const control of [button, settings]) {
+      if (control.hasAttribute('data-codex-control-console-turbo-hover')) continue;
+      control.setAttribute('data-codex-control-console-turbo-hover', '');
+      control.addEventListener('mouseenter', () => { control.style.filter = 'brightness(1.22)'; control.style.opacity = '1'; });
+      control.addEventListener('mouseleave', () => { control.style.filter = ''; renderButton(button); if (control === settings) control.style.opacity = '.72'; });
+    }
+    makeTurboHeaderInteractive(host);
   }
 `;
 }

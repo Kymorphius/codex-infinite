@@ -132,6 +132,9 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /Fast/);
   assert.match(source, /button\[aria-label="搜索"\]/);
+  assert.match(source, /data-codex-control-console-interactive-header/);
+  assert.match(source, /-webkit-app-region', 'drag', 'important/);
+  assert.match(source, /-webkit-app-region', 'no-drag', 'important/);
   assert.match(source, new RegExp(NATIVE_TURBO_BINDING));
   assert.deepEqual(parseNativeTurboAction('{"enabled":true}'), { enabled: true });
   assert.deepEqual(parseNativeTurboAction('{"millionContext":true}'), { millionContext: true });

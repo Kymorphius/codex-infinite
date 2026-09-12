@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted on 2026-08-31.
+Accepted on 2026-08-31; amended on 2026-09-12.
 
 ## Context
 
@@ -20,6 +20,15 @@ model catalog's highest supported effort and the turn-scoped Fast service tier.
 It never writes sticky thread settings. Disabling the mode therefore exposes
 the native UI's unchanged per-thread choices on the next turn and requires no
 restoration request or lossy bulk rewrite.
+
+Desktop builds that freeze the context-bridge transport cannot install that
+wrapper. A silent failed assignment is not accepted as enforcement. On those
+builds Turbo uses a bounded, reversible settings lease for only the currently
+mounted thread. It records the authoritative native settings before applying
+Turbo through the same writer, verifies model, effort, and service tier by
+readback, and restores all acquired leases when Turbo is disabled or the device
+leaves the target set. This is a compatibility fallback, not permission to
+rewrite the complete thread catalog.
 
 The optional Turbo million-context preference is prepared at the same boundary
 but cannot be encoded in `turn/start`: the installed protocol exposes context
@@ -45,3 +54,6 @@ nodes retain the policy for consistent editing but do not transform turns.
 - A disconnected node can temporarily diverge and must be reported as such.
 - The bridge depends on the stable App Server `turn/start` contract and must be
   regression-tested against generated protocol schemas when Codex is upgraded.
+- Frozen renderer bridges depend instead on the existing writer-owned
+  `thread/resume` and `thread/settings/update` contracts and retain bounded
+  restoration state until the owner accepts rollback.
