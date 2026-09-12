@@ -54,8 +54,9 @@ button; cached or ownerless records explain why opening is unavailable.
   `已完成`, `完成` or `Done`.
 - Only direct conversation membership can override workflow state. A project
   section is display context and cannot change all child conversation states.
-- `POST /api/sidebar/actions` opens the exact owner item using its native key,
-  current section and revision. No action is replayed after a conflict.
+- Opening first refreshes `GET /api/sidebar`, then `POST /api/sidebar/actions`
+  opens the exact owner item using its native key, current section and latest
+  revision. A conflict remains visible and is never replayed automatically.
 - No schema migration or new persisted data.
 
 ## Design and ownership
@@ -107,7 +108,8 @@ None.
 ## Recorded verification
 
 - `npm run check` passes with 399 syntax-checked and 429 structure-checked
-  files. The full test suite passes 641/641 after updating module-route fixtures.
+  files. The full test suite passes 642/642, including reconstruction of an
+  open action from a newly read sidebar revision.
 - The live dark-theme page projected 246 owner-scoped conversations: 11 active,
   57 awaiting acceptance, one interrupted and 177 requiring review at inspection
   time. DevBook Air and MacBook Pro were connected; Windows was visibly
@@ -119,3 +121,7 @@ None.
 - Opening the current conversation returned the visible owner confirmation
   `已打开「评估 Hermes 看板集成」`. The restarted loopback service served the
   page and scripts with their expected content types.
+- After reproducing a stale-revision conflict, opening the same conversation
+  refreshed its owner catalog first and again returned
+  `已打开「评估 Hermes 看板集成」`; the page returned to its normal updated
+  state instead of remaining in `正在同步`.

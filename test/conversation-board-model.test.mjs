@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conversationCatalog, conversationIdentity, filterConversations, inferBoardState, inferWorkType, openAction, validateSidebarPayload } from '../public/features/conversations/model.js';
+import { conversationCatalog, conversationIdentity, filterConversations, inferBoardState, inferWorkType, openAction, resolveOpenTarget, validateSidebarPayload } from '../public/features/conversations/model.js';
 
 const revision = 'b'.repeat(64);
 function owner(id = 'mac', overrides = {}) {
@@ -53,6 +53,16 @@ test('open action carries exact native owner, key, section and revision', () => 
   assert.throws(() => openAction({ ...row, stale: true }), /缓存记录/);
   assert.throws(() => openAction({ ...row, capabilities: [] }), /暂不支持/);
   assert.throws(() => openAction({ ...row, revision: null }), /有效版本/);
+});
+
+test('open target is rebuilt from the latest sidebar revision', () => {
+  const identity = conversationIdentity('mac', 'codex:thread:local:one');
+  const latestRevision = 'c'.repeat(64);
+  const latestOwner = owner('mac'); latestOwner.snapshot.revision = latestRevision;
+  const { item, input } = resolveOpenTarget(identity, { schemaVersion: 1, devices: [latestOwner] });
+  assert.equal(item.revision, latestRevision);
+  assert.equal(input.expectedRevision, latestRevision);
+  assert.throws(() => resolveOpenTarget(conversationIdentity('mac', 'missing'), { schemaVersion: 1, devices: [latestOwner] }), /最新侧栏/);
 });
 
 test('malformed connected catalog is rejected', () => {

@@ -1,4 +1,4 @@
-import { BOARD_COLUMNS, conversationCatalog, conversationIdentity, filterConversations, openAction, validateSidebarPayload } from './model.js';
+import { BOARD_COLUMNS, conversationCatalog, conversationIdentity, filterConversations, openAction, resolveOpenTarget, validateSidebarPayload } from './model.js';
 
 const $ = selector => document.querySelector(selector);
 const formatTime = value => {
@@ -92,16 +92,20 @@ async function refresh() {
 
 async function openConversation(identity) {
   if (state.busy) return;
-  const item = catalog().find(row => row.identity === identity); if (!item) return;
-  let input; try { input = openAction(item); } catch (error) { showNotice(error.message, true); return; }
-  state.busy = identity; render(); showNotice('正在等待所属设备打开会话…');
+  const version = ++readVersion;
+  state.loading = false; state.busy = identity; render(); showNotice('正在核对所属设备的最新侧栏…');
   try {
+    const sidebar = validateSidebarPayload(await request('/api/sidebar'));
+    if (version !== readVersion) return;
+    state.sidebar = sidebar; state.stale = false; state.error = '';
+    const { item, input } = resolveOpenTarget(identity, sidebar, state.tasks, state.activities);
+    render(); showNotice('正在等待所属设备打开会话…');
     const result = await request('/api/sidebar/actions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) });
     if (!result.applied || result.deviceId !== item.deviceId) throw Error('所属设备未确认打开操作');
     showNotice(item.deviceKind === 'local-codex' ? `已打开「${item.title}」` : `已在 ${item.deviceName} 打开「${item.title}」`);
     if (item.deviceKind === 'local-codex' && window.parent !== window) window.parent.postMessage({ type: 'codex-control-console-close' }, 'app://-');
   } catch (error) { showNotice(`${error.message || '打开失败'}，请刷新后核对`, true); }
-  finally { state.busy = null; render(); }
+  finally { if (version === readVersion) { state.busy = null; render(); } }
 }
 
 function showNotice(message, error = false) { const node = $('#action-notice'); node.hidden = false; node.className = `notice${error ? ' error' : ''}`; node.textContent = message; }

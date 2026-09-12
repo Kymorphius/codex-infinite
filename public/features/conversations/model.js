@@ -101,3 +101,9 @@ export function openAction(item) {
   if (!item.section) throw Error('会话尚未映射到原生分区');
   return { action: 'open', deviceId: item.deviceId, itemKey: item.key, sectionId: item.section.id, expectedRevision: item.revision };
 }
+
+export function resolveOpenTarget(identity, sidebarPayload, tasksPayload = {}, activities = new Map()) {
+  const item = conversationCatalog(validateSidebarPayload(sidebarPayload), tasksPayload, activities).find(row => row.identity === identity);
+  if (!item) throw Error('会话已不在所属设备的最新侧栏中');
+  return { item, input: openAction(item) };
+}
