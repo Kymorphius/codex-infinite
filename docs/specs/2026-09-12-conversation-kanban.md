@@ -38,6 +38,10 @@ filters cover title/path, owner device, source and inferred work type. Columns
 remain horizontally scrollable on narrow screens. Loading, stale owners, empty
 filters and failed reads are visible. Each actionable card has an `打开会话`
 button; cached or ownerless records explain why opening is unavailable.
+The sidebar catalog renders as soon as its authoritative read completes; slower
+task and approval enrichment must not block the first visible cards.
+Cards render in bounded animation-frame batches so the visible part of each
+column becomes interactive before the complete catalog has been painted.
 
 ## Contracts and data
 
@@ -48,6 +52,9 @@ button; cached or ownerless records explain why opening is unavailable.
   current task status. Active Codex tasks read their activity endpoint to detect
   pending approval records. Local owner activity uses `/api/node/activity/:id`;
   remote activity uses `/api/tasks/:id/activity?device=:deviceId`.
+- The controller reads and renders the validated sidebar before starting the
+  heavier task query, preventing task collection from delaying the catalog on
+  the loopback service.
 - State priority is: explicit native conversation section, pending approval,
   error/interruption, active turn, completed turn, unknown. Completed turns map
   to `待验收`; `已完成` requires an explicit native conversation section named
@@ -85,6 +92,9 @@ module allowlist restores the previous UI without data rollback.
 - [ ] Pending native approvals appear in `待确认`; completed turns appear in
   `待验收`; unknown ChatGPT state appears in `待核对`.
 - [ ] Search and device/source/type filters update visible cards and counts.
+- [ ] A slow task-status response does not delay the first sidebar-backed cards.
+- [ ] Large catalogs paint their first visible cards before all remaining cards
+  are appended, while final counts and filters still cover the full catalog.
 - [ ] Opening a card sends the exact owner/key/section/revision contract and the
   native workspace closes after a confirmed local open.
 - [ ] Offline or stale records cannot be opened.
@@ -125,3 +135,8 @@ None.
   refreshed its owner catalog first and again returned
   `已打开「评估 Hermes 看板集成」`; the page returned to its normal updated
   state instead of remaining in `正在同步`.
+- Before the first-paint change, the live sidebar endpoint completed in about
+  2 ms while task collection took about 2.29 s and blocked the page. With 227
+  live conversations, a reload displayed interactive cards in 124 ms, then
+  completed all 227 cards and task status in the background. Filtering to
+  `绘画` displayed one current match and clearing restored all 227 cards.

@@ -5,8 +5,10 @@ const formatTime = value => {
   const time = Date.parse(value); if (!time) return '时间未知';
   return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(time);
 };
-const state = { sidebar: null, tasks: null, activities: new Map(), filters: { query: '', device: '', source: '', workType: '' }, loading: false, stale: false, error: '', busy: null };
+const state = { sidebar: null, tasks: null, activities: new Map(), filters: { query: '', device: '', source: '', workType: '' }, loading: false, enriching: false, stale: false, error: '', busy: null };
 let readVersion = 0;
+let paintVersion = 0;
+const CARD_BATCH_SIZE = 12;
 
 async function body(response) {
   let value; try { value = await response.json(); } catch { throw Error('服务未返回有效数据'); }
@@ -53,7 +55,20 @@ function card(item) {
   return node;
 }
 
+function appendCards(list, items, version) {
+  let offset = 0;
+  const append = () => {
+    if (version !== paintVersion || !list.isConnected) return;
+    const fragment = document.createDocumentFragment(), end = Math.min(offset + CARD_BATCH_SIZE, items.length);
+    while (offset < end) fragment.append(card(items[offset++]));
+    list.append(fragment);
+    if (offset < items.length) window.requestAnimationFrame(append);
+  };
+  append();
+}
+
 function render() {
+  const version = ++paintVersion;
   const items = catalog(), rows = visible(); renderFilters(items); renderDevices();
   $('#catalog-count').textContent = items.length; $('#result-count').textContent = state.loading && !state.sidebar ? '正在读取会话…' : `显示 ${rows.length} 个，共 ${items.length} 个会话`;
   $('#sync-status').textContent = state.loading ? '正在同步' : state.stale ? '显示上次结果' : `更新于 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
@@ -64,8 +79,9 @@ function render() {
     column.dataset.state = definition.id; column.querySelector('.column-marker').style.background = definition.color;
     column.querySelector('h2').textContent = definition.name; column.querySelector('.column-count').textContent = subset.length;
     column.querySelector('.column-description').textContent = definition.description;
-    const list = column.querySelector('.card-list'); subset.forEach(item => list.append(card(item)));
+    const list = column.querySelector('.card-list');
     column.querySelector('.column-empty').hidden = subset.length > 0; board.append(column);
+    appendCards(list, subset, version);
   }
   $('#empty-state').hidden = rows.length > 0 || state.loading;
 }
@@ -82,18 +98,22 @@ async function readActivities(items, version) {
 async function refresh() {
   const version = ++readVersion; state.loading = true; render();
   try {
-    const [sidebar, tasks] = await Promise.all([request('/api/sidebar'), request('/api/tasks')]);
+    const sidebar = await request('/api/sidebar');
     if (version !== readVersion) return;
-    state.sidebar = validateSidebarPayload(sidebar); state.tasks = tasks; state.activities = new Map(); state.stale = false; state.error = ''; render();
+    state.sidebar = validateSidebarPayload(sidebar); state.stale = false; state.error = ''; render();
+    const tasks = await request('/api/tasks').then(value => ({ value }), error => ({ error }));
+    if (version !== readVersion) return;
+    if (tasks.error) { state.tasks = null; state.activities = new Map(); state.error = `会话状态补充失败：${tasks.error.message || '服务暂不可用'}`; return; }
+    state.tasks = tasks.value; state.activities = new Map(); state.loading = false; state.enriching = true; render();
     await readActivities(catalog(), version); if (version === readVersion) render();
   } catch (error) { if (version === readVersion) { state.error = error.message || '会话看板读取失败'; state.stale = Boolean(state.sidebar); } }
-  finally { if (version === readVersion) { state.loading = false; render(); } }
+  finally { if (version === readVersion) { state.loading = false; state.enriching = false; render(); } }
 }
 
 async function openConversation(identity) {
   if (state.busy) return;
   const version = ++readVersion;
-  state.loading = false; state.busy = identity; render(); showNotice('正在核对所属设备的最新侧栏…');
+  state.loading = false; state.enriching = false; state.busy = identity; render(); showNotice('正在核对所属设备的最新侧栏…');
   try {
     const sidebar = validateSidebarPayload(await request('/api/sidebar'));
     if (version !== readVersion) return;
@@ -118,5 +138,5 @@ $('#refresh').addEventListener('click', () => void refresh());
 $('#conversation-board').addEventListener('click', event => { const button = event.target.closest('.open-conversation'); if (button && !button.disabled) void openConversation(button.closest('[data-conversation-id]').dataset.conversationId); });
 if (window.parent !== window) { $('#back').addEventListener('click', event => { event.preventDefault(); window.parent.postMessage({ type: 'codex-control-console-close' }, 'app://-'); }); window.parent.postMessage({ type: 'codex-control-console-ready' }, 'app://-'); }
 void refresh();
-const timer = window.setInterval(() => { if (document.visibilityState === 'visible' && !state.loading && !state.busy) void refresh(); }, 10000);
+const timer = window.setInterval(() => { if (document.visibilityState === 'visible' && !state.loading && !state.enriching && !state.busy) void refresh(); }, 10000);
 window.addEventListener('pagehide', () => { window.clearInterval(timer); ++readVersion; }, { once: true });
