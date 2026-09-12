@@ -15,7 +15,12 @@ export function buildNativeTurboUiSource(bindingName) {
     button.title = pending ? '正在同步所有设备…' : policy.enabled && !policy.active ? 'Turbo 已开启，但这台设备不在作用范围内' : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
     button.style.cssText = 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
     button.textContent = '';
-    const icon = document.createElement('span'); icon.textContent = '⚡'; icon.setAttribute('aria-hidden', 'true');
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '12'); icon.setAttribute('height', '14');
+    icon.setAttribute('fill', 'currentColor'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('focusable', 'false');
+    icon.style.cssText = 'display:block;flex-shrink:0;pointer-events:none;';
+    const bolt = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    bolt.setAttribute('d', 'M13 2 3 14h9l-1 8 10-12h-9l1-8Z'); icon.append(bolt);
     const text = document.createElement('span'); text.textContent = 'Turbo';
     button.append(icon, text);
     if (policy.millionContext) { const badge = document.createElement('small'); badge.textContent = '1M'; badge.style.cssText = 'font-size:9px;opacity:.8'; button.append(badge); }
