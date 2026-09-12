@@ -9,6 +9,7 @@ export function createNativePageTabInset(document) {
   // region over the sidebar controls, regardless of DOM pointer-events:none.
   style.textContent += '[' + attribute + ']>header:not(' + globalHeader + '),' + surface + '>header:not(' + globalHeader + '){top:36px!important}';
   style.textContent += surface + '>header>[data-testid="app-shell-header-context-menu-surface"]{translate:0 36px}';
+  style.textContent += surface + '>header>div>[class~="@container/home-mode-toggle"]{translate:0 36px}';
   document.head.append(style);
   let host = null;
   return {

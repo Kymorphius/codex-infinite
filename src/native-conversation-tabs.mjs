@@ -37,7 +37,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${reorderTabsSource}
   ${dragInstallerSource}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-12.header-hit1';
+    const VERSION = '2026-09-12.header-hit2';
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
     const TITLE_HIDDEN_ATTRIBUTE = 'data-codex-control-console-native-title-hidden';

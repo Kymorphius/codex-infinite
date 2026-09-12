@@ -24,15 +24,28 @@ export function findNativeNewTaskAction(module) {
   }
   return matches.length === 1 ? matches[0] : null;
 }
-export function installNativeNewTaskAdapter(readScope, findAction) {
-  const VERSION = '2026-09-08.3';
+export function findNativeNewTaskModuleUrls(document, performance) {
+  function validUrls(values) {
+    const urls = new Set();
+    for (const value of values) {
+      try {
+        const url = new URL(value, document.baseURI || 'app://-/');
+        if (url.protocol === 'app:' && url.host === '-' && !url.username && !url.password && !url.search && !url.hash && /^\/assets\/app-initial-[\w-]+\.js$/.test(url.pathname)) urls.add(url.href);
+      } catch {}
+    }
+    return [...urls];
+  }
+  const manifest = validUrls(Array.from(document.querySelectorAll('script[type="module"][src],link[rel="modulepreload"][href],link[rel="preload"][as="script"][href]'), node => node.src || node.href));
+  if (manifest.length) return manifest;
+  return validUrls(performance.getEntriesByType('resource').map(entry => entry.name));
+}
+export function installNativeNewTaskAdapter(readScope, findAction, findModules) {
+  const VERSION = '2026-09-12.module-discovery1';
   if (window.__cccNativeNewTask?.version === VERSION) return;
   let actionPromise;
   async function action() {
     if (!actionPromise) actionPromise = (async () => {
-      const urls = [...new Set(performance.getEntriesByType('resource').map(entry => entry.name))].filter(value => {
-        const url = new URL(value); return url.protocol === 'app:' && url.host === '-' && /^\/assets\/app-initial-[\w-]+\.js$/.test(url.pathname);
-      });
+      const urls = findModules(document, performance);
       if (urls.length !== 1) throw Error('原生新建任务服务尚未就绪');
       const start = findAction(await import(urls[0]));
       if (!start) throw Error('原生新建任务服务暂不可用');
@@ -52,5 +65,5 @@ export function installNativeNewTaskAdapter(readScope, findAction) {
   };
 }
 export function buildNativeNewTaskAdapterScript() {
-  return `(${installNativeNewTaskAdapter.toString()})(${readNativeNewTaskScope.toString()},${findNativeNewTaskAction.toString()});`;
+  return `(${installNativeNewTaskAdapter.toString()})(${readNativeNewTaskScope.toString()},${findNativeNewTaskAction.toString()},${findNativeNewTaskModuleUrls.toString()});`;
 }
