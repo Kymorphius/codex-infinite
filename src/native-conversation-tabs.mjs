@@ -37,7 +37,8 @@ export function buildNativeConversationTabsInjectionSource() {
   ${reorderTabsSource}
   ${dragInstallerSource}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-12.header-hit2';
+    const VERSION = '2026-09-12.projects-grid1';
+    const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
     const TITLE_HIDDEN_ATTRIBUTE = 'data-codex-control-console-native-title-hidden';
@@ -83,7 +84,7 @@ export function buildNativeConversationTabsInjectionSource() {
         keys.add(key); tabs.push(tab); if (tabs.length >= MAX_TABS) break;
       }
       const activeKey = input?.activeKey === 'console' || keys.has(input?.activeKey) ? input.activeKey : 'console';
-      const consoleModule = ['board', 'console', 'sessions', 'context', 'priority', 'zotero'].includes(input?.consoleModule) ? input.consoleModule : 'board';
+      const consoleModule = modules.includes(input?.consoleModule) ? input.consoleModule : 'board';
       const wheelDirection = normalizeNativeConversationTabWheelDirection(input?.wheelDirection);
       const dismissedLocalKeys = [], dismissed = new Set();
       for (const candidate of Array.isArray(input?.dismissedLocalKeys) ? input.dismissedLocalKeys : []) {
@@ -209,7 +210,7 @@ export function buildNativeConversationTabsInjectionSource() {
     }
 
     function showConsole(module, activate = true) {
-      if (['board', 'console', 'sessions', 'context', 'priority', 'zotero'].includes(module)) state.consoleModule = module;
+      if (modules.includes(module)) state.consoleModule = module;
       if (activate && state.activeKey !== 'console') { state.activeKey = 'console'; render(); }
       else persist();
       return true;

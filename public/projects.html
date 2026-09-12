@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>项目管理 · Codex</title>
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles/projects.css">
+</head>
+<body>
+  <main class="workspace">
+    <header class="page-header">
+      <div class="heading"><span class="eyebrow">工作空间</span><h1>项目管理<span id="catalog-count" class="count">—</span></h1><p>所有项目，一览可见。</p></div>
+      <div class="header-actions"><button id="refresh" class="button" type="button"><span aria-hidden="true">↻</span> 刷新</button><a id="back" class="button quiet" href="/?module=console">返回</a></div>
+    </header>
+    <section class="filters" aria-label="搜索与筛选项目">
+      <label class="search"><span aria-hidden="true">⌕</span><span class="sr-only">搜索项目名称或路径</span><input id="search" type="search" placeholder="搜索项目名称或路径…" autocomplete="off"></label>
+      <div class="filter-row">
+        <label>设备<select id="device"><option value="">全部设备</option></select></label>
+        <label>来源<select id="source"><option value="">全部来源</option><option value="codex">Codex</option><option value="chatgpt">ChatGPT</option></select></label>
+        <label>分区<select id="section"><option value="">全部分区</option></select></label>
+        <label class="sort">排序<select id="sort"><option value="native">原生顺序</option><option value="name">名称 A–Z</option><option value="pinned">置顶优先</option></select></label>
+        <button id="clear" class="text-button" type="button">清除筛选</button>
+      </div>
+    </section>
+    <div class="results-line"><p id="result-count" role="status">正在读取项目…</p><span id="sync-status">连接设备中</span></div>
+    <div id="read-error" class="notice error" role="alert" hidden></div>
+    <div id="device-status" class="device-status" aria-label="设备连接状态"></div>
+    <div id="action-notice" class="notice" role="status" hidden></div>
+    <section id="project-grid" class="project-grid" aria-label="项目列表" aria-busy="true"></section>
+    <div id="empty-state" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">▦</span><h2 id="empty-title"></h2><p id="empty-description"></p></div>
+    <footer>项目归属和分区与各设备的原生侧边栏保持一致。远端项目在所属设备打开。</footer>
+  </main>
+  <template id="project-card-template">
+    <article class="project-card">
+      <div class="card-top"><span class="project-icon" aria-hidden="true">▦</span><span class="pin-badge" hidden>已置顶</span><span class="cache-badge" hidden>缓存记录</span></div>
+      <h2 class="project-name"></h2>
+      <div class="project-meta"><span class="source-badge"></span><span class="meta-dot" aria-hidden="true">·</span><span class="device-name"></span></div>
+      <div class="project-details"><span class="section-name"></span><span class="conversation-count"></span></div>
+      <div class="project-paths"></div>
+      <div class="card-actions"><button class="button primary open-project" data-project-action="open" type="button">打开项目 <span aria-hidden="true">↗</span></button><button class="button copy-path" data-project-action="copy" type="button">复制路径</button><button class="button pin-project" data-project-action="pin" type="button">置顶</button></div>
+      <label class="move-control"><span class="sr-only">移动项目到分区</span><select class="move-project"><option value="">移动到分区…</option></select></label>
+      <p class="capability-note"></p>
+    </article>
+  </template>
+  <script type="module" src="/features/projects/index.js"></script>
+</body>
+</html>

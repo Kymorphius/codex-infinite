@@ -7,7 +7,7 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
   let pendingFrameRecovery = (() => {
     try {
       const value = JSON.parse(sessionStorage.getItem(FRAME_RECOVERY_KEY) || 'null');
-      if (value && ['board', 'console', 'sessions', 'priority'].includes(value.module) && Date.now() - Number(value.at) < 30000) return value;
+      if (value && ['board', 'console', 'sessions', 'priority', 'projects'].includes(value.module) && Date.now() - Number(value.at) < 30000) return value;
       sessionStorage.removeItem(FRAME_RECOVERY_KEY);
     } catch { try { sessionStorage.removeItem(FRAME_RECOVERY_KEY); } catch {} }
     return null;
@@ -23,7 +23,7 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
         if (loading.isConnected) loading.textContent = '控制台仍被浏览器拦截，请重启专用外壳。';
         return;
       }
-      const recovery = { module: ['board', 'console', 'sessions', 'priority'].includes(module) ? module : 'board', at: Date.now() };
+      const recovery = { module: ['board', 'console', 'sessions', 'priority', 'projects'].includes(module) ? module : 'board', at: Date.now() };
       try {
         sessionStorage.setItem(FRAME_RECOVERY_KEY, JSON.stringify(recovery));
         pendingFrameRecovery = recovery;
