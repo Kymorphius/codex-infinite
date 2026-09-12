@@ -1,3 +1,4 @@
+import { buildInsetSource } from './native-composer-tab-layout.mjs';
 import { installNativeConversationTabDragging, reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
 import { installNativeConversationTabWheelPreferences, nativeConversationTabWheelOffset, normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
@@ -27,6 +28,7 @@ export function buildNativeConversationTabsInjectionSource() {
   const reorderTabsSource = reorderNativeConversationTabs.toString();
   const dragInstallerSource = installNativeConversationTabDragging.toString();
   return `
+  ${buildInsetSource()}
   ${clickSequenceSource}
   ${wheelMomentumSource}
   ${wheelDirectionSource}
@@ -35,7 +37,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${reorderTabsSource}
   ${dragInstallerSource}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-10.wheel-direction1';
+    const VERSION = '2026-09-12.header-hit1';
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
     const TITLE_HIDDEN_ATTRIBUTE = 'data-codex-control-console-native-title-hidden';
@@ -47,6 +49,7 @@ export function buildNativeConversationTabsInjectionSource() {
     const renderedTabs = Array.from(document.querySelectorAll(ROOT_SELECTOR + ' .ccc-native-tab[data-tab-key]:not([data-console-tab])')).map((node) => ({ key: node.dataset.tabKey || '', title: node.querySelector('.ccc-native-tab-title')?.textContent || '', active: node.getAttribute('aria-selected') === 'true' }));
     const previousSnapshot = previous?.snapshot?.() || null;
     previous?.destroy?.();
+    const pageInset = createNativePageTabInset(document);
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
@@ -166,6 +169,7 @@ export function buildNativeConversationTabsInjectionSource() {
       const safeRight = Math.min(right, Math.max(60, innerWidth - 300));
       root.style.left = Math.min(left, Math.max(76, innerWidth - safeRight - 180)) + 'px';
       root.style.right = safeRight + 'px';
+      pageInset.update(candidate);
     }
 
     function tabButton(tab) {
@@ -296,7 +300,7 @@ export function buildNativeConversationTabsInjectionSource() {
     observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; position(); scheduleSync(); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-title'] });
 
-    const controller = { version: VERSION, openLocal: (tab) => open({ ...tab, kind: 'local' }, true, true), openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { observer?.disconnect(); dragController.destroy(); wheelPreferences.destroy(); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', position); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
+    const controller = { version: VERSION, openLocal: (tab) => open({ ...tab, kind: 'local' }, true, true), openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { pageInset.dispose(); observer?.disconnect(); dragController.destroy(); wheelPreferences.destroy(); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', position); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
     render(); scheduleSync(); return controller;
   }
   `;

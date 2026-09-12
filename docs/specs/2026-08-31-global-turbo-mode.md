@@ -173,8 +173,10 @@ does not restart either desktop.
 - [x] Full tests, structure checks, and diff checks pass.
 - [x] A frozen `electronBridge` uses a reversible writer-owned settings lease,
   and the UI reports Turbo effective only after authoritative readback.
-- [x] The sidebar header buttons remain hoverable and clickable while the gaps
-  remain draggable through the real macOS title-bar hit-test path.
+- [ ] The sidebar header buttons remain hoverable and clickable while the gaps
+  remain draggable through the real macOS title-bar hit-test path. Initial DOM
+  input evidence did not cover the conversation-page native header overlap;
+  see `2026-09-12-native-header-hit-regions.md` for the correction and acceptance.
 
 ## Official protocol basis
 
