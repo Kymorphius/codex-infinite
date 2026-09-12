@@ -68,3 +68,25 @@ This feature does not delete projects, create tasks or duplicate project state.
 - Native header integration passed unit/source review. Its real mouse interaction
   remains unverified because of the native-app tool restriction above. Live
   owner capabilities currently do not advertise pin/move; these remain disabled.
+
+## Open-action regression follow-up
+
+- User reported a masked HTTP 500 when opening a project. Inspection found that
+  open navigation unnecessarily loaded mutation modules and required a write
+  scope before reaching native rows/routes. Navigation now runs after the layout
+  guard and before those dependencies. Owner/revision checks remain unchanged.
+- Extracted navigation into `src/native-sidebar-open.mjs`. Native evaluation
+  failures for open return an actionable 503 instead of an opaque 500.
+- Four navigation fixtures cover Codex/ChatGPT project rows, local conversation
+  routing, missing identity and unavailable rows. An additional isolated action
+  fixture confirms the mutation loader is bypassed and stale layouts still fail.
+  `npm run check` passes; the working tree passes 632/632 tests.
+- Reloaded the idle local background service and checked ready diagnostics.
+  Native clicks remain unverified under the tool restriction above; the report
+  does not identify the owning device, and remote services were not updated.
+- The action and adapter files were already untracked work belonging to another
+  task. Their exact integration deltas are saved in
+  `docs/patches/2026-09-12-project-open.patch` instead of committing their entire
+  preexisting contents. The deltas are applied in the working tree; the helper,
+  fixtures and patch are checkpointed. The two integration files still need to
+  be committed with their owning sidebar implementation.

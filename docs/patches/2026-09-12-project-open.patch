@@ -1,0 +1,71 @@
+--- a/src/native-sidebar-actions.mjs
++++ b/src/native-sidebar-actions.mjs
+@@ -1,3 +1,4 @@
++import { openNativeSidebarItem } from './native-sidebar-open.mjs';
+ import { readNativeSidebarModel, projectNativeSidebarModel } from './native-sidebar-model.mjs';
+ 
+ // Detect semantic native actions, not minified export names. Ambiguity disables an action.
+@@ -28,10 +29,12 @@
+   return find(await import(urls[0]));
+ }
+ 
+-export async function performNativeSidebarAction(input, expectedLayout, readModel, projectModel, load, find) {
++export async function performNativeSidebarAction(input, expectedLayout, readModel, projectModel, load, find, openItem = openNativeSidebarItem) {
+   const model = readModel(document), snapshot = projectModel(model);
+   const layout = JSON.stringify({ sections: snapshot.sections.map(({ id, name, kind, itemKeys }) => ({ id, name, kind, itemKeys })), projects: snapshot.projects.map(({ key, conversationKeys }) => ({ key, conversationKeys })) });
+   if (layout !== expectedLayout) throw Error('所属设备的侧边栏已变化，请刷新后重试');
++  // Opening uses existing native rows/routes, not sidebar mutation services.
++  if (input.action === 'open') return openItem(input, model, snapshot);
+   const actions = await load(find);
+   // Import can yield; re-read before invoking any native action.
+   const current = readModel(document), fresh = projectModel(current);
+@@ -76,32 +79,12 @@
+       }
+       return {};
+     }
+-    case 'open': {
+-      const record = fresh.projects.find(item => item.key === input.itemKey) || fresh.conversations.find(item => item.key === input.itemKey);
+-      if (!record) throw Error('原生条目已不存在');
+-      if (record.source === 'codex' && input.itemKey.startsWith('codex:thread:local:')) {
+-        window.postMessage({ type: 'navigate-to-route', path: '/local/' + record.id }, '*'); return { opened: true };
+-      }
+-      const project = current.projectByKey.get(input.itemKey);
+-      if (project) {
+-        if (section?.native?.collapsed) section.native.onCollapsedChange(false);
+-        for (let attempt = 0; attempt < 12; attempt++) {
+-          const row = Array.from(document.querySelectorAll('[data-app-action-sidebar-project-id]')).find(row => row.getAttribute('data-app-action-sidebar-project-id') === record.id);
+-          if (row) { row.scrollIntoView({ block: 'center' }); row.click(); return { opened: true }; }
+-          await new Promise(resolve => setTimeout(resolve, 50));
+-        }
+-      }
+-      if (record.route && /^\/(?:[A-Za-z0-9_/-]|%[0-9A-Fa-f]{2}){1,480}$/.test(record.route)) {
+-        window.postMessage({ type: 'navigate-to-route', path: record.route }, '*'); return { opened: true };
+-      }
+-      throw Error('此条目的原生打开入口尚未就绪');
+-    }
+     default: throw Error('不支持此侧边栏操作');
+   }
+ }
+ 
+ export function buildNativeSidebarActionScript(input, expectedLayout) {
+-  return `(${performNativeSidebarAction.toString()})(${JSON.stringify(input)},${JSON.stringify(expectedLayout)},${readNativeSidebarModel.toString()},${projectNativeSidebarModel.toString()},${loadNativeSidebarActions.toString()},${findNativeSidebarActions.toString()})`;
++  return `(${performNativeSidebarAction.toString()})(${JSON.stringify(input)},${JSON.stringify(expectedLayout)},${readNativeSidebarModel.toString()},${projectNativeSidebarModel.toString()},${loadNativeSidebarActions.toString()},${findNativeSidebarActions.toString()},${openNativeSidebarItem.toString()})`;
+ }
+ export function buildNativeSidebarCapabilitiesScript() {
+   return `(${loadNativeSidebarActions.toString()})(${findNativeSidebarActions.toString()}).then(actions=>({create:!!actions.create,rename:!!actions.rename,delete:!!actions.delete,move:!!actions.move&&!!actions.remove&&!!actions.pinProject&&!!actions.pinThread}))`;
+--- a/src/native-sidebar-adapter.mjs
++++ b/src/native-sidebar-adapter.mjs
+@@ -72,7 +72,12 @@
+       }
+       const before = await this.readConnection(connection), action = validateSidebarAction(before, normalized);
+       if (!before.capabilities.includes(action.action)) throw sidebarError('当前原生版本不支持此操作', 409);
+-      const result = await connection.evaluate(buildNativeSidebarActionScript(action, sidebarLayout(before)));
++      let result;
++      try { result = await connection.evaluate(buildNativeSidebarActionScript(action, sidebarLayout(before))); }
++      catch (error) {
++        if (action.action !== 'open') throw error;
++        throw sidebarError('原生项目入口暂不可用，请显示所属设备的项目分区后重试', 503);
++      }
+       let stable = 0;
+       for (let attempt = 0; attempt < this.verifyAttempts; attempt++) {
+         await this.wait(150);
