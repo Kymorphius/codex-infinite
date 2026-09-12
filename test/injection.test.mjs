@@ -75,7 +75,7 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /data-app-action-sidebar-thread-id/);
   assert.match(source, /setTimeout\(restoreWorkspace, 0\)/);
   assert.match(source, /__codexControlConsoleNativeThreadListener/);
-  assert.match(source, /\['console', 'sessions', 'priority', 'projects'\]\.includes\(module\) \? module : 'board'/);
+  assert.match(source, /\['console', 'sessions', 'priority', 'projects', 'conversations'\]\.includes\(module\) \? module : 'board'/);
   assert.match(source, /__codexControlConsoleInjected/);
   assert.doesNotMatch(source, /__codexControlConsoleSetProjectOrder/);
   assert.doesNotMatch(source, /data-codex-control-console-project-rank/);

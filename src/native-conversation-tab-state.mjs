@@ -4,7 +4,7 @@ import { normalizeNativeConversationTabWheelDirection } from "./native-conversat
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LOCAL_TAB_KEY = /^local:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const MAX_PERSISTED_TABS = 40;
-const CONSOLE_MODULES = new Set(["board", "console", "sessions", "context", "priority", "projects", "zotero"]);
+const CONSOLE_MODULES = new Set(["board", "console", "sessions", "context", "priority", "projects", "conversations", "zotero"]);
 
 function boundedText(value, maxLength) {
   return String(value || "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, maxLength);

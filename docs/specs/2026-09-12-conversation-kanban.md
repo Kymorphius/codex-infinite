@@ -1,0 +1,121 @@
+# ChatGPT / Codex 会话看板
+
+- Status: accepted
+- Owner: Codex Control Console
+- Date: 2026-09-12
+- Related ADRs: none
+
+## Problem
+
+ChatGPT and Codex conversations are visible in native sidebars, while work that
+needs confirmation or acceptance is difficult to scan across conversations and
+devices. Hermes cards require separate manual creation and therefore cannot be
+the default index for native conversations.
+
+## Goals
+
+- Provide one board containing the normalized ChatGPT and Codex conversation
+  catalog already exposed by every connected owner.
+- Project conversations into `正在进行`, `待确认`, `待验收`, `已完成`, `异常`
+  and `待核对` without creating duplicate workflow records.
+- Open a card in its owning native conversation.
+- Add conservative title/path based work-type labels for drawing, writing,
+  development and research conversations.
+
+## Non-goals
+
+- Persist a second conversation status database or create Hermes cards.
+- Read ChatGPT message bodies or image attachments that the native sidebar does
+  not expose.
+- Infer final acceptance from an assistant turn finishing.
+- Move, archive, rename or delete native conversations.
+
+## User experience
+
+The native header contains a `会话看板` button beside `项目管理`. It opens a
+full workspace board and can also be reached at `/conversations.html`. Search and
+filters cover title/path, owner device, source and inferred work type. Columns
+remain horizontally scrollable on narrow screens. Loading, stale owners, empty
+filters and failed reads are visible. Each actionable card has an `打开会话`
+button; cached or ownerless records explain why opening is unavailable.
+
+## Contracts and data
+
+- `GET /api/sidebar` is the catalog authority. Identity is
+  `[device.id, conversation.key]`; equal titles and IDs across devices do not
+  merge.
+- `GET /api/tasks` only enriches matching Codex records with update time and
+  current task status. Active Codex tasks read their activity endpoint to detect
+  pending approval records. Local owner activity uses `/api/node/activity/:id`;
+  remote activity uses `/api/tasks/:id/activity?device=:deviceId`.
+- State priority is: explicit native conversation section, pending approval,
+  error/interruption, active turn, completed turn, unknown. Completed turns map
+  to `待验收`; `已完成` requires an explicit native conversation section named
+  `已完成`, `完成` or `Done`.
+- Only direct conversation membership can override workflow state. A project
+  section is display context and cannot change all child conversation states.
+- `POST /api/sidebar/actions` opens the exact owner item using its native key,
+  current section and revision. No action is replayed after a conflict.
+- No schema migration or new persisted data.
+
+## Design and ownership
+
+The browser model owns validation, identity, state/type projection, filtering and
+open-action payloads. The page controller owns reads, bounded activity enrichment
+and user actions. The native entry only opens the loopback page. Existing sidebar
+adapters and action handlers retain external-system ownership.
+
+## Security and privacy
+
+The page remains on the loopback dashboard and uses its existing exact-origin
+native action boundary. It displays catalog metadata and bounded activity state;
+it does not copy conversation bodies into another store. Opening is read/navigation
+only and requires the owner's current revision and advertised capability.
+
+## Rollout and rollback
+
+The new page and native entry are additive. Removing the entry, route assets and
+module allowlist restores the previous UI without data rollback.
+
+## Acceptance criteria
+
+- [ ] ChatGPT and Codex conversations from connected owner snapshots appear once
+  per owner in the expected state column.
+- [ ] Pending native approvals appear in `待确认`; completed turns appear in
+  `待验收`; unknown ChatGPT state appears in `待核对`.
+- [ ] Search and device/source/type filters update visible cards and counts.
+- [ ] Opening a card sends the exact owner/key/section/revision contract and the
+  native workspace closes after a confirmed local open.
+- [ ] Offline or stale records cannot be opened.
+- [ ] The native entry, frame recovery and static assets support `conversations`.
+- [ ] `npm run check`, `npm test` and a rendered desktop/mobile inspection pass.
+
+## Verification plan
+
+- Unit: catalog identity, state priority, direct versus inherited section state,
+  work-type inference, filtering and action guards.
+- Integration: static allowlist, native header entry, module history and frame
+  routing.
+- Real UI: live owner counts, representative columns, filtering, responsive
+  overflow, theme and card open behavior.
+- Structure and regression: `npm run check` and `npm test`.
+
+## Shipped deviations
+
+None.
+
+## Recorded verification
+
+- `npm run check` passes with 399 syntax-checked and 429 structure-checked
+  files. The full test suite passes 641/641 after updating module-route fixtures.
+- The live dark-theme page projected 246 owner-scoped conversations: 11 active,
+  57 awaiting acceptance, one interrupted and 177 requiring review at inspection
+  time. DevBook Air and MacBook Pro were connected; Windows was visibly
+  offline. These counts are live state and will change.
+- Searching `绘画` reduced the live catalog to two cards and clearing restored all
+  246. The page was inspected at the normal desktop viewport and at 390 x 844;
+  filters remain within the viewport and the six columns use intentional
+  horizontal scrolling.
+- Opening the current conversation returned the visible owner confirmation
+  `已打开「评估 Hermes 看板集成」`. The restarted loopback service served the
+  page and scripts with their expected content types.

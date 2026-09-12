@@ -2,6 +2,7 @@ import { buildNativeConversationTabsInjectionSource } from "./native-conversatio
 import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
 import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-recovery.mjs";
 import { installNativeProjectManagementEntry } from "./native-project-management-entry.mjs";
+import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -34,7 +35,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-09-12.projects-grid1';
+  const INJECTION_VERSION = '2026-09-12.conversation-board1';
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -52,7 +53,7 @@ ${embeddedFrameRecoverySource}
     window.__codexControlConsoleObserver?.disconnect?.();
     if (window.__codexControlConsoleNativeThreadListener) document.removeEventListener('click', window.__codexControlConsoleNativeThreadListener, true);
     window.__codexControlConsoleClose?.();
-    document.querySelectorAll(ENTRY_SELECTOR + ',' + KANBAN_ENTRY_SELECTOR + ',' + SESSION_ENTRY_SELECTOR + ',' + PRIORITY_ENTRY_SELECTOR + ',[data-codex-control-console-projects-entry],[data-codex-control-console-titlebar-session-entry],[data-codex-control-console-fallback]').forEach((element) => element.remove());
+    document.querySelectorAll(ENTRY_SELECTOR + ',' + KANBAN_ENTRY_SELECTOR + ',' + SESSION_ENTRY_SELECTOR + ',' + PRIORITY_ENTRY_SELECTOR + ',[data-codex-control-console-projects-entry],[data-codex-control-console-conversations-entry],[data-codex-control-console-titlebar-session-entry],[data-codex-control-console-fallback]').forEach((element) => element.remove());
     window.__codexControlConsoleObserver = null;
   }
   window.__codexControlConsoleInjected = true;
@@ -109,7 +110,8 @@ ${embeddedFrameRecoverySource}
   function dashboardUrlFor(module) {
     const url = new URL(DASHBOARD_URL);
     if (module === 'projects') url.pathname = '/projects.html';
-    url.searchParams.set('module', ['console', 'sessions', 'priority', 'projects'].includes(module) ? module : 'board');
+    if (module === 'conversations') url.pathname = '/conversations.html';
+    url.searchParams.set('module', ['console', 'sessions', 'priority', 'projects', 'conversations'].includes(module) ? module : 'board');
     url.searchParams.set('theme', nativeTheme());
     url.searchParams.set('embedded', 'native');
     return url.toString();
@@ -173,14 +175,14 @@ ${embeddedFrameRecoverySource}
     overlay.style.cssText = 'display:flex;position:relative;flex:1;min-width:0;min-height:0;width:100%;height:100%;background:' + workspaceBackground + ';overflow:hidden;';
     frame = document.createElement('iframe');
     frame.src = dashboardUrlFor(module);
-    frame.title = module === 'projects' ? '项目管理' : module === 'console' ? 'Codex 控制台' : module === 'sessions' ? 'Codex 会话中心' : module === 'priority' ? 'Codex 项目优先级' : 'Codex 看板';
+    frame.title = module === 'conversations' ? '会话看板' : module === 'projects' ? '项目管理' : module === 'console' ? 'Codex 控制台' : module === 'sessions' ? 'Codex 会话中心' : module === 'priority' ? 'Codex 项目优先级' : 'Codex 看板';
     frame.setAttribute('data-codex-control-console-frame', '');
     frame.setAttribute('allow', FRAME_ALLOW);
     frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:' + workspaceBackground + ';';
     const openingFrame = frame;
     const loading = document.createElement('div');
     loading.setAttribute(FRAME_LOADING_ATTRIBUTE, '');
-    loading.textContent = loadingLabel || (module === 'projects' ? '正在打开项目管理…' : module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…');
+    loading.textContent = loadingLabel || (module === 'conversations' ? '正在打开会话看板…' : module === 'projects' ? '正在打开项目管理…' : module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…');
     loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:' + loadingColor + ';font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:none;';
     monitorEmbeddedFrame(openingFrame, () => frame, loading, module);
     overlay.append(loading, frame);
@@ -256,6 +258,7 @@ ${embeddedFrameRecoverySource}
   function installEntry() {
     if (!document.body) return;
     (${installNativeProjectManagementEntry.toString()})(() => openWorkspace('projects'));
+    (${installNativeConversationBoardEntry.toString()})(() => openWorkspace('conversations'));
     const anchor = nativeAnchor();
     const fallback = document.querySelector('[data-codex-control-console-fallback]');
     const definitions = [

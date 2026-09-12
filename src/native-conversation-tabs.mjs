@@ -38,7 +38,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${dragInstallerSource}
   function installNativeConversationTabs(options) {
     const VERSION = '2026-09-12.projects-grid1';
-    const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'zotero'];
+    const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
     const TITLE_HIDDEN_ATTRIBUTE = 'data-codex-control-console-native-title-hidden';

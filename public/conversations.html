@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>会话看板 · Codex</title>
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles/conversations.css">
+</head>
+<body>
+  <main class="workspace">
+    <header class="page-header">
+      <div class="heading"><span class="eyebrow">ChatGPT · Codex</span><h1>会话看板 <span id="catalog-count" class="count">—</span></h1><p>需要继续、确认和验收的会话，一眼看清。</p></div>
+      <div class="header-actions"><button id="refresh" class="button" type="button"><span aria-hidden="true">↻</span> 刷新</button><a id="back" class="button quiet" href="/?module=console">返回</a></div>
+    </header>
+    <section class="filters" aria-label="搜索与筛选会话">
+      <label class="search"><span aria-hidden="true">⌕</span><span class="sr-only">搜索会话标题、项目或路径</span><input id="search" type="search" placeholder="搜索会话标题、项目或路径…" autocomplete="off"></label>
+      <div class="filter-row">
+        <label>设备<select id="device"><option value="">全部设备</option></select></label>
+        <label>来源<select id="source"><option value="">全部来源</option><option value="codex">Codex</option><option value="chatgpt">ChatGPT</option></select></label>
+        <label>类型<select id="work-type"><option value="">全部类型</option></select></label>
+        <button id="clear" class="text-button" type="button">清除筛选</button>
+      </div>
+    </section>
+    <div class="results-line"><p id="result-count" role="status">正在读取会话…</p><span id="sync-status">连接设备中</span></div>
+    <div id="read-error" class="notice error" role="alert" hidden></div>
+    <div id="device-status" class="device-status" aria-label="设备连接状态"></div>
+    <div id="action-notice" class="notice" role="status" hidden></div>
+    <section id="conversation-board" class="conversation-board" aria-label="会话状态看板" aria-busy="true"></section>
+    <div id="empty-state" class="empty-state" hidden><span aria-hidden="true">◇</span><h2>没有符合条件的会话</h2><p>调整搜索或筛选条件后再看。</p></div>
+    <footer>状态来自原生会话和审批记录；不确定的记录会进入“待核对”。</footer>
+  </main>
+  <template id="column-template"><section class="board-column"><header><span class="column-marker" aria-hidden="true"></span><h2></h2><span class="column-count"></span></header><p class="column-description"></p><div class="card-list"></div><p class="column-empty">暂无会话</p></section></template>
+  <template id="conversation-card-template"><article class="conversation-card"><div class="card-badges"><span class="source-badge"></span><span class="type-badge"></span></div><h3></h3><p class="project-name"></p><div class="card-meta"><span class="device-name"></span><span class="updated-at"></span></div><p class="state-reason"></p><button class="button primary open-conversation" type="button">打开会话 <span aria-hidden="true">↗</span></button></article></template>
+  <script type="module" src="/features/conversations/index.js"></script>
+</body>
+</html>

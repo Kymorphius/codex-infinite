@@ -57,9 +57,9 @@ test('project manager retains its route across tabs and frame recovery', () => {
   assert.match(source, /module === 'projects'\) url.pathname = '\/projects.html'/);
   assert.match(source, /openWorkspace\('projects'\)/);
   assert.match(source, /'priority', 'projects'\]\.includes\(value.module\)/);
-  assert.match(source, /const modules = \['board', 'console', 'sessions', 'context', 'priority', 'projects', 'zotero'\]/);
+  assert.match(source, /const modules = \['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'\]/);
   assert.match(source, /modules\.includes\(input\?\.consoleModule\)/);
-  assert.match(source, /frame.title = module === 'projects' \? '项目管理'/);
+  assert.match(source, /module === 'projects' \? '项目管理'/);
 });
 
 test('project manager assets are explicitly allowlisted', () => {
