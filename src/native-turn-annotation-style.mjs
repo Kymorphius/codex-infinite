@@ -1,4 +1,10 @@
 export const TURN_ANNOTATION_STYLE = `
+body:has([data-codex-control-console-workspace]) [data-ccc-annotations],
+body:has([data-codex-control-console-workspace]) [data-ccc-annotation-toggle],
+body:has([data-codex-control-console-workspace]) [data-ccc-annotation-preview],
+body:has([data-codex-control-console-workspace]) [data-ccc-turn-rail],
+body:has([data-codex-control-console-workspace]) [data-ccc-turn-rail-preview]{display:none!important}
+body:has([data-codex-control-console-workspace]) [data-ccc-annotation-layout]{margin-inline-end:0!important}
 [data-ccc-annotation-layout]{margin-inline-end:320px!important;min-width:0!important}
 [data-ccc-annotated] [class*="MarkerLine"]{background:#a78bfa!important;box-shadow:0 0 0 1px #a78bfa55}
 [data-ccc-annotated]{--navigation-rail-marker-color:#a78bfa}

@@ -51,3 +51,18 @@ already accepted left-rail hover card styling and placement unchanged.
 
 The editor collapse control is a subdued 20px square minus symbol, with an
 accessible 收起批注 label and tooltip; it becomes clearer on hover/focus.
+
+## Control workspace visibility
+
+Annotation panels, collapsed cards, previews and turn rails belong only to a
+rendered native conversation. When a Codex Control Console workspace overlay is
+present, hide every annotation surface immediately and release its reserved
+layout gutter. This presentation guard must apply before the next polling or
+DOM-refresh cycle so a card positioned from the previous conversation cannot
+cover an embedded board, project page or other console module.
+
+Verification on 2026-09-13: the focused annotation and synchronization tests
+passed 12/12, the full suite passed 643/643, and syntax/structure checks passed
+for 399/429 files. The restarted local control service attached to the dedicated
+renderer, and its generated annotation payload contained the upgraded workspace
+visibility version and collapsed-card guard.

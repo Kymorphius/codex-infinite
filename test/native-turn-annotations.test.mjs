@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { installNativeTurnAnnotations } from '../src/native-turn-annotations.mjs';
+import { TURN_ANNOTATION_STYLE } from '../src/native-turn-annotation-style.mjs';
 const threadId = '01a06856-3552-7180-8fe5-20b74987e2af', turnId = '01a06856-63e5-7a13-a3a9-90bbf2138fdc', other = '01a06858-4767-7de2-834e-366866520195';
 function harness() {
   class Node {
@@ -88,6 +89,13 @@ test('right editor shares the output card column and appearance instead of reser
   panel.children[0].children[1].listeners.click();
   assert.equal(panel.hidden, true); assert.equal(h.outputCard.hasAttribute('data-ccc-annotation-output-host'), false);
   h.control().dispose(); assert.equal(h.outputCard.style.getPropertyValue('--ccc-annotation-output-limit'), '');
+});
+
+test('control console workspaces suppress conversation-only annotation surfaces', () => {
+  for (const surface of ['annotations', 'annotation-toggle', 'annotation-preview', 'turn-rail', 'turn-rail-preview']) {
+    assert.match(TURN_ANNOTATION_STYLE, new RegExp(`body:has\\(\\[data-codex-control-console-workspace\\]\\) \\[data-ccc-${surface}\\]`));
+  }
+  assert.match(TURN_ANNOTATION_STYLE, /body:has\(\[data-codex-control-console-workspace\]\) \[data-ccc-annotation-layout\]\{margin-inline-end:0!important\}/);
 });
 
 test('timeline scrolling switches notes while preserving old-turn drafts and ignores editor scrolling', () => {
