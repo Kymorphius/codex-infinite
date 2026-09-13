@@ -243,7 +243,7 @@ export class CodexInjector {
         attentionConversations: await this.attentionConversationProvider?.read?.(),
         reloadAfterCspBypass: this.reloadAfterCspBypass
       });
-      await syncTurnAnnotations(this.connection, this.annotationStore);
+      await syncTurnAnnotations(this.connection, this.annotationStore, { targets, dashboardUrl: this.dashboardUrl });
       await syncProjectChecklist(this.connection, this.checklistStore);
     } catch (error) {
       if (/CDP (command timed out|websocket closed|connection closed)/.test(error.message || '')) {

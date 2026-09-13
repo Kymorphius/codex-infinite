@@ -26,8 +26,7 @@ can keep both cards within the viewport. Remove the reservation on dismissal,
 without replacing the native tooltip or intercepting its navigation. Panel turn
 selection and native rail clicks agree. Keep editor focus and text stable during
 background DOM updates. Own DOM islands are removable; native React children are
-never reparented. An explicit panel toggle controls a reserved right gutter and
-collapses gracefully on narrow windows.
+never reparented. An explicit panel toggle collapses gracefully on narrow windows.
 
 Use separate pure validation, file storage, CDP synchronization, native identity
 adapter, panel rendering/style modules. CDP synchronization targets the exact
@@ -46,8 +45,9 @@ It shares the existing right column and does not reserve a second content gutter
 A collapsed editor remains a compact 批注 card in that position. Bound the native
 output card height through an owned host attribute so its existing scroll area
 can leave space for the editor. Never move React children. If the native summary
-card is unavailable, retain a compact standalone editor as a fallback. Keep the
-already accepted left-rail hover card styling and placement unchanged.
+card is unavailable or dismissed, hide both the editor and its collapsed card;
+the annotation control never falls back to an independent fixed overlay. Keep
+the already accepted left-rail hover card styling and placement unchanged.
 
 The editor collapse control is a subdued 20px square minus symbol, with an
 accessible 收起批注 label and tooltip; it becomes clearer on hover/focus.
@@ -61,8 +61,19 @@ layout gutter. This presentation guard must apply before the next polling or
 DOM-refresh cycle so a card positioned from the previous conversation cannot
 cover an embedded board, project page or other console module.
 
+Codex browser tabs are separate renderer surfaces and do not add the workspace
+overlay marker to the native conversation document. The owner therefore also
+checks same-origin dashboard page targets and suppresses annotations while one
+of those pages has a visible document and non-zero viewport. Background dashboard
+tabs with no rendered viewport do not suppress the native conversation after the
+user returns to it; an unreadable matching target fails closed by keeping
+conversation-only controls hidden.
+
 Verification on 2026-09-13: the focused annotation and synchronization tests
-passed 12/12, the full suite passed 643/643, and syntax/structure checks passed
-for 399/429 files. The restarted local control service attached to the dedicated
-renderer, and its generated annotation payload contained the upgraded workspace
-visibility version and collapsed-card guard.
+cover workspace overlays, separate visible browser surfaces, hidden browser tabs
+and output-card-only placement. The restarted local control service attached to
+the dedicated renderer and loaded the upgraded presentation controller. The full
+suite passed 645/645; syntax and structure checks passed for 399/429 files. Live
+renderer measurement confirmed the collapsed control matches the native output
+card's 240px width, sits 12px below it, and returns to a hidden zero-size state
+while the conversation board browser surface is displayed.

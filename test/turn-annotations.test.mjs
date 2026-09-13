@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { TurnAnnotationStore } from '../src/turn-annotation-store.mjs';
 import { normalizeAnnotationAction } from '../src/turn-annotation-contract.mjs';
-import { syncTurnAnnotations } from '../src/turn-annotation-sync.mjs';
+import { hasVisibleDashboardSurface, isDashboardPageTarget, syncTurnAnnotations } from '../src/turn-annotation-sync.mjs';
 import { readNativeAnnotationContext } from '../src/native-turn-annotation-adapter.mjs';
 import { buildNativeTurnAnnotationsScript } from '../src/native-turn-annotations.mjs';
 const threadId = '01a06856-3552-7180-8fe5-20b74987e2af';
@@ -32,16 +32,28 @@ test('invalid paths and oversized input are rejected; corrupt persisted notes ar
   await assert.rejects(new TurnAnnotationStore(directory).apply(action)); assert.equal(await fs.readFile(file, 'utf8'), 'corrupt');
 });
 test('CDP sync acknowledges only durable actions and preserves failed drafts without exposing contents', async () => {
-  let response; const writes = [];
+  let response, suppressed; const writes = [];
   const connection = { async evaluate(code) {
     if (code.startsWith('location.href')) return true;
+    if (code.startsWith('window.__codexControlConsoleAnnotations?.setPresentationSuppressed(')) { suppressed = code.endsWith('(true)'); return; }
     if (code.endsWith('?.packet()')) return { threadId, actions: [action, { ...action, requestId: 'bad' }] };
     if (code.startsWith('window.__codexControlConsoleAnnotations?.accept(')) response = JSON.parse(code.slice(code.indexOf('(') + 1, -1));
   } };
   await syncTurnAnnotations(connection, { async apply(a) { writes.push(a); if (a.requestId === 'bad') throw Error(a.text); return a.requestId; }, async read() { return { notes: {} }; } });
-  assert.equal(writes.length, 2); assert.deepEqual(response.acknowledged, ['request-1']); assert.ok(response.error); assert.ok(!response.error.includes(action.text));
+  assert.equal(suppressed, false); assert.equal(writes.length, 2); assert.deepEqual(response.acknowledged, ['request-1']); assert.ok(response.error); assert.ok(!response.error.includes(action.text));
   let accessed = false;
   await syncTurnAnnotations({ evaluate: async () => false }, { read() { accessed = true; } }); assert.equal(accessed, false);
+});
+test('visible dashboard browser surfaces suppress annotations while background tabs do not', async () => {
+  const dashboardUrl = 'http://127.0.0.1:47831';
+  const target = (url, id) => ({ id, type: 'page', url, webSocketDebuggerUrl: `ws://127.0.0.1:9231/devtools/page/${id}` });
+  const hidden = target(dashboardUrl + '/projects.html', 'hidden');
+  const visible = target(dashboardUrl + '/conversations.html?theme=dark', 'visible');
+  assert.equal(isDashboardPageTarget(visible, dashboardUrl), true);
+  assert.equal(isDashboardPageTarget(target('http://127.0.0.1:6060/', 'other'), dashboardUrl), false);
+  assert.equal(await hasVisibleDashboardSurface([hidden], dashboardUrl, async () => false), false);
+  assert.equal(await hasVisibleDashboardSurface([hidden, visible], dashboardUrl, async item => item.id === 'visible'), true);
+  assert.equal(await hasVisibleDashboardSurface([visible], dashboardUrl, async () => { throw Error('target changed'); }), true);
 });
 test('native identity comes from the rendered local conversation and maps duplicate message ticks to stable turns', () => {
   const marker = suffix => ({ getBoundingClientRect: () => ({ width: 20 }), getAttribute: () => turnId + ':' + suffix });

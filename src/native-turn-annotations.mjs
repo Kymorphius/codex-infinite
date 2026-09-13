@@ -5,11 +5,11 @@ import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
 import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
 export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-13.workspace-visibility', KEY = 'codex-control-console.annotation-drafts.v1';
+  const VERSION = '2026-09-13.output-card-companion', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
   let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', disposed = false, scheduled = false, layout = null, hover = null;
-  let followScroll = false, composing = false, scrollSequence = 0;
+  let followScroll = false, composing = false, scrollSequence = 0, presentationSuppressed = false;
   let expanded = true;
   try { expanded = localStorage.getItem(KEY + '.open') !== 'false'; } catch { /* optional presentation */ }
   try { const saved = JSON.parse(localStorage.getItem(KEY) || '[]'); if (Array.isArray(saved)) pending = saved; } catch { storageError = '草稿读取失败'; }
@@ -130,12 +130,12 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   }
   function refresh() {
     if (disposed) return;
-    const next = readContext(document);
+    const next = presentationSuppressed ? null : readContext(document);
     if (next?.threadId !== context?.threadId) { scrollSequence++; followScroll = false; context = next; notes = {}; loadedThread = ''; selected = ''; signature = ''; error = ''; hover = null; editor.value = ''; }
     else context = next;
-    panel.hidden = !context || !expanded; toggle.hidden = !context || expanded;
     const attached = positionCard();
-    const newLayout = context && expanded && !attached && window.innerWidth > 850 ? context.host : null;
+    panel.hidden = !context || !expanded || !attached; toggle.hidden = !context || expanded || !attached;
+    const newLayout = null;
     if (layout !== newLayout) { layout?.removeAttribute('data-ccc-annotation-layout'); layout = newLayout; layout?.setAttribute('data-ccc-annotation-layout', ''); }
     if (!context) { decorate(); preview.hidden = true; releasePreviewHost(); navigation.update(null, null); return; }
     const ids = context.turns.map(turn => turn.id);
@@ -171,6 +171,7 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   const timer = setInterval(schedule, 1000);
   window.__codexControlConsoleAnnotations = {
     version: VERSION,
+    setPresentationSuppressed(value) { presentationSuppressed = Boolean(value); refresh(); },
     packet() { return { threadId: context?.threadId || null, actions: pending.filter(x => Date.now() - (x.editedAt || 0) >= 500).slice(0, 20) }; },
     accept(value) {
       const acknowledgements = new Set(value.acknowledged || []); pending = pending.filter(x => !acknowledgements.has(x.requestId)); persist();

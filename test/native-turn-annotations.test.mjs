@@ -43,7 +43,7 @@ function harness() {
     enableFollow() { current = { ...current, content: { closest: () => timeline }, turns: [...current.turns, { id: other, markers: [] }] }; reading = turnId; tick(); },
     scrollTo(id, target = timeline) { reading = id; listeners.scroll({ target }); },
     settleAt(id) { reading = id; delayed.splice(0).forEach(fn => fn()); }, outputCard, host, showOutput() { showOutput = true; tick(); }, hideNative() { showNative = false; tick(); }, control: () => window.__codexControlConsoleAnnotations,
-    node: tag => all(body).find(n => n.tag === tag), preview: () => all(body).find(n => n.hasAttribute('data-ccc-annotation-preview')),
+    node: tag => all(body).find(n => n.tag === tag), toggle: () => all(body).find(n => n.hasAttribute('data-ccc-annotation-toggle')), preview: () => all(body).find(n => n.hasAttribute('data-ccc-annotation-preview')),
     advance() { now += 1000; tick(); }, switchThread() { current = { ...current, threadId: other }; tick(); } };
 }
 test('editing colors native ticks, preserves native hover and cannot lose a newer draft to an older acknowledgement', () => {
@@ -81,7 +81,10 @@ test('annotation preview matches the native card and attaches below it, releasin
 });
 
 test('right editor shares the output card column and appearance instead of reserving a second gutter', () => {
-  const h = harness(); h.showOutput(); const panel = h.node('aside');
+  const h = harness(), panel = h.node('aside');
+  assert.equal(panel.hidden, true, 'annotation stays hidden without the native output card');
+  h.showOutput();
+  assert.equal(panel.hidden, false);
   assert.equal(panel.style.left, '1050px'); assert.equal(panel.style.top, '312px'); assert.equal(panel.style.width, '300px');
   assert.equal(panel.style.background, 'rgb(45, 45, 45)'); assert.equal(panel.style.borderRadius, '25px'); assert.equal(panel.style.boxShadow, 'native-shadow');
   assert.equal(h.host.hasAttribute('data-ccc-annotation-layout'), false);
@@ -96,6 +99,16 @@ test('control console workspaces suppress conversation-only annotation surfaces'
     assert.match(TURN_ANNOTATION_STYLE, new RegExp(`body:has\\(\\[data-codex-control-console-workspace\\]\\) \\[data-ccc-${surface}\\]`));
   }
   assert.match(TURN_ANNOTATION_STYLE, /body:has\(\[data-codex-control-console-workspace\]\) \[data-ccc-annotation-layout\]\{margin-inline-end:0!important\}/);
+});
+
+test('browser surfaces suspend and restore annotation presentation', () => {
+  const h = harness(), panel = h.node('aside'), toggle = h.toggle();
+  h.showOutput();
+  assert.equal(panel.hidden, false); assert.equal(toggle.hidden, true);
+  h.control().setPresentationSuppressed(true);
+  assert.equal(panel.hidden, true); assert.equal(toggle.hidden, true); assert.equal(h.control().packet().threadId, null);
+  h.control().setPresentationSuppressed(false);
+  assert.equal(panel.hidden, false); assert.equal(h.control().packet().threadId, threadId);
 });
 
 test('timeline scrolling switches notes while preserving old-turn drafts and ignores editor scrolling', () => {
