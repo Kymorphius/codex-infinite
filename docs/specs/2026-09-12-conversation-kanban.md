@@ -95,6 +95,8 @@ module allowlist restores the previous UI without data rollback.
 - [ ] A slow task-status response does not delay the first sidebar-backed cards.
 - [ ] Large catalogs paint their first visible cards before all remaining cards
   are appended, while final counts and filters still cover the full catalog.
+- [ ] Every card and its open button remain inside the owning column at desktop
+  and narrow widths, including titles or paths with long unbroken text.
 - [ ] Opening a card sends the exact owner/key/section/revision contract and the
   native workspace closes after a confirmed local open.
 - [ ] Offline or stale records cannot be opened.
@@ -140,3 +142,8 @@ None.
   live conversations, a reload displayed interactive cards in 124 ms, then
   completed all 227 cards and task status in the background. Filtering to
   `绘画` displayed one current match and clearing restored all 227 cards.
+- The narrow live viewport reproduced a 375 px card overflowing a 270 px
+  column. After constraining the list track and card, the same column contained
+  a 244 px card and 216 px button; at 1440 px the 250 px column contained its
+  224 px card and 196 px button. The rendered dark-theme page showed the cards
+  and buttons contained within their respective columns.
