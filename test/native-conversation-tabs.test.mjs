@@ -7,7 +7,8 @@ import {
   buildNativeConversationTabsInjectionSource,
   NativeConversationTabState,
   normalizeNativeConversationTab,
-  normalizeNativeConversationTabHistory
+  normalizeNativeConversationTabHistory,
+  resolveNativeLocalConversationId
 } from "../src/native-conversation-tabs.mjs";
 
 const localOne = { kind: "local", id: "01a065ff-1594-7e41-8163-44edff7ba28b", title: "本地会话" };
@@ -147,6 +148,13 @@ test("double-click recognition survives tab rerenders and never closes Console",
   assert.equal(advanceNativeTabClickSequence(sequence, "console", 200).close, false);
 });
 
+test("mounted native conversation identity wins over stale sidebar selection", () => {
+  assert.equal(resolveNativeLocalConversationId([localTwo.id], `local:${localOne.id}`), localTwo.id);
+  assert.equal(resolveNativeLocalConversationId(["bad", localOne.id.toUpperCase()], `local:${localTwo.id}`), localOne.id);
+  assert.equal(resolveNativeLocalConversationId([], `LOCAL:${localTwo.id.toUpperCase()}`), localTwo.id);
+  assert.equal(resolveNativeLocalConversationId(["bad"], "local:not-a-thread"), "");
+});
+
 test("wheel momentum filtering ignores only a decaying tail and resumes on deliberate input", () => {
   let state = advanceNativeWheelMomentum({}, 48, 10);
   state = advanceNativeWheelMomentum(state, 36, 20);
@@ -182,6 +190,19 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /data-app-action-sidebar-thread-id\^=/);
   assert.match(source, /data-app-action-sidebar-thread-selected/);
   assert.match(source, /data-app-action-sidebar-thread-title/);
+  assert.match(source, /data-above-composer-conversation-id/);
+  assert.match(source, /resolveNativeLocalConversationId\(mountedIds, selectedRaw\)/);
+  assert.match(source, /routeChanged\(records\)\) syncLocal\(\)/);
+  assert.match(source, /tab\.kind === 'local'\) \{ request\(tab, true\); return; \}/);
+  assert.match(source, /transition\.matches\(key\)/);
+  assert.match(source, /open\(value, false, true\)/);
+  assert.match(source, /transition\.request\(key\)/);
+  assert.match(source, /transition\.isPending\(\) && !explicit/);
+  assert.match(source, /setTimeout\(\(\) => \{ pending = ''/);
+  assert.match(source, /data-navigation-pending/);
+  assert.match(source, /data-navigation-superseded/);
+  assert.match(source, /prefers-reduced-motion:reduce/);
+  assert.match(source, /openLocal: request/);
   assert.match(source, /data-thread-title="true"/);
   assert.match(source, /openLocal/);
   assert.match(source, /openChatgpt/);

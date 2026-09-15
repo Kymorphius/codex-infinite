@@ -26,20 +26,20 @@ test('view history rejects corrupt state and bounds retention', () => {
   assert.equal(history.list().length, 200); assert.equal(history.list()[0].viewedAt, 220);
   assert.equal(history.view({ id: 'bad' }, 999), false);
 });
-test('production tab open and activate notify views; background title synchronization does not', () => {
+test('production tabs notify views only after local identity confirmation', () => {
   const source = buildNativeConversationTabsInjectionSource();
   const open = source.slice(source.indexOf('    function open('), source.indexOf('    function showConsole('));
-  const activate = source.slice(source.indexOf('    function activate('), source.indexOf('    function adjacentKey('));
-  const views = [], routes = [];
+  const views = [];
   const context = vm.createContext({ normalizeTab: x => x, keyFor: x => x.id, state: { tabs: [], activeKey: 'console' }, render() {},
-    window: { __codexControlConsoleAttentionConversations: { view: x => views.push(x.id) } }, options: { openLocal: x => routes.push(x.id) } });
-  vm.runInContext(open + activate, context);
-  context.open(first, true, true); context.open({ ...first, title: 'Updated' }); context.open(first);
+    window: { __codexControlConsoleAttentionConversations: { view: x => views.push(x.id) } } });
+  vm.runInContext(open, context);
+  context.open(first, true, true); context.open({ ...first, title: 'Updated' }, false); context.open(first, false);
   assert.deepEqual(views, [first.id]);
-  context.open(second, true, true); context.activate(first.id); context.open(first, true, true);
-  assert.deepEqual(views, [first.id, second.id, first.id, first.id]); assert.deepEqual(routes, [first.id]);
-  assert.match(source, /openLocal: \(tab\) => open\(\{ \.\.\.tab, kind: 'local' \}, true, true\)/);
-  assert.match(source, /title: localTitle\(selected\) \}, true, Boolean\(row\)\)/);
+  context.open(second, true, true); context.open(first, true, true);
+  assert.deepEqual(views, [first.id, second.id, first.id]);
+  assert.match(source, /if \(navigate\) options\.openLocal\?\.\(value\)/);
+  assert.match(source, /open\(\{ kind: 'local', \.\.\.mounted \}, true, explicit\)/);
+  assert.match(source, /openLocal: request/);
 });
 
 test('missing completion timestamps still acknowledge the exact observed item', () => {

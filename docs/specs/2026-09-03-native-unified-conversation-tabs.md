@@ -56,6 +56,11 @@ Choosing a ChatGPT tab restores the native workspace and opens the exact native
 chat route. Ordinary-chat proxy rows and native project-chat rows both create
 or activate that ChatGPT tab; cloud-work rows retain their existing behavior.
 Choosing Console opens the last console module used in the embedded workspace.
+For native local conversations, the selected tab follows the conversation ID
+mounted in the workspace. A tab click may request navigation immediately, but it
+shows an immediate pending-selection treatment while the exact conversation is
+mounting. The confirmed `aria-selected` state changes only after that identity is
+mounted; stale sidebar selection during the route transition cannot overwrite it.
 
 Closing the active tab selects its right neighbor, then its left neighbor, then
 Console. Closing an inactive tab does not change the current view. The strip is
@@ -154,6 +159,13 @@ last valid workspace-left boundary throughout native route remounts; title
 takeover and positioning also run synchronously from the mutation callback so
 the next paint cannot fall back to title-aware narrowing.
 
+The mounted local identity comes from the bounded native conversation marker
+`data-above-composer-conversation-id`; the selected sidebar row is only a fallback
+while no mounted marker exists. Local tab navigation is therefore request/confirm:
+the controller gives immediate visual feedback, sends the existing native route
+request, ignores stale mounted identities while that request is pending, and
+commits the selected tab when the mounted identity confirms the destination.
+
 `public/theme.js` and existing dashboard styles use the embedded presentation
 flag to suppress the inner workspace strip and remove its reserved inset. The
 standalone dashboard behavior is unchanged.
@@ -211,6 +223,10 @@ restores the previous dashboard-only strip. No migration is required.
 - [x] A closed local tab is not recreated by stale native selection during a
       route transition or after history restoration; explicitly opening the
       same local conversation clears the dismissal and creates one tab.
+- [x] A local tab never claims selection for a different mounted conversation,
+      including while the native route and sidebar selection are transitioning.
+- [x] A local tab click paints pending-selection feedback immediately instead of
+      waiting for native route completion, without exposing a false selected state.
 - [ ] Opening a native conversation not already represented by a tab does not
       transiently narrow or flash the duplicate native title during remount.
 - [x] Vertical scrolling over the strip moves one adjacent tab in the selected
