@@ -24,7 +24,9 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
 [data-ccc-turn-rail-preview] div div+div{margin-top:6px;opacity:.85}
 `;
   document.head.append(style); document.body.append(rail, popup);
-  let context = null, outputCard = null, nativeRails = new Set(), signature = '', hovered = '', revealSignature = '', disposed = false;
+  let context = null, outputCard = null, nativeRails = new Set(), signature = '', hovered = '', revealSignature = '', disposed = false, paintScheduled = false, paintFrame = null;
+  const requestFrame = window.requestAnimationFrame?.bind(window) || (callback => { callback(); return null; });
+  const cancelFrame = window.cancelAnimationFrame?.bind(window) || (() => {});
   function clearRight() {
     for (const nav of nativeRails) { nav.removeAttribute(RIGHT); nav.style.removeProperty('--ccc-message-rail-inset'); }
     nativeRails.clear();
@@ -76,6 +78,11 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
     rail.style.setProperty('--ccc-rail-fade-bottom', (rail.scrollTop || 0) + available < context.turns.length * tickHeight - 1 ? 'transparent' : 'black');
     show(false);
   }
+  function schedulePaint() {
+    if (paintScheduled || disposed) return;
+    paintScheduled = true;
+    paintFrame = requestFrame(() => { paintScheduled = false; paintFrame = null; paint(); });
+  }
   function show(request) {
     const index = context?.turns.findIndex(turn => turn.id === hovered) ?? -1;
     if (index < 0) { popup.hidden = true; return; }
@@ -110,7 +117,7 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
     const next = Math.max(0, Math.min(context.turns.length - 1, index + Math.sign(event.deltaY)));
     if (next !== index) reveal(context.turns[next]);
   }, { passive: false });
-  document.addEventListener('scroll', paint, { passive: true, capture: true });
+  document.addEventListener('scroll', schedulePaint, { passive: true, capture: true });
   return {
     contains(node) { return rail.contains(node) || popup.contains(node); },
     update(value, card) {
@@ -122,8 +129,8 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
           const button = make('button'); button.type = 'button'; button.setAttribute('data-ccc-turn-marker', turn.id); button.setAttribute('aria-label', '跳转到第 ' + (index + 1) + ' 轮'); button.append(make('span')); return button;
         }));
       }
-      paint();
+      schedulePaint();
     },
-    dispose() { disposed = true; gutter.dispose(); clearRight(); document.removeEventListener('scroll', paint, true); rail.remove(); popup.remove(); style.remove(); }
+    dispose() { disposed = true; if (paintFrame !== null) cancelFrame(paintFrame); gutter.dispose(); clearRight(); document.removeEventListener('scroll', schedulePaint, true); rail.remove(); popup.remove(); style.remove(); }
   };
 }

@@ -5,10 +5,10 @@ import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
 import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
 export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-13.output-card-companion', KEY = 'codex-control-console.annotation-drafts.v1';
+  const VERSION = '2026-09-15.layout-coalescing', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
-  let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', disposed = false, scheduled = false, layout = null, hover = null;
+  let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', acceptedSignature = '', disposed = false, scheduled = false, refreshTimer = null, lastRefreshAt = 0, layout = null, hover = null;
   let followScroll = false, composing = false, scrollSequence = 0, presentationSuppressed = false;
   let expanded = true;
   try { expanded = localStorage.getItem(KEY + '.open') !== 'false'; } catch { /* optional presentation */ }
@@ -105,9 +105,12 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
     outputCard = null;
   }
   function positionCard() {
-    const heading = Array.from(document.querySelectorAll('button')).find(button =>
-      ['输出内容', '来源', 'Outputs', 'Sources'].includes(button.textContent?.trim()) && button.getBoundingClientRect().width > 0);
-    const card = heading?.closest('[class*="rounded-3xl"][class*="bg-surface-elevated-secondary"]');
+    let card = outputCard?.isConnected ? outputCard : null;
+    if (!card) {
+      const heading = Array.from(document.querySelectorAll('button')).find(button =>
+        ['输出内容', '来源', 'Outputs', 'Sources'].includes(button.textContent?.trim()) && button.getBoundingClientRect().width > 0);
+      card = heading?.closest('[class*="rounded-3xl"][class*="bg-surface-elevated-secondary"]');
+    }
     if (outputCard !== card) { releaseOutputCard(); outputCard = card || null; }
     const target = expanded ? panel : toggle;
     if (!context || !card) {
@@ -130,6 +133,7 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   }
   function refresh() {
     if (disposed) return;
+    lastRefreshAt = Date.now();
     const next = presentationSuppressed ? null : readContext(document);
     if (next?.threadId !== context?.threadId) { scrollSequence++; followScroll = false; context = next; notes = {}; loadedThread = ''; selected = ''; signature = ''; error = ''; hover = null; editor.value = ''; }
     else context = next;
@@ -153,8 +157,13 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
     }
     updateStatus(); decorate(); placePreview(); navigation.update(context, outputCard);
   }
-  function schedule() { if (scheduled || disposed) return; scheduled = true; requestAnimationFrame(() => { scheduled = false; refresh(); }); }
-  const observer = new MutationObserver(records => { if (records.some(r => !panel.contains(r.target) && !preview.contains(r.target) && !navigation.contains(r.target))) schedule(); });
+  function schedule(delay = 0) {
+    if (scheduled || disposed) return; scheduled = true;
+    const wait = delay > 0 ? Math.max(delay, 200 - (Date.now() - lastRefreshAt)) : 0;
+    const queue = () => requestAnimationFrame(() => { scheduled = false; refreshTimer = null; refresh(); });
+    if (wait > 0) refreshTimer = setTimeout(queue, wait); else queue();
+  }
+  const observer = new MutationObserver(records => { if (records.some(r => !panel.contains(r.target) && !preview.contains(r.target) && !navigation.contains(r.target))) schedule(200); });
   observer.observe(document.documentElement, { childList: true, subtree: true });
   function onTimelineScroll(event) {
     const scroll = context?.content?.closest('[data-app-action-timeline-scroll]');
@@ -167,23 +176,28 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
     }, delay);
   }
   document.addEventListener('scroll', onTimelineScroll, { passive: true, capture: true });
-  window.addEventListener('resize', schedule);
-  const timer = setInterval(schedule, 1000);
+  const onResize = () => schedule();
+  window.addEventListener('resize', onResize);
+  const timer = setInterval(refresh, 1000);
   window.__codexControlConsoleAnnotations = {
     version: VERSION,
-    setPresentationSuppressed(value) { presentationSuppressed = Boolean(value); refresh(); },
+    setPresentationSuppressed(value) { const next = Boolean(value); if (next === presentationSuppressed) return; presentationSuppressed = next; refresh(); },
     packet() { return { threadId: context?.threadId || null, actions: pending.filter(x => Date.now() - (x.editedAt || 0) >= 500).slice(0, 20) }; },
     accept(value) {
-      const acknowledgements = new Set(value.acknowledged || []); pending = pending.filter(x => !acknowledgements.has(x.requestId)); persist();
+      const acknowledgements = new Set(value.acknowledged || []), pendingCount = pending.length;
+      pending = pending.filter(x => !acknowledgements.has(x.requestId)); if (pending.length !== pendingCount) persist();
+      const nextAcceptedSignature = JSON.stringify([value.threadId || null, value.notes || null, value.error || '']);
+      const changed = nextAcceptedSignature !== acceptedSignature || pending.length !== pendingCount;
+      acceptedSignature = nextAcceptedSignature;
       if (value.threadId === context?.threadId) {
         const wasDirty = document.activeElement === editor;
         if (value.notes) { notes = value.notes; loadedThread = value.threadId; }
         error = value.error || '';
         if (!wasDirty) editor.value = note(selected);
       }
-      refresh();
+      if (changed) refresh(); else updateStatus();
     },
-    dispose() { disposed = true; navigation.dispose(); releasePreviewHost(); releaseOutputCard(); observer.disconnect(); clearInterval(timer); window.removeEventListener('resize', schedule); document.removeEventListener('scroll', onTimelineScroll, true); listeners.forEach(([type, listener]) => document.removeEventListener(type, listener, true)); layout?.removeAttribute('data-ccc-annotation-layout'); document.querySelectorAll('[data-ccc-annotated]').forEach(x => x.removeAttribute('data-ccc-annotated')); panel.remove(); toggle.remove(); preview.remove(); style.remove(); }
+    dispose() { disposed = true; navigation.dispose(); releasePreviewHost(); releaseOutputCard(); observer.disconnect(); clearInterval(timer); if (refreshTimer) clearTimeout(refreshTimer); window.removeEventListener('resize', onResize); document.removeEventListener('scroll', onTimelineScroll, true); listeners.forEach(([type, listener]) => document.removeEventListener(type, listener, true)); layout?.removeAttribute('data-ccc-annotation-layout'); document.querySelectorAll('[data-ccc-annotated]').forEach(x => x.removeAttribute('data-ccc-annotated')); panel.remove(); toggle.remove(); preview.remove(); style.remove(); }
   };
   refresh();
 }

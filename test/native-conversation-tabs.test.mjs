@@ -192,7 +192,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /data-app-action-sidebar-thread-title/);
   assert.match(source, /data-above-composer-conversation-id/);
   assert.match(source, /resolveNativeLocalConversationId\(mountedIds, selectedRaw\)/);
-  assert.match(source, /routeChanged\(records\)\) syncLocal\(\)/);
+  assert.match(source, /scheduleSync\(routeChanged\(records\)\)/);
   assert.match(source, /tab\.kind === 'local'\) \{ request\(tab, true\); return; \}/);
   assert.match(source, /transition\.matches\(key\)/);
   assert.match(source, /open\(value, false, true\)/);
@@ -229,7 +229,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /\[project, title, chatAction\]\.filter\(Boolean\)/);
   assert.match(source, /stableWorkspaceLeft = Math\.max\(76, Math\.round\(rect\.left \+ 8\)\)/);
   assert.match(source, /const left = stableWorkspaceLeft \?\?/);
-  assert.match(source, /position\(\); scheduleSync\(\)/);
+  assert.match(source, /render\(\); scheduleSync\(true\)/);
   assert.match(source, /background:var\(--color-background-primary,#202022\)/);
   assert.doesNotMatch(source, /const takeoverActive =/);
   assert.match(source, /addEventListener\(["']wheel["']/);

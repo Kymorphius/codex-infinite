@@ -62,7 +62,7 @@ export function buildNativeConversationTabsInjectionSource() {
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
-    let observer = null, renderPending = false, root = null, stableWorkspaceLeft = null, transition = null, titleTakeoverNodes = new Set();
+    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableWorkspaceLeft = null, transition = null, titleTakeoverNodes = new Set();
     let tabClickSequence = {};
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
@@ -116,56 +116,44 @@ export function buildNativeConversationTabsInjectionSource() {
       return state.activeKey === 'console' ? { kind: 'console', module: state.consoleModule } : state.tabs.find((tab) => keyFor(tab) === state.activeKey) || null;
     }
 
-    function syncNativeTitleTakeover() {
-      const workspace = options.workspaceCandidate?.();
-      const workspaceRect = workspace?.getBoundingClientRect?.();
+    function syncNativeTitleTakeover(workspace, workspaceRect) {
       const actionLabels = ['聊天操作', 'Chat actions'];
       const projectPrefixes = ['项目：', 'Project:'];
       const retained = new Set(Array.from(titleTakeoverNodes).filter((node) => node.isConnected));
-      const isVisibleTopButton = (button) => {
-        const bounds = button.getBoundingClientRect(), presentation = getComputedStyle(button);
-        return bounds.width > 0 && bounds.height > 0 && bounds.top < 42 && presentation.display !== 'none' && presentation.visibility !== 'hidden' && presentation.pointerEvents !== 'none';
-      };
-      const chatAction = Array.from(document.querySelectorAll('button[aria-label]')).find((button) => {
-        return actionLabels.includes(clean(button.getAttribute('aria-label'), 80)) && isVisibleTopButton(button);
-      });
+      const buttonRecords = Array.from(document.querySelectorAll('button')).filter((button) => !root?.contains(button)).map((button) => {
+        const bounds = button.getBoundingClientRect(), style = getComputedStyle(button);
+        return { button, bounds, style };
+      }).filter(({ bounds, style }) => bounds.width > 0 && bounds.height > 0 && bounds.top < 42 && style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none');
+      const chatAction = buttonRecords.find(({ button }) => actionLabels.includes(clean(button.getAttribute('aria-label'), 80)));
       if (!chatAction) {
         titleTakeoverNodes = retained;
-        return;
+        return buttonRecords;
       }
       const next = new Set();
       if (chatAction && workspaceRect?.width > 260) {
-        const actionRect = chatAction.getBoundingClientRect();
-        const buttons = Array.from(document.querySelectorAll('button')).filter((button) => !root?.contains(button) && isVisibleTopButton(button));
-        const project = buttons.find((button) => {
-          const label = clean(button.getAttribute('aria-label'), 160), bounds = button.getBoundingClientRect();
-          return projectPrefixes.some((prefix) => label.startsWith(prefix)) && bounds.left >= workspaceRect.left + 4 && bounds.right <= actionRect.left + 1;
+        const project = buttonRecords.find(({ button, bounds }) => {
+          const label = clean(button.getAttribute('aria-label'), 160);
+          return projectPrefixes.some((prefix) => label.startsWith(prefix)) && bounds.left >= workspaceRect.left + 4 && bounds.right <= chatAction.bounds.left + 1;
         });
-        const titleLeft = project?.getBoundingClientRect().right || workspaceRect.left + 4;
-        const title = buttons.filter((button) => {
-          const bounds = button.getBoundingClientRect();
-          return !button.hasAttribute('aria-label') && bounds.left >= titleLeft - 1 && bounds.right <= actionRect.left + 1;
-        }).sort((left, right) => right.getBoundingClientRect().width - left.getBoundingClientRect().width)[0];
-        [project, title, chatAction].filter(Boolean).forEach((button) => next.add(button));
+        const titleLeft = project?.bounds.right || workspaceRect.left + 4;
+        const title = buttonRecords.filter(({ button, bounds }) => !button.hasAttribute('aria-label') && bounds.left >= titleLeft - 1 && bounds.right <= chatAction.bounds.left + 1)
+          .sort((left, right) => right.bounds.width - left.bounds.width)[0];
+        [project, title, chatAction].filter(Boolean).forEach((record) => next.add(record.button));
       }
       document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => {
         if (!next.has(node)) node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE);
       });
       next.forEach((node) => node.setAttribute(TITLE_HIDDEN_ATTRIBUTE, ''));
       titleTakeoverNodes = next;
+      return buttonRecords;
     }
 
     function position() {
       if (!root) return;
-      syncNativeTitleTakeover();
       const candidate = options.workspaceCandidate?.();
       const rect = candidate?.getBoundingClientRect?.();
-      const topControls = Array.from(document.querySelectorAll('button,a,[role="button"],[role="link"]')).filter((element) => {
-        if (root.contains(element)) return false;
-        const bounds = element.getBoundingClientRect(), style = getComputedStyle(element);
-        return bounds.width > 0 && bounds.height > 0 && bounds.top < 42 && bounds.bottom > 0 && bounds.right < innerWidth * .62 && style.visibility !== 'hidden' && style.pointerEvents !== 'none';
-      });
-      const leftControlEdge = topControls.reduce((edge, element) => Math.max(edge, element.getBoundingClientRect().right), 0);
+      const topControls = syncNativeTitleTakeover(candidate, rect);
+      const leftControlEdge = topControls.reduce((edge, { bounds }) => bounds.right < innerWidth * .62 ? Math.max(edge, bounds.right) : edge, 0);
       if (rect?.width > 260) stableWorkspaceLeft = Math.max(76, Math.round(rect.left + 8));
       const left = stableWorkspaceLeft ?? Math.max(236, Math.round(leftControlEdge + 8));
       const right = rect?.width > 260 ? Math.max(152, Math.round(innerWidth - rect.right + 152)) : 152;
@@ -276,9 +264,16 @@ export function buildNativeConversationTabsInjectionSource() {
       return { kind: 'chatgpt', id: match[1], title: clean(title, 160) || 'ChatGPT 会话' };
     }
 
-    function scheduleSync() {
-      if (renderPending) return; renderPending = true;
-      requestAnimationFrame(() => { renderPending = false; syncLocal(); position(); });
+    function scheduleSync(urgent = false) {
+      if (renderPending) {
+        if (!urgent || !renderTimer) return;
+        clearTimeout(renderTimer); renderTimer = null; renderPending = false;
+      }
+      renderPending = true;
+      const interval = urgent ? 0 : 320;
+      const delay = Math.max(0, interval - (performance.now() - lastSyncAt));
+      const queue = () => requestAnimationFrame(() => { renderPending = false; renderTimer = null; lastSyncAt = performance.now(); syncLocal(); position(); });
+      if (delay > 0) renderTimer = setTimeout(queue, delay); else queue();
     }
 
     const style = document.createElement('style'); style.setAttribute('data-codex-control-console-native-tab-style', '');
@@ -315,12 +310,14 @@ export function buildNativeConversationTabsInjectionSource() {
       const chatTab = chatgptTab(chatRow);
       if (chatTab) setTimeout(() => open(chatTab, true), 0);
     };
-    document.addEventListener('click', nativeClick, true); window.addEventListener('resize', position);
-    observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; if (routeChanged(records)) syncLocal(); position(); scheduleSync(); });
+    document.addEventListener('click', nativeClick, true);
+    observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; scheduleSync(routeChanged(records)); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-title', 'data-above-composer-conversation-id'] });
 
-    const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { pageInset.dispose(); observer?.disconnect(); transition.dispose(); dragController.destroy(); wheelPreferences.destroy(); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', position); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
-    render(); scheduleSync(); return controller;
+    const onResize = () => scheduleSync(true);
+    window.addEventListener('resize', onResize);
+    const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { pageInset.dispose(); observer?.disconnect(); transition.dispose(); dragController.destroy(); wheelPreferences.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
+    render(); scheduleSync(true); return controller;
   }
   `;
 }

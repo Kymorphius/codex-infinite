@@ -36,8 +36,14 @@ function nativeOwnerInjectionScripts() {
   ];
 }
 
+export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
+  const base = Math.max(100, Number(pollMs) || 1200);
+  const failures = Math.max(0, Math.floor(Number(failureCount) || 0));
+  return Math.min(Math.max(base, Number(maximumMs) || 30000), base * (2 ** Math.min(failures, 10)));
+}
+
 export class NativeOwnerInjector {
-  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, pollMs = 1200, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
     this.contextWindowStore = contextWindowStore;
     this.turboPolicyProvider = turboPolicyProvider;
@@ -47,6 +53,7 @@ export class NativeOwnerInjector {
     this.newProjectProvider = newProjectProvider;
     this.attentionConversationProvider = attentionConversationProvider;
     this.pollMs = pollMs;
+    this.backoffMaxMs = backoffMaxMs;
     this.logger = logger;
     this.discover = discover;
     this.choose = choose;
@@ -54,6 +61,8 @@ export class NativeOwnerInjector {
     this.running = false;
     this.syncing = false;
     this.timer = null;
+    this.failureCount = 0;
+    this.lastFailureMessage = "";
     this.targetId = null;
     this.connection = null;
     this.removeBindingListener = null;
@@ -109,13 +118,19 @@ export class NativeOwnerInjector {
       await this.connection.evaluate(buildNativeProjectSearchSnapshotScript(await this.newProjectProvider?.readSearch?.()));
       await this.connection.evaluate(buildNativeNewProjectsSnapshotScript(await this.newProjectProvider?.read?.() || []));
       await this.connection.evaluate(buildNativeAttentionConversationsSnapshotScript(await this.attentionConversationProvider?.read?.()));
+      this.failureCount = 0;
+      this.lastFailureMessage = "";
     } catch (error) {
       this.removeBindingListener?.();
       this.removeBindingListener = null;
       await this.connection?.close().catch(() => {});
       this.connection = null;
       this.targetId = null;
-      this.logger.warn(`[codex-control-console] primary native bridge waiting: ${error.message}`);
+      const message = error.message || String(error), nextFailure = this.failureCount + 1;
+      const shouldLog = nextFailure === 1 || message !== this.lastFailureMessage || (nextFailure & (nextFailure - 1)) === 0;
+      this.failureCount = nextFailure;
+      this.lastFailureMessage = message;
+      if (shouldLog) this.logger.warn(`[codex-control-console] primary native bridge waiting: ${message}`);
     } finally {
       this.syncing = false;
     }
@@ -125,12 +140,21 @@ export class NativeOwnerInjector {
     if (this.running) return;
     this.running = true;
     await this.sync();
-    this.timer = setInterval(() => void this.sync(), this.pollMs);
+    this.scheduleNext();
+  }
+
+  scheduleNext() {
+    if (!this.running) return;
+    const delay = nativeOwnerPollDelay(this.pollMs, this.failureCount, this.backoffMaxMs);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      void this.sync().finally(() => this.scheduleNext());
+    }, delay);
   }
 
   async stop() {
     this.running = false;
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.removeBindingListener?.();
     this.removeBindingListener = null;
