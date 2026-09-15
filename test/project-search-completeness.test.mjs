@@ -35,9 +35,9 @@ test('native thread reader rejects invalid and repeated pages', async () => {
   await assert.rejects(readProjectSearchThreads({ request: async () => ({ data: [], nextCursor: 'repeat' }) }), /repeated/);
   await assert.rejects(readProjectSearchThreads({ request: async () => ({}) }), /invalid/);
 });
-test('explicit ownership wins, missing ownership uses directory, archived and duplicate threads are excluded', () => {
+test('valid explicit ownership wins while stale or missing ownership uses directory', () => {
   const ordered = ['a', 'b'].map(id => ({ project: { id, name: id } }));
   const tasks = [{ id: id(1), projectId: 'b' }, { id: id(2) }, { id: id(2) }, { id: id(3), archived: true }, { id: id(4), projectId: 'deleted' }];
   const result = buildProjectSearchCatalog(ordered, tasks, () => ({ id: 'a' }));
-  assert.deepEqual(result.map(p => p.tasks.map(t => t.id)), [[id(2)], [id(1)]]);
+  assert.deepEqual(result.map(p => p.tasks.map(t => t.id)), [[id(2), id(4)], [id(1)]]);
 });

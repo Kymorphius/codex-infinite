@@ -10,7 +10,9 @@ export function buildProjectSearchCatalog(ordered, tasks, matchProject) {
   for (const task of tasks) {
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(task.id || '') || seen.has(task.id) || task.archived) continue;
     seen.add(task.id);
-    byId.get(task.projectId || matchProject(task)?.id)?.tasks.push({ id: task.id, title: String(task.title || '未命名会话').slice(0, 160) });
+    const explicit = byId.get(task.projectId);
+    const project = explicit || byId.get(matchProject(task)?.id);
+    project?.tasks.push({ id: task.id, title: String(task.title || '未命名会话').slice(0, 160) });
   }
   return projects;
 }
