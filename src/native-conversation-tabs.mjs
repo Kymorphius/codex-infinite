@@ -2,6 +2,7 @@ import { buildInsetSource } from './native-composer-tab-layout.mjs';
 import { buildNativeLocalConversationSyncSource, resolveNativeLocalConversationId } from './native-conversation-route-sync.mjs';
 import { buildNativeConversationTabTitlePolicySource } from './native-conversation-tab-titles.mjs';
 import { buildNativeConversationTabTransitionSource } from './native-conversation-tab-transition.mjs';
+import { buildNativeConversationWindowInjectionSource, NATIVE_CONVERSATION_WINDOW_STYLE } from "./native-conversation-window.mjs";
 import { installNativeConversationTabDragging, reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
 import { installNativeConversationTabWheelPreferences, nativeConversationTabWheelOffset, normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
@@ -42,10 +43,11 @@ export function buildNativeConversationTabsInjectionSource() {
   ${wheelPreferencesSource}
   ${reorderTabsSource}
   ${dragInstallerSource}
+  ${buildNativeConversationWindowInjectionSource()}
   ${titlePolicySource}
   ${buildNativeConversationTabTransitionSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-15.fast-switch2';
+    const VERSION = '2026-09-15.multi-window1';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -171,8 +173,9 @@ export function buildNativeConversationTabsInjectionSource() {
       item.title = tab.title + (tab.kind === 'remote' && tab.deviceName ? '\\n' + tab.deviceName : '');
       const dot = document.createElement('span'); dot.className = 'ccc-native-tab-dot'; dot.dataset.kind = tab.kind; dot.setAttribute('aria-hidden', 'true');
       const label = document.createElement('span'); label.className = 'ccc-native-tab-title'; label.textContent = tab.title;
+      const newWindow = createNativeConversationWindowButton(document, tab, key);
       const close = document.createElement('button'); close.type = 'button'; close.draggable = false; close.className = 'ccc-native-tab-close'; close.dataset.closeKey = key; close.textContent = '×'; close.setAttribute('aria-label', '关闭标签：' + tab.title);
-      item.append(dot, label, close); return item;
+      item.append(dot, label); if (newWindow) item.append(newWindow); item.append(close); return item;
     }
 
     function render() {
@@ -284,7 +287,7 @@ export function buildNativeConversationTabsInjectionSource() {
       ROOT_SELECTOR + ' .ccc-native-tab[draggable="true"]{cursor:grab}' + ROOT_SELECTOR + ' .ccc-native-tab[data-dragging]{cursor:grabbing;opacity:.52}' +
       ROOT_SELECTOR + ' .ccc-native-tab[data-drop-position="before"]{box-shadow:inset 3px 0 0 #7aa2ff}' + ROOT_SELECTOR + ' .ccc-native-tab[data-drop-position="after"]{box-shadow:inset -3px 0 0 #7aa2ff}' +
       ROOT_SELECTOR + ' .ccc-native-console{min-width:88px;max-width:110px;flex-basis:100px}' + ROOT_SELECTOR + ' .ccc-native-tab-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#7d8ca8}' + ROOT_SELECTOR + ' .ccc-native-tab-dot[data-kind="chatgpt"]{background:#8b74d6}' + ROOT_SELECTOR + ' .ccc-native-tab-dot[data-kind="remote"]{background:#42a575}' +
-      ROOT_SELECTOR + ' .ccc-native-tab-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' + ROOT_SELECTOR + ' .ccc-native-tab-close{display:grid;width:18px;height:18px;flex:0 0 18px;place-items:center;border:0;border-radius:5px;padding:0;background:transparent;color:inherit;font:16px/18px inherit;cursor:pointer;opacity:.62}' + ROOT_SELECTOR + ' .ccc-native-tab-close:hover{background:color-mix(in srgb,currentColor 12%,transparent);opacity:1}' +
+      ROOT_SELECTOR + ' .ccc-native-tab-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' + ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE)} +
       '@media(max-width:720px){' + ROOT_SELECTOR + ' .ccc-native-console{min-width:76px;flex-basis:82px}' + ROOT_SELECTOR + ' .ccc-native-tab{min-width:104px;flex-basis:150px}}';
     document.head.append(style);
 
@@ -298,7 +301,7 @@ export function buildNativeConversationTabsInjectionSource() {
     const dragController = installNativeConversationTabDragging({ root, state, keyFor, render });
     const wheelPreferences = installNativeConversationTabWheelPreferences({ root, state, persist, adjacentKey, activate, advanceMomentum: advanceNativeWheelMomentum });
 
-    root.addEventListener('click', (event) => { const closeButton = event.target.closest('[data-close-key]'); if (closeButton) { tabClickSequence = {}; event.stopPropagation(); close(closeButton.dataset.closeKey); return; } const tab = event.target.closest('[data-tab-key]'); if (!tab) return; tabClickSequence = advanceNativeTabClickSequence(tabClickSequence, tab.dataset.tabKey, performance.now()); if (tabClickSequence.close) { event.preventDefault(); close(tab.dataset.tabKey); return; } activate(tab.dataset.tabKey); });
+    root.addEventListener('click', (event) => { const pop=event.target.closest('[data-window-key]'); if(pop){tabClickSequence={};event.preventDefault();event.stopPropagation();void openNativeConversationWindow({state,keyFor,key:pop.dataset.windowKey,button:pop,openWindow:options.openWindow});return;} const closeButton = event.target.closest('[data-close-key]'); if (closeButton) { tabClickSequence = {}; event.stopPropagation(); close(closeButton.dataset.closeKey); return; } const tab = event.target.closest('[data-tab-key]'); if (!tab) return; tabClickSequence = advanceNativeTabClickSequence(tabClickSequence, tab.dataset.tabKey, performance.now()); if (tabClickSequence.close) { event.preventDefault(); close(tab.dataset.tabKey); return; } activate(tab.dataset.tabKey); });
     root.addEventListener('keydown', (event) => { if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; const tabs = [consoleTab, ...list.querySelectorAll('[role="tab"]')], index = tabs.indexOf(event.target.closest('[role="tab"]')); if (index < 0) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; tabs[nextIndex].focus(); activate(tabs[nextIndex].dataset.tabKey); });
     const nativeClick = (event) => {
       const localRow = event.target?.closest?.('[data-app-action-sidebar-thread-id^="local:"]');

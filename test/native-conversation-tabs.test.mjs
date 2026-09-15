@@ -207,6 +207,13 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /openLocal/);
   assert.match(source, /openChatgpt/);
   assert.match(source, /openRemote/);
+  assert.match(source, /data-window-key/);
+  assert.match(source, /在新窗口打开：/);
+  assert.match(source, /createNativeConversationWindowButton\(document, tab, key\)/);
+  assert.match(source, /typeof openWindow !== "function"/);
+  assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
+  assert.match(source, /data-window-opening/);
+  assert.match(source, /data-window-error/);
   assert.match(source, /data-sidebar-chatgpt-conversation-key/);
   assert.match(source, /data-codex-control-console-ordinary-chat-row/);
   assert.match(source, /querySelector\?\.\('\[data-thread-title="true"\]'\)/);

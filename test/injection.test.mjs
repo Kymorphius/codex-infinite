@@ -64,6 +64,10 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /openLocal/);
   assert.match(source, /openChatgpt/);
   assert.match(source, /openRemote/);
+  assert.match(source, /openWindow/);
+  assert.match(source, /electronBridge\?\.sendMessageFromView/);
+  assert.match(source, /request\?\.type !== 'open-in-new-window'/);
+  assert.match(source, /\^\\\/\(\?:local\|c\)\\\//);
   assert.match(source, /path: '\/c\/' \+ encodeURIComponent\(tab\.id\)/);
   assert.match(source, /data-codex-control-console-ordinary-chat-row/);
   assert.match(source, /codex-control-console-open-remote-conversation/);

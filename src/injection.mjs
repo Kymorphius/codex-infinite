@@ -35,7 +35,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-09-15.fast-tab-switch2';
+  const INJECTION_VERSION = '2026-09-15.multi-window1';
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -327,6 +327,11 @@ ${embeddedFrameRecoverySource}
         window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(tab.id) }, '*');
       },
       openChatgpt: (tab) => { restoreWorkspace(); window.postMessage({ type: 'navigate-to-route', path: '/c/' + encodeURIComponent(tab.id) }, '*'); },
+      openWindow: (_tab, request) => {
+        const send = window.electronBridge?.sendMessageFromView;
+        if (typeof send !== 'function' || request?.type !== 'open-in-new-window' || !/^\\/(?:local|c)\\/[0-9a-f-]{36}$/i.test(request?.path || '')) return false;
+        return send(request).then(() => true);
+      },
       openRemote: (tab) => openRemoteConversation(tab)
     });
     window.__codexControlConsoleNativeThreadListener = handleNativeThreadSelection;
