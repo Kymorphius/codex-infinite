@@ -31,6 +31,23 @@ test('search reads all native pages independently of recent activity and retains
   const stale = await service.readSearch();
   assert.equal(stale.stale, true); assert.deepEqual(stale.projects, first.projects);
 });
+test('native project assignments disambiguate projects that share the same roots', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'search-membership-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const statePath = path.join(dir, 'project-state.json');
+  await fs.writeFile(statePath, JSON.stringify({
+    'app-server-project-id-by-legacy-project-id-by-host': { 'local:/home': { nativeA: 'server-a', nativeB: 'server-b' } },
+    'thread-project-assignments': { [id(1)]: { projectKind: 'local', projectId: 'nativeB' } }
+  }));
+  const projects = ['server-a', 'server-b'].map((projectId, position) => ({ id: projectId, name: projectId, position, roots: [{ path: '/shared' }] }));
+  const service = new NewProjectService({ statePath: path.join(dir, 'lifecycle.json'), projectStatePaths: [statePath],
+    taskAdapter: { listTasks: async () => ({ tasks: [] }) }, logger: { warn() {} },
+    clientFactory: () => ({ initialize: async () => {}, close() {}, async request(method) {
+      return method === 'project/list' ? { data: projects } : { data: [{ id: id(1), name: '精确归属', cwd: '/shared' }] };
+    } }) });
+  const snapshot = await service.readSearch();
+  assert.deepEqual(snapshot.projects.map(project => project.tasks.map(task => task.id)), [[], [id(1)]]);
+});
 test('native thread reader rejects invalid and repeated pages', async () => {
   await assert.rejects(readProjectSearchThreads({ request: async () => ({ data: [], nextCursor: 'repeat' }) }), /repeated/);
   await assert.rejects(readProjectSearchThreads({ request: async () => ({}) }), /invalid/);

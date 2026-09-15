@@ -37,9 +37,17 @@ test('bridge does not install or mutate outside exact app page', async () => {
 });
 
 test('catalog identity resolves to native sidebar ID and ignores remote host mappings', async t => {
-  const { readChecklistProjectIds } = await import('../src/project-checklist-identity.mjs');
+  const { readChecklistProjectIds, readProjectStateIdentities } = await import('../src/project-checklist-identity.mjs');
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'checklist-')); t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const file = path.join(directory, 'state.json');
-  await fs.writeFile(file, JSON.stringify({ 'app-server-project-id-by-legacy-project-id-by-host': { 'local:/home': { native: 'server' }, remote: { unrelated: 'server' } } }));
+  await fs.writeFile(file, JSON.stringify({
+    'app-server-project-id-by-legacy-project-id-by-host': { 'local:/home': { native: 'server' }, remote: { unrelated: 'server' } },
+    'thread-project-assignments': {
+      assigned: { projectKind: 'local', projectId: 'native' },
+      remote: { projectKind: 'remote', projectId: 'native' },
+      missing: { projectKind: 'local', projectId: 'missing' }
+    }
+  }));
   assert.equal((await readChecklistProjectIds([file])).get('server'), 'native');
+  assert.deepEqual([...(await readProjectStateIdentities([file])).threadProjectIds], [['assigned', 'server']]);
 });

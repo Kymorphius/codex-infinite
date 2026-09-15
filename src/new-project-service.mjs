@@ -1,4 +1,4 @@
-import { readChecklistProjectIds } from './project-checklist-identity.mjs';
+import { readProjectStateIdentities } from './project-checklist-identity.mjs';
 import { readProjectSearchThreads } from './project-search-threads.mjs';
 import { buildProjectSearchCatalog } from "./project-search.mjs";
 import { readOriginalProjectDates } from "./new-project-metadata.mjs";
@@ -29,7 +29,7 @@ export class NewProjectService {
       lifecycle = stored.lifecycle;
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const originalDates = await readOriginalProjectDates(this.projectStatePaths);
-    const checklistIds = await readChecklistProjectIds(this.projectStatePaths);
+    const { projectIds: checklistIds, threadProjectIds } = await readProjectStateIdentities(this.projectStatePaths);
     const client = this.clientFactory();
     const projects = [];
     let searchTasks;
@@ -49,7 +49,9 @@ export class NewProjectService {
         if (cursor && seen.has(cursor)) throw new Error('repeated project cursor');
         if (cursor) seen.add(cursor);
       } while (cursor);
-      searchTasks = await readProjectSearchThreads(client);
+      searchTasks = (await readProjectSearchThreads(client)).map(task => (
+        task.projectId || !threadProjectIds.has(task.id) ? task : { ...task, projectId: threadProjectIds.get(task.id) }
+      ));
     } finally { client.close(); }
     const snapshot = await this.taskAdapter.listTasks();
     if (!Array.isArray(snapshot?.tasks)) throw new Error('invalid task snapshot');
