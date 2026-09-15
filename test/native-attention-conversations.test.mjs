@@ -61,6 +61,18 @@ test('three native-style automatic sections preserve original rows and route to 
   assert.ok(roots.every(x => x.children[0].className === 'relative px-row-x'));
   h.run(); h.set({ items: [item], stale: false }); assert.equal(h.parent.children.length, 5);
 });
+test('a placeholder snapshot cannot replace the last known conversation title, including after reinjection', () => {
+  const h = harness(); h.run();
+  h.set({ items: [{ ...item, title: '真实会话标题', section: 'active' }], stale: false });
+  assert.equal(h.find('data-attention-thread-id').children[0].textContent, '真实会话标题');
+  h.set({ items: [{ ...item, title: '未命名会话', section: 'active' }], stale: false });
+  assert.equal(h.find('data-attention-thread-id').children[0].textContent, '真实会话标题');
+  h.context.window.__codexControlConsoleAttentionConversations.version = 'old'; h.run();
+  h.set({ items: [{ ...item, title: 'Untitled conversation', section: 'active' }], stale: false });
+  assert.equal(h.find('data-attention-thread-id').children[0].textContent, '真实会话标题');
+  h.set({ items: [{ ...item, title: '重命名后的标题', section: 'active' }], stale: false });
+  assert.equal(h.find('data-attention-thread-id').children[0].textContent, '重命名后的标题');
+});
 test('read completion removes the alias, active update moves it, collapse and drop blocking stay independent', () => {
   const h = harness(); h.run(); h.set({ items: [item], stale: false });
   h.set({ items: [{ ...item, section: 'active' }], stale: false });

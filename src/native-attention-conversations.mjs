@@ -1,19 +1,47 @@
 import { createConversationViewHistory } from './conversation-view-history.mjs';
 
 export function installNativeAttentionConversations(createHistory = createConversationViewHistory) {
-  const VERSION = '2026-09-07.1';
+  const VERSION = '2026-09-15.stable-titles2';
   if (window.__codexControlConsoleAttentionConversations?.version === VERSION) return;
   window.__codexControlConsoleAttentionConversations?.dispose();
   const ROOT = 'data-codex-control-console-attention-conversations';
   const STORAGE = 'codex-control-console.attention-conversations.expanded.v1';
   const HISTORY = 'codex-control-console.conversation-view-history.v1';
+  const TITLES = 'codex-control-console.conversation-titles.v1';
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem(HISTORY) || '[]'); } catch { /* optional */ }
   const history = createHistory(saved);
+  let knownTitles = {};
+  try {
+    const stored = JSON.parse(localStorage.getItem(TITLES) || '{}');
+    knownTitles = Object.fromEntries(Object.entries(stored && !Array.isArray(stored) ? stored : {}).filter(([id, title]) =>
+      /^[0-9a-f-]{36}$/i.test(id) && typeof title === 'string' && title.trim()).slice(-400).map(([id, title]) => [id.toLowerCase(), title.trim().slice(0, 160)]));
+  } catch { /* optional presentation state */ }
+  for (const item of history.list()) {
+    if (item?.id && item?.title && item.title !== '未命名会话') knownTitles[item.id] = String(item.title).slice(0, 160);
+  }
   document.querySelectorAll('[' + ROOT + ']').forEach(node => node.remove());
   let expanded = {};
   try { expanded = JSON.parse(localStorage.getItem(STORAGE) || '{}') || {}; } catch { /* optional presentation state */ }
   let snapshot = { items: [], stale: true }; let roots = []; let signature = ''; let pending = false; let disposed = false;
+  function stableSnapshot(value) {
+    const incoming = value && Array.isArray(value.items) ? value : { items: [], stale: true };
+    let changed = false;
+    const items = incoming.items.map(item => {
+      const id = String(item?.id || '').toLowerCase(), title = String(item?.title || '').trim().slice(0, 160);
+      const placeholder = /^(?:未命名(?:会话|对话)|untitled(?: conversation| chat)?)$/i.test(title);
+      if (id && title && !placeholder) {
+        if (knownTitles[id] !== title) { knownTitles[id] = title; changed = true; }
+        return { ...item, title };
+      }
+      return knownTitles[id] ? { ...item, title: knownTitles[id] } : item;
+    });
+    if (changed) {
+      knownTitles = Object.fromEntries(Object.entries(knownTitles).slice(-400));
+      try { localStorage.setItem(TITLES, JSON.stringify(knownTitles)); } catch { /* in-memory still works */ }
+    }
+    return { ...incoming, items };
+  }
   function node(tag, classes, text) {
     const element = document.createElement(tag); element.className = classes || '';
     if (text != null) element.textContent = text;
@@ -112,7 +140,7 @@ export function installNativeAttentionConversations(createHistory = createConver
   window.__codexControlConsoleAttentionConversations = {
     version: VERSION,
     view: recordView,
-    set(value) { snapshot = value && Array.isArray(value.items) ? value : { items: [], stale: true }; render(); },
+    set(value) { snapshot = stableSnapshot(value); render(); },
     dispose() { disposed = true; observer.disconnect(); roots.forEach(root => root.remove()); }
   };
   render();
