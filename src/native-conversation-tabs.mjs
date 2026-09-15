@@ -1,4 +1,5 @@
 import { buildInsetSource } from './native-composer-tab-layout.mjs';
+import { buildNativeConversationTabTitlePolicySource } from './native-conversation-tab-titles.mjs';
 import { installNativeConversationTabDragging, reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
 import { installNativeConversationTabWheelPreferences, nativeConversationTabWheelOffset, normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
@@ -27,6 +28,7 @@ export function buildNativeConversationTabsInjectionSource() {
   const wheelPreferencesSource = installNativeConversationTabWheelPreferences.toString();
   const reorderTabsSource = reorderNativeConversationTabs.toString();
   const dragInstallerSource = installNativeConversationTabDragging.toString();
+  const titlePolicySource = buildNativeConversationTabTitlePolicySource();
   return `
   ${buildInsetSource()}
   ${clickSequenceSource}
@@ -36,8 +38,9 @@ export function buildNativeConversationTabsInjectionSource() {
   ${wheelPreferencesSource}
   ${reorderTabsSource}
   ${dragInstallerSource}
+  ${titlePolicySource}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-12.projects-grid1';
+    const VERSION = '2026-09-15.stable-titles2';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -59,12 +62,7 @@ export function buildNativeConversationTabsInjectionSource() {
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
 
-    function normalizeTab(tab) {
-      const kind = tab?.kind === 'remote' ? 'remote' : tab?.kind === 'local' ? 'local' : tab?.kind === 'chatgpt' ? 'chatgpt' : null;
-      const id = clean(tab?.id, 160), deviceId = kind === 'remote' ? clean(tab?.deviceId, 120) : 'local';
-      if (!kind || !id || !deviceId || (kind !== 'remote' && !UUID.test(id))) return null;
-      return { kind, id: kind === 'remote' ? id : id.toLowerCase(), deviceId, title: clean(tab?.title, 160) || '未命名会话', cwd: clean(tab?.cwd, 1024), deviceName: clean(tab?.deviceName, 80) };
-    }
+    const normalizeTab = createNativeConversationTabNormalizer(localStorage, clean, UUID);
 
     function renderedTab(record) {
       let match = /^local:([0-9a-f-]{36})$/i.exec(record?.key || '');

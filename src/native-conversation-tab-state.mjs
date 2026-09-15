@@ -1,5 +1,6 @@
 import { reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
 import { normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
+import { preferNativeConversationTitle } from "./native-conversation-tab-titles.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LOCAL_TAB_KEY = /^local:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -103,13 +104,14 @@ export class NativeConversationTabState {
   }
 
   open(tab, { explicit = true } = {}) {
-    const value = normalizeNativeConversationTab(tab);
+    let value = normalizeNativeConversationTab(tab);
     if (!value) return null;
     if (value.kind === "local" && this.dismissedLocalKeys.includes(value.key)) {
       if (!explicit) return null;
       this.dismissedLocalKeys = this.dismissedLocalKeys.filter((key) => key !== value.key);
     }
     const index = this.tabs.findIndex((item) => item.key === value.key);
+    if (index >= 0) value = Object.freeze({ ...value, title: preferNativeConversationTitle(value.title, this.tabs[index].title) });
     if (index < 0) this.tabs.push(value);
     else this.tabs[index] = value;
     this.activeKey = value.key;
