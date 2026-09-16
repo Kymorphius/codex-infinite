@@ -1,3 +1,4 @@
+import { SshPeerSidebar } from "./ssh-peer-sidebar.mjs";
 import { execFile as nodeExecFile } from "node:child_process";
 import { spawn as nodeSpawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -56,6 +57,7 @@ export class SshPeerAdapter {
     this.nextReadAt = 0;
     this.snapshotRequest = null;
     this.lastSnapshot = null;
+    this.sidebar = new SshPeerSidebar({ peer, execFile: execFileImpl, spawn: spawnImpl, actionKeyPath });
     this.skills = new SshPeerSkills({ peer, execFile: execFileImpl, spawn: spawnImpl, actionKeyPath, logger });
   }
   unavailableSnapshot() {

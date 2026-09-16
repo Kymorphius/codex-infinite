@@ -1,3 +1,4 @@
+import { createSidebarHttpHandler } from './sidebar-http.mjs';
 import { createRuntimeRestartHttpHandler } from "./runtime-restart-http.mjs";
 import { createActivityHttpHandler } from "./activity-http.mjs";
 import { createContextHttpHandler } from "./context-http.mjs";
@@ -11,11 +12,12 @@ import { createProjectCopyHttpHandler } from "./project-copy-http.mjs";
 import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
 
-export function createDashboardHandlers({ config, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog }) {
+export function createDashboardHandlers({ config, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog }) {
   const health = createHealthHttpHandler(config);
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
     createRuntimeRestartHttpHandler({ service: restartService, dashboardOrigin: config.dashboardOrigin }),
+    createSidebarHttpHandler({ sidebarService, nativeSidebarAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createDiagnosticsHttpHandler({ diagnosticsService }),
     createSkillsHttpHandler({ skillSyncService, localSkillAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),

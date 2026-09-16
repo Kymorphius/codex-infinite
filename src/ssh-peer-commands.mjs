@@ -1,5 +1,6 @@
 import { ACTION_HEADERS } from "./peer-action-auth.mjs";
 
+export const SIDEBAR_ACTION_PATH = "/api/node/actions/sidebar";
 export const MESSAGE_ACTION_PATH = "/api/node/actions/message";
 export const DRAFT_ACTION_PATH = "/api/node/actions/draft";
 export const CONTROL_ACTION_PATH = "/api/node/actions/control";
@@ -7,7 +8,7 @@ export const SETTINGS_ACTION_PATH = "/api/node/actions/settings";
 export const TURBO_ACTION_PATH = "/api/node/actions/turbo";
 export const SKILL_INSTALL_ACTION_PATH = "/api/node/actions/skill-install";
 export const SKILL_TOGGLE_ACTION_PATH = "/api/node/actions/skill-toggle";
-const ALLOWED_ACTION_PATHS = new Set([MESSAGE_ACTION_PATH, DRAFT_ACTION_PATH, CONTROL_ACTION_PATH, SETTINGS_ACTION_PATH, TURBO_ACTION_PATH, SKILL_INSTALL_ACTION_PATH, SKILL_TOGGLE_ACTION_PATH]);
+const ALLOWED_ACTION_PATHS = new Set([SIDEBAR_ACTION_PATH, MESSAGE_ACTION_PATH, DRAFT_ACTION_PATH, CONTROL_ACTION_PATH, SETTINGS_ACTION_PATH, TURBO_ACTION_PATH, SKILL_INSTALL_ACTION_PATH, SKILL_TOGGLE_ACTION_PATH]);
 const THREAD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/;
 const SKILL_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 const SKILL_SCOPES = new Set(["codex-user", "agents-user", "repo"]);
@@ -58,6 +59,10 @@ function remoteGetArguments(transport, pathName, timeoutSeconds, remotePlatform)
 
 export function sshSnapshotArguments(transport, { curlTimeoutSeconds = SNAPSHOT_CURL_TIMEOUT_SECONDS, remotePlatform = "posix" } = {}) {
   return remoteGetArguments(transport, "/api/node/snapshot", curlTimeoutSeconds, remotePlatform);
+}
+
+export function sshSidebarArguments(transport, { remotePlatform = "posix" } = {}) {
+  return remoteGetArguments(transport, "/api/node/sidebar", ACTIVITY_CURL_TIMEOUT_SECONDS, remotePlatform).filter(argument => argument !== "--fail");
 }
 
 export function sshActivityArguments(transport, threadId, { remotePlatform = "posix" } = {}) {

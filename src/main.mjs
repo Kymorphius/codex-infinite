@@ -1,3 +1,5 @@
+import { NativeSidebarAdapter } from './native-sidebar-adapter.mjs';
+import { SidebarFederationService } from './sidebar-federation.mjs';
 import { ProjectChecklistStore } from './project-checklist-store.mjs';
 import { TurnAnnotationStore } from './turn-annotation-store.mjs';
 import { RuntimeRestartService } from "./runtime-restart.mjs";
@@ -101,6 +103,8 @@ export async function run() {
   }
   const peers = await loadPeerConfig(config.peerConfigPath);
   const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }));
+  const nativeSidebarAdapter = new NativeSidebarAdapter({ cdpOrigin: config.cdpOrigin, titleIndex: new SessionTitleIndex({ filePath: config.sessionTitleIndexPath }), taskAdapter: localAdapter });
+  const sidebarService = new SidebarFederationService({ localAdapter: nativeSidebarAdapter, localDevice: config.nodeDevice, peers: peerAdapters });
   const adapter = new FederatedTaskAdapter({ localAdapter, peerAdapters });
   const localSkillAdapter = new LocalSkillAdapter({
     node: config.nodeDevice,
@@ -164,7 +168,7 @@ export async function run() {
   let injector;
   let nativeOwnerInjector = null;
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); scheduler.stop(); } });
-  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, contextWindowStore, modelCatalog });
+  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog });
   await dashboard.listen();
   try {
     const codex = attachedCodex || await ensureDedicatedCodex(config);
