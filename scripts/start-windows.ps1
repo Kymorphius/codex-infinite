@@ -26,6 +26,11 @@ $env:CODEX_CONTROL_PROFILE_DIR = [string]$config.profileDirectory
 $env:CODEX_CONTROL_SOURCE_CODEX_HOME = [string]$config.sourceCodexHome
 $env:CODEX_CONTROL_CODEX_HOME = [string]$config.wrapperCodexHome
 $env:CODEX_CONTROL_PEER_CONFIG = [string]$config.peerConfigPath
+if ([string]::IsNullOrWhiteSpace([string]$config.localManagerDeviceDirectoryPath)) {
+  Remove-Item Env:CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY -ErrorAction SilentlyContinue
+} else {
+  $env:CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY = [string]$config.localManagerDeviceDirectoryPath
+}
 $env:CODEX_CONTROL_CODEX_PATH = [string]$config.codexExecutable
 $env:CODEX_CONTROL_PRIMARY_CDP_HOST = if ([string]::IsNullOrWhiteSpace([string]$config.primaryCdpHost)) { '127.0.0.1' } else { [string]$config.primaryCdpHost }
 $env:CODEX_CONTROL_PRIMARY_CDP_PORT = if ($null -eq $config.primaryCdpPort) { '9232' } else { [string]$config.primaryCdpPort }

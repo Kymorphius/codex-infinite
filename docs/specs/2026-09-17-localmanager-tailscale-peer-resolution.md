@@ -27,7 +27,9 @@ starting and never removes statically configured routes.
   not a display name, hostname, platform, or address match.
 - The console reads LocalManager's private `device-directory.json` snapshot. The
   path is local configuration (`CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY`),
-  with platform defaults for the standard macOS and Windows installations.
+  with platform defaults for the standard macOS and Windows installations. A
+  Windows node config may set `localManagerDeviceDirectoryPath` when that
+  machine uses a different LocalManager var root.
 - A directory record contributes a route only when it is registered, its
   registration id exactly matches the peer binding, and it has no identity
   conflict.

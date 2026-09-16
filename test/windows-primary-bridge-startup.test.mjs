@@ -8,7 +8,8 @@ test("Windows service startup projects the private primary bridge configuration"
     "CODEX_CONTROL_PRIMARY_CDP_HOST",
     "CODEX_CONTROL_PRIMARY_CDP_PORT",
     "CODEX_CONTROL_PRIMARY_CDP_ENABLED",
-    "CODEX_CONTROL_PRIMARY_PROFILE_DIR"
+    "CODEX_CONTROL_PRIMARY_PROFILE_DIR",
+    "CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY"
   ]) assert.match(script, new RegExp(`\\$env:${name}\\s*=`));
 });
 
