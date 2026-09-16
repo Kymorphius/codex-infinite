@@ -99,7 +99,7 @@ test("injector reasserts target-scoped CSP bypass after a renderer changes behin
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
   assert.equal(calls.filter((call) => call.method === "Page.setBypassCSP").length, 2);
-  assert.equal(calls.filter((call) => call.method === "Page.addScriptToEvaluateOnNewDocument").length, 15);
+  assert.equal(calls.filter((call) => call.method === "Page.addScriptToEvaluateOnNewDocument").length, 16);
   assert.equal(calls.some((call) => call.method === "Page.reload"), false);
 });
 

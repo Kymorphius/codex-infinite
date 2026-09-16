@@ -17,6 +17,7 @@ import { buildNativeRemoteSidebarInjectionScript, buildNativeRemoteSidebarSnapsh
 import { buildNativeAttentionStickyInjectionScript } from "./native-attention-sticky.mjs";
 import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-chat-section.mjs";
 import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
+import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
 
 function nativeOwnerInjectionScripts() {
   return [
@@ -31,6 +32,7 @@ function nativeOwnerInjectionScripts() {
     buildNativeAttentionStickyInjectionScript(),
     buildNativeChatgptChatSectionInjectionScript(),
     buildNativeOpenLocalProjectInjectionScript(),
+    buildNativeComposerHeldQueueInjectionScript(),
     buildNativeNewProjectsInjectionScript(),
     buildNativeAttentionConversationsInjectionScript()
   ];

@@ -23,6 +23,7 @@ import { buildNativeRemoteSidebarInjectionScript, buildNativeRemoteSidebarSnapsh
 import { buildNativeAttentionStickyInjectionScript } from "./native-attention-sticky.mjs";
 import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-chat-section.mjs";
 import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
+import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
 
 export async function persistNativeContextAction(payload, contextWindowStore) {
   if (!contextWindowStore) return null;
@@ -61,6 +62,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeAttentionStickyInjectionScript());
   await connection.evaluate(buildNativeChatgptChatSectionInjectionScript());
   await connection.evaluate(buildNativeOpenLocalProjectInjectionScript());
+  await connection.evaluate(buildNativeComposerHeldQueueInjectionScript());
   await connection.evaluate(buildNativeNewProjectsInjectionScript());
   await connection.evaluate(buildNativeNewProjectsSnapshotScript(newProjects));
   await connection.evaluate(buildNativeAttentionConversationsInjectionScript());
@@ -126,6 +128,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeOpenLocalProjectInjectionScript()
     });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeComposerHeldQueueInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeNewProjectsInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeAttentionConversationsInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeProjectSearchInjectionScript() });
