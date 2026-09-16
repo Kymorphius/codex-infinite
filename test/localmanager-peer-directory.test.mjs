@@ -25,10 +25,12 @@ function directory(record = {}) {
   return {
     format: 1,
     devices: [{
+      id: "bde3e15a4339ee40fff738e1ca59e274",
       registrationId: "win234",
       name: "display names are not identity",
       registered: true,
       identityConflict: false,
+      bindings: [{ scope: "tailnet:tailnet-example.ts.net", nodeId: "nmdnSaAA6Q11CNTRL" }],
       addresses: ["192.168.1.234", "100.64.0.20", "fd7a:115c:a1e0::a13b:c416"],
       ...record
     }]
@@ -57,6 +59,14 @@ test("directory evidence never creates trust from names or discovery alone", () 
   const duplicate = directory();
   duplicate.devices.push({ ...duplicate.devices[0], addresses: ["100.100.100.100"] });
   assert.equal(addLocalManagerTailscaleRoutes([peer()], duplicate)[0].transports.length, 2);
+});
+
+test("explicit stable device binding can use a discovered LocalManager record", () => {
+  const source = peer({ localManagerRegistrationId: null, localManagerDeviceId: "bde3e15a4339ee40fff738e1ca59e274" });
+  const discovered = directory({ registrationId: null, registered: false });
+  assert.equal(addLocalManagerTailscaleRoutes([source], discovered)[0].transports[1].host, "100.64.0.20");
+  discovered.devices[0].bindings = [];
+  assert.equal(addLocalManagerTailscaleRoutes([source], discovered)[0].transports.length, 2);
 });
 
 test("duplicate and full route lists remain bounded", () => {

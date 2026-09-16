@@ -15,9 +15,11 @@ connection without making network discovery an authorization mechanism.
 ## Decision
 
 Control Console reads LocalManager's on-disk device-directory snapshot through a
-read-only adapter. A peer opts in with an exact LocalManager registration id.
-For a registered, non-conflicting record, the adapter may insert one validated
-Tailscale IPv4 address as a direct SSH candidate. It copies SSH parameters from
+read-only adapter. A peer opts in with an exact LocalManager registration id or
+an exact stable device-directory id. Registration ids require a registered
+record. A device-directory id may select a discovered record only when it has a
+persisted tailnet/node binding. For a non-conflicting match, the adapter may
+insert one validated Tailscale IPv4 address as a direct SSH candidate. It copies SSH parameters from
 the peer's existing trusted direct route and inserts the hint before relay
 fallback. The static peer definition continues to own peer identity,
 credentials, route ordering, and action authorization.

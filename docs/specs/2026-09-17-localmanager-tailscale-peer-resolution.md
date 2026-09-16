@@ -23,16 +23,18 @@ starting and never removes statically configured routes.
 
 ## Contract
 
-- A peer may declare `localManagerRegistrationId`. This is an exact identifier,
-  not a display name, hostname, platform, or address match.
+- A peer may declare either `localManagerRegistrationId` or
+  `localManagerDeviceId`. Both are exact identifiers, not display names,
+  hostnames, platforms, or address matches. Registration bindings require a
+  registered record. A device-id binding may select a discovered record only
+  when LocalManager has already bound it to a stable tailnet/node identity.
 - The console reads LocalManager's private `device-directory.json` snapshot. The
   path is local configuration (`CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY`),
   with platform defaults for the standard macOS and Windows installations. A
   Windows node config may set `localManagerDeviceDirectoryPath` when that
   machine uses a different LocalManager var root.
-- A directory record contributes a route only when it is registered, its
-  registration id exactly matches the peer binding, and it has no identity
-  conflict.
+- A directory record contributes a route only when its selected exact binding
+  is valid and it has no identity conflict.
 - Only IPv4 addresses in Tailscale's `100.64.0.0/10` range are accepted. The
   console does not turn LAN addresses or arbitrary discovered addresses into
   transports.
@@ -63,7 +65,8 @@ the static LAN and relay configuration continues to work.
 
 ## Acceptance
 
-- Exact registered bindings add only a Tailscale IPv4 direct route.
+- Exact registered bindings and exact stable device bindings add only a
+  Tailscale IPv4 direct route.
 - Name-only, unregistered, identity-conflicted, non-Tailscale, duplicate, and
   future-format records add no route.
 - The configured LAN route remains first and relay remains last.

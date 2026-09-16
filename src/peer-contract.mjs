@@ -58,6 +58,9 @@ export function normalizePeerDefinition(input = {}) {
   if (!NODE_ID_PATTERN.test(id)) throw new Error("Peer id is invalid");
   const localManagerRegistrationId = input.localManagerRegistrationId == null ? null : text(input.localManagerRegistrationId, 64);
   if (localManagerRegistrationId != null && !NODE_ID_PATTERN.test(localManagerRegistrationId)) throw new Error("LocalManager registration id is invalid");
+  const localManagerDeviceId = input.localManagerDeviceId == null ? null : text(input.localManagerDeviceId, 64);
+  if (localManagerDeviceId != null && !NODE_ID_PATTERN.test(localManagerDeviceId)) throw new Error("LocalManager device id is invalid");
+  if (localManagerRegistrationId && localManagerDeviceId) throw new Error("Peer must use only one LocalManager binding");
   const transports = Array.isArray(input.transports) ? input.transports : [];
   if (transports.length < 1 || transports.length > 4) throw new Error("Peer transports must contain 1 to 4 entries");
   const platform = input.platform == null ? "posix" : input.platform;
@@ -68,6 +71,7 @@ export function normalizePeerDefinition(input = {}) {
     name: text(input.name, 80, id),
     location: text(input.location, 80, "远程"),
     localManagerRegistrationId,
+    localManagerDeviceId,
     transports: Object.freeze(transports.map(normalizePeerTransport))
   });
 }
