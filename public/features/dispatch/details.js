@@ -2,7 +2,7 @@ import { requestJson } from "../../core/transport.js";
 import { isLocalTask } from "../../core/tasks.js";
 
 const EDITABLE_STATUSES = new Set(["backlog", "scheduled"]);
-const STATUS_LABELS = Object.freeze({ backlog: "待排期", scheduled: "已排期", queued: "排队中", sending: "发送中", sent: "已发送", failed: "异常", cancelled: "已取消", delivery_unknown: "交付结果未知" });
+const STATUS_LABELS = Object.freeze({ backlog: "待办消息", scheduled: "已排期", queued: "排队中", sending: "发送中", sent: "已发送", failed: "异常", cancelled: "已取消", delivery_unknown: "交付结果未知" });
 
 export function localDateTimeValue(value) {
   const date = new Date(value || "");
@@ -121,7 +121,7 @@ export function createDispatchDetails({ state, $, formatDate, showToast, onSaved
       await requestJson(`/api/dispatches/${encodeURIComponent(item.id)}`, { method: "PATCH", body: data });
       await onSaved();
       close();
-      showToast("任务修改已保存。");
+      showToast(data.status === "backlog" ? "消息已保存为待办，不会自动发送。" : "任务修改已保存。");
     } catch (submitError) {
       showToast(submitError.message);
     } finally {

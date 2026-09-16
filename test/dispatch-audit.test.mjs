@@ -41,7 +41,7 @@ test("in-flight restart becomes delivery unknown and requires an explicit new at
   assert.deepEqual(events.map((event) => event.type), ["delivery_unknown", "retry_requested", "claimed", "completed"]);
   const rawAudit = await fs.readFile(path.join(directory, "audit.jsonl"), "utf8");
   assert.doesNotMatch(rawAudit, /敏感任务内容|private\/project/);
-  assert.equal(JSON.parse(await fs.readFile(boardPath, "utf8")).version, 2);
+  assert.equal(JSON.parse(await fs.readFile(boardPath, "utf8")).version, 3);
 });
 
 test("audit failures degrade diagnostics without blocking authoritative task state", async (context) => {

@@ -8,6 +8,11 @@ export function dispatchColumnStatus(status) {
   return ["cancelled", "delivery_unknown"].includes(status) ? "failed" : status;
 }
 
+export function orderDispatchColumn(items = [], status) {
+  if (status !== "queued") return items;
+  return [...items].sort((left, right) => (Number(left.queueOrder) || Number.MAX_SAFE_INTEGER) - (Number(right.queueOrder) || Number.MAX_SAFE_INTEGER));
+}
+
 export function dispatchMetrics(items = []) {
   return {
     count: items.length,
@@ -96,7 +101,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     prompt.textContent = item.prompt;
     const meta = document.createElement("div");
     meta.className = "dispatch-meta";
-    meta.textContent = item.status === "scheduled" ? `计划 ${formatDate(item.scheduledAt)} · ${scheduleRelativeLabel(item.scheduledAt)}` : item.status === "sending" ? `开始 ${formatDate(item.startedAt)}` : `更新 ${formatDate(item.updatedAt)}`;
+    meta.textContent = item.status === "queued" ? `发送顺序 ${item.queueOrder || "—"}` : item.status === "backlog" ? "仅保留为待办，不会自动发送" : item.status === "scheduled" ? `计划 ${formatDate(item.scheduledAt)} · ${scheduleRelativeLabel(item.scheduledAt)}` : item.status === "sending" ? `开始 ${formatDate(item.startedAt)}` : `更新 ${formatDate(item.updatedAt)}`;
     card.append(title, route, prompt, meta);
     if (item.lastError) {
       const error = document.createElement("div");
@@ -107,8 +112,19 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     const actions = document.createElement("div");
     actions.className = "dispatch-actions";
     actions.append(dispatchAction(["backlog", "scheduled"].includes(item.status) ? "编辑" : "查看详情", "details", item));
-    if (["backlog", "scheduled", "failed", "cancelled", "delivery_unknown"].includes(item.status)) actions.append(dispatchAction(["failed", "cancelled", "delivery_unknown"].includes(item.status) ? "重新尝试" : "立即排队", "queue", item, "primary-button small-button"));
-    if (["queued", "scheduled"].includes(item.status)) actions.append(dispatchAction(item.status === "scheduled" ? "取消排期" : "移到待排期", "backlog", item));
+    if (["backlog", "scheduled", "failed", "cancelled", "delivery_unknown"].includes(item.status)) actions.append(dispatchAction(["failed", "cancelled", "delivery_unknown"].includes(item.status) ? "重新尝试" : "加入发送队列", "queue", item, "primary-button small-button"));
+    if (item.status === "queued") {
+      const queued = orderDispatchColumn(state.dispatches.filter((candidate) => candidate.status === "queued"), "queued");
+      const index = queued.findIndex((candidate) => candidate.id === item.id);
+      const up = dispatchAction("上移", "queue-up", item);
+      const down = dispatchAction("下移", "queue-down", item);
+      up.setAttribute("aria-label", `${item.title}：在发送队列中上移`);
+      down.setAttribute("aria-label", `${item.title}：在发送队列中下移`);
+      up.disabled = index <= 0;
+      down.disabled = index < 0 || index >= queued.length - 1;
+      actions.append(up, down);
+    }
+    if (["queued", "scheduled"].includes(item.status)) actions.append(dispatchAction("仅保留待办", "backlog", item));
     if (item.status !== "sending") actions.append(dispatchAction("删除", "delete", item, "quiet-button small-button"));
     card.append(actions);
     return card;
@@ -118,7 +134,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     updateProjectFilter();
     const visibleItems = filterDispatches(state.dispatches, filter);
     for (const column of DISPATCH_COLUMNS) {
-      const items = visibleItems.filter((item) => dispatchColumnStatus(item.status) === column);
+      const items = orderDispatchColumn(visibleItems.filter((item) => dispatchColumnStatus(item.status) === column), column);
       $(`[data-dispatch-count="${column}"]`).textContent = String(items.length);
       const list = $(`[data-dispatch-list="${column}"]`);
       list.replaceChildren(...items.map(dispatchCard));
@@ -203,6 +219,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
       try {
         const path = `/api/dispatches/${encodeURIComponent(button.dataset.dispatchId)}`;
         if (button.dataset.dispatchAction === "delete") await requestJson(path, { method: "DELETE" });
+        else if (["queue-up", "queue-down"].includes(button.dataset.dispatchAction)) await requestJson(`${path}/queue-order`, { method: "PATCH", body: { direction: button.dataset.dispatchAction === "queue-up" ? "up" : "down" } });
         else await requestJson(path, { method: "PATCH", body: { status: button.dataset.dispatchAction === "queue" ? "queued" : "backlog" } });
         await load({ quiet: true });
       } catch (error) {

@@ -30,6 +30,26 @@ export function createDispatchHttpHandler({ adapter, dispatchStore, dashboardOri
       else sendJson(response, 200, { status: "ok", events: await dispatchStore.auditStore?.list?.(id) || [] });
       return true;
     }
+    if (isItem && requestUrl.pathname.endsWith("/queue-order")) {
+      if (request.method !== "PATCH") {
+        sendJson(response, 405, { status: "error", message: "Method not allowed" });
+        return true;
+      }
+      assertExactMutationOrigin(request, dashboardOrigin);
+      assertJsonContentType(request);
+      const input = await readJsonBody(request);
+      if (!["up", "down"].includes(input?.direction)) {
+        sendJson(response, 400, { status: "error", message: "队列调整方向无效" });
+        return true;
+      }
+      const encodedId = requestUrl.pathname.slice("/api/dispatches/".length, -"/queue-order".length);
+      const id = decodePathSegment(encodedId);
+      const current = dispatchStore.get?.(id) || dispatchStore.list().find((item) => item.id === id);
+      if (!current) sendJson(response, 404, { status: "error", message: "调度任务不存在" });
+      else if (current.status !== "queued") sendJson(response, 400, { status: "error", message: "只有排队中的消息可以调整顺序" });
+      else sendJson(response, 200, { status: "ok", item: await dispatchStore.moveQueued(id, input.direction) });
+      return true;
+    }
 
     const isMutation = (isCollection && request.method === "POST") || (isItem && ["PATCH", "DELETE"].includes(request.method));
     if (!isMutation) {

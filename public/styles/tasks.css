@@ -10,6 +10,7 @@
 .board-column[data-board-column="error"] { border-top: 3px solid #d44e4e; }
 .board-column-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 13px 13px 11px; }
 .board-column-header h3 { margin: 0; color: #36363a; font-size: var(--native-ui-body-size); line-height: var(--native-ui-body-line); }
+.column-subtitle { display: block; margin-top: 2px; color: var(--native-ui-text-tertiary); font-size: 10px; line-height: 14px; }
 .column-kicker { display: block; margin-bottom: 3px; color: #97979c; font-size: 11px; line-height: var(--native-ui-meta-line); font-weight: 600; letter-spacing: .1em; }
 .column-count { display: inline-grid; place-items: center; min-width: 25px; height: 25px; padding: 0 7px; border-radius: 999px; background: #fff; color: #6f6f75; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); font-weight: 600; }
 .board-column-list { display: grid; align-content: start; gap: 8px; min-height: 250px; max-height: min(52vh, 500px); overflow-y: auto; padding: 0 8px 9px; scrollbar-color: #c4c4c8 transparent; }

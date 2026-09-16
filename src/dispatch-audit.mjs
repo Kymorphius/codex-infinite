@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 const EVENTS = new Set([
   "created", "scheduled", "queued", "claimed", "submitted", "completed",
-  "failed", "cancelled", "delivery_unknown", "retry_requested", "deleted"
+  "failed", "cancelled", "delivery_unknown", "retry_requested", "reordered", "deleted"
 ]);
 const STATUSES = new Set([
   "backlog", "scheduled", "queued", "sending", "sent", "failed",

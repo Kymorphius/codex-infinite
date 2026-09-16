@@ -27,6 +27,20 @@ function validDate(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function validQueueOrder(value) {
+  const order = Number(value);
+  return Number.isSafeInteger(order) && order > 0 ? order : null;
+}
+
+function compareQueued(left, right) {
+  const leftOrder = validQueueOrder(left.queueOrder);
+  const rightOrder = validQueueOrder(right.queueOrder);
+  if (leftOrder !== null && rightOrder !== null && leftOrder !== rightOrder) return leftOrder - rightOrder;
+  if (leftOrder !== null && rightOrder === null) return -1;
+  if (leftOrder === null && rightOrder !== null) return 1;
+  return String(left.createdAt).localeCompare(String(right.createdAt)) || String(left.id).localeCompare(String(right.id));
+}
+
 export function initialDispatchStatus({ mode, scheduledAt }, now = new Date()) {
   if (mode === "backlog") return "backlog";
   const sendAt = validDate(scheduledAt);
@@ -122,6 +136,7 @@ export class DispatchBoardStore {
         recovered.push(item);
       }
     }
+    this.normalizeQueueOrders();
     this.ready = true;
     await this.save();
     for (const item of recovered) await this.audit("delivery_unknown", item, item.lastError);
@@ -130,12 +145,27 @@ export class DispatchBoardStore {
   async save() {
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
     const temporaryPath = `${this.filePath}.tmp`;
-    await fs.writeFile(temporaryPath, JSON.stringify({ version: 2, items: this.items }, null, 2), { mode: 0o600 });
+    await fs.writeFile(temporaryPath, JSON.stringify({ version: 3, items: this.items }, null, 2), { mode: 0o600 });
     await fs.rename(temporaryPath, this.filePath);
   }
 
   list() {
     return [...this.items].sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  }
+
+  queuedItems() {
+    return this.items.filter((item) => item.status === "queued").sort(compareQueued);
+  }
+
+  normalizeQueueOrders() {
+    const queued = this.queuedItems();
+    const queuedIds = new Set(queued.map((item) => item.id));
+    queued.forEach((item, index) => { item.queueOrder = index + 1; });
+    for (const item of this.items) if (!queuedIds.has(item.id)) item.queueOrder = null;
+  }
+
+  appendQueueOrder() {
+    return this.queuedItems().reduce((highest, item) => Math.max(highest, validQueueOrder(item.queueOrder) || 0), 0) + 1;
   }
 
   get(id) {
@@ -166,7 +196,8 @@ export class DispatchBoardStore {
       lastError: null,
       attemptCount: 0,
       activeAttemptId: null,
-      deliveryUncertainAt: null
+      deliveryUncertainAt: null,
+      queueOrder: normalized.status === "queued" ? this.appendQueueOrder() : null
     };
     this.items.push(item);
     await this.save();
@@ -180,6 +211,11 @@ export class DispatchBoardStore {
     if (item.status === "sending") throw new Error("正在发送的任务不能修改");
     const previousStatus = item.status;
     Object.assign(item, normalizeDispatchChanges(item, changes, this.now()));
+    if (previousStatus !== "queued" && item.status === "queued") item.queueOrder = this.appendQueueOrder();
+    else if (previousStatus === "queued" && item.status !== "queued") {
+      item.queueOrder = null;
+      this.normalizeQueueOrders();
+    }
     item.updatedAt = this.now().toISOString();
     item.lastError = null;
     await this.save();
@@ -187,6 +223,25 @@ export class DispatchBoardStore {
       const type = previousStatus === "delivery_unknown" && item.status === "queued" ? "retry_requested" : item.status === "cancelled" ? "cancelled" : item.status === "scheduled" ? "scheduled" : item.status === "queued" ? "queued" : "created";
       await this.audit(type, item);
     }
+    return item;
+  }
+
+  async moveQueued(id, direction) {
+    if (!["up", "down"].includes(direction)) throw new Error("队列调整方向无效");
+    const item = this.get(id);
+    if (!item) return null;
+    if (item.status !== "queued") throw new Error("只有排队中的消息可以调整顺序");
+    const queued = this.queuedItems();
+    const index = queued.findIndex((candidate) => candidate.id === id);
+    const targetIndex = index + (direction === "up" ? -1 : 1);
+    if (targetIndex < 0 || targetIndex >= queued.length) return item;
+    const target = queued[targetIndex];
+    [item.queueOrder, target.queueOrder] = [target.queueOrder, item.queueOrder];
+    const updatedAt = this.now().toISOString();
+    item.updatedAt = updatedAt;
+    target.updatedAt = updatedAt;
+    await this.save();
+    await this.audit("reordered", item, direction);
     return item;
   }
 
@@ -207,6 +262,7 @@ export class DispatchBoardStore {
     for (const item of this.items) {
       if (item.status === "scheduled" && item.scheduledAt && new Date(item.scheduledAt).getTime() <= nowMs) {
         item.status = "queued";
+        item.queueOrder = this.appendQueueOrder();
         item.updatedAt = new Date(nowMs).toISOString();
         promoted.push(item);
         changed = true;
@@ -219,9 +275,11 @@ export class DispatchBoardStore {
   }
 
   async claimNext() {
-    const item = this.items.filter((candidate) => candidate.status === "queued").sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)))[0];
+    const item = this.queuedItems()[0];
     if (!item) return null;
     item.status = "sending";
+    item.queueOrder = null;
+    this.normalizeQueueOrders();
     item.attemptCount = Math.max(0, Number(item.attemptCount) || 0) + 1;
     item.activeAttemptId = this.attemptIdFactory();
     item.deliveryUncertainAt = null;

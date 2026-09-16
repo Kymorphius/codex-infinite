@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { destinationProjectNames, dispatchColumnStatus, dispatchMetrics, filterDispatches } from "../public/features/dispatch/index.js";
+import { destinationProjectNames, dispatchColumnStatus, dispatchMetrics, filterDispatches, orderDispatchColumn } from "../public/features/dispatch/index.js";
 import { localDateTimeValue, scheduleRelativeLabel } from "../public/features/dispatch/details.js";
 
 test("dispatch UI groups cancelled work with failures and reports truthful metrics", () => {
@@ -39,4 +39,10 @@ test("dispatch scheduling presents bounded relative time and editable local valu
   assert.equal(scheduleRelativeLabel("2026-09-05T10:00:00.000Z", now), "2 天后");
   assert.equal(scheduleRelativeLabel("2026-09-03T09:00:00.000Z", now), "即将进入队列");
   assert.match(localDateTimeValue("2026-09-03T10:00:00.000Z"), /^2026-09-03T\d{2}:00$/);
+});
+
+test("queued UI projection follows persistent global order", () => {
+  const items = [{ id: "later", queueOrder: 3 }, { id: "first", queueOrder: 1 }, { id: "middle", queueOrder: 2 }];
+  assert.deepEqual(orderDispatchColumn(items, "queued").map((item) => item.id), ["first", "middle", "later"]);
+  assert.deepEqual(orderDispatchColumn(items, "backlog").map((item) => item.id), ["later", "first", "middle"]);
 });

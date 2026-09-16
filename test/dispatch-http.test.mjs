@@ -30,6 +30,7 @@ function memoryDispatchStore() {
     get(id) { return items.get(id) || null; },
     async create(input) { const item = { id: "dispatch-1", status: "queued", ...input }; items.set(item.id, item); return item; },
     async update(id, patch) { const item = items.get(id); if (!item) return null; const updated = { ...item, ...patch }; items.set(id, updated); return updated; },
+    async moveQueued(id, direction) { const item = items.get(id); if (!item) return null; if (item.status !== "queued") throw new Error("只有排队中的消息可以调整顺序"); item.lastMove = direction; return item; },
     async remove(id) { return items.delete(id); }
   };
 }
@@ -50,8 +51,12 @@ test("dispatch HTTP routes preserve create, list, update, and remove contracts",
   assert.equal((await listed.json()).items.length, 1);
   const audit = await request("/api/dispatches/dispatch-1/audit");
   assert.deepEqual((await audit.json()).events.map((event) => event.type), ["created"]);
+  const reordered = await request("/api/dispatches/dispatch-1/queue-order", { method: "PATCH", headers, body: JSON.stringify({ direction: "down" }) });
+  assert.equal((await reordered.json()).item.lastMove, "down");
   const updated = await request("/api/dispatches/dispatch-1", { method: "PATCH", headers, body: JSON.stringify({ status: "backlog" }) });
   assert.equal((await updated.json()).item.status, "backlog");
+  assert.equal((await request("/api/dispatches/dispatch-1/queue-order", { method: "PATCH", headers, body: JSON.stringify({ direction: "up" }) })).status, 400);
+  assert.equal((await request("/api/dispatches/missing/queue-order", { method: "PATCH", headers, body: JSON.stringify({ direction: "up" }) })).status, 404);
   const edited = await request("/api/dispatches/dispatch-1", { method: "PATCH", headers, body: JSON.stringify({ title: "Edited", prompt: "Updated prompt", project: "demo", targetThreadId: "thread-1" }) });
   const editedItem = (await edited.json()).item;
   assert.equal(editedItem.title, "Edited");
@@ -63,6 +68,7 @@ test("dispatch HTTP routes preserve create, list, update, and remove contracts",
 
 test("dispatch mutations fail closed on origin, content type, and body limits", async (t) => {
   const request = await start(t, { dispatchStore: memoryDispatchStore() });
+  const headers = { origin: config().dashboardOrigin, "content-type": "application/json" };
   const body = JSON.stringify({ title: "Check", prompt: "Run", project: "demo" });
   assert.equal((await request("/api/dispatches", { method: "POST", headers: { "content-type": "application/json" }, body })).status, 403);
   assert.equal((await request("/api/dispatches", { method: "POST", headers: { origin: config().dashboardOrigin }, body })).status, 415);
@@ -86,6 +92,8 @@ test("dispatch mutations fail closed on origin, content type, and body limits", 
   const unchanged = await request("/api/dispatches");
   assert.equal((await unchanged.json()).items[0].status, "queued");
   assert.equal((await request("/api/dispatches", { method: "PUT" })).status, 405);
+  assert.equal((await request("/api/dispatches/dispatch-1/queue-order", { method: "PATCH", headers, body: JSON.stringify({ direction: "sideways" }) })).status, 400);
+  assert.equal((await request("/api/dispatches/dispatch-1/queue-order", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ direction: "up" }) })).status, 403);
 });
 
 test("dispatch routes report unavailable service and missing targets truthfully", async (t) => {
