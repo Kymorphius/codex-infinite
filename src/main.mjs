@@ -22,6 +22,7 @@ import { prepareWrapperCodexHome } from "./wrapper-codex-home.mjs";
 import { orderWrapperProjectState } from "./wrapper-project-state.mjs";
 import { AppServerProjectOrder } from "./app-server-project-order.mjs";
 import { loadPeerConfig } from "./peer-config.mjs";
+import { resolveLocalManagerPeerRoutes } from "./localmanager-peer-directory.mjs";
 import { SshPeerAdapter } from "./ssh-peer-adapter.mjs";
 import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
 import { RemoteMessageService } from "./remote-message-service.mjs";
@@ -101,7 +102,8 @@ export async function run() {
   } catch (error) {
     console.warn(`[codex-control-console] native project priority order unavailable: ${error.message}`);
   }
-  const peers = await loadPeerConfig(config.peerConfigPath);
+  const configuredPeers = await loadPeerConfig(config.peerConfigPath);
+  const peers = await resolveLocalManagerPeerRoutes(configuredPeers, { filePath: config.localManagerDeviceDirectoryPath });
   const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }));
   const nativeSidebarAdapter = new NativeSidebarAdapter({ cdpOrigin: config.cdpOrigin, titleIndex: new SessionTitleIndex({ filePath: config.sessionTitleIndexPath }), taskAdapter: localAdapter });
   const sidebarService = new SidebarFederationService({ localAdapter: nativeSidebarAdapter, localDevice: config.nodeDevice, peers: peerAdapters });

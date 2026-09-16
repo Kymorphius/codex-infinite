@@ -74,6 +74,14 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     status: "connected"
   });
   const peerConfigPath = env.CODEX_CONTROL_PEER_CONFIG || hostPath.join(wrapperCodexHome, "peers.json");
+  const defaultLocalManagerDeviceDirectory = platform === "darwin"
+    ? "/Applications/local-manager/var/state/manager/device-directory.json"
+    : platform === "win32"
+      ? "C:\\LocalManagerData\\state\\manager\\device-directory.json"
+      : "";
+  const localManagerDeviceDirectoryPath = Object.prototype.hasOwnProperty.call(env, "CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY")
+    ? env.CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY
+    : defaultLocalManagerDeviceDirectory;
   const nodeActionKeyPath = env.CODEX_CONTROL_NODE_ACTION_KEY || hostPath.join(wrapperCodexHome, "node-action.key");
   const peerActionKeyDirectory = env.CODEX_CONTROL_PEER_ACTION_KEY_DIR || hostPath.join(wrapperCodexHome, "peer-keys");
   const projectCopyRoots = String(env.CODEX_CONTROL_PROJECT_COPY_ROOTS || hostPath.join(homeDirectory, "333.dev"))
@@ -108,6 +116,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     sessionTitleIndexPath: env.CODEX_CONTROL_SESSION_TITLE_INDEX || path.join(sourceCodexHome, "session_index.jsonl"),
     nodeDevice,
     peerConfigPath,
+    localManagerDeviceDirectoryPath,
     nodeActionKeyPath,
     peerActionKeyDirectory,
     projectCopyRoots: Object.freeze(projectCopyRoots),

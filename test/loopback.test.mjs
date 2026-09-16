@@ -26,7 +26,15 @@ test("Windows config isolates wrapper and primary package profiles", () => {
   assert.equal(config.profileDirectory, "C:\\Users\\Admin\\AppData\\Local\\Codex Control Console\\Profile");
   assert.match(config.primaryProfileDirectory, /OpenAI\.Codex_2p2nqsd0c76g0/);
   assert.notEqual(config.profileDirectory, config.primaryProfileDirectory);
+  assert.equal(config.localManagerDeviceDirectoryPath, "C:\\LocalManagerData\\state\\manager\\device-directory.json");
   assertLoopbackConfig(config);
+});
+
+test("LocalManager device directory uses platform defaults and allows an explicit disable", () => {
+  assert.equal(getConfig({}, "/Users/test", "darwin").localManagerDeviceDirectoryPath, "/Applications/local-manager/var/state/manager/device-directory.json");
+  assert.equal(getConfig({}, "/tmp/test-home", "linux").localManagerDeviceDirectoryPath, "");
+  assert.equal(getConfig({ CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY: "" }, "/Users/test", "darwin").localManagerDeviceDirectoryPath, "");
+  assert.equal(getConfig({ CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY: "/private/device-directory.json" }, "/Users/test", "darwin").localManagerDeviceDirectoryPath, "/private/device-directory.json");
 });
 
 test("loopback validation rejects wildcard and LAN hosts", () => {

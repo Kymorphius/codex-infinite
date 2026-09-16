@@ -49,6 +49,7 @@ test("peer definitions validate ordered direct and relay transports", () => {
   assert.throws(() => normalizePeerDefinition({ id: "bad id", transports: [{}] }), /Peer id/);
   assert.throws(() => normalizePeerDefinition({ id: "peer", transports: [{ type: "direct-ssh", host: "host;rm", user: "root" }] }), /host/);
   assert.throws(() => normalizePeerDefinition({ id: "peer", platform: "plan9", transports: [{ type: "direct-ssh", host: "host", user: "root" }] }), /platform/);
+  assert.throws(() => normalizePeerDefinition({ id: "peer", localManagerRegistrationId: "bad id", transports: [{ type: "direct-ssh", host: "host", user: "root" }] }), /LocalManager registration/);
 });
 
 test("local node snapshots drop source paths and peer identity is configuration-owned", () => {
