@@ -51,7 +51,7 @@ test("ChatGPT chat section projects cloud work into a separate top-level section
   assert.match(source, /data-codex-control-console-chat-classification/);
   assert.match(source, /data-codex-control-console-chat-classification-style/);
   assert.match(source, /:not\(\[' \+ ROW_CLASSIFICATION_MARKER \+ '\]\) \{ display: none !important; \}/);
-  assert.match(source, /item\.setAttribute\(ROW_CLASSIFICATION_MARKER, kind\)/);
+  assert.match(source, /item\.getAttribute\(ROW_CLASSIFICATION_MARKER\) !== kind/);
   assert.match(source, /data-codex-control-console-ordinary-chat-list/);
   assert.match(source, /data-codex-control-console-ordinary-chat-row/);
   assert.match(source, /data-codex-control-console-chat-source-bootstrapped/);
@@ -66,6 +66,9 @@ test("ChatGPT chat section projects cloud work into a separate top-level section
   assert.match(source, /data-codex-control-console-cloud-work-row/);
   assert.match(source, /codex-control-console\.cloud-work\.v1/);
   assert.match(source, /data-codex-control-console-listitem-display/);
+  assert.match(source, /const hiddenItems = new Set\(\)/);
+  assert.match(source, /if \(item\.style\.display !== 'none'\) item\.style\.display = 'none'/);
+  assert.match(source, /toggle\.getAttribute\('aria-expanded'\) !== expanded/);
   assert.match(source, /row\.closest\('\[role="listitem"\]'\)/);
   assert.match(source, /item\.style\.display = 'none'/);
   assert.match(source, /openConversation/);

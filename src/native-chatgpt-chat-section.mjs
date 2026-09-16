@@ -13,7 +13,7 @@ export function nativeChatgptConversationTrigger(row) {
 export function buildNativeChatgptChatSectionInjectionScript() {
   const conversationTriggerSource = nativeChatgptConversationTrigger.toString();
   return `(() => {
-  const VERSION = '2026-09-05.1';
+  const VERSION = '2026-09-16.1';
   const SECTION_SELECTOR = 'section[data-app-action-sidebar-section-heading="Recents"]';
   const CLOUD_SECTION_SELECTOR = 'section[data-app-action-sidebar-section-heading="云工作"]';
   const CLOUD_CACHE_KEY = 'codex-control-console.cloud-work.v1';
@@ -196,7 +196,8 @@ export function buildNativeChatgptChatSectionInjectionScript() {
       });
       nativeList.parentElement?.insertBefore(proxyList, nativeList.nextSibling);
     }
-    proxyList.style.display = chatExpanded ? '' : 'none';
+    const display = chatExpanded ? '' : 'none';
+    if (proxyList.style.display !== display) proxyList.style.display = display;
     const signature = JSON.stringify(records);
     if (proxyList.getAttribute('data-chat-signature') === signature) return;
     proxyList.setAttribute('data-chat-signature', signature);
@@ -223,7 +224,8 @@ export function buildNativeChatgptChatSectionInjectionScript() {
       toggle.addEventListener('click', handler, true);
       window.__codexControlConsoleChatToggleBinding = { toggle, handler };
     }
-    toggle.setAttribute('aria-expanded', String(chatExpanded));
+    const expanded = String(chatExpanded);
+    if (toggle.getAttribute('aria-expanded') !== expanded) toggle.setAttribute('aria-expanded', expanded);
   }
 
   function projectLoadingSpinner(section) {
@@ -243,7 +245,8 @@ export function buildNativeChatgptChatSectionInjectionScript() {
       const key = section.getAttribute('data-app-action-sidebar-section-heading') || '';
       const wrapper = section.parentElement;
       if (wrapper && !wrapper.hasAttribute(ORDER_MARKER)) wrapper.setAttribute(ORDER_MARKER, wrapper.style.order || '');
-      if (wrapper) wrapper.style.order = String(SECTION_ORDER.get(key) || 90);
+      const order = String(SECTION_ORDER.get(key) || 90);
+      if (wrapper && wrapper.style.order !== order) wrapper.style.order = order;
       if (key === 'Projects') label(section, '项目');
       if (key === '项目（聊天）') label(section, '聊天 项目');
     }
@@ -252,15 +255,16 @@ export function buildNativeChatgptChatSectionInjectionScript() {
     label(section, '聊天');
     ownDisclosure(section);
 
-    for (const item of section.querySelectorAll('[' + LISTITEM_DISPLAY_MARKER + ']')) {
-      item.style.display = item.getAttribute(LISTITEM_DISPLAY_MARKER) || '';
-      item.removeAttribute(LISTITEM_DISPLAY_MARKER);
-    }
+    const hiddenItems = new Set();
+    const hideItem = (item) => {
+      hiddenItems.add(item);
+      if (!item.hasAttribute(LISTITEM_DISPLAY_MARKER)) item.setAttribute(LISTITEM_DISPLAY_MARKER, item.style.display || '');
+      if (item.style.display !== 'none') item.style.display = 'none';
+    };
     for (const row of section.querySelectorAll('[data-app-action-sidebar-thread-row]')) {
       const item = row.closest('[role="listitem"]');
       if (!item) continue;
-      item.setAttribute(LISTITEM_DISPLAY_MARKER, item.style.display || '');
-      item.style.display = 'none';
+      hideItem(item);
     }
 
     const conversations = [...section.querySelectorAll('[data-sidebar-chatgpt-conversation-key]')];
@@ -279,14 +283,19 @@ export function buildNativeChatgptChatSectionInjectionScript() {
       const text = (item.textContent || '').trim();
       const target = targetByKey.get(key);
       const kind = target ? classifyRecentTarget(target) : (text.endsWith('工作') ? 'cloud-work' : 'ordinary-chat');
-      item.setAttribute(ROW_CLASSIFICATION_MARKER, kind);
+      if (item.getAttribute(ROW_CLASSIFICATION_MARKER) !== kind) item.setAttribute(ROW_CLASSIFICATION_MARKER, kind);
       if (kind === 'ordinary-chat') {
         if (key) renderedOrdinaryChats.push({ key, title: text.replace(/聊天$/, '') });
         continue;
       }
       if (kind === 'cloud-work' && key) renderedCloudWork.push({ key, title: text.replace(/工作$/, '') });
-      if (!item.hasAttribute(LISTITEM_DISPLAY_MARKER)) item.setAttribute(LISTITEM_DISPLAY_MARKER, item.style.display || '');
-      item.style.display = 'none';
+      hideItem(item);
+    }
+    for (const item of section.querySelectorAll('[' + LISTITEM_DISPLAY_MARKER + ']')) {
+      if (hiddenItems.has(item)) continue;
+      const display = item.getAttribute(LISTITEM_DISPLAY_MARKER) || '';
+      if (item.style.display !== display) item.style.display = display;
+      item.removeAttribute(LISTITEM_DISPLAY_MARKER);
     }
     const cloudWork = renderedCloudWork.length ? renderedCloudWork : readCachedCloudWork();
     if (renderedCloudWork.length) localStorage.setItem(CLOUD_CACHE_KEY, JSON.stringify(renderedCloudWork.slice(0, 100)));

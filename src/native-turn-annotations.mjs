@@ -5,7 +5,7 @@ import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
 import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
 export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-15.layout-coalescing', KEY = 'codex-control-console.annotation-drafts.v1';
+  const VERSION = '2026-09-17.navigation-idempotency', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
   let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', acceptedSignature = '', disposed = false, scheduled = false, refreshTimer = null, lastRefreshAt = 0, layout = null, hover = null;

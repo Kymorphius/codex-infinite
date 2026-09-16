@@ -2,7 +2,7 @@ export const NATIVE_ATTENTION_HEADINGS = Object.freeze(["现在", "等待", "本
 
 export function buildNativeAttentionStickyInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-05.1';
+  const VERSION = '2026-09-17.1';
   const MARKER = 'data-codex-control-console-attention-sticky';
   const FOCUS_MARKER = 'data-codex-control-console-window-focus';
   const STYLE_SELECTOR = 'style[data-codex-control-console-attention-sticky-style]';
@@ -35,7 +35,7 @@ export function buildNativeAttentionStickyInjectionScript() {
       if (!ALLOWED.has(title)) continue;
       const heading = toggle.closest('[class*="nav-section-title"]');
       if (!heading || !section.contains(heading)) continue;
-      heading.setAttribute(MARKER, title);
+      if (heading.getAttribute(MARKER) !== title) heading.setAttribute(MARKER, title);
       retained.add(heading);
     }
     document.querySelectorAll('[' + MARKER + ']').forEach((node) => {

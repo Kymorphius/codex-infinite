@@ -26,6 +26,7 @@ test("attention sticky injection owns only a scoped style and marker", () => {
   assert.match(source, /requestAnimationFrame/);
   assert.match(source, /data-app-action-sidebar-section-toggle/);
   assert.match(source, /nav-section-title/);
+  assert.match(source, /getAttribute\(MARKER\) !== title/);
   assert.doesNotMatch(source, /appendChild\(section/);
   assert.doesNotMatch(source, /insertBefore\(section/);
   assert.doesNotMatch(source, /replaceWith\(section/);

@@ -16,10 +16,10 @@ test('turn preview combines messages once, loads through the native reader and p
 });
 function harness() {
   class Node {
-    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.style = { getPropertyValue(k) { return this[k] || ''; }, setProperty(k,v) { this[k] = v; }, removeProperty(k) { delete this[k]; } }; }
+    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.attributeWrites = 0; this.listeners = {}; this.style = { getPropertyValue(k) { return this[k] || ''; }, setProperty(k,v) { this[k] = v; }, removeProperty(k) { delete this[k]; } }; }
     append(...nodes) { nodes.forEach(n => { this.children.push(n); n.parentElement = this; }); }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
-    setAttribute(k,v) { this.attrs[k] = v; }
+    setAttribute(k,v) { this.attributeWrites++; this.attrs[k] = v; }
     getAttribute(k) { return this.attrs[k] ?? null; }
     hasAttribute(k) { return k in this.attrs; }
     removeAttribute(k) { delete this.attrs[k]; }
@@ -50,6 +50,7 @@ test('left turn ticks jump/select, show summary and note cards; native message r
   assert.equal(h.popup.children[0].className, h.popup.children[1].className);
   h.rail.listeners.click({ target: button }); assert.equal(h.clicks(), 1); assert.equal(h.selected(), turnId);
   h.clearNote(); h.controller.update(h.context, h.output); assert.equal(h.popup.children[1].hidden, true); assert.equal(h.rail.children[0], button);
+  const writes = button.attributeWrites; h.controller.update(h.context, h.output); assert.equal(button.attributeWrites, writes, 'unchanged paint must not rewrite marker attributes');
   h.controller.update(null, null); assert.equal(h.rail.hidden, true); assert.equal(h.nav.hasAttribute('data-ccc-message-rail-right'), false);
   h.controller.dispose(); assert.equal(h.body.children.length, 1);
 });

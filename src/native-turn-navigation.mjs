@@ -60,8 +60,11 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
       const turn = context.turns.find(turn => turn.id === button.getAttribute('data-ccc-turn-marker'));
       if (!turn) continue;
       const annotated = !!getNote(turn.id).trim();
-      if (annotated) button.setAttribute('data-annotated', ''); else button.removeAttribute('data-annotated');
-      button.setAttribute('aria-current', String(turn.id === currentTurn));
+      if (annotated !== button.hasAttribute('data-annotated')) {
+        if (annotated) button.setAttribute('data-annotated', ''); else button.removeAttribute('data-annotated');
+      }
+      const current = String(turn.id === currentTurn);
+      if (button.getAttribute('aria-current') !== current) button.setAttribute('aria-current', current);
     }
     const nextReveal = JSON.stringify([context.threadId, currentTurn, context.turns.length, available]);
     if (revealSignature !== nextReveal) {
