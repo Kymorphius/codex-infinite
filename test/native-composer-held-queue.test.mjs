@@ -28,7 +28,10 @@ test("native held queue exposes composer management and stale queue recovery", (
   assert.match(source, /恢复/);
   assert.match(source, /同步原生队列/);
   assert.match(source, /App-server queued follow-up no longer exists/);
+  assert.ok(source.includes('[role="alert"],[data-sonner-toast]'));
+  assert.match(source, /containsStaleQueueAlert/);
+  assert.ok(source.includes("replace(/\\s+/g, ' ')"));
   assert.match(source, /DRAFT_KEY/);
   assert.match(source, /location\.reload\(\)/);
-  assert.match(source, /stale = true/);
+  assert.match(source, /staleThreads\.add\(id\)/);
 });

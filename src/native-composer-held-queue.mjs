@@ -1,6 +1,6 @@
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-17.1';
+  const VERSION = '2026-09-17.3';
   if (window.__codexControlConsoleHeldQueueVersion === VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueTimer && clearInterval(window.__codexControlConsoleHeldQueueTimer);
@@ -17,7 +17,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   let busy = false;
   let serverItems = [];
   let warning = '';
-  let stale = false;
+  const staleThreads = new Set();
   let activeThreadId = null;
 
   const style = document.createElement('style');
@@ -51,7 +51,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const found = [];
     const visit = (entry, depth = 0) => {
       if (found.length >= 4 || depth > 6 || entry == null) return;
-      if (typeof entry === 'string') { const text = entry.replace(/\s+/g, ' ').trim(); if (text && !/^data:/i.test(text) && text.length < 12000) found.push(text); return; }
+      if (typeof entry === 'string') { const text = entry.replace(/\\s+/g, ' ').trim(); if (text && !/^data:/i.test(text) && text.length < 12000) found.push(text); return; }
       if (Array.isArray(entry)) { for (const part of entry) visit(part, depth + 1); return; }
       if (typeof entry === 'object') for (const key of ['text','prompt','content','input']) if (Object.hasOwn(entry, key)) visit(entry[key], depth + 1);
     };
@@ -154,6 +154,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const id = threadId(), toolbar = document.querySelector('[data-ccc-held-queue-button]'), panel = document.querySelector('[data-ccc-held-queue-panel]');
     if (!id || !toolbar || !panel) return;
     const held = heldFor(id), total = serverItems.length + held.length;
+    const stale = staleThreads.has(id);
     toolbar.textContent = '待发管理 ' + total; toolbar.dataset.warning = warning || stale ? 'true' : 'false';
     panel.hidden = !open; if (!open) return;
     panel.replaceChildren();
@@ -191,7 +192,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]'), root = editor?.closest('[data-composer-surface-variant]');
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
     if (!id || !root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
-    if (activeThreadId !== id) { activeThreadId = id; serverItems = []; warning = ''; stale = false; if (open) void refresh(); }
+    if (activeThreadId !== id) { activeThreadId = id; serverItems = []; warning = ''; if (open) void refresh(); }
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待发管理', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let panel = document.querySelector('[data-ccc-held-queue-panel]');
@@ -200,8 +201,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   }
   let installTimer = null;
   function schedule() { clearTimeout(installTimer); installTimer = setTimeout(install, 50); }
+  function containsStaleQueueAlert(node) {
+    if (node?.nodeType !== 1) return false;
+    const notices = node.matches?.('[role="alert"],[data-sonner-toast]') ? [node] : [...(node.querySelectorAll?.('[role="alert"],[data-sonner-toast]') || [])];
+    return notices.some((notice) => /App-server queued follow-up no longer exists/i.test(notice.textContent || ''));
+  }
   window.__codexControlConsoleHeldQueueObserver = new MutationObserver((records) => {
-    if (records.some((record) => [...record.addedNodes].some((node) => /App-server queued follow-up no longer exists/i.test(node.textContent || '')))) { stale = true; open = true; }
+    if (records.some((record) => [...record.addedNodes].some(containsStaleQueueAlert))) { const id = threadId(); if (id) staleThreads.add(id); open = true; render(); }
     schedule();
   });
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
