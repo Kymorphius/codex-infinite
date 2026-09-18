@@ -1,10 +1,12 @@
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-17.3';
+  const VERSION = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueVersion === VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
+  window.__codexControlConsoleHeldQueueInputCleanup?.();
   window.__codexControlConsoleHeldQueueTimer && clearInterval(window.__codexControlConsoleHeldQueueTimer);
   document.querySelector('[data-ccc-held-queue-button]')?.remove();
+  document.querySelector('[data-ccc-save-draft-todo]')?.remove();
   document.querySelector('[data-ccc-held-queue-panel]')?.remove();
   document.querySelector('[data-ccc-held-queue-style]')?.remove();
   window.__codexControlConsoleHeldQueueVersion = VERSION;
@@ -22,7 +24,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
 
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
-  style.textContent = '[data-ccc-held-queue-button]{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer}[data-ccc-held-queue-button][data-warning=true]{border-color:rgba(220,80,70,.6);color:#d9534f}[data-ccc-held-queue-panel]{margin:8px 8px 0;padding:8px;border:1px solid rgba(128,128,128,.22);border-radius:12px;background:color-mix(in srgb,Canvas 94%,transparent);color:CanvasText;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}[data-ccc-held-queue-panel][hidden]{display:none}[data-ccc-held-head],[data-ccc-held-row],[data-ccc-held-actions]{display:flex;align-items:center;gap:6px}[data-ccc-held-head]{justify-content:space-between;margin-bottom:6px}[data-ccc-held-list]{display:flex;max-height:210px;flex-direction:column;gap:4px;overflow:auto}[data-ccc-held-row]{min-width:0;padding:5px 6px;border-radius:8px;background:rgba(128,128,128,.09)}[data-ccc-held-kind]{flex:none;color:#777}[data-ccc-held-text]{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[data-ccc-held-actions]{flex:none}[data-ccc-held-actions] button,[data-ccc-held-sync]{padding:2px 6px;border:1px solid rgba(128,128,128,.25);border-radius:6px;background:transparent;color:inherit;cursor:pointer}[data-ccc-held-actions] button:disabled{opacity:.35;cursor:default}[data-ccc-held-warning]{margin:0 0 6px;color:#d9534f}[data-ccc-held-empty]{padding:10px;text-align:center;color:#777}';
+  style.textContent = '[data-ccc-held-queue-button],[data-ccc-save-draft-todo]{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer}[data-ccc-held-queue-button][data-warning=true]{border-color:rgba(220,80,70,.6);color:#d9534f}[data-ccc-save-draft-todo]:disabled{opacity:.35;cursor:default}[data-ccc-held-queue-panel]{margin:8px 8px 0;padding:8px;border:1px solid rgba(128,128,128,.22);border-radius:12px;background:color-mix(in srgb,Canvas 94%,transparent);color:CanvasText;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}[data-ccc-held-queue-panel][hidden]{display:none}[data-ccc-held-head],[data-ccc-held-row],[data-ccc-held-actions]{display:flex;align-items:center;gap:6px}[data-ccc-held-head]{justify-content:space-between;margin-bottom:6px}[data-ccc-held-list]{display:flex;max-height:210px;flex-direction:column;gap:4px;overflow:auto}[data-ccc-held-row]{min-width:0;padding:5px 6px;border-radius:8px;background:rgba(128,128,128,.09)}[data-ccc-held-kind]{flex:none;color:#777}[data-ccc-held-text]{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[data-ccc-held-actions]{flex:none}[data-ccc-held-actions] button,[data-ccc-held-sync]{padding:2px 6px;border:1px solid rgba(128,128,128,.25);border-radius:6px;background:transparent;color:inherit;cursor:pointer}[data-ccc-held-actions] button:disabled{opacity:.35;cursor:default}[data-ccc-held-warning]{margin:0 0 6px;color:#d9534f}[data-ccc-held-empty]{padding:10px;text-align:center;color:#777}';
   document.head.append(style);
 
   function threadId() {
@@ -43,8 +45,9 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   }
   function heldFor(id) { return (readStore()[id] || []).filter(validHeld).slice(0, MAX_HELD); }
   function writeHeld(id, items) {
+    if (items.length > MAX_HELD) throw new Error('待办消息已达 100 条，请先整理后再保存');
     const store = readStore();
-    store[id] = items.filter(validHeld).slice(0, MAX_HELD);
+    store[id] = items.filter(validHeld);
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
   }
   function summarize(value) {
@@ -144,9 +147,33 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     [items[index], items[next]] = [items[next], items[index]]; writeHeld(id, items); render();
   }
   function removeHeld(id, held) { writeHeld(id, heldFor(id).filter((item) => item.id !== held.id)); render(); }
+  function draftText(editor) { return (editor?.innerText || editor?.textContent || '').trim(); }
+  function updateDraftButton() {
+    const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+    const save = document.querySelector('[data-ccc-save-draft-todo]');
+    if (save) { save.disabled = busy || !draftText(editor); save.style.opacity = save.disabled ? '.35' : '1'; save.style.cursor = save.disabled ? 'default' : 'pointer'; }
+  }
+  function clearDraftText(editor) {
+    editor.focus();
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+    return !draftText(editor);
+  }
+  function saveDraftTodo() {
+    const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+    const text = draftText(editor);
+    if (!id || !editor || !text || busy) return;
+    const before = heldFor(id), input = [{ type: 'text', text }];
+    try {
+      writeHeld(id, [...before, { id: crypto.randomUUID(), input, summary: summarize(input), heldAt: Date.now() }]);
+      warning = clearDraftText(editor) ? '' : '待办已保存，但输入框未能自动清空；请手动清空以免重复发送。';
+      open = true;
+    } catch (error) { warning = error.message || '无法保存待办消息'; }
+    render(); updateDraftButton();
+  }
   function syncNative() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-    const text = (editor?.innerText || editor?.textContent || '').trim();
+    const text = draftText(editor);
     if (id && text) localStorage.setItem(DRAFT_KEY, JSON.stringify({ threadId: id, text, savedAt: Date.now() }));
     location.reload();
   }
@@ -191,13 +218,15 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function install() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]'), root = editor?.closest('[data-composer-surface-variant]');
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
-    if (!id || !root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
+    if (!id || !root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
     if (activeThreadId !== id) { activeThreadId = id; serverItems = []; warning = ''; if (open) void refresh(); }
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待发管理', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
+    let save = document.querySelector('[data-ccc-save-draft-todo]');
+    if (!save) { save = button('存为待办', saveDraftTodo); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
     let panel = document.querySelector('[data-ccc-held-queue-panel]');
     if (!panel) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
-    restoreDraft(); render();
+    restoreDraft(); render(); updateDraftButton();
   }
   let installTimer = null;
   function schedule() { clearTimeout(installTimer); installTimer = setTimeout(install, 50); }
@@ -211,6 +240,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     schedule();
   });
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+  document.addEventListener('input', updateDraftButton, true);
+  window.__codexControlConsoleHeldQueueInputCleanup = () => document.removeEventListener('input', updateDraftButton, true);
   window.__codexControlConsoleHeldQueueTimer = setInterval(() => { if (open && !busy) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
   schedule();

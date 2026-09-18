@@ -21,6 +21,17 @@ test("native held queue saves before delete and adds before removing held copy",
   assert.ok(resume.indexOf("thread/queue/add") < resume.indexOf("writeHeld"));
 });
 
+test("native held queue saves the current text draft before clearing it", () => {
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  const save = source.slice(source.indexOf("function saveDraftTodo"), source.indexOf("function syncNative"));
+  assert.match(source, /存为待办/);
+  assert.match(source, /data-ccc-save-draft-todo/);
+  assert.ok(save.indexOf("writeHeld") < save.indexOf("clearDraftText"));
+  assert.match(save, /\[{ type: 'text', text }\]/);
+  assert.doesNotMatch(save, /thread\/queue\/add/);
+  assert.match(source, /items\.length > MAX_HELD/);
+});
+
 test("native held queue exposes composer management and stale queue recovery", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
   assert.match(source, /待发管理/);
