@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildNativeComposerHeldQueueInjectionScript } from "../src/native-composer-held-queue.mjs";
 import { readHeldEditableText, replaceHeldEditableText } from "../src/held-queue-edit.mjs";
+import { formatHeldInitialTime, orderHeldForView } from "../src/held-queue-presentation.mjs";
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
@@ -101,6 +102,30 @@ test("held input editing changes one text part without dropping structured sibli
   assert.deepEqual(input[0].text_elements, [{ start: 0, end: 6 }]);
   assert.equal(replaceHeldEditableText(input, "   "), null);
   assert.equal(readHeldEditableText([{ type: "text", text: "a" }, { type: "text", text: "b" }]), null);
+});
+
+test("held todo time remains an explicit original timestamp hint", () => {
+  const heldAt = new Date(2026, 8, 18, 16, 5, 7).getTime();
+  assert.equal(formatHeldInitialTime(heldAt), "最初加入待办：2026-09-18 16:05:07");
+  assert.equal(formatHeldInitialTime(undefined), "");
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  assert.match(source, /badge\.title = timeHint/);
+  assert.match(source, /title = timeHint \?/);
+  assert.match(source, /editor\.title = timeHint/);
+  assert.match(source, /\], item\.heldAt\)\)/);
+});
+
+test("manual and time views preserve distinct held ordering contracts", () => {
+  const stored = [{ id: "later", heldAt: 20 }, { id: "earlier", heldAt: 10 }];
+  assert.equal(orderHeldForView(stored, "manual"), stored);
+  assert.deepEqual(orderHeldForView(stored, "time").map((item) => item.id), ["earlier", "later"]);
+  assert.deepEqual(stored.map((item) => item.id), ["later", "earlier"]);
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  assert.match(source, /手动视图/);
+  assert.match(source, /时间视图/);
+  assert.match(source, /VIEW_KEY/);
+  assert.match(source, /heldView = readHeldView\(id\)/);
+  assert.match(source, /heldView === 'time'/);
 });
 
 test("every pending row exposes edit and queued editing pauses before opening", () => {

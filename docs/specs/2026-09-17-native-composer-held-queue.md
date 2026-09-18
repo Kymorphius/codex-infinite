@@ -68,6 +68,17 @@ Queued items support `暂停`, `上移`, and `下移`; held items support `恢�
 in place with explicit save/cancel controls. Editing an executable queued row
 first completes the normal fail-closed pause transaction, then opens the held
 copy for editing; it cannot remain executable while being edited.
+Hovering either a held row's kind label or its message text shows the full
+device-local time when it first entered the held-todo state. The same hint is
+available while editing, and editing or reordering never changes that original
+`heldAt` timestamp.
+The panel offers two per-thread views. `手动视图` starts in creation order
+(oldest `heldAt` first because new held items append) and thereafter preserves
+every explicit up/down adjustment. `时间视图` always projects the same records
+by original `heldAt`, oldest first, without rewriting the stored manual order.
+Up/down controls are disabled in the time projection, and switching back to the
+manual view restores the exact manual order. The selected view is remembered
+locally for that thread.
 
 `暂停` is fail-closed: the complete app-server input is persisted first. The
 native item is deleted only after persistence succeeds. If deletion fails, the
@@ -110,6 +121,8 @@ remote host, path, or arbitrary method name.
 - [x] Held messages survive refresh/restart and never auto-send.
 - [x] Resume explicitly appends the held input to the app-server queue.
 - [x] Queued and held ordering controls persist in their respective stores.
+- [x] Held todos can switch between preserved manual order and a non-mutating
+  oldest-first time projection, with a per-thread remembered view.
 - [x] A stale app-server queue error exposes a draft-preserving sync action.
 - [x] Invalid records, failed bridge requests, and storage exhaustion fail
   without losing the executable message.

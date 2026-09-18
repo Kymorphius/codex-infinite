@@ -1,9 +1,10 @@
 import { readHeldEditableText, replaceHeldEditableText } from "./held-queue-edit.mjs";
+import { createHeldDisplayRow, createHeldEditRow, formatHeldInitialTime, orderHeldForView } from "./held-queue-presentation.mjs";
 import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.10', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
+  const VERSION = '2026-09-18.12', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE_DRAFT_GUARD_VERSION = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -22,6 +23,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE_DRAFT_GUARD_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
+  const VIEW_KEY = STORE_KEY + '.view';
   const DRAFT_KEY = STORE_KEY + '.recovery-draft';
   const MAX_HELD = 100;
   const HELD_ORIGINS = new Set(['draft', 'paused-queue']);
@@ -31,11 +33,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   let serverItems = [];
   let warning = '';
   let editing = null;
+  let heldView = 'manual';
   const staleThreads = new Set();
   let activeThreadId = null;
 
   ${readHeldEditableText.toString()}
-  ${replaceHeldEditableText.toString()}
+  ${replaceHeldEditableText.toString()} ${formatHeldInitialTime.toString()} ${orderHeldForView.toString()}
+  ${createHeldDisplayRow.toString()} ${createHeldEditRow.toString()}
 
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
@@ -59,6 +63,9 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     return item && UUID.test(String(item.id || '')) && item.input != null && typeof item.input === 'object' && Number.isFinite(item.heldAt) && (item.origin == null || HELD_ORIGINS.has(item.origin));
   }
   function heldFor(id) { return (readStore()[id] || []).filter(validHeld).slice(0, MAX_HELD); }
+  function readHeldViews() { try { const values = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}'); return values && typeof values === 'object' && !Array.isArray(values) ? values : {}; } catch { return {}; } }
+  function readHeldView(id) { return readHeldViews()[id] === 'time' ? 'time' : 'manual'; }
+  function setHeldView(id, view) { const values = readHeldViews(); values[id] = view; localStorage.setItem(VIEW_KEY, JSON.stringify(values)); heldView = view; render(); }
   function writeHeld(id, items) {
     if (items.length > MAX_HELD) throw new Error('待办消息已达 100 条，请先整理后再保存');
     const store = readStore();
@@ -243,41 +250,27 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function render() {
     const id = threadId(), toolbar = document.querySelector('[data-ccc-held-queue-button]'), panel = document.querySelector('[data-ccc-held-queue-panel]');
     if (!id || !toolbar || !panel) return;
-    const held = heldFor(id);
+    const held = orderHeldForView(heldFor(id), heldView);
     const stale = staleThreads.has(id);
     updateShell(id, toolbar, panel); if (!open) return;
     panel.replaceChildren();
     const head = document.createElement('div'); head.dataset.cccHeldHead = '';
     const title = document.createElement('strong'); title.textContent = '待发消息';
     const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + held.length + ' 待办';
-    head.append(title, state); panel.append(head);
+    const views = document.createElement('span'); views.dataset.cccHeldViews = '';
+    views.append(button('手动视图', () => setHeldView(id, 'manual'), heldView === 'manual'), button('时间视图', () => setHeldView(id, 'time'), heldView === 'time'));
+    head.append(title, views, state); panel.append(head);
     if (warning || stale) { const note = document.createElement('p'); note.dataset.cccHeldWarning = ''; note.textContent = warning || '原生队列状态已经过期，当前输入仍保留；请同步后重试。'; note.append(' ', button('同步原生队列', syncNative)); panel.append(note); }
     const list = document.createElement('div'); list.dataset.cccHeldList = '';
-    const appendRow = (kind, text, actions) => {
-      const row = document.createElement('div'); row.dataset.cccHeldRow = '';
-      const badge = document.createElement('span'); badge.dataset.cccHeldKind = ''; badge.textContent = kind;
-      const content = document.createElement('span'); content.dataset.cccHeldText = ''; content.textContent = text; content.title = text;
-      const controls = document.createElement('span'); controls.dataset.cccHeldActions = ''; actions.forEach((action) => controls.append(action));
-      row.append(badge, content, controls); list.append(row);
-    };
-    const appendEditRow = (kind, held) => {
-      const row = document.createElement('div'); row.dataset.cccHeldRow = ''; row.dataset.editing = 'true';
-      const badge = document.createElement('span'); badge.dataset.cccHeldKind = ''; badge.textContent = kind;
-      const editor = document.createElement('textarea'); editor.dataset.cccHeldEditor = ''; editor.value = editing?.value || '';
-      editor.rows = 3; editor.addEventListener('input', () => { if (editing?.id === held.id) editing.value = editor.value; });
-      const controls = document.createElement('span'); controls.dataset.cccHeldActions = '';
-      controls.append(button('保存', () => saveHeldEdit(id, held), busy), button('取消', cancelHeldEdit, busy));
-      row.append(badge, editor, controls); list.append(row); queueMicrotask(() => editor.focus());
-    };
-    serverItems.forEach((item, index) => appendRow('排队', summarize(item.input), [
+    serverItems.forEach((item, index) => list.append(createHeldDisplayRow('排队', summarize(item.input), [
       button('编辑', () => pauseItem(id, item, true), busy), button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1), button('暂停', () => pauseItem(id, item), busy)
-    ]));
+    ])));
     held.forEach((item, index) => {
       const kind = item.origin === 'draft' ? '待办·直存' : item.origin === 'paused-queue' ? '待办·暂停' : '待办';
-      if (editing?.id === item.id) appendEditRow(kind, item);
-      else appendRow(kind, item.summary || summarize(item.input), [
-        button('编辑', () => startHeldEdit(item), busy), button('上移', () => reorderHeld(id, index, -1), busy || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
-      ]);
+      if (editing?.id === item.id) { const edit = createHeldEditRow(kind, item, editing?.value || '', [button('保存', () => saveHeldEdit(id, item), busy), button('取消', cancelHeldEdit, busy)], () => { if (editing?.id === item.id) editing.value = edit.editor.value; }); list.append(edit.row); queueMicrotask(() => edit.editor.focus()); }
+      else list.append(createHeldDisplayRow(kind, item.summary || summarize(item.input), [
+        button('编辑', () => startHeldEdit(item), busy), button('上移', () => reorderHeld(id, index, -1), busy || heldView === 'time' || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || heldView === 'time' || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
+      ], item.heldAt));
     });
     if (!serverItems.length && !held.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办消息'; list.append(empty); }
     panel.append(list);
@@ -295,7 +288,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
     if (!id || !root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
     const threadChanged = activeThreadId !== id;
-    if (threadChanged) { activeThreadId = id; serverItems = []; warning = ''; if (open) void refresh(); }
+    if (threadChanged) { activeThreadId = id; serverItems = []; warning = ''; heldView = readHeldView(id); if (open) void refresh(); }
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待发管理', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
