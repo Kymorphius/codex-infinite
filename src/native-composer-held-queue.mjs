@@ -1,6 +1,6 @@
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.1';
+  const VERSION = '2026-09-18.2';
   if (window.__codexControlConsoleHeldQueueVersion === VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -154,9 +154,21 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (save) { save.disabled = busy || !draftText(editor); save.style.opacity = save.disabled ? '.35' : '1'; save.style.cursor = save.disabled ? 'default' : 'pointer'; }
   }
   function clearDraftText(editor) {
-    editor.focus();
-    document.execCommand('selectAll', false, null);
+    if (!(editor instanceof HTMLElement) || !editor.isContentEditable) return false;
+    const selection = window.getSelection();
+    if (!selection) return false;
+    editor.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const selectionIsInsideEditor = selection.rangeCount === 1
+      && editor.contains(selection.anchorNode)
+      && editor.contains(selection.focusNode)
+      && editor.contains(selection.getRangeAt(0).commonAncestorContainer);
+    if (!selectionIsInsideEditor) { selection.removeAllRanges(); return false; }
     document.execCommand('delete', false, null);
+    selection.removeAllRanges();
     return !draftText(editor);
   }
   function saveDraftTodo() {

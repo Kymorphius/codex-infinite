@@ -23,6 +23,7 @@ test("native held queue saves before delete and adds before removing held copy",
 
 test("native held queue saves the current text draft before clearing it", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
+  const clear = source.slice(source.indexOf("function clearDraftText"), source.indexOf("function saveDraftTodo"));
   const save = source.slice(source.indexOf("function saveDraftTodo"), source.indexOf("function syncNative"));
   assert.match(source, /存为待办/);
   assert.match(source, /data-ccc-save-draft-todo/);
@@ -30,6 +31,11 @@ test("native held queue saves the current text draft before clearing it", () => 
   assert.match(save, /\[{ type: 'text', text }\]/);
   assert.doesNotMatch(save, /thread\/queue\/add/);
   assert.match(source, /items\.length > MAX_HELD/);
+  assert.doesNotMatch(clear, /selectAll/);
+  assert.match(clear, /range\.selectNodeContents\(editor\)/);
+  assert.match(clear, /editor\.contains\(selection\.anchorNode\)/);
+  assert.match(clear, /editor\.contains\(selection\.focusNode\)/);
+  assert.ok(clear.indexOf("selectionIsInsideEditor") < clear.indexOf("execCommand('delete'"));
 });
 
 test("native held queue exposes composer management and stale queue recovery", () => {

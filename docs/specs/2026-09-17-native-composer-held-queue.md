@@ -43,6 +43,9 @@ messages, and explicitly resume a held item later.
 The native composer toolbar exposes `存为待办` and `待发管理` with executable
 and held counts. `存为待办` saves the current text draft locally without making
 an app-server request, then clears only the text after persistence succeeds.
+Draft clearing creates and verifies a selection whose entire range is contained
+by the composer editor; if that containment cannot be proven, it leaves the UI
+untouched and reports that the saved draft needs manual clearing.
 Composer attachments remain in the composer and are not represented as saved.
 Its panel lists app-server queued follow-ups first and locally held items second.
 Queued items support `暂停`, `上移`, and `下移`; held items support `恢复`,
@@ -75,7 +78,8 @@ remote host, path, or arbitrary method name.
 
 - [x] The manager appears at the native composer for a selected local thread.
 - [x] A non-empty text draft can be saved directly as a held todo without
-  entering the app-server queue; persistence happens before draft clearing.
+  entering the app-server queue; persistence happens before draft clearing,
+  and clearing cannot select or delete content outside the composer.
 - [x] Pausing removes a message from the executable queue only after its full
   input is durably held.
 - [x] Held messages survive refresh/restart and never auto-send.
