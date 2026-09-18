@@ -52,3 +52,16 @@ test("native held queue exposes composer management and stale queue recovery", (
   assert.match(source, /location\.reload\(\)/);
   assert.match(source, /staleThreads\.add\(id\)/);
 });
+
+test("save-as-todo survives composer remounts independently of legacy queue reinjection", () => {
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  const lifecycleStart = source.indexOf("function installSaveDraftTodo");
+  const lifecycle = source.slice(lifecycleStart, source.indexOf("window.__codexControlConsoleHeldQueueTimer", lifecycleStart));
+  assert.match(source, /__codexControlConsoleSaveDraftTodoVersion/);
+  assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoObserver = new MutationObserver/);
+  assert.match(lifecycle, /scheduleSaveDraftTodo/);
+  assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoInputCleanup/);
+  assert.match(lifecycle, /updateIndependentDraftButton/);
+  assert.match(lifecycle, /data-ccc-save-draft-todo/);
+  assert.match(lifecycle, /manager\?\.parentElement === host \? manager : null/);
+});

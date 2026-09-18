@@ -1,15 +1,19 @@
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.2';
-  if (window.__codexControlConsoleHeldQueueVersion === VERSION) return;
+  const VERSION = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-18.1';
+  if (window.__codexControlConsoleHeldQueueVersion === VERSION && window.__codexControlConsoleSaveDraftTodoVersion === SAVE_DRAFT_VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
   window.__codexControlConsoleHeldQueueTimer && clearInterval(window.__codexControlConsoleHeldQueueTimer);
+  window.__codexControlConsoleSaveDraftTodoObserver?.disconnect?.();
+  window.__codexControlConsoleSaveDraftTodoInputCleanup?.();
   document.querySelector('[data-ccc-held-queue-button]')?.remove();
   document.querySelector('[data-ccc-save-draft-todo]')?.remove();
   document.querySelector('[data-ccc-held-queue-panel]')?.remove();
   document.querySelector('[data-ccc-held-queue-style]')?.remove();
   window.__codexControlConsoleHeldQueueVersion = VERSION;
+  window.__codexControlConsoleSaveDraftTodoVersion = SAVE_DRAFT_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
   const DRAFT_KEY = STORE_KEY + '.recovery-draft';
@@ -240,8 +244,23 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (!panel) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
     restoreDraft(); render(); updateDraftButton();
   }
+  function installSaveDraftTodo() {
+    const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+    const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
+    if (!id || !editor || !host) { document.querySelector('[data-ccc-save-draft-todo]')?.remove(); return; }
+    let save = document.querySelector('[data-ccc-save-draft-todo]');
+    if (!save) {
+      save = button('存为待办', saveDraftTodo); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
+      save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
+      const manager = document.querySelector('[data-ccc-held-queue-button]');
+      host.insertBefore(save, manager?.parentElement === host ? manager : null);
+    }
+    updateDraftButton();
+  }
   let installTimer = null;
   function schedule() { clearTimeout(installTimer); installTimer = setTimeout(install, 50); }
+  let saveDraftInstallTimer = null;
+  function scheduleSaveDraftTodo() { clearTimeout(saveDraftInstallTimer); saveDraftInstallTimer = setTimeout(installSaveDraftTodo, 50); }
   function containsStaleQueueAlert(node) {
     if (node?.nodeType !== 1) return false;
     const notices = node.matches?.('[role="alert"],[data-sonner-toast]') ? [node] : [...(node.querySelectorAll?.('[role="alert"],[data-sonner-toast]') || [])];
@@ -254,8 +273,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   document.addEventListener('input', updateDraftButton, true);
   window.__codexControlConsoleHeldQueueInputCleanup = () => document.removeEventListener('input', updateDraftButton, true);
+  window.__codexControlConsoleSaveDraftTodoObserver = new MutationObserver(scheduleSaveDraftTodo);
+  window.__codexControlConsoleSaveDraftTodoObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+  const updateIndependentDraftButton = () => updateDraftButton();
+  document.addEventListener('input', updateIndependentDraftButton, true);
+  window.__codexControlConsoleSaveDraftTodoInputCleanup = () => document.removeEventListener('input', updateIndependentDraftButton, true);
   window.__codexControlConsoleHeldQueueTimer = setInterval(() => { if (open && !busy) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
-  schedule();
+  schedule(); scheduleSaveDraftTodo();
 })();`;
 }

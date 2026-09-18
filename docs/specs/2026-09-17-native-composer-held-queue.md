@@ -46,6 +46,9 @@ an app-server request, then clears only the text after persistence succeeds.
 Draft clearing creates and verifies a selection whose entire range is contained
 by the composer editor; if that containment cannot be proven, it leaves the UI
 untouched and reports that the saved draft needs manual clearing.
+The save control owns an independent composer-remount observer, so switching
+tasks cannot remove it when an older queue-manager injection is still active in
+the same renderer during a hot upgrade.
 Composer attachments remain in the composer and are not represented as saved.
 Its panel lists app-server queued follow-ups first and locally held items second.
 Queued items support `暂停`, `上移`, and `下移`; held items support `恢复`,
@@ -77,6 +80,8 @@ remote host, path, or arbitrary method name.
 ## Acceptance criteria
 
 - [x] The manager appears at the native composer for a selected local thread.
+- [x] `存为待办` reappears after switching away from and back to a task, even
+  while a legacy queue-manager lifecycle is still running in the renderer.
 - [x] A non-empty text draft can be saved directly as a held todo without
   entering the app-server queue; persistence happens before draft clearing,
   and clearing cannot select or delete content outside the composer.
