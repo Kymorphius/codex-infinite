@@ -48,7 +48,15 @@ by the composer editor; if that containment cannot be proven, it leaves the UI
 untouched and reports that the saved draft needs manual clearing.
 The save control owns an independent composer-remount observer, so switching
 tasks cannot remove it when an older queue-manager injection is still active in
-the same renderer during a hot upgrade.
+the same renderer during a hot upgrade. Current-runtime ownership uses separate
+markers from the compatibility values exposed to the still-running legacy
+injector, preventing either the old queue manager or its older draft-button
+lifecycle from taking the panel back after a hot upgrade.
+The manager observer reinstalls controls only when they are missing or the
+active task changes. Periodic queue synchronization does not repaint unchanged
+rows. Recreating a toolbar button after a native toolbar remount updates only
+the lightweight shell state and does not rebuild the already-open list, so the
+panel and an in-progress editor remain visually stable.
 It reads the composer's Markdown representation before falling back to rendered
 plain text, preserving ordered-list markers that are not part of `innerText`.
 Its pointer and click activation are isolated from native composer submission,

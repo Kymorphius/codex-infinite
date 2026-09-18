@@ -3,10 +3,9 @@ import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.7';
-  const LEGACY_RUNTIME_GUARD_VERSION = '2026-09-17.3';
-  const SAVE_DRAFT_VERSION = '2026-09-18.2';
-  if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoVersion === SAVE_DRAFT_VERSION) return;
+  const VERSION = '2026-09-18.10', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE_DRAFT_GUARD_VERSION = '2026-09-18.1';
+  if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
   window.__codexControlConsoleHeldQueueTimer && clearInterval(window.__codexControlConsoleHeldQueueTimer);
@@ -18,8 +17,9 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   document.querySelector('[data-ccc-held-queue-panel]')?.remove();
   document.querySelector('[data-ccc-held-queue-style]')?.remove();
   window.__codexControlConsoleHeldQueueInstalledVersion = VERSION;
+  window.__codexControlConsoleSaveDraftTodoInstalledVersion = SAVE_DRAFT_VERSION;
   window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
-  window.__codexControlConsoleSaveDraftTodoVersion = SAVE_DRAFT_VERSION;
+  window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE_DRAFT_GUARD_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
   const DRAFT_KEY = STORE_KEY + '.recovery-draft';
@@ -119,12 +119,14 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     return node;
   }
   function setBusy(value) { busy = value; render(); }
+  function queueIdentity(items) { return items.map((item) => String(item?.id || '')).join('|'); }
   async function refresh() {
     const id = threadId();
     if (!id || busy) return;
-    try { serverItems = await listQueue(id); warning = ''; }
-    catch (error) { warning = error.message || '无法读取原生队列'; }
-    render();
+    let changed = false;
+    try { const next = await listQueue(id); changed = queueIdentity(serverItems) !== queueIdentity(next) || Boolean(warning); serverItems = next; warning = ''; }
+    catch (error) { const nextWarning = error.message || '无法读取原生队列'; changed = warning !== nextWarning; warning = nextWarning; }
+    if (changed) render();
   }
   async function pauseItem(id, item, editAfterPause = false) {
     if (busy || !item?.id || item.input == null) return;
@@ -234,13 +236,16 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (id && text) localStorage.setItem(DRAFT_KEY, JSON.stringify({ threadId: id, text, savedAt: Date.now() }));
     location.reload();
   }
+  function updateShell(id, toolbar, panel) {
+    toolbar.textContent = '待发管理 ' + (serverItems.length + heldFor(id).length); toolbar.dataset.warning = warning || staleThreads.has(id) ? 'true' : 'false';
+    panel.hidden = !open;
+  }
   function render() {
     const id = threadId(), toolbar = document.querySelector('[data-ccc-held-queue-button]'), panel = document.querySelector('[data-ccc-held-queue-panel]');
     if (!id || !toolbar || !panel) return;
-    const held = heldFor(id), total = serverItems.length + held.length;
+    const held = heldFor(id);
     const stale = staleThreads.has(id);
-    toolbar.textContent = '待发管理 ' + total; toolbar.dataset.warning = warning || stale ? 'true' : 'false';
-    panel.hidden = !open; if (!open) return;
+    updateShell(id, toolbar, panel); if (!open) return;
     panel.replaceChildren();
     const head = document.createElement('div'); head.dataset.cccHeldHead = '';
     const title = document.createElement('strong'); title.textContent = '待发消息';
@@ -289,14 +294,17 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]'), root = editor?.closest('[data-composer-surface-variant]');
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
     if (!id || !root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
-    if (activeThreadId !== id) { activeThreadId = id; serverItems = []; warning = ''; if (open) void refresh(); }
+    const threadChanged = activeThreadId !== id;
+    if (threadChanged) { activeThreadId = id; serverItems = []; warning = ''; if (open) void refresh(); }
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待发管理', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
-    let panel = document.querySelector('[data-ccc-held-queue-panel]');
-    if (!panel) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
-    restoreDraft(); render(); updateDraftButton();
+    let panel = document.querySelector('[data-ccc-held-queue-panel]'); const panelCreated = !panel;
+    if (panelCreated) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
+    restoreDraft();
+    if (threadChanged || panelCreated) render(); else updateShell(id, toolbar, panel);
+    updateDraftButton();
   }
   function installSaveDraftTodo() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
@@ -306,14 +314,12 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (!save) {
       save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
       save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
-      const manager = document.querySelector('[data-ccc-held-queue-button]');
-      host.insertBefore(save, manager?.parentElement === host ? manager : null);
+      const manager = document.querySelector('[data-ccc-held-queue-button]'); host.insertBefore(save, manager?.parentElement === host ? manager : null);
     }
     updateDraftButton();
   }
-  let installTimer = null;
+  let installTimer = null, saveDraftInstallTimer = null;
   function schedule() { clearTimeout(installTimer); installTimer = setTimeout(install, 50); }
-  let saveDraftInstallTimer = null;
   function scheduleSaveDraftTodo() { clearTimeout(saveDraftInstallTimer); saveDraftInstallTimer = setTimeout(installSaveDraftTodo, 50); }
   function containsStaleQueueAlert(node) {
     if (node?.nodeType !== 1) return false;
@@ -322,7 +328,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   }
   window.__codexControlConsoleHeldQueueObserver = new MutationObserver((records) => {
     if (records.some((record) => [...record.addedNodes].some(containsStaleQueueAlert))) { const id = threadId(); if (id) staleThreads.add(id); open = true; render(); }
-    schedule();
+    const id = threadId();
+    if (id && (id !== activeThreadId || !document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) schedule();
   });
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   document.addEventListener('input', updateDraftButton, true);
@@ -332,12 +339,12 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   const updateIndependentDraftButton = () => updateDraftButton();
   document.addEventListener('input', updateIndependentDraftButton, true);
   window.__codexControlConsoleSaveDraftTodoInputCleanup = () => document.removeEventListener('input', updateIndependentDraftButton, true);
-  window.__codexControlConsoleHeldQueueTimer = setInterval(() => {
-    if (!document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]')) install();
-  }, 1000);
+  window.__codexControlConsoleHeldQueueTimer = setInterval(() => { const id = threadId();
+    if (id && (id !== activeThreadId || !document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) install(); }, 1000);
   window.__codexControlConsoleHeldQueueRefreshTimer = setInterval(() => { if (open && !busy && !editing) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
   window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
+  window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE_DRAFT_GUARD_VERSION;
   schedule(); scheduleSaveDraftTodo();
 })();`;
 }

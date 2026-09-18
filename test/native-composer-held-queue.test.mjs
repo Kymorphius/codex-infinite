@@ -73,6 +73,9 @@ test("save-as-todo survives composer remounts independently of legacy queue rein
   const lifecycleStart = source.indexOf("function installSaveDraftTodo");
   const lifecycle = source.slice(lifecycleStart, source.indexOf("window.__codexControlConsoleHeldQueueTimer", lifecycleStart));
   assert.match(source, /__codexControlConsoleSaveDraftTodoVersion/);
+  assert.match(source, /__codexControlConsoleSaveDraftTodoInstalledVersion/);
+  assert.match(source, /LEGACY_SAVE_DRAFT_GUARD_VERSION = '2026-09-18\.1'/);
+  assert.match(source, /__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE_DRAFT_GUARD_VERSION/);
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoObserver = new MutationObserver/);
   assert.match(lifecycle, /scheduleSaveDraftTodo/);
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoInputCleanup/);
@@ -116,8 +119,26 @@ test("every pending row exposes edit and queued editing pauses before opening", 
 test("new held manager remains authoritative while a legacy hot runtime is active", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
   assert.match(source, /__codexControlConsoleHeldQueueInstalledVersion/);
-  assert.match(source, /LEGACY_RUNTIME_GUARD_VERSION = '2026-09-17\.3'/);
+  assert.match(source, /LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18\.3'/);
   assert.match(source, /__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION/);
+  assert.match(source, /__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION/);
   assert.match(source, /!document\.querySelector\('\[data-ccc-held-queue-button\]'\) \|\| !document\.querySelector\('\[data-ccc-held-queue-panel\]'\)/);
   assert.match(source, /if \(open && !busy && !editing\) void refresh\(\)/);
+});
+
+test("held manager avoids observer repaint loops and unchanged queue refreshes", () => {
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  const refresh = source.slice(source.indexOf("async function refresh"), source.indexOf("async function pauseItem"));
+  const install = source.slice(source.indexOf("function install()"), source.indexOf("function installSaveDraftTodo"));
+  const observer = source.slice(source.indexOf("__codexControlConsoleHeldQueueObserver ="), source.indexOf("__codexControlConsoleHeldQueueObserver.observe"));
+  assert.match(refresh, /queueIdentity\(serverItems\) !== queueIdentity\(next\)/);
+  assert.match(refresh, /if \(changed\) render\(\)/);
+  assert.doesNotMatch(refresh, /\n    render\(\);/);
+  assert.match(observer, /id !== activeThreadId/);
+  assert.match(observer, /data-ccc-held-queue-button/);
+  assert.match(observer, /data-ccc-held-queue-panel/);
+  assert.doesNotMatch(observer, /\n    schedule\(\);/);
+  assert.match(install, /const panelCreated = !panel/);
+  assert.match(install, /if \(threadChanged \|\| panelCreated\) render\(\); else updateShell\(id, toolbar, panel\)/);
+  assert.doesNotMatch(install, /restoreDraft\(\); render\(\)/);
 });
