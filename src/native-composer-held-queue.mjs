@@ -1,18 +1,24 @@
+import { readHeldEditableText, replaceHeldEditableText } from "./held-queue-edit.mjs";
+import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
+
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.4';
+  const VERSION = '2026-09-18.7';
+  const LEGACY_RUNTIME_GUARD_VERSION = '2026-09-17.3';
   const SAVE_DRAFT_VERSION = '2026-09-18.2';
-  if (window.__codexControlConsoleHeldQueueVersion === VERSION && window.__codexControlConsoleSaveDraftTodoVersion === SAVE_DRAFT_VERSION) return;
+  if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoVersion === SAVE_DRAFT_VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
   window.__codexControlConsoleHeldQueueTimer && clearInterval(window.__codexControlConsoleHeldQueueTimer);
+  window.__codexControlConsoleHeldQueueRefreshTimer && clearInterval(window.__codexControlConsoleHeldQueueRefreshTimer);
   window.__codexControlConsoleSaveDraftTodoObserver?.disconnect?.();
   window.__codexControlConsoleSaveDraftTodoInputCleanup?.();
   document.querySelector('[data-ccc-held-queue-button]')?.remove();
   document.querySelector('[data-ccc-save-draft-todo]')?.remove();
   document.querySelector('[data-ccc-held-queue-panel]')?.remove();
   document.querySelector('[data-ccc-held-queue-style]')?.remove();
-  window.__codexControlConsoleHeldQueueVersion = VERSION;
+  window.__codexControlConsoleHeldQueueInstalledVersion = VERSION;
+  window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
   window.__codexControlConsoleSaveDraftTodoVersion = SAVE_DRAFT_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
@@ -24,12 +30,16 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   let busy = false;
   let serverItems = [];
   let warning = '';
+  let editing = null;
   const staleThreads = new Set();
   let activeThreadId = null;
 
+  ${readHeldEditableText.toString()}
+  ${replaceHeldEditableText.toString()}
+
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
-  style.textContent = '[data-ccc-held-queue-button],[data-ccc-save-draft-todo]{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer}[data-ccc-held-queue-button][data-warning=true]{border-color:rgba(220,80,70,.6);color:#d9534f}[data-ccc-save-draft-todo]:disabled{opacity:.35;cursor:default}[data-ccc-held-queue-panel]{margin:8px 8px 0;padding:8px;border:1px solid rgba(128,128,128,.22);border-radius:12px;background:color-mix(in srgb,Canvas 94%,transparent);color:CanvasText;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}[data-ccc-held-queue-panel][hidden]{display:none}[data-ccc-held-head],[data-ccc-held-row],[data-ccc-held-actions]{display:flex;align-items:center;gap:6px}[data-ccc-held-head]{justify-content:space-between;margin-bottom:6px}[data-ccc-held-list]{display:flex;max-height:210px;flex-direction:column;gap:4px;overflow:auto}[data-ccc-held-row]{min-width:0;padding:5px 6px;border-radius:8px;background:rgba(128,128,128,.09)}[data-ccc-held-kind]{flex:none;color:#777}[data-ccc-held-text]{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}[data-ccc-held-actions]{flex:none}[data-ccc-held-actions] button,[data-ccc-held-sync]{padding:2px 6px;border:1px solid rgba(128,128,128,.25);border-radius:6px;background:transparent;color:inherit;cursor:pointer}[data-ccc-held-actions] button:disabled{opacity:.35;cursor:default}[data-ccc-held-warning]{margin:0 0 6px;color:#d9534f}[data-ccc-held-empty]{padding:10px;text-align:center;color:#777}';
+  style.textContent = ${JSON.stringify(NATIVE_HELD_QUEUE_STYLE)};
   document.head.append(style);
 
   function threadId() {
@@ -116,8 +126,10 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     catch (error) { warning = error.message || '无法读取原生队列'; }
     render();
   }
-  async function pauseItem(id, item) {
+  async function pauseItem(id, item, editAfterPause = false) {
     if (busy || !item?.id || item.input == null) return;
+    const editableText = editAfterPause ? readHeldEditableText(item.input) : null;
+    if (editAfterPause && editableText == null) { warning = '这条消息没有可安全编辑的单一文字内容'; render(); return; }
     setBusy(true);
     const before = heldFor(id);
     const held = { id: crypto.randomUUID(), input: item.input, summary: summarize(item.input), heldAt: Date.now(), origin: 'paused-queue' };
@@ -126,6 +138,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       const result = await request('thread/queue/delete', { threadId: id, queuedSubmissionId: item.id });
       if (!result?.deleted) throw new Error('原生队列项已经变化，请先同步');
       serverItems = await listQueue(id);
+      if (editAfterPause) editing = { id: held.id, value: editableText };
     } catch (error) {
       try { writeHeld(id, before); } catch {}
       warning = error.message || '暂停失败';
@@ -159,6 +172,22 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     [items[index], items[next]] = [items[next], items[index]]; writeHeld(id, items); render();
   }
   function removeHeld(id, held) { writeHeld(id, heldFor(id).filter((item) => item.id !== held.id)); render(); }
+  function startHeldEdit(held) {
+    const value = readHeldEditableText(held.input);
+    if (value == null) { warning = '这条待办没有可安全编辑的单一文字内容'; render(); return; }
+    editing = { id: held.id, value }; warning = ''; render();
+  }
+  function cancelHeldEdit() { editing = null; render(); }
+  function saveHeldEdit(id, held) {
+    const input = replaceHeldEditableText(held.input, editing?.value);
+    if (!input) { warning = '待办内容不能为空'; render(); return; }
+    const items = heldFor(id), index = items.findIndex((item) => item.id === held.id);
+    if (index < 0) { warning = '待办已经变化，请重新打开'; editing = null; render(); return; }
+    items[index] = { ...items[index], input, summary: summarize(input), editedAt: Date.now() };
+    try { writeHeld(id, items); editing = null; warning = ''; }
+    catch (error) { warning = error.message || '无法保存待办修改'; }
+    render();
+  }
   function draftText(editor) {
     const markdown = editor?.getAttribute?.('data-composer-markdown');
     if (typeof markdown === 'string' && markdown.trim()) return markdown.trim();
@@ -226,12 +255,25 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       const controls = document.createElement('span'); controls.dataset.cccHeldActions = ''; actions.forEach((action) => controls.append(action));
       row.append(badge, content, controls); list.append(row);
     };
+    const appendEditRow = (kind, held) => {
+      const row = document.createElement('div'); row.dataset.cccHeldRow = ''; row.dataset.editing = 'true';
+      const badge = document.createElement('span'); badge.dataset.cccHeldKind = ''; badge.textContent = kind;
+      const editor = document.createElement('textarea'); editor.dataset.cccHeldEditor = ''; editor.value = editing?.value || '';
+      editor.rows = 3; editor.addEventListener('input', () => { if (editing?.id === held.id) editing.value = editor.value; });
+      const controls = document.createElement('span'); controls.dataset.cccHeldActions = '';
+      controls.append(button('保存', () => saveHeldEdit(id, held), busy), button('取消', cancelHeldEdit, busy));
+      row.append(badge, editor, controls); list.append(row); queueMicrotask(() => editor.focus());
+    };
     serverItems.forEach((item, index) => appendRow('排队', summarize(item.input), [
-      button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1), button('暂停', () => pauseItem(id, item), busy)
+      button('编辑', () => pauseItem(id, item, true), busy), button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1), button('暂停', () => pauseItem(id, item), busy)
     ]));
-    held.forEach((item, index) => appendRow(item.origin === 'draft' ? '待办·直存' : item.origin === 'paused-queue' ? '待办·暂停' : '待办', item.summary || summarize(item.input), [
-      button('上移', () => reorderHeld(id, index, -1), busy || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
-    ]));
+    held.forEach((item, index) => {
+      const kind = item.origin === 'draft' ? '待办·直存' : item.origin === 'paused-queue' ? '待办·暂停' : '待办';
+      if (editing?.id === item.id) appendEditRow(kind, item);
+      else appendRow(kind, item.summary || summarize(item.input), [
+        button('编辑', () => startHeldEdit(item), busy), button('上移', () => reorderHeld(id, index, -1), busy || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
+      ]);
+    });
     if (!serverItems.length && !held.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办消息'; list.append(empty); }
     panel.append(list);
   }
@@ -290,8 +332,12 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   const updateIndependentDraftButton = () => updateDraftButton();
   document.addEventListener('input', updateIndependentDraftButton, true);
   window.__codexControlConsoleSaveDraftTodoInputCleanup = () => document.removeEventListener('input', updateIndependentDraftButton, true);
-  window.__codexControlConsoleHeldQueueTimer = setInterval(() => { if (open && !busy) void refresh(); }, 4000);
+  window.__codexControlConsoleHeldQueueTimer = setInterval(() => {
+    if (!document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]')) install();
+  }, 1000);
+  window.__codexControlConsoleHeldQueueRefreshTimer = setInterval(() => { if (open && !busy && !editing) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
+  window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
   schedule(); scheduleSaveDraftTodo();
 })();`;
 }

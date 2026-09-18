@@ -56,7 +56,10 @@ so saving a todo cannot also enqueue the draft.
 Composer attachments remain in the composer and are not represented as saved.
 Its panel lists app-server queued follow-ups first and locally held items second.
 Queued items support `暂停`, `上移`, and `下移`; held items support `恢复`,
-`上移`, `下移`, and `删除`.
+`上移`, `下移`, and `删除`. Every row also exposes `编辑`. Held rows edit
+in place with explicit save/cancel controls. Editing an executable queued row
+first completes the normal fail-closed pause transaction, then opens the held
+copy for editing; it cannot remain executable while being edited.
 
 `暂停` is fail-closed: the complete app-server input is persisted first. The
 native item is deleted only after persistence succeeds. If deletion fails, the
@@ -89,6 +92,8 @@ remote host, path, or arbitrary method name.
   while a legacy queue-manager lifecycle is still running in the renderer.
 - [x] Rich-text ordered-list markers survive direct save, and activating the
   save control cannot propagate into the native executable queue path.
+- [x] Every queued and held row has an edit action; queued editing pauses before
+  the editor opens, and saving an edit never resumes execution implicitly.
 - [x] A non-empty text draft can be saved directly as a held todo without
   entering the app-server queue; persistence happens before draft clearing,
   and clearing cannot select or delete content outside the composer.

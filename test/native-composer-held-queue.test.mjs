@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildNativeComposerHeldQueueInjectionScript } from "../src/native-composer-held-queue.mjs";
+import { readHeldEditableText, replaceHeldEditableText } from "../src/held-queue-edit.mjs";
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
@@ -86,4 +87,37 @@ test("held queue records retain a bounded source marker for truthful labels", ()
   assert.match(source, /HELD_ORIGINS = new Set\(\['draft', 'paused-queue'\]\)/);
   assert.match(source, /待办·直存/);
   assert.match(source, /待办·暂停/);
+});
+
+test("held input editing changes one text part without dropping structured siblings", () => {
+  const attachment = { type: "local_image", path: "/tmp/example.png" };
+  const input = [{ type: "text", text: "before", text_elements: [{ start: 0, end: 6 }] }, attachment];
+  assert.equal(readHeldEditableText(input), "before");
+  const updated = replaceHeldEditableText(input, "  after  ");
+  assert.deepEqual(updated, [{ type: "text", text: "after", text_elements: [] }, attachment]);
+  assert.deepEqual(input[0].text_elements, [{ start: 0, end: 6 }]);
+  assert.equal(replaceHeldEditableText(input, "   "), null);
+  assert.equal(readHeldEditableText([{ type: "text", text: "a" }, { type: "text", text: "b" }]), null);
+});
+
+test("every pending row exposes edit and queued editing pauses before opening", () => {
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  const pause = source.slice(source.indexOf("async function pauseItem"), source.indexOf("async function resumeItem"));
+  const rows = source.slice(source.indexOf("serverItems.forEach"), source.indexOf("if (!serverItems.length"));
+  assert.match(pause, /editAfterPause/);
+  assert.ok(pause.indexOf("thread/queue/delete") < pause.indexOf("editing ="));
+  assert.match(rows, /button\('编辑', \(\) => pauseItem\(id, item, true\)/);
+  assert.match(rows, /button\('编辑', \(\) => startHeldEdit\(item\)/);
+  assert.match(source, /button\('保存', \(\) => saveHeldEdit/);
+  assert.match(source, /button\('取消', cancelHeldEdit/);
+  assert.match(source, /editor\.dataset\.cccHeldEditor/);
+});
+
+test("new held manager remains authoritative while a legacy hot runtime is active", () => {
+  const source = buildNativeComposerHeldQueueInjectionScript();
+  assert.match(source, /__codexControlConsoleHeldQueueInstalledVersion/);
+  assert.match(source, /LEGACY_RUNTIME_GUARD_VERSION = '2026-09-17\.3'/);
+  assert.match(source, /__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION/);
+  assert.match(source, /!document\.querySelector\('\[data-ccc-held-queue-button\]'\) \|\| !document\.querySelector\('\[data-ccc-held-queue-panel\]'\)/);
+  assert.match(source, /if \(open && !busy && !editing\) void refresh\(\)/);
 });
