@@ -1,7 +1,7 @@
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.3';
-  const SAVE_DRAFT_VERSION = '2026-09-18.1';
+  const VERSION = '2026-09-18.4';
+  const SAVE_DRAFT_VERSION = '2026-09-18.2';
   if (window.__codexControlConsoleHeldQueueVersion === VERSION && window.__codexControlConsoleSaveDraftTodoVersion === SAVE_DRAFT_VERSION) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -18,6 +18,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
   const DRAFT_KEY = STORE_KEY + '.recovery-draft';
   const MAX_HELD = 100;
+  const HELD_ORIGINS = new Set(['draft', 'paused-queue']);
   let sequence = 0;
   let open = false;
   let busy = false;
@@ -45,7 +46,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     } catch { return {}; }
   }
   function validHeld(item) {
-    return item && UUID.test(String(item.id || '')) && item.input != null && typeof item.input === 'object' && Number.isFinite(item.heldAt);
+    return item && UUID.test(String(item.id || '')) && item.input != null && typeof item.input === 'object' && Number.isFinite(item.heldAt) && (item.origin == null || HELD_ORIGINS.has(item.origin));
   }
   function heldFor(id) { return (readStore()[id] || []).filter(validHeld).slice(0, MAX_HELD); }
   function writeHeld(id, items) {
@@ -100,6 +101,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     node.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void handler(); });
     return node;
   }
+  function draftTodoButton() {
+    const node = document.createElement('button'); node.type = 'button'; node.textContent = '存为待办';
+    node.addEventListener('pointerdown', (event) => { event.preventDefault(); event.stopImmediatePropagation(); }, true);
+    node.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopImmediatePropagation(); }, true);
+    node.addEventListener('click', (event) => { event.preventDefault(); event.stopImmediatePropagation(); void saveDraftTodo(); }, true);
+    return node;
+  }
   function setBusy(value) { busy = value; render(); }
   async function refresh() {
     const id = threadId();
@@ -112,7 +120,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (busy || !item?.id || item.input == null) return;
     setBusy(true);
     const before = heldFor(id);
-    const held = { id: crypto.randomUUID(), input: item.input, summary: summarize(item.input), heldAt: Date.now() };
+    const held = { id: crypto.randomUUID(), input: item.input, summary: summarize(item.input), heldAt: Date.now(), origin: 'paused-queue' };
     try {
       writeHeld(id, [...before, held]);
       const result = await request('thread/queue/delete', { threadId: id, queuedSubmissionId: item.id });
@@ -151,7 +159,11 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     [items[index], items[next]] = [items[next], items[index]]; writeHeld(id, items); render();
   }
   function removeHeld(id, held) { writeHeld(id, heldFor(id).filter((item) => item.id !== held.id)); render(); }
-  function draftText(editor) { return (editor?.innerText || editor?.textContent || '').trim(); }
+  function draftText(editor) {
+    const markdown = editor?.getAttribute?.('data-composer-markdown');
+    if (typeof markdown === 'string' && markdown.trim()) return markdown.trim();
+    return (editor?.innerText || editor?.textContent || '').trim();
+  }
   function updateDraftButton() {
     const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     const save = document.querySelector('[data-ccc-save-draft-todo]');
@@ -181,7 +193,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (!id || !editor || !text || busy) return;
     const before = heldFor(id), input = [{ type: 'text', text }];
     try {
-      writeHeld(id, [...before, { id: crypto.randomUUID(), input, summary: summarize(input), heldAt: Date.now() }]);
+      writeHeld(id, [...before, { id: crypto.randomUUID(), input, summary: summarize(input), heldAt: Date.now(), origin: 'draft' }]);
       warning = clearDraftText(editor) ? '' : '待办已保存，但输入框未能自动清空；请手动清空以免重复发送。';
       open = true;
     } catch (error) { warning = error.message || '无法保存待办消息'; }
@@ -217,7 +229,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     serverItems.forEach((item, index) => appendRow('排队', summarize(item.input), [
       button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1), button('暂停', () => pauseItem(id, item), busy)
     ]));
-    held.forEach((item, index) => appendRow('待办', item.summary || summarize(item.input), [
+    held.forEach((item, index) => appendRow(item.origin === 'draft' ? '待办·直存' : item.origin === 'paused-queue' ? '待办·暂停' : '待办', item.summary || summarize(item.input), [
       button('上移', () => reorderHeld(id, index, -1), busy || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
     ]));
     if (!serverItems.length && !held.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办消息'; list.append(empty); }
@@ -239,7 +251,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待发管理', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
-    if (!save) { save = button('存为待办', saveDraftTodo); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
+    if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
     let panel = document.querySelector('[data-ccc-held-queue-panel]');
     if (!panel) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
     restoreDraft(); render(); updateDraftButton();
@@ -250,7 +262,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (!id || !editor || !host) { document.querySelector('[data-ccc-save-draft-todo]')?.remove(); return; }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) {
-      save = button('存为待办', saveDraftTodo); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
+      save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
       save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
       const manager = document.querySelector('[data-ccc-held-queue-button]');
       host.insertBefore(save, manager?.parentElement === host ? manager : null);

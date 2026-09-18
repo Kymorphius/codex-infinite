@@ -49,6 +49,10 @@ untouched and reports that the saved draft needs manual clearing.
 The save control owns an independent composer-remount observer, so switching
 tasks cannot remove it when an older queue-manager injection is still active in
 the same renderer during a hot upgrade.
+It reads the composer's Markdown representation before falling back to rendered
+plain text, preserving ordered-list markers that are not part of `innerText`.
+Its pointer and click activation are isolated from native composer submission,
+so saving a todo cannot also enqueue the draft.
 Composer attachments remain in the composer and are not represented as saved.
 Its panel lists app-server queued follow-ups first and locally held items second.
 Queued items support `暂停`, `上移`, and `下移`; held items support `恢复`,
@@ -68,9 +72,10 @@ preserves the current text draft locally across the explicit renderer reload.
 
 App-server queued submissions remain authoritative for executable follow-ups.
 Held records are stored in the native renderer's device-local storage, grouped
-by thread id, with the full `input`, a stable local id, display summary, and
-hold timestamp. Storage is bounded to 100 held records and invalid records are
-ignored when read.
+by thread id, with the full `input`, a stable local id, display summary, hold
+timestamp, and bounded origin (`draft` or `paused-queue`). Legacy records with
+no origin remain readable and are labeled without an inferred source. Storage
+is bounded to 100 held records and invalid records are ignored when read.
 
 The injected UI communicates only through the existing local native desktop
 bridge and fixed `thread/queue/list`, `thread/queue/delete`,
@@ -82,6 +87,8 @@ remote host, path, or arbitrary method name.
 - [x] The manager appears at the native composer for a selected local thread.
 - [x] `存为待办` reappears after switching away from and back to a task, even
   while a legacy queue-manager lifecycle is still running in the renderer.
+- [x] Rich-text ordered-list markers survive direct save, and activating the
+  save control cannot propagate into the native executable queue path.
 - [x] A non-empty text draft can be saved directly as a held todo without
   entering the app-server queue; persistence happens before draft clearing,
   and clearing cannot select or delete content outside the composer.
