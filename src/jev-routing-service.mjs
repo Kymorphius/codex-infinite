@@ -1,9 +1,46 @@
 import fs from "node:fs";
 import { spawn } from "node:child_process";
+import path from "node:path";
 import { JEV_ROUTE_TIERS, JEV_TIER_DESCRIPTIONS, fallbackJevClassification, normalizeJevRoutingConfig } from "./jev-routing-policy.mjs";
 
 const MAX_PROMPT_BYTES = 128 * 1024;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ROUTE_MODELS = new Set(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
+const ROUTE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max", "ultra"]);
+
+export function normalizeJevRoutingReceipt(value) {
+  const threadId = String(value?.threadId || "").toLowerCase();
+  const turnId = String(value?.turnId || "").toLowerCase();
+  if (!UUID.test(threadId) || !UUID.test(turnId) || !ROUTE_MODELS.has(value?.model) || !ROUTE_EFFORTS.has(value?.effort)) return null;
+  return {
+    threadId,
+    turnId,
+    tier: String(value?.tier || "").slice(0, 24),
+    model: value.model,
+    effort: value.effort,
+    confidence: Number.isFinite(value?.confidence) ? value.confidence : null,
+    lowConfidence: value?.lowConfidence === true,
+    fallback: value?.fallback === true,
+    reason: String(value?.reason || "").slice(0, 500),
+    routedAt: String(value?.routedAt || "").slice(0, 64)
+  };
+}
+
+export async function readJevRoutingReceipts(directory) {
+  if (!directory) return [];
+  let names;
+  try { names = await fs.promises.readdir(directory); }
+  catch (error) { if (error.code === "ENOENT") return []; throw error; }
+  const receipts = [];
+  for (const name of names.filter((value) => /^[0-9a-f-]{36}\.json$/i.test(value)).slice(-512)) {
+    try {
+      const receipt = normalizeJevRoutingReceipt(JSON.parse(await fs.promises.readFile(path.join(directory, name), "utf8")));
+      if (receipt) receipts.push(receipt);
+    } catch {}
+  }
+  return receipts;
+}
 
 function promptText(value) {
   const prompt = typeof value === "string" ? value.trim() : "";
@@ -43,8 +80,8 @@ function collect(child, input, timeoutMs) {
 }
 
 export class JevRoutingService {
-  constructor({ store, threadStore = null, transportManager = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
-    Object.assign(this, { store, threadStore, transportManager, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
+  constructor({ store, threadStore = null, transportManager = null, receiptDirectory = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
+    Object.assign(this, { store, threadStore, transportManager, receiptDirectory, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
   }
 
   async initialize() { return this.transportManager?.apply?.((await this.store.read()).transportMode); }
@@ -53,7 +90,7 @@ export class JevRoutingService {
     const threadState = await this.threadStore?.read?.();
     const config = await this.store.read();
     await this.transportManager?.apply?.(config.transportMode);
-    return { config, threadOverrides: threadState?.overrides || {}, transport: this.transportManager?.status?.() || null, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
+    return { config, threadOverrides: threadState?.overrides || {}, receipts: await readJevRoutingReceipts(this.receiptDirectory), transport: this.transportManager?.status?.() || null, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
   }
 
   async update(value) {

@@ -168,7 +168,8 @@ export async function run() {
   const jevRoutingService = new JevRoutingService({
     store: new JevRoutingStore({ filePath: config.jevRoutingPath }),
     threadStore: new JevThreadRoutingStore({ filePath: config.jevThreadRoutingPath }),
-    transportManager: new JevTransportModeManager({ configPath: path.join(config.wrapperCodexHome, "config.toml"), discoveryPath: path.join(config.routerStateDirectory, "discovery-mode.json") }),
+    transportManager: new JevTransportModeManager({ configPath: path.join(config.wrapperCodexHome, "config.toml"), callerSecretPath: config.routerCallerSecretPath }),
+    receiptDirectory: config.jevRoutingReceiptsDirectory,
     jevPath: config.jevPath,
     taskDispatcher: jevTaskDispatcher
   });

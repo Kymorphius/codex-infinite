@@ -23,7 +23,7 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.11') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.1') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
@@ -32,7 +32,7 @@ export function buildNativeJevRoutingInjectionScript() {
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.11';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.1';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatModelChange = ${formatNativeJevModelChange.toString()};
@@ -42,7 +42,7 @@ export function buildNativeJevRoutingInjectionScript() {
   const genericModelChangeNotices = ${findNativeJevModelChangeNotices.toString()};
   const installMutationRefresh = ${installNativeJevMutationRefresh.toString()};
   const updatePendingTurnRetry = ${updateNativeJevPendingRetry.toString()};
-  let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {} };
+  let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {}, receipts: [] };
   let sequence = 0;
   let togglePending = false;
   let submissionPending = false;
@@ -252,7 +252,14 @@ export function buildNativeJevRoutingInjectionScript() {
   function applySnapshot(snapshot) {
     const value = snapshot || {};
     const config = value.config || value;
-    policy = { enabled: config?.enabled !== false, available: value?.available === true || policy.available, transportMode: config?.transportMode === 'native' ? 'native' : 'router', fallbackTier: String(config?.fallbackTier || 'everyday'), mappings: config?.mappings && typeof config.mappings === 'object' ? config.mappings : {}, threadOverrides: value?.threadOverrides && typeof value.threadOverrides === 'object' ? value.threadOverrides : {} };
+    policy = { enabled: config?.enabled !== false, available: value?.available === true || policy.available, transportMode: config?.transportMode === 'native' ? 'native' : 'router', fallbackTier: String(config?.fallbackTier || 'everyday'), mappings: config?.mappings && typeof config.mappings === 'object' ? config.mappings : {}, threadOverrides: value?.threadOverrides && typeof value.threadOverrides === 'object' ? value.threadOverrides : {}, receipts: Array.isArray(value?.receipts) ? value.receipts : [] };
+    for (const receipt of policy.receipts) {
+      if (!UUID.test(String(receipt?.threadId || '')) || !UUID.test(String(receipt?.turnId || '')) || !formatTurnChoice(receipt)) continue;
+      const choice = { ...receipt, appliedAt: receipt.routedAt || new Date().toISOString() };
+      turnChoices = turnChoices.filter((item) => item.threadId !== choice.threadId || item.turnId !== choice.turnId);
+      turnChoices.push(choice);
+    }
+    persistTurnChoices();
   }
 
   function installButtons() {
@@ -292,37 +299,19 @@ export function buildNativeJevRoutingInjectionScript() {
     if (context) context.after(current); else permission.after(current);
   }
 
-  window.__codexControlConsoleRouteNativeTurn = async (message) => {
-    const requestValue = message?.type === 'mcp-request' && message?.hostId === 'local' ? message.request : null;
-    const params = requestValue?.method === 'turn/start' ? requestValue.params : null;
-    const threadId = String(params?.threadId || '').toLowerCase();
-    if (!params || !effectiveEnabled(threadId)) return message;
-    if (bypassNativeTurn?.threadId === threadId && bypassNativeTurn.expiresAt > Date.now()) { bypassNativeTurn = null; return message; }
-    const beforeIds = visibleTurns().map((item) => item.id);
-    const prompt = promptFrom(params);
-    try {
-      const classification = prompt ? (await request('classify', { prompt }, 22000)).classification : fallbackClassification('当前轮次没有文本，已使用兜底档位');
-      if (!classification) return message;
-      const button = document.querySelector('[data-codex-control-console-native-jev]'); const current = document.querySelector('[data-codex-control-console-native-jev-current]'); if (button) renderGlobalButton(button); if (current) renderCurrentButton(current);
-      window.__codexControlConsoleLastJevRouting = { ok: true, threadId, ...classification, appliedAt: new Date().toISOString() };
-      queueTurnChoice(threadId, prompt, beforeIds, classification);
-      return transform(message, classification);
-    } catch (error) {
-      window.__codexControlConsoleLastJevRouting = { ok: false, threadId, message: String(error?.message || error), appliedAt: new Date().toISOString() };
-      return message;
-    }
-  };
+  // Sending remains entirely native. Jev routing now happens after the
+  // authenticated request reaches Codex Router, and exact turn receipts flow
+  // back through snapshots for display only.
+  window.__codexControlConsoleRouteNativeTurn = async (message) => message;
 
   window.__codexControlConsoleSetJevRouting = (value) => {
-    applySnapshot({ config: value, available: value?.available, threadOverrides: value?.threadOverrides });
+    applySnapshot({ config: value, available: value?.available, threadOverrides: value?.threadOverrides, receipts: value?.receipts });
     togglePending = false; installButtons();
     return { enabled: policy.enabled, available: policy.available, fallbackTier: policy.fallbackTier };
   };
   installButtons();
   window.__codexControlConsoleJevRoutingMutationCleanup = installMutationRefresh({ install: installButtons, findModelChangeNotices: genericModelChangeNotices, hostWindow: window });
-  document.addEventListener('click', interceptComposerClick, true);
-  document.addEventListener('keydown', interceptComposerKeydown, true);
-  window.__codexControlConsoleJevRoutingInputCleanup = () => { document.removeEventListener('click', interceptComposerClick, true); document.removeEventListener('keydown', interceptComposerKeydown, true); };
+  window.__codexControlConsoleJevRoutingInputCleanup = () => {};
   window.__codexControlConsoleJevRoutingDiagnostics = { refreshMode: 'shared-mutation-events' };
   window.addEventListener('beforeunload', () => { pendingTurnRetry && clearTimeout(pendingTurnRetry); window.__codexControlConsoleJevRoutingMutationCleanup?.(); window.__codexControlConsoleJevRoutingInputCleanup?.(); for (const waiter of pending.values()) { clearTimeout(waiter.timeout); waiter.reject(new Error('页面已关闭')); } pending.clear(); }, { once: true });
 })()`;

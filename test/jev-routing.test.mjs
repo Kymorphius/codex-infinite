@@ -8,7 +8,7 @@ import { PassThrough, Readable } from "node:stream";
 import { defaultJevRoutingConfig, normalizeJevRoutingConfig } from "../src/jev-routing-policy.mjs";
 import { JevRoutingStore } from "../src/jev-routing-store.mjs";
 import { JevThreadRoutingStore, normalizeJevThreadRoutingOverrides } from "../src/jev-thread-routing-store.mjs";
-import { JevRoutingService } from "../src/jev-routing-service.mjs";
+import { JevRoutingService, readJevRoutingReceipts } from "../src/jev-routing-service.mjs";
 import { JevTaskDispatcher } from "../src/jev-task-dispatcher.mjs";
 import { createJevRoutingHttpHandler } from "../src/jev-routing-http.mjs";
 
@@ -178,6 +178,16 @@ test("missing Jev falls back without blocking native dispatch", async () => {
   assert.equal(result.classification.fallback, true);
   assert.equal(dispatched.model, "gpt-6-astra");
   assert.equal(dispatched.effort, "xhigh");
+});
+
+test("router receipts are read back as bounded exact-turn choices", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "jev-routing-receipts-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const threadId = "01a0bf0e-f99d-7712-ada7-4a676030e96b";
+  const turnId = "01a0bf10-1497-7263-a1ca-4ea079c001de";
+  await fs.writeFile(path.join(directory, `${threadId}.json`), JSON.stringify({ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }));
+  await fs.writeFile(path.join(directory, "not-a-receipt.json"), "{}");
+  assert.deepEqual(await readJevRoutingReceipts(directory), [{ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, lowConfidence: false, fallback: false, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }]);
 });
 
 test("native dispatcher starts a durable thread with routed model and effort", async () => {

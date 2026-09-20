@@ -47,7 +47,7 @@ export async function releaseNativeJevSend(findSend, release, wait, now = Date.n
 
 export function normalizeNativeJevRoutingSnapshot(snapshot = {}) {
   if (!snapshot?.config || typeof snapshot.config !== "object") {
-    return { enabled: false, available: false, transportMode: "router", fallbackTier: "everyday", mappings: {}, threadOverrides: {} };
+    return { enabled: false, available: false, transportMode: "router", fallbackTier: "everyday", mappings: {}, threadOverrides: {}, receipts: [] };
   }
   const config = snapshot.config;
   const mappings = {};
@@ -59,5 +59,10 @@ export function normalizeNativeJevRoutingSnapshot(snapshot = {}) {
     const threadId = String(rawThreadId).toLowerCase();
     if (THREAD_ID_PATTERN.test(threadId) && typeof enabled === "boolean") threadOverrides[threadId] = enabled;
   }
-  return { enabled: config.enabled !== false, available: snapshot.available === true, transportMode: config.transportMode === "native" ? "native" : "router", fallbackTier: typeof config.fallbackTier === "string" ? config.fallbackTier : "everyday", mappings, threadOverrides };
+  const receipts = (Array.isArray(snapshot.receipts) ? snapshot.receipts : []).flatMap((value) => {
+    const threadId = String(value?.threadId || "").toLowerCase(), turnId = String(value?.turnId || "").toLowerCase();
+    if (!THREAD_ID_PATTERN.test(threadId) || !THREAD_ID_PATTERN.test(turnId) || !ROUTE_MODELS.has(value?.model) || !ROUTE_EFFORTS.has(value?.effort)) return [];
+    return [{ threadId, turnId, tier: String(value?.tier || "").slice(0, 24), model: value.model, effort: value.effort, confidence: Number.isFinite(value?.confidence) ? value.confidence : null, lowConfidence: value?.lowConfidence === true, fallback: value?.fallback === true, reason: String(value?.reason || "").slice(0, 500), routedAt: String(value?.routedAt || "").slice(0, 64) }];
+  }).slice(-512);
+  return { enabled: config.enabled !== false, available: snapshot.available === true, transportMode: config.transportMode === "native" ? "native" : "router", fallbackTier: typeof config.fallbackTier === "string" ? config.fallbackTier : "everyday", mappings, threadOverrides, receipts };
 }

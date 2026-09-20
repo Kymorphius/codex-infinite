@@ -16,6 +16,8 @@ test("config defaults bind both listeners to 127.0.0.1", () => {
   assert.equal(config.jevRoutingPath, "/tmp/test-home/.codex-control-console/codex-router/jev-task-routing.json");
   assert.equal(config.routerStateDirectory, "/tmp/test-home/.codex-control-console/codex-router");
   assert.equal(config.jevThreadRoutingPath, "/tmp/test-home/.codex-control-console/codex-router/jev-native-thread-routing.json");
+  assert.equal(config.jevRoutingReceiptsDirectory, "/tmp/test-home/.codex-control-console/codex-router/jev-routing-receipts");
+  assert.equal(config.routerCallerSecretPath, "/tmp/test-home/.codex-control-console/codex-router/caller-secret");
   assertLoopbackConfig(config);
 });
 
@@ -24,6 +26,8 @@ test("Jev routing follows the router state directory override", () => {
   assert.equal(config.jevRoutingPath, "/tmp/shared-router-state/jev-task-routing.json");
   assert.equal(config.routerStateDirectory, "/tmp/shared-router-state");
   assert.equal(config.jevThreadRoutingPath, "/tmp/shared-router-state/jev-native-thread-routing.json");
+  assert.equal(config.jevRoutingReceiptsDirectory, "/tmp/shared-router-state/jev-routing-receipts");
+  assert.equal(config.routerCallerSecretPath, "/tmp/shared-router-state/caller-secret");
 });
 
 test("Windows config isolates wrapper and primary package profiles", () => {
