@@ -117,7 +117,7 @@ export function createJevRoutingFeature({ $, showToast }) {
       const input = Object.fromEntries(new FormData(dispatchForm));
       const data = await requestJson("/api/jev-routing/dispatch", { method: "POST", body: input });
       const { classification, threadId, model, effort } = data.result;
-      result.dataset.fallback = String(classification.fallback);
+      result.dataset.fallback = String(classification.fallback || classification.lowConfidence);
       result.replaceChildren();
       const title = document.createElement("strong");
       title.textContent = `${classification.tier} → ${modelLabel(model)} · ${effort}`;

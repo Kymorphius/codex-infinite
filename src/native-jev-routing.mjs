@@ -22,13 +22,13 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.7') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.8') return;
   if (window.__codexControlConsoleJevRoutingInstallTimer) clearInterval(window.__codexControlConsoleJevRoutingInstallTimer);
   window.__codexControlConsoleJevRoutingInputCleanup?.();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.7';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.8';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatModelChange = ${formatNativeJevModelChange.toString()};
@@ -122,7 +122,7 @@ export function buildNativeJevRoutingInjectionScript() {
       const used = turnChoices.filter((item) => item.threadId === threadId).map((item) => item.turnId);
       const turnId = selectTurn(candidates, pendingChoice.prompt, pendingChoice.beforeIds, used, Date.now() - pendingChoice.queuedAt >= 800);
       if (!turnId) { remaining.push(pendingChoice); continue; }
-      const choice = { threadId, turnId, tier: pendingChoice.classification.tier, model: pendingChoice.classification.model, effort: pendingChoice.classification.effort, confidence: Number.isFinite(pendingChoice.classification.confidence) ? pendingChoice.classification.confidence : null, fallback: pendingChoice.classification.fallback === true, reason: String(pendingChoice.classification.reason || '').slice(0, 300), appliedAt: new Date().toISOString() };
+      const choice = { threadId, turnId, tier: pendingChoice.classification.tier, model: pendingChoice.classification.model, effort: pendingChoice.classification.effort, confidence: Number.isFinite(pendingChoice.classification.confidence) ? pendingChoice.classification.confidence : null, lowConfidence: pendingChoice.classification.lowConfidence === true, fallback: pendingChoice.classification.fallback === true, reason: String(pendingChoice.classification.reason || '').slice(0, 300), appliedAt: new Date().toISOString() };
       turnChoices = turnChoices.filter((item) => item.threadId !== threadId || item.turnId !== turnId); turnChoices.push(choice); persistTurnChoices();
     }
     pendingTurnChoices = remaining;

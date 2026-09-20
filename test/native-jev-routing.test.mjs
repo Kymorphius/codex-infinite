@@ -119,8 +119,10 @@ test("native Jev snapshot is bounded and enables only from stored configuration"
 test("turn choice labels and pending-turn matching stay bounded and deterministic", () => {
   const first = "01a0bf0e-f99d-7712-ada7-4a676030e96b", second = "01a0bf10-1497-7263-a1ca-4ea079c001de";
   assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-5.6-sol", effort: "medium" }), "Jev · 复杂 · GPT-5.6 Sol · medium");
+  assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", lowConfidence: true }), "Jev · 深度 · GPT-5.6 Sol · high · 低置信度");
   assert.equal(formatNativeJevTurnChoice({ tier: "everyday", model: "gpt-5.6-terra", effort: "low", fallback: true }), "Jev · 日常 · GPT-5.6 Terra · low · 兜底");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.9 }), "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.90。");
+  assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.18, lowConfidence: true }), "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.18（低置信度）。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-terra", effort: "medium", confidence: 0.18, fallback: true }), "模型已设置为 GPT-5.6 Terra，推理强度 medium，置信度 0.18（兜底）。");
   const candidates = [{ id: first, userText: "same" }, { id: second, userText: "same" }];
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], []), second);

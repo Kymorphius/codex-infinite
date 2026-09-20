@@ -7,7 +7,7 @@ export function formatNativeJevTurnChoice(value = {}) {
   const tier = tiers[value.tier] || String(value.tier || "").trim();
   const model = String(value.model || "").trim().replace(/^gpt-/i, "GPT-").replace(/-(luna|terra|sol|astra)$/i, (_, name) => ` ${name[0].toUpperCase()}${name.slice(1).toLowerCase()}`);
   const effort = String(value.effort || "").trim();
-  return tier && model && effort ? `Jev · ${tier} · ${model} · ${effort}${value.fallback ? " · 兜底" : ""}` : "";
+  return tier && model && effort ? `Jev · ${tier} · ${model} · ${effort}${value.fallback ? " · 兜底" : value.lowConfidence ? " · 低置信度" : ""}` : "";
 }
 
 export function formatNativeJevModelChange(value = {}) {
@@ -16,7 +16,7 @@ export function formatNativeJevModelChange(value = {}) {
   const effort = String(value.effort || "").trim();
   if (!model || !effort) return "";
   const confidence = Number.isFinite(value.confidence) ? value.confidence.toFixed(2) : "—";
-  return `模型已设置为 ${model}，推理强度 ${effort}，置信度 ${confidence}${value.fallback ? "（兜底）" : ""}。`;
+  return `模型已设置为 ${model}，推理强度 ${effort}，置信度 ${confidence}${value.fallback ? "（兜底）" : value.lowConfidence ? "（低置信度）" : ""}。`;
 }
 
 export function selectNativeJevRoutingTurn(candidates = [], prompt = "", beforeIds = [], usedIds = [], allowExisting = false) {

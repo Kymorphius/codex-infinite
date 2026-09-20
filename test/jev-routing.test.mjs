@@ -120,8 +120,30 @@ test("Jev classification uses stdin and returns the mapped choice", async () => 
   });
   const result = await service.classify("修复跨模块并发故障", defaultJevRoutingConfig());
   assert.equal(invocation.command, "/bin/jev");
-  assert.deepEqual(result, { tier: "complex", classifiedTier: "complex", confidence: 0.91, fallback: false, reason: "Jev 以 0.91 置信度选择 complex", model: "gpt-5.6-sol", effort: "high" });
+  assert.deepEqual(result, { tier: "complex", classifiedTier: "complex", confidence: 0.91, lowConfidence: false, fallback: false, reason: "Jev 以 0.91 置信度选择 complex", model: "gpt-5.6-sol", effort: "high" });
   assert.ok(invocation.args.includes("--json"));
+});
+
+test("low-confidence Jev choices remain routed while invalid results use the fallback", async () => {
+  const config = { ...defaultJevRoutingConfig(), fallbackTier: "critical" };
+  const lowService = new JevRoutingService({
+    store: { read: async () => config }, jevPath: "/bin/jev", taskDispatcher: {}, exists: () => true,
+    spawnImpl() {
+      const child = processDouble(() => queueMicrotask(() => { child.stdout.end('{"answer":{"choice":"deep","confidence":0.18}}'); child.emit("close", 1); }));
+      return child;
+    }
+  });
+  const low = await lowService.classify("难以区分档位的任务", config);
+  assert.deepEqual(low, { tier: "deep", classifiedTier: "deep", confidence: 0.18, lowConfidence: true, fallback: false, reason: "Jev 以 0.18 置信度选择 deep；低于提示线 0.70，仍采用本次判断", model: "gpt-5.6-sol", effort: "xhigh" });
+
+  const failedService = new JevRoutingService({
+    store: { read: async () => config }, jevPath: "/bin/jev", taskDispatcher: {}, exists: () => true,
+    spawnImpl() {
+      const child = processDouble(() => queueMicrotask(() => { child.stdout.end("not-json"); child.emit("close", 2); }));
+      return child;
+    }
+  });
+  assert.equal((await failedService.classify("失败任务", config)).fallback, true);
 });
 
 test("Jev classification accepts the new intermediate and extreme tiers", async () => {

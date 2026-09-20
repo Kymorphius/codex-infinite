@@ -13,7 +13,7 @@ the native request unchanged on subsequent turns.
 ## Shared configuration
 
 The existing shared `jev-task-routing.json` remains the single authority for
-the eight tier mappings, confidence threshold, fallback tier, global `enabled`
+the eight tier mappings, low-confidence marker, failure fallback tier, global `enabled`
 flag, and transport mode. Schema version 4 adds `transportMode`, defaulting to
 `router`; version 1 through version 3 files migrate without losing their
 mappings.
@@ -48,9 +48,10 @@ primary native Codex window all read the same file.
 An attachment-only or otherwise text-free turn uses the configured fallback
 tier without invoking Jev. If the binding or native settings path is
 unavailable or times out, the original send action is released unchanged
-rather than being lost. Jev's own unavailable,
-malformed, timeout, and low-confidence paths continue to use the configured
-fallback tier.
+rather than being lost. The configured fallback tier is used only when Jev is
+unavailable, times out, fails, or returns an invalid result. A valid
+low-confidence choice is applied and visibly marked instead of being replaced
+by the fallback tier.
 
 ## Native control
 
@@ -69,8 +70,8 @@ bounded history and never added to the model prompt.
 When Router interception makes Codex's native model-change notice collapse both
 the old and new model names to `自定义`, the enhanced renderer rewrites only the
 new Jev-generated notice to show the concrete selected model, reasoning effort,
-confidence, and fallback state. Unrelated native notices and conversation text
-remain untouched.
+confidence, and low-confidence or fallback state. Unrelated native notices and
+conversation text remain untouched.
 
 The shared configuration panel exposes two explicit transport choices:
 
@@ -104,6 +105,8 @@ The shared configuration panel exposes two explicit transport choices:
   model and effort on their next turn.
 - Each routed turn visibly shows its tier, model, and reasoning effort without
   changing the conversation content sent to the model.
+- A valid low-confidence Jev choice keeps its selected tier and is marked as
+  low confidence; only missing, failed, or invalid Jev results use the fallback.
 - A Router-intercepted turn never leaves the Jev-generated native status line as
   `自定义 → 自定义`; it shows the selected model, reasoning effort, confidence,
   and whether the fallback mapping was used.

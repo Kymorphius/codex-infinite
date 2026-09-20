@@ -93,9 +93,12 @@ export class JevRoutingService {
     try { parsed = JSON.parse(result.stdout.trim()); } catch {}
     const classifiedTier = parsed?.answer?.choice;
     const confidence = Number(parsed?.answer?.confidence);
-    if (result.code === 2 || !JEV_ROUTE_TIERS.includes(classifiedTier) || !Number.isFinite(confidence)) return fallbackJevClassification(config, "Jev 判断失败，已使用兜底档位");
-    if (result.code === 1 || confidence < config.minConfidence) return fallbackJevClassification(config, `Jev 置信度 ${confidence.toFixed(2)} 低于阈值，已使用兜底档位`, { classifiedTier, confidence });
-    return { tier: classifiedTier, classifiedTier, confidence, fallback: false, reason: `Jev 以 ${confidence.toFixed(2)} 置信度选择 ${classifiedTier}`, ...config.mappings[classifiedTier] };
+    if (![0, 1].includes(result.code) || !JEV_ROUTE_TIERS.includes(classifiedTier) || !Number.isFinite(confidence)) return fallbackJevClassification(config, "Jev 判断失败，已使用兜底档位");
+    const lowConfidence = result.code === 1 || confidence < config.minConfidence;
+    const reason = lowConfidence
+      ? `Jev 以 ${confidence.toFixed(2)} 置信度选择 ${classifiedTier}；低于提示线 ${config.minConfidence.toFixed(2)}，仍采用本次判断`
+      : `Jev 以 ${confidence.toFixed(2)} 置信度选择 ${classifiedTier}`;
+    return { tier: classifiedTier, classifiedTier, confidence, lowConfidence, fallback: false, reason, ...config.mappings[classifiedTier] };
   }
 
   async dispatch({ prompt: rawPrompt, cwd }) {
