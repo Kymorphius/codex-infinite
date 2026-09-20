@@ -40,6 +40,7 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /button\.dataset\.renderState === renderState/);
   assert.match(source, /data-context-toggle-dot/);
   assert.match(source, /<span>百万<\/span>/);
+  assert.match(source, /button\.setAttribute\('aria-label', '百万'\)/);
   assert.doesNotMatch(source, /data-context-toggle-status/);
   assert.match(source, /__codexControlConsoleDrainContextActions/);
   assert.match(source, /__codexControlConsolePersistContext/);

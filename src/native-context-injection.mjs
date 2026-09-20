@@ -154,10 +154,10 @@ export function buildNativeContextInjectionScript() {
     if (!existing) {
       button.type = 'button';
       button.setAttribute('data-codex-control-console-context-toggle', '');
-      button.setAttribute('aria-label', '百万');
       button.innerHTML = '<span data-context-toggle-dot aria-hidden="true" style="width:6px;height:6px;border-radius:50%"></span><span>百万</span>';
       button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void toggleCurrent(button); });
     }
+    button.setAttribute('aria-label', '百万');
     styleToggle(button, threadId, overrides.has(threadId), button.disabled);
     if (button.parentElement !== host) host.append(button);
   }
