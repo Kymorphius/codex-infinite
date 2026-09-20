@@ -2,6 +2,7 @@ import { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJ
 import { findNativeJevModelChangeNotices, installNativeJevMutationRefresh, updateNativeJevPendingRetry } from "./native-jev-mutation-refresh.mjs";
 import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 import { buildNativeJevComposerControlSource } from "./native-jev-composer-controls.mjs";
+import { installNativeJevButtonActivation } from "./native-jev-button-activation.mjs";
 export { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 
@@ -24,7 +25,7 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.2') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.3') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
@@ -35,7 +36,7 @@ export function buildNativeJevRoutingInjectionScript() {
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-choice]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.2';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.3';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatModelChange = ${formatNativeJevModelChange.toString()};
@@ -45,6 +46,7 @@ export function buildNativeJevRoutingInjectionScript() {
   const genericModelChangeNotices = ${findNativeJevModelChangeNotices.toString()};
   const installMutationRefresh = ${installNativeJevMutationRefresh.toString()};
   const updatePendingTurnRetry = ${updateNativeJevPendingRetry.toString()};
+  const installButtonActivation = ${installNativeJevButtonActivation.toString()};
   let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {}, receipts: [] };
   let sequence = 0;
   let togglePending = false;
@@ -238,7 +240,7 @@ export function buildNativeJevRoutingInjectionScript() {
     button.disabled = togglePending;
     button.textContent = 'Jev';
     button.title = togglePending ? '正在统一所有会话的自动分流设置…' : active ? '统一开启：所有未单独设置的会话自动分流；点击关闭并清除会话覆盖' : '统一关闭：所有未单独设置的会话不自动分流；点击开启并清除会话覆盖';
-    button.style.cssText = 'display:inline-flex;align-items:center;height:24px;padding:0 8px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '.88') + ';-webkit-app-region:no-drag;app-region:no-drag;';
+    button.style.cssText = 'display:inline-flex;position:relative;z-index:1;align-items:center;height:24px;padding:0 8px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '.88') + ';pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
   }
 
   function renderCurrentButton(button) {
@@ -249,7 +251,7 @@ export function buildNativeJevRoutingInjectionScript() {
     button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', threadId ? (active ? '当前会话 Jev 自动分流已开启' : '当前会话 Jev 自动分流已关闭') : (active ? '新建聊天的全局 Jev 自动分流已开启' : '新建聊天的全局 Jev 自动分流已关闭')); button.disabled = togglePending || submissionPending;
     button.textContent = submissionPending ? 'Jev 判断中…' : policy.transportMode === 'native' ? 'Jev 原生' : 'Jev 路由';
     button.title = !threadId ? (active ? '新建聊天继承全局 Jev 路由；点击关闭全局路由' : '新建聊天继承全局设置；点击开启全局 Jev 路由') : submissionPending ? 'Jev 正在为这一轮选择模型与推理强度' : togglePending ? '正在保存当前会话设置…' : (overridden ? '当前会话单独' : '继承全局') + (active ? '开启；点击只关闭当前会话' : '关闭；点击只开启当前会话');
-    button.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.25)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '1') + ';-webkit-app-region:no-drag;app-region:no-drag;';
+    button.style.cssText = 'display:inline-flex;position:relative;z-index:1;align-items:center;height:28px;padding:0 9px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.25)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '1') + ';pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
   }
 ${buildNativeJevComposerControlSource()}
   function applySnapshot(snapshot) {
@@ -270,8 +272,8 @@ ${buildNativeJevComposerControlSource()}
     let button = document.querySelector('[data-codex-control-console-native-jev]');
     if (host && !button) {
       button = document.createElement('button'); button.type = 'button'; button.setAttribute('data-codex-control-console-native-jev', '');
-      button.addEventListener('click', async (event) => {
-        event.preventDefault(); event.stopPropagation(); if (togglePending) return;
+      installButtonActivation(button, async () => {
+        if (togglePending) return;
         togglePending = true; renderGlobalButton(button); const current = document.querySelector('[data-codex-control-console-native-jev-current]'); if (current) renderCurrentButton(current);
         try {
           const response = await request('set-enabled', { enabled: !policy.enabled }, 8000);
@@ -289,8 +291,8 @@ ${buildNativeJevComposerControlSource()}
     if (!composerHost) { current?.remove(); choice?.remove(); return; }
     if (!current) {
       current = document.createElement('button'); current.type = 'button'; current.setAttribute('data-codex-control-console-native-jev-current', '');
-      current.addEventListener('click', async (event) => {
-        event.preventDefault(); event.stopPropagation(); const selectedThreadId = currentThreadId(); if (togglePending) return;
+      installButtonActivation(current, async () => {
+        const selectedThreadId = currentThreadId(); if (togglePending) return;
         togglePending = true; renderCurrentButton(current); if (button) renderGlobalButton(button);
         try { const response = selectedThreadId ? await request('set-thread-enabled', { threadId: selectedThreadId, enabled: !effectiveEnabled(selectedThreadId) }, 8000) : await request('set-enabled', { enabled: !policy.enabled }, 8000); applySnapshot(response.snapshot); }
         catch (error) { current.title = String(error?.message || error); }

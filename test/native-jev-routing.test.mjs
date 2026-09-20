@@ -229,6 +229,9 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /shared-mutation-events/);
   assert.doesNotMatch(source, /setInterval\(installButtons/);
   assert.match(source, /Jev 自动分流已开启/);
+  assert.match(source, /addEventListener\('pointerup'/);
+  assert.match(source, /pointer-events:auto!important/);
+  assert.match(source, /ignoreClickUntil/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
   assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);
