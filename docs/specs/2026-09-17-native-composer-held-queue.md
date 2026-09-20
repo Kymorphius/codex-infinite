@@ -57,6 +57,12 @@ active task changes. Periodic queue synchronization does not repaint unchanged
 rows. Recreating a toolbar button after a native toolbar remount updates only
 the lightweight shell state and does not rebuild the already-open list, so the
 panel and an in-progress editor remain visually stable.
+All composer-native extensions resolve the active local thread through the
+mounted composer first and the selected local sidebar row second. A renderer
+hot-upgrade only treats an injection as installed when its observer is live;
+an old marker without an observer is recovered rather than suppressing the
+new lifecycle. This keeps pending management and the million-context control
+on the same native remount contract.
 It reads the composer's Markdown representation before falling back to rendered
 plain text, preserving ordered-list markers that are not part of `innerText`.
 Its pointer and click activation are isolated from native composer submission,

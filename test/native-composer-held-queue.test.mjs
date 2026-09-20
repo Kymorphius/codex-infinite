@@ -12,6 +12,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /allowed = new Set/);
   assert.match(source, /hostId: 'local'/);
   assert.match(source, /data-above-composer-conversation-id/);
+  assert.match(source, /data-app-action-sidebar-thread-selected/);
 });
 
 test("native held queue saves before delete and adds before removing held copy", () => {
@@ -147,6 +148,7 @@ test("new held manager remains authoritative while a legacy hot runtime is activ
   assert.match(source, /LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18\.3'/);
   assert.match(source, /__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION/);
   assert.match(source, /__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION/);
+  assert.match(source, /__codexControlConsoleHeldQueueObserver && window\.__codexControlConsoleSaveDraftTodoObserver/);
   assert.match(source, /!document\.querySelector\('\[data-ccc-held-queue-button\]'\) \|\| !document\.querySelector\('\[data-ccc-held-queue-panel\]'\)/);
   assert.match(source, /if \(open && !busy && !editing\) void refresh\(\)/);
 });

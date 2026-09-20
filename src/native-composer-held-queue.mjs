@@ -1,12 +1,13 @@
 import { readHeldEditableText, replaceHeldEditableText } from "./held-queue-edit.mjs";
 import { createHeldDisplayRow, createHeldEditRow, formatHeldInitialTime, orderHeldForView } from "./held-queue-presentation.mjs";
 import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
+import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-18.12', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
+  const VERSION = '2026-09-20.2', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE_DRAFT_GUARD_VERSION = '2026-09-18.1';
-  if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION) return;
+  if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
   window.__codexControlConsoleHeldQueueTimer && clearInterval(window.__codexControlConsoleHeldQueueTimer);
@@ -22,6 +23,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
   window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE_DRAFT_GUARD_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const readThreadId = ${readNativeComposerThreadId.toString()};
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
   const VIEW_KEY = STORE_KEY + '.view';
   const DRAFT_KEY = STORE_KEY + '.recovery-draft';
@@ -49,9 +51,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function threadId() {
     const composerId = document.querySelector('[data-above-composer-conversation-id]')?.getAttribute('data-above-composer-conversation-id') || '';
     if (UUID.test(composerId)) return composerId.toLowerCase();
-    const value = document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')?.getAttribute('data-app-action-sidebar-thread-id') || '';
-    const id = value.startsWith('local:') ? value.slice(6).toLowerCase() : '';
-    return UUID.test(id) ? id : null;
+    return readThreadId(document);
   }
   function readStore() {
     try {

@@ -1,3 +1,5 @@
+import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
+
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function normalizeNativeContextOverrides(items = []) {
@@ -24,11 +26,12 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-08-31.11') return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-20.2' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-08-31.11';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-20.2';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const readThreadId = ${readNativeComposerThreadId.toString()};
   const overrides = new Map();
   const actions = [];
   let requestSequence = 0;
@@ -103,8 +106,7 @@ export function buildNativeContextInjectionScript() {
   }
 
   function selectedThreadId() {
-    const value = document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')?.getAttribute('data-app-action-sidebar-thread-id') || '';
-    return value.startsWith('local:') && UUID.test(value.slice(6)) ? value.slice(6).toLowerCase() : null;
+    return readThreadId(document);
   }
 
   function styleToggle(button, threadId, enabled, pending = false) {

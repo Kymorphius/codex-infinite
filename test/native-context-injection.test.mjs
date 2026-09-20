@@ -33,6 +33,8 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /config\.model_context_window = contextWindow/);
   assert.match(source, /config\.model_auto_compact_token_limit = contextWindow/);
   assert.match(source, /data-app-action-sidebar-thread-id/);
+  assert.match(source, /data-app-action-sidebar-thread-selected/);
+  assert.match(source, /__codexControlConsoleNativeContextObserver/);
   assert.match(source, /__codexControlConsoleOpenNativeThread/);
   assert.match(source, /data-codex-control-console-context-toggle/);
   assert.match(source, /button\.dataset\.renderState === renderState/);
