@@ -221,7 +221,9 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /data-codex-control-console-native-jev/);
   assert.match(source, /data-codex-control-console-native-jev-current/);
   assert.match(source, /data-composer-navigation-target="permissions"/);
-  assert.match(source, /Jev 全局/);
+  assert.match(source, /Jev 全局路由/);
+  assert.match(source, /'原生' : '路由'/);
+  assert.doesNotMatch(source, /'原生' : '拦截'/);
   assert.match(source, /data-codex-control-console-jev-turn/);
   assert.match(source, /composer-capture/);
   assert.match(source, /Jev 自动分流已开启/);

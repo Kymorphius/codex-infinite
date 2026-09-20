@@ -78,7 +78,7 @@ The shared configuration panel exposes two explicit transport choices:
 
 - `原生直连并自动发送` removes the enhanced runtime's Router endpoint. Jev
   still selects the native model and effort before releasing the send action.
-- `Router 全局拦截` keeps every enhanced-runtime request on the local Router and
+- `Jev 全局路由` keeps every enhanced-runtime request on the local Router and
   enables authenticated native-session discovery for existing conversations.
 
 ## Compatibility and boundaries
