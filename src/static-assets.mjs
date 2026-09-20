@@ -6,13 +6,13 @@ import packageMetadata from "../package.json" with { type: "json" };
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "project-priority", "refresh-policy", "state", "tasks", "transport"];
-const featureNames = ["runtime", "console", "context", "dispatch", "priority", "sessions", "skills", "turbo", "zotero"];
+const featureNames = ["runtime", "console", "context", "dispatch", "generators", "priority", "sessions", "experiments", "skills", "turbo", "zotero"];
 const dispatchSupportFiles = ["details"];
 const skillSupportFiles = ["group-actions"];
 const sessionSupportFiles = ["approval-model", "conversation-model", "conversation-tabs", "disclosure", "draft-sync", "execution-view", "markdown-view", "model", "project-copy", "remote-approvals", "remote-conversation", "settings-controller"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
-const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "skills", "responsive"];
-const panelFiles = ["board", "context", "console", "sessions", "priority", "skills", "zotero"].map((name) => `panels/${name}.html`);
+const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "responsive"];
+const panelFiles = ["board", "generators", "context", "console", "sessions", "priority", "experiments", "skills", "zotero"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
   ["/conversations.html", { file: "conversations.html", type: "text/html; charset=utf-8" }],
   ["/styles/conversations.css", { file: "styles/conversations.css", type: "text/css; charset=utf-8" }],
@@ -20,6 +20,8 @@ const assetMap = new Map([
   ["/projects.html", { file: "projects.html", type: "text/html; charset=utf-8" }],
   ["/styles/projects.css", { file: "styles/projects.css", type: "text/css; charset=utf-8" }],
   ...["model", "view", "index"].map(name => [`/features/projects/${name}.js`, { file: `features/projects/${name}.js`, type: javascriptType }]),
+  ["/sidebar.html", { file: "sidebar.html", type: "text/html; charset=utf-8" }],
+  ["/features/sidebar/bridge.js", { file: "features/sidebar/bridge.js", type: javascriptType }],
   ["/restart.html", { file: "restart.html", type: "text/html; charset=utf-8" }],
   ["/features/runtime/sidebar.js", { file: "features/runtime/sidebar.js", type: javascriptType }],
   ["/", { file: "index.html", fragments: panelFiles, type: "text/html; charset=utf-8" }],

@@ -38,8 +38,16 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/board.mjs`, `src/priority.mjs`, `public/core/project-priority.js` — pure
   derived domain views and the browser-compatible shared priority policy.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.
+- `src/generator-contract.mjs`, `src/generator-store.mjs`,
+  `src/generator-service.mjs`, `src/generator-http.mjs` — bounded generator
+  definitions, one-shot/manual trigger claims, crash-safe dispatch materialization,
+  run projection, and exact-origin loopback transport.
 - `src/dispatch-audit.mjs` — bounded append-only dispatch attempt history; the
   dispatch snapshot remains authoritative and the audit is never replayed.
+- `src/experiment-contract.mjs`, `src/native-experiment-adapter.mjs`,
+  `src/experiment-service.mjs`, `src/experiments-http.mjs` — read-only live
+  native experiment and console extension inventory, normalized per device
+  and federated through existing authenticated SSH transports.
 - `src/runtime-diagnostics.mjs`, `src/diagnostics-http.mjs` — passive normalized
   readiness checks and their read-only loopback transport.
 - `src/context-http.mjs`, `src/dispatch-http.mjs`, `src/tasks-http.mjs`, `src/zotero-http.mjs` — bounded-context HTTP route orchestration.
@@ -87,9 +95,11 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   expansion, and pin state remain native-owned.
 - `src/native-remote-sidebar.mjs` and `src/native-remote-sidebar-render.mjs` —
   bounded remote-device/project/conversation rendering and owner-routed actions.
-- `src/native-unified-sidebar.mjs` — optional unified presentation and local
-  remote-project section assignments; owned lists follow native section collapse
-  without moving native nodes or changing project ownership.
+- `src/native-unified-sidebar.mjs` — unified view of owner-native sidebars;
+  `sidebar-contract`, `sidebar-federation`, and signed `sidebar-http` transport
+  separate source snapshots/actions from presentation. The native model/actions
+  adapters read committed renderer state and verify mutations on the owner.
+  No independent section membership store or native-node movement.
 - `src/new-project-policy.mjs`, `src/new-project-service.mjs`, and
   `src/native-new-projects.mjs` — pure new-project eligibility, read-only native
   project/task adapter with private graduation persistence, and an additive

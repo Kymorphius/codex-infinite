@@ -1,3 +1,5 @@
+import { NativeExperimentAdapter } from './native-experiment-adapter.mjs';
+import { ExperimentService } from './experiment-service.mjs';
 import { NativeSidebarAdapter } from './native-sidebar-adapter.mjs';
 import { SidebarFederationService } from './sidebar-federation.mjs';
 import { ProjectChecklistStore } from './project-checklist-store.mjs';
@@ -16,6 +18,8 @@ import { ZoteroLocalApi } from "./zotero-local-api.mjs";
 import { DispatchBoardStore } from "./dispatch-board.mjs";
 import { DispatchAuditStore } from "./dispatch-audit.mjs";
 import { CodexCliDispatcher, DispatchScheduler } from "./dispatcher.mjs";
+import { GeneratorStore } from "./generator-store.mjs";
+import { GeneratorService } from "./generator-service.mjs";
 import { RuntimeDiagnosticsService } from "./runtime-diagnostics.mjs";
 import { ContextWindowStore, ModelCatalog } from "./context-window.mjs";
 import { prepareWrapperCodexHome } from "./wrapper-codex-home.mjs";
@@ -151,6 +155,10 @@ export async function run() {
   const dispatchAuditStore = new DispatchAuditStore({ filePath: path.join(sourceDirectory, ".runtime", "dispatch-audit.jsonl") });
   const dispatchStore = new DispatchBoardStore({ filePath: path.join(sourceDirectory, ".runtime", "dispatch-board.json"), auditStore: dispatchAuditStore });
   await dispatchStore.init();
+  const generatorStore = new GeneratorStore({ filePath: path.join(sourceDirectory, ".runtime", "generators.json") });
+  await generatorStore.init();
+  const generatorService = new GeneratorService({ store: generatorStore, dispatchStore });
+  await generatorService.reconcile();
   const dispatcher = new CodexCliDispatcher({
     codexPath: config.codexPath,
     codexHome: config.nativeCodexHome,
@@ -165,12 +173,13 @@ export async function run() {
     modelCatalog,
     contextWindow: config.perThreadContextWindow
   });
-  const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher });
+  const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher, generatorService });
   const diagnosticsService = new RuntimeDiagnosticsService({ nodeRuntimeService, dispatchStore, auditStore: dispatchAuditStore, scheduler });
   let injector;
   let nativeOwnerInjector = null;
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); scheduler.stop(); } });
-  const dashboard = createDashboardServer({ config, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog });
+  const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
+  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog });
   await dashboard.listen();
   try {
     const codex = attachedCodex || await ensureDedicatedCodex(config);

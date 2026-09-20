@@ -1,8 +1,10 @@
+import { createExperimentsHttpHandler } from './experiments-http.mjs';
 import { createSidebarHttpHandler } from './sidebar-http.mjs';
 import { createRuntimeRestartHttpHandler } from "./runtime-restart-http.mjs";
 import { createActivityHttpHandler } from "./activity-http.mjs";
 import { createContextHttpHandler } from "./context-http.mjs";
 import { createDispatchHttpHandler } from "./dispatch-http.mjs";
+import { createGeneratorHttpHandler } from "./generator-http.mjs";
 import { createHealthHttpHandler } from "./health-http.mjs";
 import { createPeerActionHttpHandler } from "./peer-action-http.mjs";
 import { createTasksHttpHandler } from "./tasks-http.mjs";
@@ -12,12 +14,13 @@ import { createProjectCopyHttpHandler } from "./project-copy-http.mjs";
 import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
 
-export function createDashboardHandlers({ config, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog }) {
+export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog }) {
   const health = createHealthHttpHandler(config);
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
     createRuntimeRestartHttpHandler({ service: restartService, dashboardOrigin: config.dashboardOrigin }),
     createSidebarHttpHandler({ sidebarService, nativeSidebarAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
+    createExperimentsHttpHandler({ experimentService }),
     createDiagnosticsHttpHandler({ diagnosticsService }),
     createSkillsHttpHandler({ skillSyncService, localSkillAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
@@ -27,6 +30,7 @@ export function createDashboardHandlers({ config, adapter, local, remoteMessageS
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),
     createTasksHttpHandler({ adapter, localAdapter: local, nodeRuntimeService }),
     createContextHttpHandler({ adapter: local, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin }),
+    createGeneratorHttpHandler({ adapter: local, generatorService, dashboardOrigin: config.dashboardOrigin }),
     createDispatchHttpHandler({ adapter: local, dispatchStore, dashboardOrigin: config.dashboardOrigin })
   ];
 }

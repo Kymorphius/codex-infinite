@@ -1,3 +1,4 @@
+import { createExperimentsFeature } from './features/experiments/index.js';
 import { installRestartButton } from "./features/runtime/index.js";
 import { createDomServices } from "./core/dom.js";
 import { formatDate, formatDuration, formatTokens, taskStatusLabel } from "./core/format.js";
@@ -8,6 +9,7 @@ import { createTaskSource } from "./core/tasks.js";
 import { createConsoleFeature } from "./features/console/index.js";
 import { createContextFeature } from "./features/context/index.js";
 import { createDispatchFeature } from "./features/dispatch/index.js";
+import { createGeneratorsFeature } from "./features/generators/index.js";
 import { createPriorityFeature } from "./features/priority/index.js";
 import { createSessionsFeature } from "./features/sessions/index.js";
 import { createZoteroFeature } from "./features/zotero/index.js";
@@ -29,10 +31,13 @@ import { createSkillsFeature } from "./features/skills/index.js";
     onActivate(module) {
       if (module === "zotero" && !state.zotero.initialized) void zoteroFeature.load();
       if (module === "context" && !state.context.initialized) void contextFeature.load();
+      if (module === "experiments") void experimentsFeature.load();
       if (module === "skills") void skillsFeature.load();
+      if (module === "generators") void generatorsFeature.load();
     },
     async onRefresh() {
-      const refreshes = [taskSource.load(), dispatchFeature.load()];
+      if (state.module === "experiments") return experimentsFeature.load();
+      const refreshes = [taskSource.load(), dispatchFeature.load(), generatorsFeature.load()];
       if (state.module === "zotero") refreshes.push(zoteroFeature.load());
       if (state.module === "context") refreshes.push(contextFeature.load());
       await Promise.all(refreshes);
@@ -51,10 +56,12 @@ import { createSkillsFeature } from "./features/skills/index.js";
   const consoleFeature = createConsoleFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen });
   const contextFeature = createContextFeature({ state, $, formatDate, formatTokens, showToast });
   const dispatchFeature = createDispatchFeature({ state, $, formatDate, showToast });
+  const generatorsFeature = createGeneratorsFeature({ state, $, formatDate, showToast });
   const priorityFeature = createPriorityFeature({ state, $, formatDate, formatDuration });
   sessionsFeature = createSessionsFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen });
   const zoteroFeature = createZoteroFeature({ state, $, setScopedState, showToast });
   const turboFeature = createTurboFeature({ $, showToast });
+  const experimentsFeature = createExperimentsFeature({ $ });
   const skillsFeature = createSkillsFeature({ $, showToast });
 
   const taskSource = createTaskSource({
@@ -65,6 +72,7 @@ import { createSkillsFeature } from "./features/skills/index.js";
       sessionsFeature.setTaskState(status, label);
       priorityFeature.setTaskState(status, label, source, message);
       dispatchFeature.setTaskState(status, label);
+      generatorsFeature.setTaskState(status);
     },
     onData({ status }) {
       contextFeature.renderThreadOptions();
@@ -75,22 +83,27 @@ import { createSkillsFeature } from "./features/skills/index.js";
       if (pendingProjectCopyReference && sessionsFeature.copyRemoteProjectReference(pendingProjectCopyReference)) pendingProjectCopyReference = null;
       priorityFeature.render();
       dispatchFeature.updateDestinations();
+      generatorsFeature.updateDestinations();
     }
   });
 
   contextFeature.bind();
   dispatchFeature.bind();
+  generatorsFeature.bind();
   sessionsFeature.bind();
   zoteroFeature.bind();
   turboFeature.bind();
+  experimentsFeature.bind();
   skillsFeature.bind();
   navigation.bind();
   navigation.updateChrome();
-  Promise.all([taskSource.load(), dispatchFeature.load(), turboFeature.load()]);
+  Promise.all([taskSource.load(), dispatchFeature.load(), generatorsFeature.load(), turboFeature.load()]);
   if (state.module === "zotero") void zoteroFeature.load();
   if (state.module === "context") void contextFeature.load();
+  if (state.module === "experiments") void experimentsFeature.load();
   if (state.module === "skills") void skillsFeature.load();
   setInterval(() => void dispatchFeature.load({ quiet: true }), 2500);
+  setInterval(() => void generatorsFeature.load({ quiet: true }), 2500);
   createAdaptiveRefreshScheduler({
     refresh: () => taskSource.load({ quiet: true }),
     nextDelay: () => taskRefreshDelay(state.tasks)

@@ -61,6 +61,10 @@ export function sshSnapshotArguments(transport, { curlTimeoutSeconds = SNAPSHOT_
   return remoteGetArguments(transport, "/api/node/snapshot", curlTimeoutSeconds, remotePlatform);
 }
 
+export function sshExperimentsArguments(transport, { remotePlatform = "posix" } = {}) {
+  return remoteGetArguments(transport, "/api/node/experiments", 15, remotePlatform);
+}
+
 export function sshSidebarArguments(transport, { remotePlatform = "posix" } = {}) {
   return remoteGetArguments(transport, "/api/node/sidebar", ACTIVITY_CURL_TIMEOUT_SECONDS, remotePlatform).filter(argument => argument !== "--fail");
 }
@@ -76,7 +80,7 @@ export function sshSkillsArguments(transport, { remotePlatform = "posix" } = {})
 
 export function sshSkillContentArguments(transport, scope, name, sourceId = scope, { remotePlatform = "posix" } = {}) {
   if (!SKILL_SCOPES.has(scope) || !SKILL_NAME_PATTERN.test(String(name || "")) || !SKILL_SOURCE_PATTERN.test(String(sourceId || ""))) throw new Error("Peer Skill reference is invalid");
-  return remoteGetArguments(transport, `/api/node/skills/content?scope=${encodeURIComponent(scope)}&sourceId=${encodeURIComponent(sourceId)}&name=${encodeURIComponent(name)}`, ACTIVITY_CURL_TIMEOUT_SECONDS, remotePlatform);
+  return remoteGetArguments(transport, `/api/node/skills/content?scope=${encodeURIComponent(scope)}&sourceId=${encodeURIComponent(sourceId)}&name=${encodeURIComponent(name)}`, 60, remotePlatform);
 }
 
 function actionHeader(headers, name, pattern) {
@@ -85,7 +89,7 @@ function actionHeader(headers, name, pattern) {
   return value;
 }
 
-function windowsActionCommand(url, headers) {
+function windowsActionCommand(url, headers, timeoutSeconds = ACTION_CURL_TIMEOUT_SECONDS) {
   const timestamp = actionHeader(headers, ACTION_HEADERS.timestamp, /^\d{1,20}$/);
   const nonce = actionHeader(headers, ACTION_HEADERS.nonce, /^[A-Za-z0-9_-]{1,128}$/);
   const signature = actionHeader(headers, ACTION_HEADERS.signature, /^[a-f0-9]{64}$/);
@@ -95,18 +99,19 @@ function windowsActionCommand(url, headers) {
     "$body=[Console]::In.ReadToEnd()",
     "$bodyBytes=$utf8.GetBytes($body)",
     `$headers=@{'${ACTION_HEADERS.timestamp}'='${timestamp}';'${ACTION_HEADERS.nonce}'='${nonce}';'${ACTION_HEADERS.signature}'='${signature}'}`,
-    `try{$response=Invoke-WebRequest -UseBasicParsing -TimeoutSec ${ACTION_CURL_TIMEOUT_SECONDS} -Method Post -ContentType 'application/json' -Headers $headers -Body $bodyBytes -Uri '${url}';[Console]::Out.Write($response.Content)}catch{if($_.Exception.Response){$reader=New-Object IO.StreamReader($_.Exception.Response.GetResponseStream());[Console]::Out.Write($reader.ReadToEnd());$reader.Dispose();exit 0};throw}`
+    `try{$response=Invoke-WebRequest -UseBasicParsing -TimeoutSec ${timeoutSeconds} -Method Post -ContentType 'application/json' -Headers $headers -Body $bodyBytes -Uri '${url}';[Console]::Out.Write($response.Content)}catch{if($_.Exception.Response){$reader=New-Object IO.StreamReader($_.Exception.Response.GetResponseStream());[Console]::Out.Write($reader.ReadToEnd());$reader.Dispose();exit 0};throw}`
   ].join(";");
   return ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encodedPowerShell(source)];
 }
 
 export function sshActionArguments(transport, headers, actionPath = MESSAGE_ACTION_PATH, { remotePlatform = "posix" } = {}) {
   if (!ALLOWED_ACTION_PATHS.has(actionPath)) throw new Error("Peer action path is invalid");
+  const timeoutSeconds = actionPath === SKILL_INSTALL_ACTION_PATH ? 60 : ACTION_CURL_TIMEOUT_SECONDS;
   if (transport.type === "direct-ssh" && remotePlatform === "windows") {
     const url = `http://127.0.0.1:${transport.dashboardPort}${actionPath}`;
-    return [...sshConnectionArguments(transport), ...windowsActionCommand(url, headers)];
+    return [...sshConnectionArguments(transport), ...windowsActionCommand(url, headers, timeoutSeconds)];
   }
-  const arguments_ = sshSnapshotArguments(transport, { curlTimeoutSeconds: ACTION_CURL_TIMEOUT_SECONDS });
+  const arguments_ = sshSnapshotArguments(transport, { curlTimeoutSeconds: timeoutSeconds });
   const url = arguments_.pop().replace("/api/node/snapshot", actionPath);
   const failIndex = arguments_.indexOf("--fail");
   if (failIndex >= 0) arguments_.splice(failIndex, 1);
