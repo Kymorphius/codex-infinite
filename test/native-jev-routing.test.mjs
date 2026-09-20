@@ -236,6 +236,8 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.doesNotMatch(source, /flex:0 0 196px/);
   assert.match(source, /data-codex-control-console-jev-native-model-effective/);
   assert.match(source, /Jev 当前模型和推理强度/);
+  assert.match(source, /color:#62bd84/);
+  assert.match(source, /rgba\(106,190,138,.52\)/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
   assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);
