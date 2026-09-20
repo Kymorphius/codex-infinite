@@ -11,6 +11,7 @@ import {
 } from "./native-context-injection.mjs";
 import { persistNativeContextAction } from "./injector.mjs";
 import { applyNativeTurboAction, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
+import { buildNativeJevRoutingInjectionScript, buildNativeJevRoutingSnapshotScript, NATIVE_JEV_ROUTING_BINDING, respondToNativeJevRoutingBinding } from "./native-jev-routing.mjs";
 import { buildNativeSidebarLabelsInjectionScript, buildNativeSidebarLabelsSnapshotScript } from "./native-sidebar-labels.mjs";
 import { buildNativeSidebarActivityInjectionScript } from "./native-sidebar-activity.mjs";
 import { buildNativeRemoteSidebarInjectionScript, buildNativeRemoteSidebarSnapshotScript } from "./native-remote-sidebar.mjs";
@@ -25,6 +26,7 @@ function nativeOwnerInjectionScripts() {
     buildNativeProjectSearchInjectionScript(),
     buildNativeContextInjectionScript(),
     buildNativeApprovalInjectionScript(),
+    buildNativeJevRoutingInjectionScript(),
     buildNativeTurboInjectionScript(),
     buildNativeSidebarLabelsInjectionScript(),
     buildNativeSidebarActivityInjectionScript(),
@@ -45,11 +47,12 @@ export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
 }
 
 export class NativeOwnerInjector {
-  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
     this.contextWindowStore = contextWindowStore;
     this.turboPolicyProvider = turboPolicyProvider;
     this.turboController = turboController;
+    this.jevRoutingService = jevRoutingService;
     this.sidebarLabelProvider = sidebarLabelProvider;
     this.remoteSidebarProvider = remoteSidebarProvider;
     this.newProjectProvider = newProjectProvider;
@@ -70,6 +73,7 @@ export class NativeOwnerInjector {
     this.removeBindingListener = null;
     this.contextActionChain = Promise.resolve();
     this.turboActionChain = Promise.resolve();
+    this.jevActionChain = Promise.resolve();
   }
 
   async attach(target) {
@@ -81,6 +85,7 @@ export class NativeOwnerInjector {
       await connection.send("Page.enable");
       await connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
+      await connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       for (const source of nativeOwnerInjectionScripts()) {
         await connection.send("Page.addScriptToEvaluateOnNewDocument", { source });
       }
@@ -98,6 +103,10 @@ export class NativeOwnerInjector {
         this.turboActionChain = this.turboActionChain
           .then(() => applyNativeTurboAction(event.params.payload, this.turboController))
           .catch((error) => this.logger.warn(`[codex-control-console] primary Turbo toggle failed: ${error.message}`));
+      } else if (event.params?.name === NATIVE_JEV_ROUTING_BINDING) {
+        this.jevActionChain = this.jevActionChain
+          .then(() => respondToNativeJevRoutingBinding(event.params.payload, connection, this.jevRoutingService))
+          .catch((error) => this.logger.warn(`[codex-control-console] primary Jev native routing failed: ${error.message}`));
       }
     }) || null;
     this.connection = connection;
@@ -112,9 +121,11 @@ export class NativeOwnerInjector {
       if (target.id !== this.targetId || !this.connection) await this.attach(target);
       await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
+      await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       for (const source of nativeOwnerInjectionScripts()) await this.connection.evaluate(source);
       await this.connection.evaluate(buildNativeContextSnapshotScript(this.contextWindowStore?.list?.() || []));
       await this.connection.evaluate(buildNativeTurboSnapshotScript(this.turboPolicyProvider?.snapshot?.() || null));
+      await this.connection.evaluate(buildNativeJevRoutingSnapshotScript(await this.jevRoutingService?.snapshot?.() || null));
       await this.connection.evaluate(buildNativeSidebarLabelsSnapshotScript(await this.sidebarLabelProvider?.read?.() || []));
       await this.connection.evaluate(buildNativeRemoteSidebarSnapshotScript(await this.remoteSidebarProvider?.read?.() || []));
       await this.connection.evaluate(buildNativeProjectSearchSnapshotScript(await this.newProjectProvider?.readSearch?.()));
@@ -162,6 +173,7 @@ export class NativeOwnerInjector {
     this.removeBindingListener = null;
     await this.contextActionChain;
     await this.turboActionChain;
+    await this.jevActionChain;
     await this.connection?.close();
     this.connection = null;
     this.targetId = null;

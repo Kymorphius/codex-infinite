@@ -53,6 +53,15 @@ export class JevRoutingService {
 
   update(value) { return this.store.write(value); }
 
+  async setEnabled(enabled) {
+    const config = await this.store.read();
+    return this.store.write({ ...config, enabled: enabled === true });
+  }
+
+  async classifyCurrent(rawPrompt) {
+    return this.classify(rawPrompt, await this.store.read());
+  }
+
   async classify(rawPrompt, configValue) {
     const prompt = promptText(rawPrompt);
     const config = normalizeJevRoutingConfig(configValue);

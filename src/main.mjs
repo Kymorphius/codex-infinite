@@ -200,6 +200,7 @@ export async function run() {
       contextWindowStore,
       turboPolicyProvider: turboPolicyService,
       turboController: turboCoordinator,
+      jevRoutingService,
       sidebarLabelProvider: sidebarLabelService,
       remoteSidebarProvider: remoteSidebarService,
       newProjectProvider: newProjectService,
@@ -209,7 +210,7 @@ export async function run() {
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
-      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, attentionConversationProvider: primaryAttentionConversations });
+      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, attentionConversationProvider: primaryAttentionConversations });
       await nativeOwnerInjector.start();
     }
     scheduler.start();

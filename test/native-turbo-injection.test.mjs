@@ -91,6 +91,23 @@ test("Turbo fixed strategy overrides model, effort, and access while Fast can re
   assert.equal(request.request.params.model, "gpt-5.6-sol");
 });
 
+test("Jev routing runs after Turbo so it owns model and effort without losing Turbo controls", async () => {
+  const { context, window, sent } = runtime();
+  vm.runInNewContext(buildNativeTurboSnapshotScript({
+    enabled: true, model: "gpt-5.6-luna", reasoningEffort: "high", fast: true,
+    accessMode: "read-only", modelEfforts: [{ model: "gpt-5.6-luna", effort: "high" }]
+  }), context);
+  window.__codexControlConsoleRouteNativeTurn = async (message) => ({
+    ...message,
+    request: { ...message.request, params: { ...message.request.params, model: "gpt-6-astra", effort: "ultra" } }
+  });
+  await window.electronBridge.sendMessageFromView({ type: "mcp-request", hostId: "local", request: { method: "turn/start", params: { threadId, model: "gpt-5.6-sol", effort: "medium", input: [] } } });
+  assert.equal(sent[0].request.params.model, "gpt-6-astra");
+  assert.equal(sent[0].request.params.effort, "ultra");
+  assert.equal(sent[0].request.params.permissions, ":read-only");
+  assert.equal(sent[0].request.params.serviceTierForTurn, "priority");
+});
+
 test("Turbo leaves a node outside the configured device range untouched", async () => {
   const { context, window, sent } = runtime();
   vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: true, active: false, fast: true, modelEfforts: [{ model: "gpt-5.6-sol", effort: "ultra" }] }), context);

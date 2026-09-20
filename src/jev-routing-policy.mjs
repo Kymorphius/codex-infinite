@@ -35,7 +35,8 @@ export const JEV_TIER_DESCRIPTIONS = Object.freeze({
 
 export function defaultJevRoutingConfig() {
   return {
-    version: 2,
+    version: 3,
+    enabled: true,
     minConfidence: 0.7,
     fallbackTier: "everyday",
     mappings: Object.fromEntries(JEV_ROUTE_TIERS.map((tier) => [tier, { ...DEFAULT_MAPPINGS[tier] }]))
@@ -58,7 +59,8 @@ export function normalizeJevRoutingConfig(value) {
   const fallbackTier = typeof value?.fallbackTier === "string" ? value.fallbackTier : defaults.fallbackTier;
   if (!JEV_ROUTE_TIERS.includes(fallbackTier)) throw new Error("兜底档位无效");
   return {
-    version: 2,
+    version: 3,
+    enabled: typeof value?.enabled === "boolean" ? value.enabled : defaults.enabled,
     minConfidence,
     fallbackTier,
     mappings: Object.fromEntries(JEV_ROUTE_TIERS.map((tier) => [tier, normalizeMapping(value?.mappings?.[tier] ?? defaults.mappings[tier], tier)]))

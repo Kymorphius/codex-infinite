@@ -24,10 +24,10 @@ test("primary owner injector installs only native bridges and does not add the d
     logger: { warn() {} }
   });
   await injector.sync();
-  assert.equal(sent.filter(([method]) => method === "Runtime.addBinding").length, 4);
+  assert.equal(sent.filter(([method]) => method === "Runtime.addBinding").length, 6);
   assert.equal(evaluated.filter((source) => source.includes("data-codex-control-console-chat-title") && source.includes("聊天")).length, 1);
   await injector.sync();
-  assert.equal(sent.filter(([method]) => method === "Runtime.addBinding").length, 6);
+  assert.equal(sent.filter(([method]) => method === "Runtime.addBinding").length, 9);
   assert.equal(evaluated.filter((source) => source.includes("data-codex-control-console-chat-title") && source.includes("聊天")).length, 2);
   assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleApplyThreadSettings")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-sidebar-labels")));

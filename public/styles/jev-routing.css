@@ -15,3 +15,18 @@
 .jev-result[data-fallback="true"] { border-color: #d9a928; }
 @media (max-width: 960px) { .jev-routing-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .jev-mapping-row, .jev-routing-options { grid-template-columns: 1fr; } .jev-submit-row { align-items: stretch; flex-direction: column; } }
+.jev-native-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--native-ui-border);
+  border-radius: 12px;
+  background: var(--native-ui-surface-raised);
+}
+
+.jev-native-toggle > span { display: grid; gap: 3px; }
+.jev-native-toggle small { color: var(--native-ui-text-secondary); font-size: 11px; line-height: 1.4; }
+.jev-native-toggle input { width: 17px; height: 17px; accent-color: var(--native-ui-accent); }

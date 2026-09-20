@@ -18,6 +18,7 @@ import {
   normalizeNativeContextAction
 } from "./native-context-injection.mjs";
 import { applyNativeTurboAction, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
+import { buildNativeJevRoutingInjectionScript, buildNativeJevRoutingSnapshotScript, NATIVE_JEV_ROUTING_BINDING, respondToNativeJevRoutingBinding } from "./native-jev-routing.mjs";
 import { buildNativeSidebarLabelsInjectionScript, buildNativeSidebarLabelsSnapshotScript } from "./native-sidebar-labels.mjs";
 import { buildNativeSidebarActivityInjectionScript } from "./native-sidebar-activity.mjs";
 import { buildNativeRemoteSidebarInjectionScript, buildNativeRemoteSidebarSnapshotScript } from "./native-remote-sidebar.mjs";
@@ -48,11 +49,13 @@ export async function drainNativeContextActions(connection, contextWindowStore) 
   return actions;
 }
 
-async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch) {
+async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch) {
   await connection.evaluate(buildNativeApprovalInjectionScript());
   await connection.evaluate(buildNativeContextInjectionScript());
   await drainNativeContextActions(connection, contextWindowStore);
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
+  await connection.evaluate(buildNativeJevRoutingInjectionScript());
+  await connection.evaluate(buildNativeJevRoutingSnapshotScript(jevRouting));
   await connection.evaluate(buildNativeTurboInjectionScript());
   await connection.evaluate(buildNativeTurboSnapshotScript(turboPolicy));
   await connection.evaluate(buildNativeSidebarLabelsInjectionScript());
@@ -109,7 +112,7 @@ async function prepareCspBypass(connection, { reloadAfterCspBypass = true } = {}
   return true;
 }
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, reloadAfterCspBypass = true } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, reloadAfterCspBypass = true } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -121,6 +124,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeApprovalInjectionScript()
     });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeJevRoutingInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeTurboInjectionScript()
     });
@@ -165,7 +169,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     }
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
-      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch);
+      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch);
       await connection.evaluate(buildInjectionScript(dashboardUrl));
       return { status: "already-installed" };
     }
@@ -174,14 +178,14 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       connection.__codexControlConsoleRecoveryAttempted = true;
     }
   }
-  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch);
+  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch);
   await connection.evaluate(buildInjectionScript(dashboardUrl));
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -191,6 +195,7 @@ export class CodexInjector {
     this.contextWindowStore = contextWindowStore;
     this.turboPolicyProvider = turboPolicyProvider;
     this.turboController = turboController;
+    this.jevRoutingService = jevRoutingService;
     this.sidebarLabelProvider = sidebarLabelProvider;
     this.remoteSidebarProvider = remoteSidebarProvider;
     this.newProjectProvider = newProjectProvider;
@@ -205,6 +210,7 @@ export class CodexInjector {
     this.removeContextBindingListener = null;
     this.contextActionChain = Promise.resolve();
     this.turboActionChain = Promise.resolve();
+    this.jevActionChain = Promise.resolve();
   }
 
   async sync() {
@@ -230,6 +236,7 @@ export class CodexInjector {
         await this.connection.connect();
         await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
         await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
+        await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
         this.removeContextBindingListener = this.connection.onEvent((event) => {
           if (event.method !== "Runtime.bindingCalled") return;
           if (event.params?.name === NATIVE_CONTEXT_BINDING) {
@@ -240,18 +247,25 @@ export class CodexInjector {
             this.turboActionChain = this.turboActionChain
               .then(() => applyNativeTurboAction(event.params.payload, this.turboController))
               .catch((error) => this.logger.warn(`[codex-control-console] Turbo toggle failed: ${error.message}`));
+          } else if (event.params?.name === NATIVE_JEV_ROUTING_BINDING) {
+            const connection = this.connection;
+            this.jevActionChain = this.jevActionChain
+              .then(() => respondToNativeJevRoutingBinding(event.params.payload, connection, this.jevRoutingService))
+              .catch((error) => this.logger.warn(`[codex-control-console] Jev native routing failed: ${error.message}`));
           }
         });
         this.targetId = target.id;
       }
       await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
+      await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];
       await installIntoTarget(this.connection, this.dashboardUrl, {
         contextOverrides: this.contextWindowStore?.list?.() || [],
         contextWindowStore: this.contextWindowStore,
         turboPolicy: this.turboPolicyProvider?.snapshot?.() || null,
+        jevRouting: await this.jevRoutingService?.snapshot?.() || null,
         sidebarLabels,
         remoteSidebar,
         projectSearch: await this.newProjectProvider?.readSearch?.(),
@@ -288,6 +302,7 @@ export class CodexInjector {
     this.removeContextBindingListener = null;
     await this.contextActionChain;
     await this.turboActionChain;
+    await this.jevActionChain;
     await this.connection?.close();
     this.connection = null;
     this.targetId = null;

@@ -158,7 +158,11 @@ export function buildNativeTurboInjectionScript() {
     const originalSend = current.bind(bridge);
     const wrapped = async function(message) {
       await prepareTurboContext(originalSend, message);
-      return originalSend(transform(message));
+      const transformed = transform(message);
+      const routed = typeof window.__codexControlConsoleRouteNativeTurn === 'function'
+        ? await window.__codexControlConsoleRouteNativeTurn(transformed)
+        : transformed;
+      return originalSend(routed);
     };
     wrapped.__codexControlTurboWrapped = true;
     wrapped.__codexControlTurboOriginal = current;

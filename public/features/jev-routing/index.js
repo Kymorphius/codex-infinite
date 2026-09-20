@@ -48,6 +48,7 @@ export function createJevRoutingFeature({ $, showToast }) {
   }
 
   function applyConfig(config) {
+    configForm.elements.enabled.checked = config.enabled !== false;
     for (const tier of JEV_TIERS) {
       configForm.elements[`${tier.id}.model`].value = config.mappings[tier.id].model;
       configForm.elements[`${tier.id}.effort`].value = config.mappings[tier.id].effort;
@@ -58,7 +59,8 @@ export function createJevRoutingFeature({ $, showToast }) {
 
   function readConfig() {
     return {
-      version: 2,
+      version: 3,
+      enabled: configForm.elements.enabled.checked,
       minConfidence: Number(configForm.elements.minConfidence.value),
       fallbackTier: configForm.elements.fallbackTier.value,
       mappings: Object.fromEntries(JEV_TIERS.map((tier) => [tier.id, {

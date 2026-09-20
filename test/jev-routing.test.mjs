@@ -37,7 +37,8 @@ function jsonRequest(method, body, origin = "http://127.0.0.1:47831") {
 
 test("routing policy keeps configurable model and effort mappings bounded", () => {
   const defaults = defaultJevRoutingConfig();
-  assert.equal(defaults.version, 2);
+  assert.equal(defaults.version, 3);
+  assert.equal(defaults.enabled, true);
   assert.equal(Object.keys(defaults.mappings).length, 8);
   assert.deepEqual(defaults.mappings.instant, { model: "gpt-5.6-luna", effort: "low" });
   assert.deepEqual(defaults.mappings.critical, { model: "gpt-6-astra", effort: "xhigh" });
@@ -60,7 +61,8 @@ test("legacy four-tier config migrates without losing existing mappings", () => 
     }
   };
   const migrated = normalizeJevRoutingConfig(legacy);
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.enabled, true);
   assert.equal(Object.keys(migrated.mappings).length, 8);
   for (const tier of ["quick", "everyday", "complex", "critical"]) {
     assert.deepEqual(migrated.mappings[tier], legacy.mappings[tier]);
@@ -76,8 +78,9 @@ test("routing store reads and writes the shared Router document", async (t) => {
   const filePath = path.join(directory, "codex-router", "jev-task-routing.json");
   const store = new JevRoutingStore({ filePath });
   assert.equal((await store.read()).fallbackTier, "everyday");
-  const saved = await store.write({ ...defaultJevRoutingConfig(), minConfidence: 0.8, fallbackTier: "complex" });
+  const saved = await store.write({ ...defaultJevRoutingConfig(), enabled: false, minConfidence: 0.8, fallbackTier: "complex" });
   assert.equal(saved.minConfidence, 0.8);
+  assert.equal((await store.read()).enabled, false);
   assert.equal((await store.read()).fallbackTier, "complex");
   assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
 });
