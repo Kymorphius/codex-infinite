@@ -232,6 +232,9 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /addEventListener\('pointerup'/);
   assert.match(source, /pointer-events:auto!important/);
   assert.match(source, /ignoreClickUntil/);
+  assert.match(source, /flex:0 0 82px/);
+  assert.match(source, /flex:0 0 196px/);
+  assert.match(source, /visibility:' \+ \(active \? 'visible' : 'hidden'\)/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
   assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);

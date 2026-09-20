@@ -28,12 +28,15 @@ export function buildNativeJevComposerControlSource() {
   };
 
   function renderCurrentChoice(node, threadId, active) {
-    const choice = active ? choiceForCurrentThread(threadId) : null;
+    // Keep the footer geometry stable while the route switch changes state.
+    // Hiding a fixed-width choice slot avoids a composer reflow when its model
+    // label is inserted or removed.
+    const choice = choiceForCurrentThread(threadId);
     if (!choice?.value?.model || !choice?.value?.effort) { node?.remove(); return null; }
     const chip = node || document.createElement('span'); chip.setAttribute('data-codex-control-console-native-jev-choice', '');
     const model = String(choice.value.model).replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1));
-    chip.textContent = model + '（' + choice.value.effort + '）'; chip.title = choice.title; chip.setAttribute('aria-label', 'Jev 当前模型和推理强度：' + chip.textContent);
-    chip.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 7px;color:#a9d9b9;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;opacity:.9;-webkit-app-region:no-drag;app-region:no-drag;';
+    chip.textContent = model + '（' + choice.value.effort + '）'; chip.title = active ? choice.title : ''; chip.setAttribute('aria-label', 'Jev 当前模型和推理强度：' + chip.textContent); chip.setAttribute('aria-hidden', String(!active));
+    chip.style.cssText = 'display:inline-flex;box-sizing:border-box;flex:0 0 196px;width:196px;align-items:center;height:28px;padding:0 7px;color:#a9d9b9;font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;opacity:' + (active ? '.9' : '0') + ';visibility:' + (active ? 'visible' : 'hidden') + ';pointer-events:none;-webkit-app-region:no-drag;app-region:no-drag;';
     return chip;
   }
 `;
