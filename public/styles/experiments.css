@@ -1,0 +1,17 @@
+.experiment-panel { padding: 24px; }
+.experiment-toolbar { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.experiment-toolbar h2 { margin-right: auto; }
+.experiment-devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 20px; align-items: start; }
+.experiment-device { border: 1px solid var(--native-ui-border); border-radius: 12px; padding: 20px; min-width: 0; }
+.experiment-device h3 { margin: 0 0 8px; }
+.experiment-group { margin-top: 24px; }
+.experiment-group h4 { margin-bottom: 8px; }
+.experiment-item { padding: 14px 0; border-top: 1px solid var(--native-ui-border); overflow-wrap: anywhere; }
+.experiment-heading { display: flex; justify-content: space-between; gap: 16px; }
+.experiment-heading span { flex-shrink: 0; }
+.experiment-item p { line-height: 1.6; margin: 8px 0; }
+.experiment-item code, .experiment-meta { opacity: .65; font-size: 12px; }
+.experiment-on { color: var(--native-ui-text); font-size: 12px; font-weight: 600; }
+.experiment-unavailable { opacity: .75; line-height: 1.6; }
+
+.experiment-item > code, .experiment-item > small { display: block; margin-top: 5px; }
