@@ -213,9 +213,13 @@ test("native Jev source installs the visible default-on switch", () => {
   const source = buildNativeJevRoutingInjectionScript();
   assert.match(source, /data-codex-control-console-native-jev/);
   assert.match(source, /data-codex-control-console-native-jev-current/);
+  assert.match(source, /data-codex-control-console-native-jev-choice/);
+  assert.match(source, /data-codex-control-console-jev-native-model-disabled/);
   assert.match(source, /data-composer-navigation-target="permissions"/);
+  assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /Jev 全局/);
   assert.match(source, /'Jev 原生' : 'Jev 路由'/);
+  assert.match(source, /Jev 当前模型和推理强度/);
   assert.doesNotMatch(source, /Jev 自动 ·/);
   assert.match(source, /data-codex-control-console-jev-turn/);
   assert.match(source, /shared-mutation-events/);
