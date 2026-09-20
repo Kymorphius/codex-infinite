@@ -27,6 +27,7 @@ const REQUIRED_DANGLING_LINKS = new Set([
   "state_5.sqlite-shm",
   "state_5.sqlite-wal"
 ]);
+const WRAPPER_OWNED_RUNTIME_FILES = new Set(["models_cache.json"]);
 
 function positiveInteger(value, label) {
   const parsed = typeof value === "number" ? value : Number.parseInt(String(value || ""), 10);
@@ -62,6 +63,10 @@ async function ensureSharedEntry(sourceHome, wrapperHome, name, platform, allowA
   try {
     const stat = await fs.lstat(targetPath);
     if (!stat.isSymbolicLink()) {
+      // Codex refreshes this cache with an atomic rename, which replaces the
+      // initial symlink while the dedicated app is running. It contains no
+      // user-authored state, so the wrapper may safely keep its live copy.
+      if (stat.isFile() && WRAPPER_OWNED_RUNTIME_FILES.has(name)) return false;
       if (platform === "win32" && allowActiveRuntimeSidecars && REQUIRED_DANGLING_LINKS.has(name)) return true;
       throw new Error(`包装版 CODEX_HOME 中的 ${name} 已存在且不是符号链接`);
     }

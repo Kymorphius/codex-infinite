@@ -93,6 +93,23 @@ test("wrapper SQLite sidecar links survive targets appearing after preparation",
   assert.equal(await fs.readFile(path.join(wrapperHome, "state_5.sqlite-wal"), "utf8"), "state_5.sqlite-wal");
 });
 
+test("wrapper preparation accepts a model cache atomically replaced by the running app", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-model-cache-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const sourceHome = path.join(directory, "source");
+  const wrapperHome = path.join(directory, "wrapper");
+  await fs.mkdir(sourceHome, { recursive: true });
+  await fs.mkdir(wrapperHome, { recursive: true });
+  await fs.writeFile(path.join(sourceHome, "models_cache.json"), '{"source":true}');
+  await fs.writeFile(path.join(wrapperHome, "models_cache.json"), '{"wrapper":true}');
+
+  const result = await prepareWrapperCodexHome({ sourceHome, wrapperHome, contextWindow: 1_000_000 });
+
+  assert.equal((await fs.lstat(path.join(wrapperHome, "models_cache.json"))).isSymbolicLink(), false);
+  assert.equal(await fs.readFile(path.join(wrapperHome, "models_cache.json"), "utf8"), '{"wrapper":true}');
+  assert.equal(result.sharedEntries.includes("models_cache.json"), false);
+});
+
 test("wrapper preparation refuses a regular SQLite sidecar without replacing it", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-sidecar-refusal-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
