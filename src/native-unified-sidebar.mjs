@@ -1,114 +1,81 @@
-// Presentation-only grouping. Native nodes and execution ownership remain native.
-export function installUnifiedSidebar(onChange) {
+import { readNativeSidebarModel } from './native-sidebar-model.mjs';
+import { createSourceSidebarRenderer } from './native-sidebar-render.mjs';
+import { installSidebarMenu } from './native-sidebar-menu.mjs';
+
+export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, createMenu) {
+  const VERSION = '2026-09-08.owner.4';
+  if (window.__codexControlConsoleUnifiedSidebar?.version === VERSION) return;
   window.__codexControlConsoleUnifiedSidebar?.dispose();
-  const KEY = 'codex-control-console.unified-sidebar.v1';
-  const ATTR = 'data-codex-control-console-unified-list';
-  let saved;
-  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { saved = {}; }
-  let enabled = saved?.enabled === true;
-  const assignments = new Map((Array.isArray(saved?.assignments) ? saved.assignments : []).slice(0, 512)
-    .filter(entry => Array.isArray(entry) && entry.length === 2 && entry.every(value => typeof value === 'string' && value.length <= 1024)));
-  let groups = new Map(), disposed = false, scheduled = false;
-  const control = document.createElement('div');
-  control.setAttribute('data-codex-control-console-unified-control', '');
-  control.style.cssText = 'display:flex;justify-content:flex-end;padding:3px 10px;order:-1;';
-  const button = document.createElement('button');
-  button.type = 'button'; button.textContent = '统一';
-  button.setAttribute('data-codex-control-console-unified-toggle', '');
-  button.setAttribute('aria-label', '统一侧边栏');
-  button.style.cssText = 'border:1px solid #8885;border-radius:6px;padding:3px 9px;font:inherit;font-size:12px;color:inherit;-webkit-app-region:no-drag';
-  control.append(button);
-  const identity = (device, project) => JSON.stringify([device.id, project.key]);
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify({ enabled, assignments: [...assignments].slice(-512) })); } catch { /* Storage can be unavailable. */ }
+  document.querySelectorAll('[data-codex-control-console-unified-list]').forEach(node => node.remove());
+  const KEY = 'codex-control-console.unified-sidebar.v1', origin = new URL(dashboardUrl).origin;
+  let enabled = false; try { enabled = JSON.parse(localStorage.getItem(KEY) || '{}').enabled === true; } catch {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ enabled })); } catch {} }; save();
+  let devices = [], ready = false, pendingRead = false, disposed = false, last = '', frame;
+  const pending = new Map(), channel = crypto.randomUUID();
+  const control = document.createElement('div'); control.setAttribute('data-codex-control-console-unified-control', '');
+  const toggle = document.createElement('button'); toggle.textContent = '统一'; toggle.setAttribute('data-codex-control-console-unified-toggle', '');
+  const manage = document.createElement('button'); manage.textContent = '管理'; manage.title = '管理各设备原生分区';
+  for (const button of [toggle, manage]) { button.style.cssText = 'border:1px solid #8885;border-radius:6px;padding:3px 7px;font:inherit;font-size:12px;color:inherit;background:var(--color-background-primary,#252525);-webkit-app-region:no-drag'; control.append(button); }
+  function request(operation, input) {
+    if (!ready) return Promise.reject(Error('侧边栏连接尚未就绪'));
+    const id = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { pending.delete(id); reject(Error('设备响应超时，请刷新核对')); }, 65000);
+      pending.set(id, { resolve, reject, timer }); frame.contentWindow.postMessage({ type: 'codex-sidebar-request', channel, id, operation, input }, origin);
+    });
   }
-  function sections() {
-    return Array.from(document.querySelectorAll('section[data-app-action-sidebar-section-heading]'));
+  const menu = createMenu({ request, refresh, getDevices: () => devices });
+  const renderer = createRenderer({ readModel, onItem: menu.item, openConversation: (device, record) => {
+    window.__codexControlConsoleOpenUnifiedConversation?.({ id: record.id, deviceId: device.device.id, deviceName: device.device.name, title: record.title, cwd: record.cwd });
+  } });
+  async function refresh() {
+    if (!enabled || !ready || pendingRead || disposed) return;
+    pendingRead = true;
+    try {
+      const result = await request('read'); devices = result.devices || [];
+      const signature = JSON.stringify(devices);
+      if (enabled && (signature !== last || !renderer.connected())) { last = signature; renderer.render(devices); }
+      toggle.title = '统一显示各设备的原生分区';
+    } catch (error) { toggle.title = error.message; devices = devices.map(value => ({ ...value, status: 'offline', message: error.message })); if (enabled) renderer.render(devices); }
+    finally { pendingRead = false; }
   }
-  const heading = section => section.getAttribute('data-app-action-sidebar-section-heading');
-  function destinations() {
-    const all = sections();
-    const excluded = new Set(['Recents', 'Threads', 'Chats', 'Work', 'Cloud', 'Pinned', 'pinned', '固定', '置顶', '已置顶', '项目（聊天）', '云工作', 'Projects']);
-    return [{ key: 'Projects', label: '项目' }, ...all.filter(section => {
-      const key = heading(section);
-      return key && !excluded.has(key) && !section.hasAttribute('data-codex-control-console-chat-source-bootstrapped')
-        && all.filter(other => heading(other) === key).length === 1;
-    }).map(section => ({ key: heading(section), label: section.querySelector('[data-app-action-sidebar-section-toggle]')?.textContent.trim() || heading(section) }))];
+  function connect() {
+    if (frame) return;
+    frame = document.createElement('iframe'); frame.hidden = true; frame.setAttribute('data-codex-sidebar-bridge', ''); frame.src = origin + '/sidebar.html?channel=' + channel; document.body.append(frame);
   }
-  function destination(device, project) {
-    const key = assignments.get(identity(device, project));
-    return destinations().some(item => item.key === key) ? key : 'Projects';
-  }
-  function reset() { for (const group of groups.values()) group.remove(); groups = new Map(); }
-  function container(device, project) {
-    const key = project ? destination(device, project) : 'Projects';
-    if (!groups.has(key)) {
-      const node = document.createElement('div'); node.setAttribute(ATTR, key);
-      node.className = 'flex flex-col px-row-x';
-      // Remote aliases must not enter native drag-and-drop ownership.
-      node.addEventListener('pointerdown', event => event.stopPropagation());
-      node.addEventListener('dragstart', event => { event.preventDefault(); event.stopPropagation(); });
-      groups.set(key, node);
-    }
-    return groups.get(key);
+  function receive(event) {
+    if (event.source !== frame?.contentWindow || event.origin !== origin || event.data?.channel !== channel) return;
+    if (event.data.type === 'codex-sidebar-ready') { ready = true; void refresh(); return; }
+    if (event.data.type !== 'codex-sidebar-response') return;
+    const value = pending.get(event.data.id); if (!value) return;
+    pending.delete(event.data.id); clearTimeout(value.timer); if (event.data.error) value.reject(Error(event.data.error)); else value.resolve(event.data.result);
   }
   function place() {
     if (disposed) return;
-    const all = sections(), projects = all.find(section => heading(section) === 'Projects');
-    const parent = projects?.parentElement?.parentElement;
-    const newChat = Array.from(document.querySelectorAll('button')).find(node => /^(新聊天|New chat)$/.test((node.textContent || '').trim()));
+    const newChat = Array.from(document.querySelectorAll('button')).find(node => /^(新聊天|New chat)$/.test(node.textContent?.trim()));
     if (newChat) {
-      if (control.parentElement !== document.body) document.body.append(control);
       const rect = newChat.getBoundingClientRect();
-      control.style.cssText = 'position:fixed;z-index:60;display:' + (rect.width > 100 && rect.height > 0 ? 'flex' : 'none') + ';padding:0;-webkit-app-region:no-drag;right:auto;left:' + (rect.right - 68) + 'px;top:' + (rect.top + Math.max(0, (rect.height - 28) / 2)) + 'px';
-    } else if (parent && control.parentElement !== parent) parent.insertBefore(control, parent.firstChild);
-    button.setAttribute('aria-pressed', String(enabled));
-    button.title = enabled ? '关闭统一显示，恢复本地与远端分区' : '统一显示和管理本地、远端项目';
-    button.style.background = enabled ? 'var(--color-background-selected,#8883)' : 'transparent';
-    for (const [key, group] of groups) {
-      const matches = all.filter(section => heading(section) === key);
-      const section = matches.length === 1 ? matches[0] : projects;
-      if (!enabled || !section) { group.remove(); continue; }
-      if (group.parentElement !== section.parentElement) section.parentElement.append(group);
-      group.hidden = section.getAttribute('data-app-action-sidebar-section-collapsed') === 'true'
-        || section.querySelector('[data-app-action-sidebar-section-toggle]')?.getAttribute('aria-expanded') === 'false';
-      group.style.display = group.hidden ? 'none' : 'flex';
+      if (control.parentElement !== document.body) document.body.append(control);
+      control.style.cssText = 'position:fixed;z-index:60;display:' + (rect.width > 100 && rect.height > 0 ? 'flex' : 'none') + ';gap:3px;left:' + (rect.right - (enabled ? 96 : 52)) + 'px;top:' + (rect.top + Math.max(0, (rect.height - 28) / 2)) + 'px';
     }
+    toggle.setAttribute('aria-pressed', String(enabled)); toggle.style.background = enabled ? 'var(--color-background-selected,#555)' : 'var(--color-background-primary,#252525)'; manage.hidden = !enabled;
+    if (enabled) { document.querySelector('[data-codex-control-console-remote-sidebar]')?.remove(); renderer.place(); }
   }
-  function change(value) { enabled = value; save(); reset(); onChange(); place(); }
-  button.addEventListener('click', () => change(!enabled));
-  function schedule() {
-    if (scheduled || disposed) return;
-    scheduled = true;
-    requestAnimationFrame(() => { scheduled = false; place(); });
-  }
-  function onStorage(event) {
-    if (event.key !== KEY) return;
-    try {
-      const state = JSON.parse(event.newValue || '{}');
-      assignments.clear();
-      for (const entry of (Array.isArray(state.assignments) ? state.assignments : []).slice(0, 512)) {
-        if (Array.isArray(entry) && entry.length === 2 && entry.every(value => typeof value === 'string' && value.length <= 1024)) assignments.set(...entry);
-      }
-      enabled = state.enabled === true; reset(); onChange(); place();
-    } catch { /* Ignore malformed external state. */ }
-  }
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-section-collapsed', 'data-app-action-sidebar-section-heading', 'aria-expanded'] });
-  window.addEventListener('storage', onStorage); window.addEventListener('resize', schedule);
-  const api = {
-    get enabled() { return enabled; }, container, reset, place, destinations, destination,
-    assign(device, project, key) {
-      if (!destinations().some(item => item.key === key)) return false;
-      assignments.set(identity(device, project), key); save(); reset(); onChange(); place(); return true;
-    },
-    dispose() { disposed = true; observer.disconnect(); window.removeEventListener('storage', onStorage); window.removeEventListener('resize', schedule); reset(); control.remove(); }
+  toggle.onclick = () => {
+    enabled = !enabled; save(); menu.close(); last = '';
+    if (enabled) { connect(); void refresh(); } else { renderer.clear(); window.__codexControlConsoleRefreshLegacySidebar?.(); }
+    place();
   };
-  window.__codexControlConsoleUnifiedSidebar = api;
-  place();
-  return api;
+  manage.onclick = menu.manage;
+  let scheduled = false;
+  const observer = new MutationObserver(() => { if (scheduled) return; scheduled = true; requestAnimationFrame(() => { scheduled = false; place(); }); });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-section-collapsed'] });
+  window.addEventListener('message', receive);
+  const timer = setInterval(() => { if (enabled) { void refresh(); place(); } }, 5000);
+  window.__codexControlConsoleUnifiedSidebar = { version: VERSION, get enabled() { return enabled; }, refresh,
+    dispose() { disposed = true; clearInterval(timer); observer.disconnect(); window.removeEventListener('message', receive); renderer.clear(); menu.close(); control.remove(); frame?.remove(); for (const item of pending.values()) { clearTimeout(item.timer); item.reject(Error('连接已重建')); } } };
+  if (enabled) connect(); place();
 }
-
-export function buildNativeUnifiedSidebarSource() {
-  return `const unifiedSidebar = (${installUnifiedSidebar.toString()})(() => { closeProjectMenu(); render(); ensurePlacement(); });`;
+export function buildNativeUnifiedSidebarInjectionScript(dashboardUrl) {
+  return `(${installUnifiedSidebar.toString()})(${JSON.stringify(dashboardUrl)},${readNativeSidebarModel.toString()},${createSourceSidebarRenderer.toString()},${installSidebarMenu.toString()})`;
 }

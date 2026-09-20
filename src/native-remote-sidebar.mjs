@@ -1,5 +1,4 @@
 import { buildNativeRemoteSidebarRenderSource } from "./native-remote-sidebar-render.mjs";
-import { buildNativeUnifiedSidebarSource } from "./native-unified-sidebar.mjs";
 import { calculateProjectPriority } from "../public/core/project-priority.js";
 import { buildNativeRemoteProjectCopyUiSource } from "./native-remote-project-copy-ui.mjs";
 import { buildNativeRemoteProjectListUiSource } from "./native-remote-project-list-ui.mjs";
@@ -119,7 +118,7 @@ export class NativeRemoteSidebarService {
 
 export function buildNativeRemoteSidebarInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-08.unified.2', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
+  const VERSION = '2026-09-08.owner.1', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
   const ROOT_SELECTOR = '[data-codex-control-console-remote-sidebar]';
   if (window.__codexControlConsoleRemoteSidebarVersion === VERSION && window.__codexControlConsoleRemoteSidebarObserver) return;
   window.__codexControlConsoleRemoteSidebarObserver?.disconnect?.(); if (window.__codexControlConsoleRemoteNativeSelectionListener) document.removeEventListener('click', window.__codexControlConsoleRemoteNativeSelectionListener, true);
@@ -130,7 +129,7 @@ export function buildNativeRemoteSidebarInjectionScript() {
   window.__codexControlConsoleExpandedRemoteDevices = expandedDevices; window.__codexControlConsoleExpandedRemoteProjects = expandedProjects; window.__codexControlConsoleExpandedRemoteProjectLists = expandedProjectLists;
   ${buildNativeRemoteProjectCopyUiSource()}
   ${buildNativeRemoteProjectListUiSource()}
-  ${buildNativeUnifiedSidebarSource()}
+
 
   function element(tag, text, css) {
     const node = document.createElement(tag);
@@ -210,7 +209,7 @@ export function buildNativeRemoteSidebarInjectionScript() {
     return node;
   }
   function ensurePlacement() {
-    if (unifiedSidebar.enabled) { root?.remove(); unifiedSidebar.place(); return; }
+    if (window.__codexControlConsoleUnifiedSidebar?.enabled) { root?.remove(); return; }
     document.querySelectorAll(ROOT_SELECTOR).forEach((node) => { if (node !== root) node.remove(); }); if (!devices.length) { root?.remove(); return; }
     const templates = nativeTemplates();
     if (root && templatesSignature(templates) !== templateSignature) render();
@@ -284,6 +283,8 @@ export function buildNativeRemoteSidebarInjectionScript() {
     requestAnimationFrame(() => { placementPending = false; ensurePlacement(); });
   }
 
+  window.__codexControlConsoleRefreshLegacySidebar = () => { render(); ensurePlacement(); };
+  window.__codexControlConsoleOpenUnifiedConversation = openRemoteConversation;
   window.__codexControlConsoleSetRemoteSidebar = (items) => { devices = Array.isArray(items) ? items : []; render(); ensurePlacement(); return { count: devices.length }; };
   window.__codexControlConsoleRemoteNativeSelectionListener = (event) => {
     if (!event.target?.closest?.('[data-app-action-sidebar-thread-id]') || !selectedConversationKey) return;

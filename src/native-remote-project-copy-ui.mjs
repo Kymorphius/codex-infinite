@@ -51,11 +51,6 @@ export function buildNativeRemoteProjectCopyUiSource() {
       single.title = '复制此路径'; single.addEventListener('click', () => copyMenuText(path, '项目路径已复制')); menu.append(single);
     }
     menu.append(action);
-    if (unifiedSidebar.enabled) for (const target of unifiedSidebar.destinations()) {
-      const move = element('button', (unifiedSidebar.destination(device, project) === target.key ? '✓ ' : '移入 ') + target.label);
-      move.type = 'button'; move.setAttribute('role', 'menuitem'); move.style.cssText = action.style.cssText; move.style.opacity = '1'; move.style.cursor = 'pointer';
-      move.addEventListener('click', () => unifiedSidebar.assign(device, project, target.key)); menu.append(move);
-    }
     document.body.append(menu); projectMenu = menu;
     const rect = menu.getBoundingClientRect(); menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - rect.width - 8)) + 'px'; menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - rect.height - 8)) + 'px';
     queueMicrotask(() => { if (canCopy) copyPath.focus(); else if (available) action.focus(); });

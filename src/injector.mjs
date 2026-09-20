@@ -1,3 +1,4 @@
+import { buildNativeUnifiedSidebarInjectionScript } from './native-unified-sidebar.mjs';
 import { syncProjectChecklist } from './project-checklist-sync.mjs';
 import { syncTurnAnnotations } from './turn-annotation-sync.mjs';
 import { buildNativeSidebarRestartInjectionScript } from "./native-sidebar-restart.mjs";
@@ -101,7 +102,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildInjectionScript(dashboardUrl)
+      source: buildNativeUnifiedSidebarInjectionScript(dashboardUrl) + ";" + buildInjectionScript(dashboardUrl)
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeContextInjectionScript()
@@ -137,6 +138,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
   }
   await prepareCspBypass(connection, { reloadAfterCspBypass });
   await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl));
+  await connection.evaluate(buildNativeUnifiedSidebarInjectionScript(dashboardUrl));
   if (!force && connection.__codexControlConsoleInstalled) {
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');

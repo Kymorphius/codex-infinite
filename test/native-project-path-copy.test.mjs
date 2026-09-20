@@ -91,14 +91,8 @@ test('remote project without a path still offers its project key', async () => {
 });
 
 
-test('unified menu assigns an offline remote project without changing its owner or copying it', () => {
-  const moves = [];
-  const h = harness({ unifiedSidebar: { enabled: true, destinations: () => [{ key: '等待', label: '等待' }], destination: () => 'Projects', assign: (...args) => moves.push(args) } });
-  const menu = h.open('/remote/path', 'offline', { key: 'remote-project' });
-  const move = menu.children.find(node => node.textContent === '移入 等待');
-  assert.ok(move); move.handlers.click();
-  assert.equal(moves[0][0].id, 'device');
-  assert.equal(moves[0][1].key, 'remote-project');
-  assert.equal(moves[0][2], '等待');
+test('legacy project copy menu does not offer local-only section assignments', () => {
+  const h = harness(), menu = h.open('/remote/path', 'offline', { key: 'remote-project' });
+  assert.equal(menu.children.some(node => node.textContent?.startsWith('移入 ')), false);
   assert.deepEqual(h.writes, []);
 });
