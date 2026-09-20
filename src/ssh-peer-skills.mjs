@@ -4,7 +4,7 @@ import { SKILL_SCHEMA_VERSION, normalizeSkillCatalog, normalizeSkillHash, normal
 import { SKILL_INSTALL_ACTION_PATH, SKILL_TOGGLE_ACTION_PATH, sshActionArguments, sshSkillContentArguments, sshSkillsArguments } from "./ssh-peer-commands.mjs";
 
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
-const MAX_PACKAGE_BYTES = 4 * 1024 * 1024;
+const MAX_PACKAGE_BYTES = 64 * 1024 * 1024;
 const PROCESS_TIMEOUT_MS = 20_000;
 
 function executeAction(spawnImpl, args, body) {
@@ -13,7 +13,7 @@ function executeAction(spawnImpl, args, body) {
     const chunks = [];
     let size = 0;
     let stderr = "";
-    const timeout = setTimeout(() => { child.kill(); reject(new Error("Peer Skill action timed out")); }, 15_000);
+    const timeout = setTimeout(() => { child.kill(); reject(new Error("Peer Skill action timed out")); }, 70_000);
     child.stdout.on("data", (chunk) => { size += chunk.length; if (size > 256 * 1024) child.kill(); else chunks.push(chunk); });
     child.stderr.on("data", (chunk) => { stderr = (stderr + chunk.toString()).slice(-4000); });
     child.once("error", (error) => { clearTimeout(timeout); reject(error); });
@@ -46,7 +46,7 @@ export class SshPeerSkills {
     ({ scope, sourceId, name } = normalizeSkillLocator({ scope, sourceId, name }));
     for (const transport of this.peer.transports) {
       try {
-        const { stdout } = await this.execFile("ssh", sshSkillContentArguments(transport, scope, name, sourceId, { remotePlatform: this.peer.platform }), { encoding: "utf8", timeout: PROCESS_TIMEOUT_MS, maxBuffer: MAX_PACKAGE_BYTES });
+        const { stdout } = await this.execFile("ssh", sshSkillContentArguments(transport, scope, name, sourceId, { remotePlatform: this.peer.platform }), { encoding: "utf8", timeout: 70_000, maxBuffer: MAX_PACKAGE_BYTES });
         return serializeSkillPackage(normalizeSkillPackage(JSON.parse(stdout)));
       } catch { this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} Skill export unavailable`); }
     }

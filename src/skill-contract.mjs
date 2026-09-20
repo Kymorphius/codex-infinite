@@ -3,8 +3,8 @@ import crypto from "node:crypto";
 export const SKILL_SCHEMA_VERSION = 2;
 export const SKILL_SCOPES = Object.freeze(["codex-user", "agents-user", "repo"]);
 export const INSTALLABLE_SKILL_SCOPES = Object.freeze(["codex-user", "agents-user"]);
-export const MAX_SKILL_FILES = 128;
-export const MAX_SKILL_BYTES = 2 * 1024 * 1024;
+export const MAX_SKILL_FILES = 2048;
+export const MAX_SKILL_BYTES = 32 * 1024 * 1024;
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const SOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/;
@@ -109,9 +109,9 @@ export function normalizeSkillCatalog(input = {}) {
     name: normalizeSkillName(skill.name),
     declaredName: String(skill.declaredName || "").slice(0, 120),
     description: String(skill.description || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500),
-    hash: normalizeSkillHash(skill.hash),
-    fileCount: Number.isInteger(skill.fileCount) && skill.fileCount >= 1 && skill.fileCount <= MAX_SKILL_FILES ? skill.fileCount : 0,
-    totalBytes: Number.isInteger(skill.totalBytes) && skill.totalBytes >= 0 && skill.totalBytes <= MAX_SKILL_BYTES ? skill.totalBytes : 0,
+    hash: normalizeSkillHash(skill.hash, { nullable: true }),
+    fileCount: Number.isInteger(skill.fileCount) && skill.fileCount >= 1 && skill.fileCount <= MAX_SKILL_FILES ? skill.fileCount : null,
+    totalBytes: Number.isInteger(skill.totalBytes) && skill.totalBytes >= 0 && skill.totalBytes <= MAX_SKILL_BYTES ? skill.totalBytes : null,
     linked: skill.linked === true,
     enabled: skill.enabled !== false,
     projectName: skill.scope === "repo" ? String(skill.projectName || "项目").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120) : null,

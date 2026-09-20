@@ -1,11 +1,6 @@
 import { requestJson } from "../../core/transport.js";
 import { createGroupControls, groupSyncRequests, groupToggleRequests, runGroupRequests, syncResultHasFailures } from "./group-actions.js";
 
-function bytes(value) {
-  if (value < 1024) return `${value} B`;
-  return `${(value / 1024).toFixed(value < 10240 ? 1 : 0)} KB`;
-}
-
 export function groupSkills(skills = []) {
   const groups = new Map();
   for (const skill of skills) {
@@ -34,7 +29,7 @@ export function createSkillsFeature({ $, showToast, documentRef = document, conf
   function synchronizedCount(devices) {
     const copies = new Map();
     for (const entry of devices) for (const skill of entry.skills || []) {
-      if (skill.scope === "repo") continue;
+      if (skill.scope === "repo" || !skill.hash) continue;
       const key = `${skill.scope}:${skill.name}`;
       if (!copies.has(key)) copies.set(key, []);
       copies.get(key).push(skill.hash);
@@ -57,7 +52,7 @@ export function createSkillsFeature({ $, showToast, documentRef = document, conf
     row.className = `skill-row${skill.enabled === false ? " is-disabled" : ""}`;
     const targetScope = skill.scope === "repo" ? "agents-user" : skill.scope;
     const copyHashes = devices.filter((device) => device.status === "connected").map((device) => device.skills?.find((candidate) => candidate.scope === targetScope && candidate.name === skill.name)?.hash).filter(Boolean);
-    if (skill.scope === "repo") copyHashes.push(skill.hash);
+    if (skill.scope === "repo" && skill.hash) copyHashes.push(skill.hash);
     const info = documentRef.createElement("div");
     info.className = "skill-info";
     const name = documentRef.createElement("strong");
@@ -66,13 +61,18 @@ export function createSkillsFeature({ $, showToast, documentRef = document, conf
     description.textContent = skill.description || "没有说明";
     const meta = documentRef.createElement("small");
     const scopeLabel = skill.scope === "repo" ? "项目专用" : skill.scope === "agents-user" ? "通用个人" : "Codex 个人";
-    meta.textContent = `${scopeLabel}${skill.enabled === false ? " · 已停用" : " · 已启用"}${skill.linked ? " · 链接来源" : ""} · ${skill.fileCount} 个文件 · ${bytes(skill.totalBytes)} · ${skill.hash.slice(0, 10)}`;
+    meta.textContent = `${scopeLabel}${skill.enabled === false ? " · 已停用" : " · 已启用"}${skill.linked ? " · 链接来源" : ""}`;
     info.append(name, description, meta);
     const actions = documentRef.createElement("div");
     actions.className = "skill-actions";
     const badge = documentRef.createElement("span");
     badge.className = `skill-sync-badge ${copyHashes.length > 1 && new Set(copyHashes).size === 1 ? "is-synced" : ""}`;
     badge.textContent = copyHashes.length > 1 && new Set(copyHashes).size === 1 ? "已同步" : copyHashes.length > 1 ? "有差异" : skill.scope === "repo" ? "项目专用" : "仅此设备";
+    if (!skill.hash) {
+      const copies = devices.filter((device) => device.skills?.some((candidate) => candidate.scope === targetScope && candidate.name === skill.name));
+      badge.className = "skill-sync-badge";
+      badge.textContent = skill.scope === "repo" ? "项目专用" : copies.length > 1 ? "多设备已安装" : "仅此设备";
+    }
     const toggle = documentRef.createElement("label");
     toggle.className = "skill-toggle";
     const toggleInput = documentRef.createElement("input");
@@ -96,7 +96,7 @@ export function createSkillsFeature({ $, showToast, documentRef = document, conf
     button.dataset.scope = skill.scope;
     button.dataset.sourceId = skill.sourceId;
     button.dataset.skillName = skill.name;
-    button.dataset.hash = skill.hash;
+    button.dataset.hash = skill.hash || "";
     button.disabled = devices.filter((device) => device.status === "connected" && device.device?.id !== entry.device.id).length === 0;
     actions.append(badge, toggle, button);
     row.append(info, actions);

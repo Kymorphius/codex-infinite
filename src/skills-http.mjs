@@ -3,7 +3,7 @@ import { loadActionKey, NonceReplayWindow, verifyPeerAction } from "./peer-actio
 
 const OWNER_PATH = "/api/node/actions/skill-install";
 const OWNER_TOGGLE_PATH = "/api/node/actions/skill-toggle";
-const MAX_PACKAGE_BODY = 3 * 1024 * 1024;
+const MAX_PACKAGE_BODY = 64 * 1024 * 1024;
 
 function parseBody(body) {
   try { return JSON.parse(body.toString("utf8") || "{}"); }

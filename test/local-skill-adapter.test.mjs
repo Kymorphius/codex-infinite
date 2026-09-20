@@ -25,7 +25,7 @@ test("local Skill discovery exports bounded metadata without filesystem paths", 
   assert.equal(catalog.skills[0].description, "A demo skill");
   assert.equal(JSON.stringify(catalog).includes(os.tmpdir()), false);
   const package_ = await adapter.export("codex-user", "demo");
-  assert.equal(package_.files.find((file) => file.path === "scripts/run.sh").executable, true);
+  assert.equal(package_.files.find((file) => file.path === "scripts/run.sh").executable, process.platform !== "win32");
 });
 
 test("Skill install is hash-guarded, atomic, and backs up replaced content", async (t) => {
@@ -52,7 +52,7 @@ test("linked Skill directories can be shared as sources but are never overwritte
   const linked = (await adapter.list()).skills.find((skill) => skill.name === "linked");
   assert.equal(linked.linked, true);
   const replacement = serializeSkillPackage(normalizeSkillPackage({ scope: "codex-user", name: "linked", files: [{ path: "SKILL.md", content: Buffer.from("changed").toString("base64") }] }));
-  await assert.rejects(adapter.install({ package: replacement, expectedCurrentHash: linked.hash }), /目录链接/);
+  await assert.rejects(adapter.install({ package: replacement, expectedCurrentHash: (await adapter.export("codex-user", "linked")).hash }), /目录链接/);
 });
 
 test("repository Skills are discovered from indexed projects and exported as personal Skills", async (t) => {

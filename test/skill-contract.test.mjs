@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSkillCatalog, normalizeSkillPackage, serializeSkillPackage, skillPackageHash } from "../src/skill-contract.mjs";
+import { MAX_SKILL_FILES, normalizeSkillCatalog, normalizeSkillPackage, serializeSkillPackage, skillPackageHash } from "../src/skill-contract.mjs";
 
 const encoded = (value) => Buffer.from(value).toString("base64");
 
@@ -18,7 +18,7 @@ test("Skill packages use deterministic cross-platform path and content hashes", 
 test("Skill contracts reject traversal, links represented as paths, oversized catalogs, and forged hashes", () => {
   assert.throws(() => normalizeSkillPackage({ scope: "codex-user", name: "demo", files: [{ path: "../SKILL.md", content: encoded("x") }] }), /路径/);
   assert.throws(() => normalizeSkillPackage({ scope: "codex-user", name: "demo", files: [{ path: "SKILL.md", content: encoded("x") }], hash: "0".repeat(64) }), /指纹/);
-  assert.throws(() => normalizeSkillPackage({ scope: "codex-user", name: "demo", files: Array.from({ length: 129 }, (_, index) => ({ path: index ? `file-${index}` : "SKILL.md", content: "" })) }), /数量/);
+  assert.throws(() => normalizeSkillPackage({ scope: "codex-user", name: "demo", files: Array.from({ length: MAX_SKILL_FILES + 1 }, (_, index) => ({ path: index ? `file-${index}` : "SKILL.md", content: "" })) }), /数量/);
   assert.throws(() => normalizeSkillCatalog({ schemaVersion: 2, skills: Array.from({ length: 257 }, () => ({})) }), /清单/);
   assert.throws(() => normalizeSkillPackage({ scope: "repo", name: "demo", files: [{ path: "SKILL.md", content: encoded("x") }] }), /安装范围/);
 });

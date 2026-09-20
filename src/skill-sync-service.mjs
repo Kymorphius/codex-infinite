@@ -33,7 +33,7 @@ export class SkillSyncService {
   async sync(input = {}) {
     const sourceDeviceId = deviceId(input.sourceDeviceId);
     const { scope, sourceId, name } = normalizeSkillLocator(input);
-    const sourceHash = normalizeSkillHash(input.sourceHash);
+    const sourceHash = normalizeSkillHash(input.sourceHash || null, { nullable: true });
     if (!Array.isArray(input.targetDeviceIds) || !input.targetDeviceIds.length || input.targetDeviceIds.length > 16) throw new Error("请选择同步目标设备");
     const targetIds = [...new Set(input.targetDeviceIds.map(deviceId))].filter((id) => id !== sourceDeviceId);
     if (!targetIds.length) throw new Error("请选择其他设备作为同步目标");
@@ -42,7 +42,7 @@ export class SkillSyncService {
     const package_ = sourceDeviceId === this.localNode.id
       ? await this.localAdapter.export(scope, name, sourceId)
       : await source.exportSkill(scope, name, sourceId);
-    if (package_.hash !== sourceHash) {
+    if (sourceHash && package_.hash !== sourceHash) {
       const error = new Error("来源 Skill 已发生变化，请刷新后重试");
       error.statusCode = 409;
       throw error;
@@ -53,16 +53,21 @@ export class SkillSyncService {
       const existing = targetCatalog?.skills?.find((skill) => skill.scope === package_.scope && skill.name === name);
       if (!targetCatalog || targetCatalog.status !== "connected") return { deviceId: targetId, status: "error", message: targetCatalog?.message || "目标设备不可达" };
       try {
+        const current = existing && !existing.hash
+          ? targetId === this.localNode.id
+            ? await this.localAdapter.export(package_.scope, name)
+            : await this.peer(targetId).exportSkill(package_.scope, name)
+          : existing;
         const result = targetId === this.localNode.id
-          ? await this.localAdapter.install({ package: package_, expectedCurrentHash: existing?.hash || null })
-          : await this.peer(targetId)?.installSkill(package_, existing?.hash || null);
+          ? await this.localAdapter.install({ package: package_, expectedCurrentHash: current?.hash || null })
+          : await this.peer(targetId)?.installSkill(package_, current?.hash || null);
         if (!result) throw new Error("目标设备不存在");
         return { deviceId: targetId, status: result.unchanged ? "unchanged" : "applied", hash: result.hash, backupCreated: result.backupCreated };
       } catch (error) {
         return { deviceId: targetId, status: "error", message: error.message };
       }
     }));
-    return { sourceDeviceId, scope, sourceId, installedScope: package_.scope, name, hash: sourceHash, converged: results.every((result) => result.status !== "error"), results };
+    return { sourceDeviceId, scope, sourceId, installedScope: package_.scope, name, hash: package_.hash, converged: results.every((result) => result.status !== "error"), results };
   }
 
   async toggle(input = {}) {

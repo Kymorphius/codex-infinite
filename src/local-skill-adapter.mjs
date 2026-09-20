@@ -6,7 +6,10 @@ import { MAX_SKILL_BYTES, MAX_SKILL_FILES, SKILL_SCHEMA_VERSION, normalizeSkillH
 function frontmatter(source) {
   const block = String(source || "").match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
   if (!block) return { name: "", description: "" };
-  const value = (key) => block[1].match(new RegExp(`^${key}:\\s*["']?([^\\r\\n"']+)["']?\\s*$`, "m"))?.[1]?.trim() || "";
+  const value = (key) => {
+    const raw = block[1].match(new RegExp(`^${key}:[ \\t]*([^\\r\\n]*)$`, "m"))?.[1]?.trim() || "";
+    return /^(["'])[\s\S]*\1$/.test(raw) ? raw.slice(1, -1) : raw;
+  };
   let description = value("description");
   if (/^[>|][-+]?$/u.test(description)) {
     const lines = block[1].split(/\r?\n/);
@@ -31,9 +34,10 @@ async function collectFiles(directory, relative = "", result = []) {
     if (stat.isDirectory()) await collectFiles(directory, childRelative, result);
     else {
       if (result.length >= MAX_SKILL_FILES) throw new Error("Skill 文件数量过多");
-      const content = await fs.readFile(childPath);
-      const total = result.reduce((sum, file) => sum + file.content.length, 0) + content.length;
+      const total = result.reduce((sum, file) => sum + file.content.length, 0) + stat.size;
       if (total > MAX_SKILL_BYTES) throw new Error("Skill 内容过大");
+      const content = await fs.readFile(childPath);
+      if (total - stat.size + content.length > MAX_SKILL_BYTES) throw new Error("Skill 内容过大");
       result.push({ path: childRelative, executable: (stat.mode & 0o111) !== 0, content });
     }
   }
@@ -96,7 +100,7 @@ export class LocalSkillAdapter {
     return roots;
   }
 
-  async readSkill(scope, name, sourceId = scope, roots = null) {
+  async readSkill(scope, name, sourceId = scope, roots = null, metadataOnly = false) {
     name = normalizeSkillName(name);
     const root = rootFor(roots || await this.availableRoots(), scope, sourceId);
     const declaredDirectory = path.join(root.path, name);
@@ -105,10 +109,15 @@ export class LocalSkillAdapter {
     const directory = linked ? await fs.realpath(declaredDirectory) : declaredDirectory;
     const stat = linked ? await fs.stat(directory) : declaredStat;
     if (!stat.isDirectory()) throw new Error("Skill 目录不可导出");
-    const files = await collectFiles(directory);
+    const entryPath = path.join(directory, "SKILL.md");
+    const entryStat = await fs.lstat(entryPath);
+    if (!entryStat.isFile() || entryStat.isSymbolicLink()) throw new Error("Skill 入口必须是普通文件");
+    const files = metadataOnly
+      ? [{ path: "SKILL.md", content: await fs.readFile(entryPath) }]
+      : await collectFiles(directory);
     if (!files.some((file) => file.path === "SKILL.md")) throw new Error("Skill 缺少 SKILL.md");
     const metadata = frontmatter(files.find((file) => file.path === "SKILL.md").content.toString("utf8"));
-    const hash = skillPackageHash(files);
+    const hash = metadataOnly ? null : skillPackageHash(files);
     const skillPath = path.join(declaredDirectory, "SKILL.md");
     const enabled = this.configStore ? await this.configStore.isEnabled(skillPath) : true;
     return { scope, sourceId: root.sourceId, projectName: root.projectName, name, directory, skillPath, files, hash, metadata, linked, enabled, totalBytes: files.reduce((sum, file) => sum + file.content.length, 0), updatedAt: stat.mtime.toISOString() };
@@ -128,10 +137,10 @@ export class LocalSkillAdapter {
       for (const entry of entries) {
         if ((!entry.isDirectory() && !entry.isSymbolicLink()) || entry.name.startsWith(".")) continue;
         try {
-          const skill = await this.readSkill(root.scope, entry.name, root.sourceId, roots);
-          skills.push({ scope: root.scope, sourceId: root.sourceId, projectName: root.projectName, name: skill.name, declaredName: skill.metadata.name, description: skill.metadata.description, hash: skill.hash, fileCount: skill.files.length, totalBytes: skill.totalBytes, linked: skill.linked, enabled: skill.enabled, updatedAt: skill.updatedAt });
+          const skill = await this.readSkill(root.scope, entry.name, root.sourceId, roots, true);
+          skills.push({ scope: root.scope, sourceId: root.sourceId, projectName: root.projectName, name: skill.name, declaredName: skill.metadata.name, description: skill.metadata.description, hash: null, fileCount: null, totalBytes: null, linked: skill.linked, enabled: skill.enabled, updatedAt: skill.updatedAt });
         } catch {
-          // An invalid or linked directory is not advertised as shareable.
+          // A missing or unreadable entry document cannot supply list metadata.
         }
       }
     }
@@ -148,7 +157,7 @@ export class LocalSkillAdapter {
   async setEnabled(input = {}) {
     if (!this.configStore) throw new Error("Skill 开关未配置");
     const locator = normalizeSkillLocator(input);
-    const skill = await this.readSkill(locator.scope, locator.name, locator.sourceId);
+    const skill = await this.readSkill(locator.scope, locator.name, locator.sourceId, null, true);
     return this.configStore.setEnabled(skill.skillPath, input.enabled === true);
   }
 

@@ -1,14 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { groupSkills } from "../public/features/skills/index.js";
+import { createSkillsFeature, groupSkills } from "../public/features/skills/index.js";
 import { createGroupControls, groupSyncRequests, groupToggleRequests, runGroupRequests, syncResultHasFailures } from "../public/features/skills/group-actions.js";
 
 class FakeElement {
-  constructor(tagName) { this.tagName = tagName.toUpperCase(); this.children = []; this.dataset = {}; this.listeners = {}; }
+  constructor(tagName) { this.tagName = tagName.toUpperCase(); this.children = []; this.dataset = {}; this.listeners = {}; this.classList = { toggle() {} }; }
   append(...children) { this.children.push(...children); }
+  replaceChildren(...children) { this.children = children; }
   addEventListener(type, listener) { this.listeners[type] = listener; }
   setAttribute(name, value) { this[name] = value; }
 }
+
+test("metadata-only Skills render without invented counts or content equality", () => {
+  const elements = new Map();
+  const $ = (selector) => {
+    if (!elements.has(selector)) elements.set(selector, new FakeElement("div"));
+    return elements.get(selector);
+  };
+  const documentRef = { createElement: (tag) => new FakeElement(tag), querySelectorAll: () => [] };
+  const feature = createSkillsFeature({ $, documentRef, showToast() {} });
+  const skill = { scope: "codex-user", sourceId: "codex-user", name: "large-library", hash: null, fileCount: null, totalBytes: null };
+  feature.render({ devices: ["windows", "mac"].map((id) => ({ device: { id }, status: "connected", skills: [skill] })) });
+  const flatten = (element) => [element, ...element.children.flatMap(flatten)];
+  const rendered = flatten($("[data-testid='skills-device-list']"));
+  assert.equal(rendered.filter((element) => element.textContent === "large-library").length, 2);
+  assert.equal(rendered.filter((element) => element.textContent === "多设备已安装").length, 2);
+  assert.equal(rendered.some((element) => /null|undefined|个文件/.test(element.textContent || "")), false);
+  assert.equal($("[data-testid='skills-synced-count']").textContent, "0");
+});
 
 test("Skill UI groups personal entries first and repository entries by project", () => {
   const groups = groupSkills([

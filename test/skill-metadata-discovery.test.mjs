@@ -1,0 +1,36 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { LocalSkillAdapter } from "../src/local-skill-adapter.mjs";
+import { normalizeSkillCatalog } from "../src/skill-contract.mjs";
+import { SkillSyncService } from "../src/skill-sync-service.mjs";
+
+test("discovery ignores references and copying includes the complete large library", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "skill-metadata-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const source = path.join(root, "source");
+  const references = path.join(source, "demo", "references");
+  await fs.mkdir(references, { recursive: true });
+  await fs.writeFile(path.join(source, "demo", "SKILL.md"), "---\nname: demo\ndescription: VoltAgent's large library\n---\n");
+  await Promise.all(Array.from({ length: 148 }, (_, i) => fs.writeFile(path.join(references, `${i}.md`), "x".repeat(16000))));
+  const localAdapter = new LocalSkillAdapter({ roots: [{ scope: "codex-user", path: source }] });
+  const catalog = normalizeSkillCatalog(await localAdapter.list());
+  assert.equal(catalog.skills[0].description, "VoltAgent's large library");
+  assert.equal(catalog.skills[0].hash, null);
+  assert.equal(catalog.skills[0].totalBytes, null);
+  const exported = await localAdapter.export("codex-user", "demo");
+  assert.equal(exported.files.length, 149);
+  assert.ok(exported.totalBytes > 2 * 1024 * 1024);
+  const target = new LocalSkillAdapter({ roots: [{ scope: "codex-user", path: path.join(root, "target") }] });
+  const peer = { peer: { id: "target" }, listSkills: async () => ({ status: "connected", device: { id: "target" }, ...await target.list() }), exportSkill: (...args) => target.export(...args), installSkill: (package_, expectedCurrentHash) => target.install({ package: package_, expectedCurrentHash }) };
+  const service = new SkillSyncService({ localAdapter, localNode: { id: "source" }, peerAdapters: [peer] });
+  const selection = { sourceDeviceId: "source", scope: "codex-user", name: "demo", targetDeviceIds: ["target"] };
+  assert.equal((await service.sync(selection)).converged, true);
+  assert.equal((await target.export("codex-user", "demo")).hash, exported.hash);
+  assert.equal((await service.sync(selection)).results[0].status, "unchanged");
+  await fs.symlink(path.join(root, "missing"), path.join(references, "unreadable"));
+  assert.equal((await localAdapter.list()).skills.length, 1);
+  await assert.rejects(localAdapter.export("codex-user", "demo"), /链接/);
+});
