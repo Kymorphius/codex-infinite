@@ -32,7 +32,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const primaryCdpHost = env.CODEX_CONTROL_PRIMARY_CDP_HOST || DEFAULT_CDP_HOST;
   const primaryCdpPort = integerFromEnv(env.CODEX_CONTROL_PRIMARY_CDP_PORT, DEFAULT_PRIMARY_CDP_PORT);
   const primaryCdpEnabled = booleanFromEnv(env.CODEX_CONTROL_PRIMARY_CDP_ENABLED);
-  // Keep startup navigation owned by the native macOS application.
+  // Keep startup navigation owned by the native macOS application; a failed frame requests recovery later.
   const cspReloadRequired = platform !== 'darwin';
   const localAppData = env.LOCALAPPDATA || hostPath.join(homeDirectory, "AppData", "Local");
   const profileDirectory = env.CODEX_CONTROL_PROFILE_DIR || (

@@ -35,7 +35,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-09-20.recent-menu1';
+  const INJECTION_VERSION = '2026-09-20.recent-menu4';
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -48,7 +48,7 @@ export function buildInjectionScript(dashboardUrl) {
 ${nativeConversationTabsSource}
 ${embeddedFrameRecoverySource}
 
-  if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && document.querySelector(ENTRY_SELECTOR) && document.querySelector(KANBAN_ENTRY_SELECTOR) && document.querySelector(SESSION_ENTRY_SELECTOR) && document.querySelector(PRIORITY_ENTRY_SELECTOR) && document.querySelector('[data-codex-control-console-native-tabs]') && window.__codexControlConsoleObserver) return;
+  if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
     if (window.__codexControlConsoleNativeThreadListener) document.removeEventListener('click', window.__codexControlConsoleNativeThreadListener, true);
@@ -87,6 +87,7 @@ ${embeddedFrameRecoverySource}
   }
 
   function restoreWorkspace() {
+    cancelEmbeddedFrameRecovery();
     if (!workspaceHost) {
       document.querySelector(WORKSPACE_SELECTOR)?.remove();
       frame = null;
@@ -323,7 +324,11 @@ ${embeddedFrameRecoverySource}
       workspaceCandidate,
       openConsole: (module) => openWorkspace(module || 'board'),
       openLocal: (tab) => {
-        restoreWorkspace();
+        restoreWorkspace(); const openNativeThread = window.__codexControlConsoleOpenNativeThread;
+        if (typeof openNativeThread === 'function') {
+          void openNativeThread(tab.id).catch(() => window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(tab.id) }, '*'));
+          return;
+        }
         window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(tab.id) }, '*');
       },
       openChatgpt: (tab) => { restoreWorkspace(); window.postMessage({ type: 'navigate-to-route', path: '/c/' + encodeURIComponent(tab.id) }, '*'); },

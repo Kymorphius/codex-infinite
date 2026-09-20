@@ -29,6 +29,8 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /FRAME_ALLOW = 'clipboard-read; clipboard-write'/);
   assert.match(source, /FRAME_READY_TYPE = 'codex-control-console-ready'/);
   assert.match(source, /FRAME_RECOVERY_KEY = 'codex-control-console\.frame-recovery\.v1'/);
+  assert.match(source, /cancelEmbeddedFrameRecovery\(\)/);
+  assert.match(source, /function restoreWorkspace\(\) \{\s+cancelEmbeddedFrameRecovery\(\)/);
   assert.doesNotMatch(source, /local-network-access/);
   assert.match(source, /activeFrame\?\.setAttribute\('allow', FRAME_ALLOW\)/);
   assert.match(source, /frame\.setAttribute\('allow', FRAME_ALLOW\)/);
@@ -55,6 +57,9 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /belongsToCurrentWorkspace/);
   assert.match(source, /visiblyMounted/);
   assert.match(source, /__codexControlConsoleInjectionVersion/);
+  assert.match(source, /__codexControlConsoleInjectionVersion === INJECTION_VERSION && window\.__codexControlConsoleObserver\) return/);
+  assert.doesNotMatch(source, /__codexControlConsoleInjectionVersion === INJECTION_VERSION && document\.querySelector\(ENTRY_SELECTOR\)/);
+  assert.doesNotMatch(source, /__codexControlConsoleInjectionVersion === INJECTION_VERSION && document\.querySelector\('\[data-codex-control-console-native-tabs\]'\)/);
   assert.match(source, /__codexControlConsoleObserver\?\.disconnect/);
   assert.match(source, /openWorkspace\('sessions', loadingLabel, !openingRemote\)/);
   assert.match(source, /__codexControlConsoleOpenRemoteConversation/);
@@ -62,6 +67,8 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.doesNotMatch(source, /window\.__codexControlConsoleConversationTabs\?\.destroy/);
   assert.match(source, /installNativeConversationTabs/);
   assert.match(source, /openLocal/);
+  assert.match(source, /openLocal: \(tab\) => \{[\s\S]*const openNativeThread = window\.__codexControlConsoleOpenNativeThread/);
+  assert.match(source, /void openNativeThread\(tab\.id\)\.catch/);
   assert.match(source, /openChatgpt/);
   assert.match(source, /openRemote/);
   assert.match(source, /openWindow/);

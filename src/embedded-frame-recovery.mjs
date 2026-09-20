@@ -47,6 +47,12 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
     pendingFrameRecovery = null;
   }
 
+  function cancelEmbeddedFrameRecovery() {
+    try { sessionStorage.removeItem(FRAME_RECOVERY_KEY); } catch {}
+    pendingFrameRecovery = null;
+    frameRecoverySchedulePending = false;
+  }
+
   function scheduleEmbeddedFrameRecovery(canRestore, restore) {
     if (!pendingFrameRecovery || frameRecoverySchedulePending) return;
     frameRecoverySchedulePending = true;

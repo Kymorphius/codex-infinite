@@ -11,7 +11,7 @@ test("injector reloads once after enabling target-scoped CSP bypass", async () =
     },
     async evaluate(source) {
       calls.push({ method: "evaluate", source });
-      if (source.includes("CspBypassReloaded")) return false;
+      if (source.includes("CspDocumentToken")) return source.includes("document.readyState") ? true : "document-1";
       if (source.includes("document.readyState")) return true;
       return {};
     }
@@ -42,18 +42,21 @@ test("injector reloads once after enabling target-scoped CSP bypass", async () =
   assert.equal(calls.at(-1).method, "evaluate");
 });
 
-test("injector does not reload a document already created under CSP bypass", async () => {
+test("injector reloads only once for the same document on one CDP connection", async () => {
   const calls = [];
   const connection = {
     async send(method, params) { calls.push({ method, params }); return {}; },
     async evaluate(source) {
       calls.push({ method: "evaluate", source });
-      if (source.includes("CspBypassReloaded")) return true;
+      if (source.includes("CspDocumentToken")) return "document-1";
+      if (source.includes("frameRecoveryManaged")) return { hasEntry: false, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: "" };
+      if (source.includes("document.readyState")) return true;
       return {};
     }
   };
   await installIntoTarget(connection, "http://127.0.0.1:47831");
-  assert.equal(calls.some((call) => call.method === "Page.reload"), false);
+  await installIntoTarget(connection, "http://127.0.0.1:47831");
+  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 1);
   assert.equal(calls.some((call) => call.method === "Page.setBypassCSP"), true);
   assert.deepEqual(calls.slice(0, 10).map(({ method }) => method), [
     "Page.enable",
@@ -91,7 +94,7 @@ test("injector reasserts target-scoped CSP bypass after a renderer changes behin
     async send(method, params) { calls.push({ method, params }); return {}; },
     async evaluate(source) {
       calls.push({ method: "evaluate", source });
-      if (source.includes("CspBypassReloaded")) return false;
+      if (source.includes("CspDocumentToken")) return "document-1";
       if (source.includes("document.readyState")) return true;
       return {};
     }

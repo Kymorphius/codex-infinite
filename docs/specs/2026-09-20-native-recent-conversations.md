@@ -67,6 +67,10 @@ Local and ChatGPT navigation continues to require UUID identities. Remote
 records retain their device identity. The menu does not read message bodies or
 introduce a mutation endpoint.
 
+Remembered local conversations resume through the native app-server before
+route navigation. A route-only message is a fallback, not proof that a thread
+became active, especially from the native home screen after a renderer reload.
+
 ## Acceptance
 
 - Console plus at most one active conversation is rendered in the top strip.

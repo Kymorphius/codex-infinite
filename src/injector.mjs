@@ -86,15 +86,26 @@ async function waitForReloadedDocument(connection) {
 
 async function prepareCspBypass(connection, { reloadAfterCspBypass = true } = {}) {
   await connection.send("Page.setBypassCSP", { enabled: true });
-  if (connection.__codexControlConsoleCspPrepared) return false;
-  const alreadyReloaded = await connection.evaluate("Boolean(window.__codexControlConsoleCspBypassReloaded)").catch(() => false);
-  await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-    source: "window.__codexControlConsoleCspBypassReloaded = true;"
-  });
+  const tokenSource = `(() => {
+    if (!window.__codexControlConsoleCspDocumentToken) {
+      window.__codexControlConsoleCspDocumentToken = globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random();
+    }
+    return window.__codexControlConsoleCspDocumentToken;
+  })()`;
+  if (!connection.__codexControlConsoleCspTokenScriptPrepared) {
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: "window.__codexControlConsoleCspDocumentToken = globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random();"
+    });
+    connection.__codexControlConsoleCspTokenScriptPrepared = true;
+  }
+  const documentToken = await connection.evaluate(tokenSource).catch(() => null);
+  if (connection.__codexControlConsoleCspPrepared && connection.__codexControlConsoleCspDocumentToken === documentToken) return false;
   connection.__codexControlConsoleCspPrepared = true;
-  if (alreadyReloaded || !reloadAfterCspBypass) return false;
+  connection.__codexControlConsoleCspDocumentToken = documentToken;
+  if (!reloadAfterCspBypass) return false;
   await connection.send("Page.reload", { ignoreCache: false });
   await waitForReloadedDocument(connection);
+  connection.__codexControlConsoleCspDocumentToken = await connection.evaluate(tokenSource).catch(() => null);
   return true;
 }
 
