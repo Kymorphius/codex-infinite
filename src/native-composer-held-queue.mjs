@@ -2,7 +2,7 @@ import { readHeldEditableText, replaceHeldEditableText } from "./held-queue-edit
 import { createHeldDisplayRow, createHeldEditRow, formatHeldInitialTime, orderHeldForView } from "./held-queue-presentation.mjs";
 import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
-import { createNativeClaimTaskButton, ensureNativeClaimTaskButton } from "./native-claim-task-control.mjs";
+import { createNativeClaimTaskBridge } from "./native-claim-task-control.mjs";
 import { createNativeSaveDraftTodoButton } from "./native-save-draft-control.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
@@ -55,8 +55,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (UUID.test(composerId)) return composerId.toLowerCase();
     return readThreadId(document);
   }
-  const claimTaskButton = ${createNativeClaimTaskButton.toString()}(threadId);
-  const ensureClaimTaskButton = ${ensureNativeClaimTaskButton.toString()};
+  const claimTasks = ${createNativeClaimTaskBridge.toString()}(threadId);
   function readStore() {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
@@ -292,7 +291,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (!toolbar) { toolbar = button('待办', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
-    ensureClaimTaskButton(host, toolbar, claimTaskButton);
+    claimTasks.ensure(host, toolbar);
     let panel = document.querySelector('[data-ccc-held-queue-panel]'); const panelCreated = !panel;
     if (panelCreated) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
     restoreDraft();
@@ -309,7 +308,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
       const manager = document.querySelector('[data-ccc-held-queue-button]'); host.insertBefore(save, manager?.parentElement === host ? manager : null);
     }
-    ensureClaimTaskButton(host, document.querySelector('[data-ccc-held-queue-button]'), claimTaskButton);
+    claimTasks.ensure(host, document.querySelector('[data-ccc-held-queue-button]'));
     updateDraftButton();
   }
   let installTimer = null, saveDraftInstallTimer = null;
@@ -337,6 +336,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (id && (id !== activeThreadId || !document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) install(); }, 1000);
   window.__codexControlConsoleHeldQueueRefreshTimer = setInterval(() => { if (open && !busy && !editing) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
+  window.__codexControlConsoleSetClaimableTaskCount = claimTasks.set;
   window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
   window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE;
   schedule(); scheduleSaveDraftTodo();

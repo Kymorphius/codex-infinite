@@ -16,6 +16,8 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /codex-control-console-held-todos-changed/);
   assert.match(source, /领取任务/);
   assert.match(source, /openClaimableForCurrentThread/);
+  assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
+  assert.match(source, /领取任务 ' \+ count/);
 });
 
 test("native held queue saves before delete and adds before removing held copy", () => {

@@ -15,6 +15,10 @@ export async function syncProjectChecklist(connection, store) {
     try { items = (await store.read(packet.projectKey)).items; }
     catch { error = '清单读取失败，请重试'; }
   }
+  let claimableCount = 0;
+  try { claimableCount = (await store.read('ccc:general-inbox:v1')).items.filter(item => !item.done && !item.assignedThreadId).length; }
+  catch { /* checklist read error is reported through the active list above */ }
+  await connection.evaluate(`window.__codexControlConsoleSetClaimableTaskCount?.(${claimableCount})`);
   const result = JSON.stringify({ projectKey: packet.projectKey, items, acknowledged, error }).replaceAll('<', '\\u003c');
   await connection.evaluate(`window.__cccProjectChecklist?.accept(${result})`);
 }

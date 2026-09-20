@@ -44,6 +44,12 @@ test('bridge does not install or mutate outside exact app page', async () => {
   assert.equal(calls.length, 1);
 });
 
+test('checklist sync publishes only unfinished unassigned general tasks to the composer', async () => {
+  const calls = []; const store = { async read(key) { return { items: key === 'ccc:general-inbox:v1' ? [{ done: false }, { done: true }, { done: false, assignedThreadId: '01a0ac42-2552-7141-8ec9-12c50515ac4a' }] : [] }; }, async apply() {} };
+  await syncProjectChecklist({ evaluate: async code => { calls.push(code); if (code.includes("location.href")) return true; if (code.includes('window.__cccProjectChecklist?.packet()')) return {}; return false; } }, store);
+  assert.ok(calls.some(code => code.includes('__codexControlConsoleSetClaimableTaskCount?.(1)')));
+});
+
 test('catalog identity resolves to native sidebar ID and ignores remote host mappings', async t => {
   const { readChecklistProjectIds, readProjectStateIdentities } = await import('../src/project-checklist-identity.mjs');
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'checklist-')); t.after(() => fs.rm(directory, { recursive: true, force: true }));
