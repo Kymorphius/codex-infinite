@@ -1,5 +1,7 @@
-export function installNativeProjectChecklist() {
-  const VERSION = '2026-09-07.1', KEY = 'ccc.project-checklist.pending.v1';
+import { readNativeChecklistHeldTodos } from './native-checklist-held-todos.mjs';
+
+export function installNativeProjectChecklist(readHeldTodos = () => []) {
+  const VERSION = '2026-09-20.2', KEY = 'ccc.project-checklist.pending.v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], loaded = '', pending = [], error = '', storageError = '';
@@ -17,6 +19,7 @@ export function installNativeProjectChecklist() {
     [data-ccc-checklist] ul{list-style:none;padding:0;margin:12px 0;max-height:45vh;overflow:auto}
     [data-ccc-checklist] li{display:flex;align-items:center;gap:10px;padding:6px 0}
     [data-ccc-checklist] li[data-done=true] input[type=text]{text-decoration:line-through;opacity:.55}
+    [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;padding:8px;border-radius:8px;background:#8881}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}
     [data-ccc-checklist] small{display:block;color:#999}[data-ccc-checklist] button:disabled{opacity:.4;cursor:default}
   `;
   const dialog = make('dialog'); dialog.setAttribute('data-ccc-checklist', ''); dialog.setAttribute('aria-label', '项目任务清单');
@@ -28,11 +31,11 @@ export function installNativeProjectChecklist() {
   document.head.append(style); document.body.append(dialog);
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(pending)); storageError = ''; } catch { storageError = '任务尚未保存到草稿，请勿关闭窗口'; } }
   function view() {
-    const result = items.map(item => ({ id: item.id, text: item.text, done: item.done }));
+    const result = items.map(item => ({ id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null }));
     for (const action of pending.filter(value => value.projectKey === project?.key)) {
       const index = result.findIndex(item => item.id === action.id);
       if (action.type === 'delete') { if (index >= 0) result.splice(index, 1); }
-      else { const item = { id: action.id, text: action.text, done: action.done }; if (index >= 0) result[index] = item; else result.push(item); }
+      else { const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId || null }; if (index >= 0) result[index] = item; else result.push(item); }
     }
     return result;
   }
@@ -42,28 +45,56 @@ export function installNativeProjectChecklist() {
     input.disabled = add.disabled = loaded !== project?.key;
   }
   function act(type, item) {
-    pending.push({ projectKey: project.key, type, id: item.id, text: item.text, done: item.done, requestId: crypto.randomUUID() });
+    pending.push({ projectKey: project.key, type, id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, requestId: crypto.randomUUID() });
     persist(); render();
   }
   function render() {
-    state(); list.replaceChildren(); const values = view();
-    count.textContent = `${values.filter(item => !item.done).length} 项待办 · ${values.filter(item => item.done).length} 项已完成`;
-    if (!values.length) { list.append(make('li', loaded === project?.key ? '还没有任务，先记下一件想做的事。' : '正在读取清单…')); return; }
-    for (const item of values) {
+    state(); list.replaceChildren(); const values = view(), held = project?.general ? readHeldTodos(localStorage) : [];
+    count.textContent = `${values.filter(item => !item.done).length} 项待办 · ${values.filter(item => item.done).length} 项已完成${project?.general ? ' · ' + held.length + ' 项会话待办' : ''}`;
+    if (!values.length && !held.length) { list.append(make('li', loaded === project?.key ? '还没有任务，先记下一件想做的事。' : '正在读取清单…')); return; }
+    const visible = project?.claimThreadId ? values.filter(item => !item.done && !item.assignedThreadId) : values;
+    for (const item of visible) {
       const row = make('li'), check = make('input'), text = make('input'), remove = make('button', '删除');
       row.dataset.done = String(item.done); check.type = 'checkbox'; check.checked = item.done; check.setAttribute('aria-label', '完成：' + item.text);
       text.type = 'text'; text.value = item.text; text.maxLength = 5000; text.setAttribute('aria-label', '任务内容');
       check.disabled = text.disabled = remove.disabled = loaded !== project?.key;
+      if (project?.claimThreadId) {
+        const claim = make('button', '领取'); check.remove(); remove.remove(); text.disabled = true; claim.disabled = loaded !== project?.key;
+        claim.addEventListener('click', () => act('upsert', { ...item, assignedThreadId: project.claimThreadId })); row.append(text, claim); list.append(row); continue;
+      }
       check.addEventListener('change', () => act('upsert', { ...item, done: check.checked }));
       text.addEventListener('change', () => { if (text.value.trim()) act('upsert', { ...item, text: text.value.trim() }); else text.value = item.text; });
-      remove.addEventListener('click', () => act('delete', item)); row.append(check, text, remove); list.append(row);
+      remove.addEventListener('click', () => act('delete', item)); row.append(check, text);
+      if (project?.general) {
+        const assign = make('button', item.assignedThreadId ? '改派会话' : '指派会话');
+        assign.disabled = loaded !== project?.key;
+        assign.addEventListener('click', () => {
+          const rows = [...document.querySelectorAll('[data-app-action-sidebar-thread-id^="local:"]')];
+          const choices = rows.map(row => [String(row.getAttribute('data-app-action-sidebar-thread-id') || '').slice(6), String(row.getAttribute('data-app-action-sidebar-thread-title') || row.textContent || '').trim()]).filter(([id]) => /^[0-9a-f-]{36}$/i.test(id));
+          const choice = window.prompt('输入要指派的会话编号：\n' + choices.map(([id, title]) => id + '  ' + title).join('\n'), item.assignedThreadId || '');
+          if (choice !== null) act('upsert', { ...item, assignedThreadId: choice.trim() || null });
+        }); row.append(assign);
+      }
+      row.append(remove); list.append(row);
+    }
+    for (const item of held) {
+      const row = make('li'), source = make('small', item.origin), text = make('input'), open = make('button', '打开会话');
+      row.setAttribute('data-ccc-held-todo', ''); text.type = 'text'; text.value = item.text; text.disabled = true; text.title = '会话待办保存在原会话中；打开后可编辑、删除或手动恢复发送。';
+      open.addEventListener('click', () => {
+        const openNativeThread = window.__codexControlConsoleOpenNativeThread;
+        if (typeof openNativeThread === 'function') void openNativeThread(item.threadId).catch(() => {});
+        else window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(item.threadId) }, '*');
+        dialog.close();
+      });
+      row.append(source, text, open); list.append(row);
     }
   }
   form.addEventListener('submit', event => { event.preventDefault(); if (input.value.trim() && loaded === project?.key) { act('upsert', { id: crypto.randomUUID(), text: input.value.trim(), done: false }); input.value = ''; input.focus(); } });
   close.addEventListener('click', () => dialog.close());
   dialog.addEventListener('keydown', event => event.stopPropagation());
   window.__cccProjectChecklist = { version: VERSION,
-    openGeneral() { this.open({ key: 'ccc:general-inbox:v1', general: true, name: '先记下想做的事，之后再确定归属。' }); },
+    openGeneral() { this.open({ key: 'ccc:general-inbox:v1', general: true, name: '先记下想做的事，之后再确定归属。未指派任务可分给会话；会话待办也会显示在这里。' }); },
+    openClaimableForCurrentThread(threadId) { this.open({ key: 'ccc:general-inbox:v1', general: true, claimThreadId: threadId, name: '选择一项未指派的综合任务领取到当前会话。领取不会发送消息。' }); },
     open(value) { title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; project = value; items = []; loaded = ''; error = ''; subtitle.textContent = value.name || value.id; input.value = ''; render(); if (!dialog.open) dialog.showModal(); },
     packet() { return { projectKey: project?.key || '', actions: pending.slice(0, 20) }; },
     accept(result) {
@@ -73,7 +104,9 @@ export function installNativeProjectChecklist() {
       if (result.projectKey === project?.key && Array.isArray(result.items)) { items = result.items; loaded = result.projectKey; }
       if (first || before !== JSON.stringify(view())) render(); else state();
     },
-    dispose() { dialog.remove(); style.remove(); }
+    dispose() { window.removeEventListener('codex-control-console-held-todos-changed', refreshHeldTodos); dialog.remove(); style.remove(); }
   };
+  function refreshHeldTodos() { if (project?.general) render(); }
+  window.addEventListener('codex-control-console-held-todos-changed', refreshHeldTodos);
 }
-export function buildNativeProjectChecklistScript() { return `(${installNativeProjectChecklist.toString()})();`; }
+export function buildNativeProjectChecklistScript() { return `(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()});`; }

@@ -28,7 +28,7 @@ export class ProjectChecklistStore {
       const index = data.items.findIndex(item => item.id === action.id);
       if (action.type === 'delete') data.items = data.items.filter(item => item.id !== action.id);
       else {
-        const item = { id: action.id, text: action.text, done: action.done, updatedAt: new Date().toISOString() };
+        const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId, updatedAt: new Date().toISOString() };
         if (index >= 0) data.items[index] = item; else data.items.push(item);
       }
       if (data.items.length > 1000) throw Error('清单最多保存 1000 项');

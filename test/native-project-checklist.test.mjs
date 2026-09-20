@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { buildNativeProjectChecklistScript } from '../src/native-project-checklist.mjs';
+import { readNativeChecklistHeldTodos } from '../src/native-checklist-held-todos.mjs';
 function harness(saved = '[]') {
   class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.dataset = {}; this.listeners = {}; this.value = ''; }
@@ -13,7 +14,7 @@ function harness(saved = '[]') {
   }
   let storage = saved, id = 0;
   const document = { body: new Node('body'), head: new Node('head'), createElement: tag => new Node(tag) };
-  const context = vm.createContext({ document, window: {}, crypto: { randomUUID: () => 'id-' + ++id }, localStorage: { getItem: () => storage, setItem: (_, v) => { storage = v; } } });
+  const context = vm.createContext({ document, window: { addEventListener() {}, removeEventListener() {} }, crypto: { randomUUID: () => 'id-' + ++id }, localStorage: { getItem: () => storage, setItem: (_, v) => { storage = v; } } });
   vm.runInContext(buildNativeProjectChecklistScript(), context);
   return { api: context.window.__cccProjectChecklist, dialog: document.body.children[0], storage: () => storage };
 }
@@ -56,4 +57,23 @@ test('general inbox opens without project and keeps actions separate from projec
   assert.match(h.dialog.children[4].children[0].textContent, /还没有/);
   h.api.openGeneral(); h.api.accept({ projectKey: 'ccc:general-inbox:v1', items: [], acknowledged: [] });
   assert.equal(h.dialog.children[4].children[0].children[1].value, '还没确定谁来做');
+});
+
+test('general checklist projects held composer todos without copying them into editable checklist actions', () => {
+  const threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a', todoId = 'cafcb830-d98c-40e9-9240-39e11ed11d7b';
+  const storage = { getItem: () => JSON.stringify({ [threadId]: [{ id: todoId, summary: '只保留在会话待办里', heldAt: 1, origin: 'draft' }] }) };
+  assert.deepEqual(readNativeChecklistHeldTodos(storage), [{ id: todoId, threadId, text: '只保留在会话待办里', heldAt: 1, origin: '直存待办' }]);
+  const source = buildNativeProjectChecklistScript();
+  assert.match(source, /会话待办/);
+  assert.match(source, /打开会话/);
+  assert.match(source, /codex-control-console-held-todos-changed/);
+  assert.match(source, /__codexControlConsoleOpenNativeThread/);
+});
+
+test('general checklist can assign or claim an unassigned task without sending it', () => {
+  const source = buildNativeProjectChecklistScript();
+  assert.match(source, /指派会话/);
+  assert.match(source, /openClaimableForCurrentThread/);
+  assert.match(source, /领取不会发送消息/);
+  assert.match(source, /assignedThreadId/);
 });

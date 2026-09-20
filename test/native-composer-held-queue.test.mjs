@@ -13,6 +13,9 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /hostId: 'local'/);
   assert.match(source, /data-above-composer-conversation-id/);
   assert.match(source, /data-app-action-sidebar-thread-selected/);
+  assert.match(source, /codex-control-console-held-todos-changed/);
+  assert.match(source, /领取任务/);
+  assert.match(source, /openClaimableForCurrentThread/);
 });
 
 test("native held queue saves before delete and adds before removing held copy", () => {
@@ -48,7 +51,7 @@ test("native held queue saves the current text draft before clearing it", () => 
 
 test("save-as-todo isolates pointer activation from native composer submission", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  const control = source.slice(source.indexOf("function draftTodoButton"), source.indexOf("function setBusy"));
+  const control = source;
   for (const event of ["pointerdown", "mousedown", "click"]) assert.match(control, new RegExp(`addEventListener\\('${event}'`));
   assert.match(control, /event\.preventDefault\(\)/);
   assert.match(control, /event\.stopImmediatePropagation\(\)/);
@@ -78,8 +81,8 @@ test("save-as-todo survives composer remounts independently of legacy queue rein
   const lifecycle = source.slice(lifecycleStart, source.indexOf("window.__codexControlConsoleHeldQueueTimer", lifecycleStart));
   assert.match(source, /__codexControlConsoleSaveDraftTodoVersion/);
   assert.match(source, /__codexControlConsoleSaveDraftTodoInstalledVersion/);
-  assert.match(source, /LEGACY_SAVE_DRAFT_GUARD_VERSION = '2026-09-18\.1'/);
-  assert.match(source, /__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE_DRAFT_GUARD_VERSION/);
+  assert.match(source, /LEGACY_SAVE = '2026-09-18\.1'/);
+  assert.match(source, /__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE/);
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoObserver = new MutationObserver/);
   assert.match(lifecycle, /scheduleSaveDraftTodo/);
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoInputCleanup/);

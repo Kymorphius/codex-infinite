@@ -4,5 +4,7 @@ export function normalizeChecklistAction(value) {
   if (typeof value.requestId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(value.requestId)) throw Error('无效请求');
   if (!['upsert', 'delete'].includes(value.type)) throw Error('无效操作');
   if (value.type === 'upsert' && (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 5000 || typeof value.done !== 'boolean')) throw Error('任务内容无效');
-  return { projectKey: value.projectKey, id: value.id, requestId: value.requestId, type: value.type, text: value.text?.trim(), done: value.done };
+  const assignedThreadId = value.assignedThreadId == null || value.assignedThreadId === '' ? null : String(value.assignedThreadId).toLowerCase();
+  if (assignedThreadId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignedThreadId)) throw Error('无效会话');
+  return { projectKey: value.projectKey, id: value.id, requestId: value.requestId, type: value.type, text: value.text?.trim(), done: value.done, assignedThreadId };
 }

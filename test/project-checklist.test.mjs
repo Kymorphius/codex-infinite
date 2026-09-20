@@ -31,6 +31,14 @@ test('invalid input and corrupt stores are rejected without overwrite', async t 
   await assert.rejects(store.apply(action));
   assert.equal(await fs.readFile(store.file('p'), 'utf8'), 'broken');
 });
+
+test('general checklist assignment persists without changing completion', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'checklist-')); t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new ProjectChecklistStore(directory), threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a';
+  await store.apply({ projectKey: 'ccc:general-inbox:v1', id: 'task-1', requestId: 'request-1', type: 'upsert', text: '等待领取', done: false, assignedThreadId: threadId });
+  const item = (await store.read('ccc:general-inbox:v1')).items[0];
+  assert.equal(item.assignedThreadId, threadId); assert.equal(item.done, false);
+});
 test('bridge does not install or mutate outside exact app page', async () => {
   const calls = []; await syncProjectChecklist({ evaluate: async code => { calls.push(code); return false; } }, { apply() { throw Error('must not write'); } });
   assert.equal(calls.length, 1);
