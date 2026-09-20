@@ -7,6 +7,7 @@ import path from "node:path";
 import { PassThrough, Readable } from "node:stream";
 import { defaultJevRoutingConfig, normalizeJevRoutingConfig } from "../src/jev-routing-policy.mjs";
 import { JevRoutingStore } from "../src/jev-routing-store.mjs";
+import { JevThreadRoutingStore, normalizeJevThreadRoutingOverrides } from "../src/jev-thread-routing-store.mjs";
 import { JevRoutingService } from "../src/jev-routing-service.mjs";
 import { JevTaskDispatcher } from "../src/jev-task-dispatcher.mjs";
 import { createJevRoutingHttpHandler } from "../src/jev-routing-http.mjs";
@@ -83,6 +84,23 @@ test("routing store reads and writes the shared Router document", async (t) => {
   assert.equal((await store.read()).enabled, false);
   assert.equal((await store.read()).fallbackTier, "complex");
   assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
+});
+
+test("per-thread routing overrides persist privately and global changes clear them", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "jev-thread-routing-store-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const filePath = path.join(directory, "jev-native-thread-routing.json");
+  const threadStore = new JevThreadRoutingStore({ filePath });
+  const id = "01a0be7e-3c97-76a3-b5da-36c782facc71";
+  assert.deepEqual(normalizeJevThreadRoutingOverrides({ overrides: { [id.toUpperCase()]: false, invalid: true } }), { version: 1, overrides: { [id]: false } });
+  await threadStore.set(id, false);
+  assert.deepEqual((await threadStore.read()).overrides, { [id]: false });
+  assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
+  let config = defaultJevRoutingConfig();
+  const service = new JevRoutingService({ store: { read: async () => config, write: async (value) => (config = normalizeJevRoutingConfig(value)) }, threadStore, exists: () => false });
+  assert.equal((await service.snapshot()).threadOverrides[id], false);
+  await service.setEnabled(false);
+  assert.deepEqual((await service.snapshot()).threadOverrides, {});
 });
 
 test("Jev classification uses stdin and returns the mapped choice", async () => {

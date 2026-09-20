@@ -14,12 +14,14 @@ test("config defaults bind both listeners to 127.0.0.1", () => {
   assert.equal(config.primaryCdpEnabled, false);
   assert.equal(config.cspReloadRequired, true);
   assert.equal(config.jevRoutingPath, "/tmp/test-home/.codex-control-console/codex-router/jev-task-routing.json");
+  assert.equal(config.jevThreadRoutingPath, "/tmp/test-home/.codex-control-console/codex-router/jev-native-thread-routing.json");
   assertLoopbackConfig(config);
 });
 
 test("Jev routing follows the router state directory override", () => {
   const config = getConfig({ CODEX_ROUTER_STATE_DIR: "/tmp/shared-router-state" }, "/tmp/test-home", "linux");
   assert.equal(config.jevRoutingPath, "/tmp/shared-router-state/jev-task-routing.json");
+  assert.equal(config.jevThreadRoutingPath, "/tmp/shared-router-state/jev-native-thread-routing.json");
 });
 
 test("Windows config isolates wrapper and primary package profiles", () => {

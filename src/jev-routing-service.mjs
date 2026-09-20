@@ -43,19 +43,28 @@ function collect(child, input, timeoutMs) {
 }
 
 export class JevRoutingService {
-  constructor({ store, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
-    Object.assign(this, { store, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
+  constructor({ store, threadStore = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
+    Object.assign(this, { store, threadStore, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
   }
 
   async snapshot() {
-    return { config: await this.store.read(), available: Boolean(this.jevPath && this.exists(this.jevPath)) };
+    const threadState = await this.threadStore?.read?.();
+    return { config: await this.store.read(), threadOverrides: threadState?.overrides || {}, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
   }
 
   update(value) { return this.store.write(value); }
 
   async setEnabled(enabled) {
     const config = await this.store.read();
-    return this.store.write({ ...config, enabled: enabled === true });
+    const saved = await this.store.write({ ...config, enabled: enabled === true });
+    await this.threadStore?.clear?.();
+    return saved;
+  }
+
+  async setThreadEnabled(threadId, enabled) {
+    if (!this.threadStore) throw new Error("当前会话自动分流存储不可用");
+    await this.threadStore.set(threadId, enabled === true);
+    return this.snapshot();
   }
 
   async classifyCurrent(rawPrompt) {

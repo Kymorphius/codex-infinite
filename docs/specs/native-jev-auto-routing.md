@@ -42,12 +42,16 @@ fallback tier.
 
 ## Native control
 
-A compact `Jev 自动` switch is mounted in the native header beside the existing
-Turbo controls. It is present in both the dedicated enhanced window and the
-primary native window when the primary bridge is enabled. Its state is saved
-through the same CDP binding and is refreshed from the shared store. After a
-routed turn, the control reports the selected tier, model, and effort in its
-accessible label and tooltip.
+A compact `Jev 全局` switch is mounted in the native header beside the existing
+Turbo controls. It changes the default for every conversation and clears prior
+per-conversation overrides so it acts as a true unified switch. A second
+`Jev 自动` switch is mounted in the composer footer beside the permission and
+million-context controls; it changes only the currently visible conversation.
+Conversations without an override inherit the global state. Both controls are
+present in the dedicated enhanced window and the primary native window when the
+primary bridge is enabled. Their state is saved through the same CDP binding.
+After a routed turn, the composer control reports the selected tier, model, and
+effort in its accessible label and tooltip.
 
 ## Compatibility and boundaries
 
@@ -63,10 +67,12 @@ accessible label and tooltip.
 
 - The shared schema migrates to version 3 with `enabled: true` by default.
 - Saving either control surface preserves the enabled state.
-- The native switch is visibly present and initially on.
+- The global native switch and the current-conversation composer switch are
+  visibly present and initially on.
 - A new conversation and an existing conversation both apply the Jev-selected
   model and effort on their next turn.
-- Disabling the switch leaves the next native turn's model and effort intact.
+- Disabling the current-conversation switch leaves that conversation's next
+  native turn model and effort intact without changing other conversations.
 - Turbo context, speed, and permission behavior remains operational, while Jev
   takes precedence for model and reasoning effort.
 - Focused tests, the full repository tests, static checks, and visible native

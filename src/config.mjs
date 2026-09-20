@@ -67,6 +67,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const modelCatalogPath = env.CODEX_CONTROL_MODEL_CATALOG_PATH || hostPath.join(sourceCodexHome, "models_cache.json");
   const routerStateDirectory = env.MODEL_ROUTER_STATE_DIR || env.CODEX_ROUTER_STATE_DIR || hostPath.join(wrapperCodexHome, "codex-router");
   const jevRoutingPath = env.CODEX_CONTROL_JEV_ROUTING_PATH || hostPath.join(routerStateDirectory, "jev-task-routing.json");
+  const jevThreadRoutingPath = env.CODEX_CONTROL_JEV_THREAD_ROUTING_PATH || hostPath.join(routerStateDirectory, "jev-native-thread-routing.json");
   const jevPath = env.CODEX_CONTROL_JEV_PATH || hostPath.join(homeDirectory, ".local", "bin", platform === "win32" ? "jev.exe" : "jev");
   const hostname = os.hostname() || "本机";
   const nodeDevice = Object.freeze({
@@ -116,6 +117,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     zoteroCredentialPath,
     modelCatalogPath,
     jevRoutingPath,
+    jevThreadRoutingPath,
     jevPath,
     threadStateDatabasePath: env.CODEX_CONTROL_THREAD_STATE_DB || hostPath.join(sourceCodexHome, "state_5.sqlite"),
     sessionTitleIndexPath: env.CODEX_CONTROL_SESSION_TITLE_INDEX || path.join(sourceCodexHome, "session_index.jsonl"),

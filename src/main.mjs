@@ -57,6 +57,7 @@ import { SkillSyncService } from "./skill-sync-service.mjs";
 import { SkillConfigStore } from "./skill-config-store.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { JevRoutingStore } from "./jev-routing-store.mjs";
+import { JevThreadRoutingStore } from "./jev-thread-routing-store.mjs";
 import { JevRoutingService } from "./jev-routing-service.mjs";
 import { JevTaskDispatcher } from "./jev-task-dispatcher.mjs";
 
@@ -165,6 +166,7 @@ export async function run() {
   const jevTaskDispatcher = new JevTaskDispatcher({ codexPath: config.codexPath, codexHome: config.nativeCodexHome });
   const jevRoutingService = new JevRoutingService({
     store: new JevRoutingStore({ filePath: config.jevRoutingPath }),
+    threadStore: new JevThreadRoutingStore({ filePath: config.jevThreadRoutingPath }),
     jevPath: config.jevPath,
     taskDispatcher: jevTaskDispatcher
   });
