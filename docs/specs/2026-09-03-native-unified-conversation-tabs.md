@@ -402,9 +402,23 @@ at the stable strip root. A second click on the same non-Console tab within 500
 ms closes it through the existing non-destructive close path; a different tab,
 an expired interval, or Console starts a new sequence without closing. The
 focused interaction suite and all 495 local tests pass, with syntax and structure
-checks clean for 304 and 325 files. Per the user's request, this version is staged
-in the workspace only and has not been injected, restarted, or copied to another
-device.
+checks clean for 304 and 325 files. On 2026-09-08 the local service was restarted
+and its live dedicated renderer reported injection and tab version
+`2026-09-08.1`, exactly one connected native tab root, and matching in-memory and
+persisted state for the seven conversation tabs retained across the restart. Per
+the user's request, this release remains local-only: it was not copied to or
+restarted on the MacBook Pro or Windows nodes.
+
+The local-only identity correction makes the mounted native conversation ID
+authoritative over a stale sidebar selection and changes local tab navigation to
+request/confirm selection. It was merged with the concurrent title-inset change
+in the final `2026-09-08.inset3` runtime. The complete local suite passed all 528
+tests; syntax and structure checks passed for 336 and 360 files with zero frozen
+debt. The live renderer reported matching injection/tab versions and exactly one
+tab root. Repeated real-conversation round trips were sampled every 5 ms; every
+mounted-ID transition committed the matching active tab in the same observer
+turn, with zero observed mismatches, and the original conversation was restored.
+The MacBook Pro and Windows nodes were not copied or restarted.
 
 The 2026-09-10 local-only update adds a visible settings button to the native tab
 strip with Standard and Reversed vertical-wheel mappings. The normalized choice

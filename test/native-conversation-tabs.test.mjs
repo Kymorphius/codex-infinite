@@ -253,8 +253,8 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /if \(!chatAction\)/);
   assert.match(source, /projectPrefixes = \['项目：', 'Project:'\]/);
   assert.match(source, /\[project, title, chatAction\]\.filter\(Boolean\)/);
-  assert.match(source, /stableWorkspaceLeft = Math\.max\(76, Math\.round\(rect\.left \+ 8\)\)/);
-  assert.match(source, /const left = stableWorkspaceLeft \?\?/);
+  assert.match(source, /stableLeft = Math\.max\(76, Math\.round\(rect\.left \+ 8\)\)/);
+  assert.match(source, /const left = stableLeft \?\?/);
   assert.match(source, /render\(\); scheduleSync\(true\)/);
   assert.match(source, /background:var\(--color-background-primary,#202022\)/);
   assert.doesNotMatch(source, /const takeoverActive =/);

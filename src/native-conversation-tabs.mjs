@@ -31,8 +31,8 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildInsetSource()}
   ${buildNativeLocalConversationSyncSource()}
   ${wheelDirectionSource}
-  ${buildNativeConversationWindowInjectionSource()}
   ${titlePolicySource}
+  ${buildNativeConversationWindowInjectionSource()}
   ${buildNativeRecentConversationMenuInjectionSource()}
   ${buildNativeConversationTabTransitionSource()}
   function installNativeConversationTabs(options) {
@@ -53,7 +53,7 @@ export function buildNativeConversationTabsInjectionSource() {
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
-    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableWorkspaceLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set();
+    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set();
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
     const normalizeTab = createNativeConversationTabNormalizer(localStorage, clean, UUID);
@@ -144,12 +144,13 @@ export function buildNativeConversationTabsInjectionSource() {
       const rect = candidate?.getBoundingClientRect?.();
       const topControls = syncNativeTitleTakeover(candidate, rect);
       const leftControlEdge = topControls.reduce((edge, { bounds }) => bounds.right < innerWidth * .62 ? Math.max(edge, bounds.right) : edge, 0);
-      if (rect?.width > 260) stableWorkspaceLeft = Math.max(76, Math.round(rect.left + 8));
-      const left = stableWorkspaceLeft ?? Math.max(236, Math.round(leftControlEdge + 8));
+      if (rect?.width > 260) stableLeft = Math.max(76, Math.round(rect.left + 8));
+      const left = stableLeft ?? Math.max(236, Math.round(leftControlEdge + 8));
       const right = rect?.width > 260 ? Math.max(152, Math.round(innerWidth - rect.right + 152)) : 152;
       const safeRight = Math.min(right, Math.max(60, innerWidth - 300));
       root.style.left = Math.min(left, Math.max(76, innerWidth - safeRight - 180)) + 'px';
       root.style.right = safeRight + 'px';
+      root.style.top = '5px';
       pageInset.update(candidate);
     }
 
@@ -179,7 +180,7 @@ export function buildNativeConversationTabsInjectionSource() {
     }
 
     function open(tab, activate = true, explicitView = false) {
-      const value = normalizeTab(tab); if (!value) return false;
+      let value = normalizeTab(tab); if (!value) return false;
       const key = keyFor(value), index = state.tabs.findIndex((item) => keyFor(item) === key);
       const dismissedIndex = value.kind === 'local' ? (state.dismissedLocalKeys || []).indexOf(key) : -1;
       if (dismissedIndex >= 0 && !explicitView) return false;
