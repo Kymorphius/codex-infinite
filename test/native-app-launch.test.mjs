@@ -4,12 +4,13 @@ import { Readable } from "node:stream";
 import { NativeAppLaunchService, nativeAppLaunchPlan } from "../src/native-app-launch.mjs";
 import { createNativeAppLaunchHttpHandler } from "../src/native-app-launch-http.mjs";
 
-test("native launcher opens only the installed native application without wrapper arguments", async () => {
-  assert.deepEqual(nativeAppLaunchPlan({ appPath: "/Applications/ChatGPT.app" }, "darwin"), { executable: "/usr/bin/open", args: ["-a", "/Applications/ChatGPT.app"], options: { detached: true, stdio: "ignore" } });
+test("native launcher opens a separate installed native application profile without wrapper arguments", async () => {
+  const config = { appPath: "/Applications/ChatGPT.app", primaryProfileDirectory: "/Users/example/Library/Application Support/Codex" };
+  assert.deepEqual(nativeAppLaunchPlan(config, "darwin"), { executable: "/usr/bin/open", args: ["-n", "-a", "/Applications/ChatGPT.app", "--args", "--user-data-dir=/Users/example/Library/Application Support/Codex"], options: { detached: true, stdio: "ignore" } });
   const calls = [];
-  const service = new NativeAppLaunchService({ config: { appPath: "/Applications/ChatGPT.app" }, platform: "darwin", resolveExecutable: async () => "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT", spawn: (...args) => { calls.push(args); return { once(event, handler) { if (event === "spawn") handler(); }, unref() { calls.push("unref"); } }; } });
+  const service = new NativeAppLaunchService({ config, platform: "darwin", resolveExecutable: async () => "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT", spawn: (...args) => { calls.push(args); return { once(event, handler) { if (event === "spawn") handler(); }, unref() { calls.push("unref"); } }; } });
   assert.deepEqual(await service.launch(), { started: true });
-  assert.deepEqual(calls, [["/usr/bin/open", ["-a", "/Applications/ChatGPT.app"], { detached: true, stdio: "ignore" }], "unref"]);
+  assert.deepEqual(calls, [["/usr/bin/open", ["-n", "-a", "/Applications/ChatGPT.app", "--args", "--user-data-dir=/Users/example/Library/Application Support/Codex"], { detached: true, stdio: "ignore" }], "unref"]);
 });
 
 test("native launcher endpoint requires the dashboard origin and accepts no launch parameters", async () => {

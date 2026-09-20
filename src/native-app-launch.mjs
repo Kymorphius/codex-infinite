@@ -5,7 +5,7 @@ import { resolveDesktopExecutable } from "./desktop-host.mjs";
 const execFile = promisify(nodeExecFile);
 
 export function nativeAppLaunchPlan(config, platform = process.platform) {
-  if (platform === "darwin") return { executable: "/usr/bin/open", args: ["-a", config.appPath], options: { detached: true, stdio: "ignore" } };
+  if (platform === "darwin") return { executable: "/usr/bin/open", args: ["-n", "-a", config.appPath, "--args", `--user-data-dir=${config.primaryProfileDirectory}`], options: { detached: true, stdio: "ignore" } };
   if (platform === "win32") return { executable: config.appPath, args: [], options: { detached: true, stdio: "ignore", windowsHide: false } };
   throw new Error("当前系统暂不支持启动原生 Codex");
 }
