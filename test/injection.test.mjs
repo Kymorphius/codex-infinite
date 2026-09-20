@@ -61,6 +61,8 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.doesNotMatch(source, /__codexControlConsoleInjectionVersion === INJECTION_VERSION && document\.querySelector\(ENTRY_SELECTOR\)/);
   assert.doesNotMatch(source, /__codexControlConsoleInjectionVersion === INJECTION_VERSION && document\.querySelector\('\[data-codex-control-console-native-tabs\]'\)/);
   assert.match(source, /__codexControlConsoleObserver\?\.disconnect/);
+  assert.match(source, /__codexControlConsoleMutationSubscribers/);
+  assert.match(source, /subscriber\(records\)/);
   assert.match(source, /openWorkspace\('sessions', loadingLabel, !openingRemote\)/);
   assert.match(source, /__codexControlConsoleOpenRemoteConversation/);
   assert.match(source, /__codexControlConsoleConversationTabs/);

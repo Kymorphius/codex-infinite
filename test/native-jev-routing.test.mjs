@@ -21,6 +21,7 @@ function runtime({ classification } = {}) {
   const document = { querySelector() { return null; }, querySelectorAll() { return []; }, addEventListener() {}, removeEventListener() {} };
   const listeners = new Map();
   const window = {
+    __codexControlConsoleMutationSubscribers: new Set(),
     addEventListener(type, listener) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(listener); }
   };
   window[NATIVE_JEV_ROUTING_BINDING] = (payload) => {
@@ -34,7 +35,7 @@ function runtime({ classification } = {}) {
         : { snapshot: { available: true, config: { enabled: request.enabled, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } }, threadOverrides: request.kind === "set-thread-enabled" ? { [request.threadId]: request.enabled } : {} } })
     }));
   };
-  const context = { window, document, setInterval() { return 1; }, clearInterval() {}, setTimeout, clearTimeout, queueMicrotask, Date, Map, JSON };
+  const context = { window, document, setInterval() { throw new Error("interval refresh must not be installed"); }, clearInterval() {}, setTimeout, clearTimeout, requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {}, queueMicrotask, Date, Map, Set, JSON };
   vm.runInNewContext(buildNativeJevRoutingInjectionScript(), context);
   vm.runInNewContext(buildNativeJevRoutingSnapshotScript({
     available: true,
@@ -59,15 +60,23 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
     { nodeType: 3, nodeValue: "。" }
   ];
   const notice = {
+    nodeType: 1,
     childNodes: [{ nodeType: 1 }, noticeText, ...noticeTail, { nodeType: 1 }],
     hasAttribute(name) { return this.marker === name; },
+    matches(selector) { return selector === "span"; },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
     setAttribute(name) { this.marker = name; }
   };
+  noticeText.parentElement = notice;
+  for (const text of noticeTail) text.parentElement = notice;
   let badge = null;
   const bubbleHost = {};
   const bubble = { parentElement: bubbleHost, after(node) { badge = node; } };
   const turn = {
+    nodeType: 1,
     getAttribute(name) { return name === "data-content-search-turn-key" ? "01a0bf10-1497-7263-a1ca-4ea079c001de" : null; },
+    matches(selector) { return selector.includes("[data-content-search-turn-key]"); },
     querySelector(selector) {
       if (selector === "[data-user-message-bubble]") return bubble;
       if (selector === "[data-codex-control-console-jev-turn]") return badge;
@@ -98,6 +107,7 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
   };
   const applied = [];
   const window = {
+    __codexControlConsoleMutationSubscribers: new Set(),
     electronBridge: Object.freeze({ sendMessageFromView() { throw new Error("frozen bridge must not be wrapped"); } }),
     async __codexControlConsoleApplyThreadSettings(id, changes) {
       applied.push({ id, changes });
@@ -111,11 +121,11 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
     const request = JSON.parse(payload);
     queueMicrotask(() => window.__codexControlConsoleResolveJevRouting({ id: request.id, kind: request.kind, ok: true, classification: { tier: "complex", model: "gpt-5.6-sol", effort: "high", confidence: 0.9, fallback: false } }));
   };
-  let refresh = null;
-  const context = { window, document, setInterval(callback) { refresh = callback; return 1; }, clearInterval() {}, setTimeout, clearTimeout, queueMicrotask, Date, Map, Set, JSON, Object, Number, String, Array, RegExp };
+  const context = { window, document, setInterval() { throw new Error("interval refresh must not be installed"); }, clearInterval() {}, setTimeout, clearTimeout, requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {}, queueMicrotask, Date, Map, Set, JSON, Object, Number, String, Array, RegExp };
   vm.runInNewContext(buildNativeJevRoutingInjectionScript(), context);
   vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } } }), context);
-  return { applied, badge: () => badge, documentListeners, editor, notice, noticeTail, noticeText, refresh: () => refresh?.(), send, sends: () => sends, window };
+  const mutate = (records) => Array.from(window.__codexControlConsoleMutationSubscribers)[0]?.(records);
+  return { applied, badge: () => badge, documentListeners, editor, mutate, notice, noticeTail, noticeText, send, sends: () => sends, turn, window };
 }
 
 test("native Jev binding accepts only bounded classify and toggle requests", async () => {
@@ -227,7 +237,7 @@ test("composer capture routes through native settings when the Electron bridge i
   assert.equal(harness.applied[0].changes.reasoningEffort, "high");
   assert.equal(harness.sends(), 1);
   assert.equal(harness.window.__codexControlConsoleLastJevRouting.tier, "complex");
-  assert.equal(harness.window.__codexControlConsoleJevRoutingDiagnostics.mode, "composer-capture");
+  assert.equal(harness.window.__codexControlConsoleJevRoutingDiagnostics.refreshMode, "shared-mutation-events");
 });
 
 test("composer waits for a settings rerender and releases native send exactly once", async () => {
@@ -239,12 +249,12 @@ test("composer waits for a settings rerender and releases native send exactly on
   assert.equal(harness.window.__codexControlConsoleLastJevRouting.ok, true);
 });
 
-test("existing Jev refresh restores the concrete model notice after a native rerender", async () => {
+test("shared mutation events restore the concrete model notice without interval polling", async () => {
   const harness = composerRuntime({ modelChangeNotice: true });
   harness.documentListeners.get("keydown")({ key: "Enter", shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, isComposing: false, target: harness.editor, preventDefault() {}, stopImmediatePropagation() {} });
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.equal(harness.sends(), 1);
-  harness.refresh();
+  harness.mutate([{ type: "childList", target: {}, addedNodes: [harness.turn], removedNodes: [] }]);
   assert.equal(harness.badge()?.textContent, "Jev · 复杂 · GPT-5.6 Sol · high");
   assert.equal(harness.noticeText.nodeValue, "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.90。");
   assert.equal(harness.noticeTail.map((node) => node.nodeValue).join(""), "");
@@ -252,7 +262,7 @@ test("existing Jev refresh restores the concrete model notice after a native rer
 
   harness.noticeText.nodeValue = "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.90。";
   harness.noticeTail[0].nodeValue = "自定义 更改为 自定义。";
-  harness.refresh();
+  harness.mutate([{ type: "characterData", target: harness.noticeTail[0] }]);
   assert.equal(harness.noticeText.nodeValue, "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.90。");
   assert.equal(harness.noticeTail.map((node) => node.nodeValue).join(""), "");
   assert.equal(harness.notice.marker, "data-codex-control-console-jev-model-change");
@@ -267,7 +277,8 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /'Jev 原生' : 'Jev 路由'/);
   assert.doesNotMatch(source, /Jev 自动 ·/);
   assert.match(source, /data-codex-control-console-jev-turn/);
-  assert.match(source, /composer-capture/);
+  assert.match(source, /shared-mutation-events/);
+  assert.doesNotMatch(source, /setInterval\(installButtons/);
   assert.match(source, /Jev 自动分流已开启/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(selectNativeJevRoutingTurn.toString(), /THREAD_ID_PATTERN/);

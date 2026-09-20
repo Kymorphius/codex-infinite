@@ -1,4 +1,5 @@
 import { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+import { findNativeJevModelChangeNotices, installNativeJevMutationRefresh, updateNativeJevPendingRetry } from "./native-jev-mutation-refresh.mjs";
 import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 export { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
@@ -22,19 +23,25 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.10') return;
-  if (window.__codexControlConsoleJevRoutingInstallTimer) clearInterval(window.__codexControlConsoleJevRoutingInstallTimer);
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.11') return;
+  const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
+  if (oldInstallTimer) clearInterval(oldInstallTimer);
+  window.__codexControlConsoleJevRoutingInstallTimer = null;
   window.__codexControlConsoleJevRoutingInputCleanup?.();
+  window.__codexControlConsoleJevRoutingMutationCleanup?.();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.10';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.11';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatModelChange = ${formatNativeJevModelChange.toString()};
   const formatTurnChoice = ${formatNativeJevTurnChoice.toString()};
   const selectTurn = ${selectNativeJevRoutingTurn.toString()};
   const releaseSend = ${releaseNativeJevSend.toString()};
+  const genericModelChangeNotices = ${findNativeJevModelChangeNotices.toString()};
+  const installMutationRefresh = ${installNativeJevMutationRefresh.toString()};
+  const updatePendingTurnRetry = ${updateNativeJevPendingRetry.toString()};
   let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {} };
   let sequence = 0;
   let togglePending = false;
@@ -42,6 +49,7 @@ export function buildNativeJevRoutingInjectionScript() {
   let bypassNextComposerClick = false;
   let bypassNativeTurn = null;
   let pendingTurnChoices = [];
+  let pendingTurnRetry = null;
   const pending = new Map();
   let turnChoices = [];
   try { const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); if (Array.isArray(saved)) turnChoices = saved.slice(-512); } catch {}
@@ -126,6 +134,7 @@ export function buildNativeJevRoutingInjectionScript() {
       turnChoices = turnChoices.filter((item) => item.threadId !== threadId || item.turnId !== turnId); turnChoices.push(choice); persistTurnChoices();
     }
     pendingTurnChoices = remaining;
+    pendingTurnRetry = updatePendingTurnRetry(remaining, pendingTurnRetry, () => { pendingTurnRetry = null; installButtons(); });
   }
 
   function decorateTurnChoices() {
@@ -155,14 +164,6 @@ export function buildNativeJevRoutingInjectionScript() {
 
   function nativeSendButton() {
     return document.querySelector('button[aria-label="发送"],button[aria-label="Send"]');
-  }
-
-  function genericModelChangeNotices(root = document) {
-    return Array.from(root.querySelectorAll('span')).filter((node) => {
-      if (node.hasAttribute('data-codex-control-console-jev-model-change')) return true;
-      const value = Array.from(node.childNodes || []).filter((child) => child.nodeType === 3).map((child) => child.nodeValue || '').join('').trim();
-      return value === '模型已从 自定义 更改为 自定义。' || value === 'Model changed from Custom to Custom.';
-    });
   }
 
   async function routeComposerSubmission() {
@@ -318,11 +319,11 @@ export function buildNativeJevRoutingInjectionScript() {
     return { enabled: policy.enabled, available: policy.available, fallbackTier: policy.fallbackTier };
   };
   installButtons();
-  const timer = setInterval(installButtons, 1000); window.__codexControlConsoleJevRoutingInstallTimer = timer;
+  window.__codexControlConsoleJevRoutingMutationCleanup = installMutationRefresh({ install: installButtons, findModelChangeNotices: genericModelChangeNotices, hostWindow: window });
   document.addEventListener('click', interceptComposerClick, true);
   document.addEventListener('keydown', interceptComposerKeydown, true);
   window.__codexControlConsoleJevRoutingInputCleanup = () => { document.removeEventListener('click', interceptComposerClick, true); document.removeEventListener('keydown', interceptComposerKeydown, true); };
-  window.__codexControlConsoleJevRoutingDiagnostics = { mode: 'composer-capture', bridgeWrapped: Boolean(window.electronBridge?.sendMessageFromView?.__codexControlTurboWrapped), turnHistoryKey: HISTORY_KEY };
-  window.addEventListener('beforeunload', () => { clearInterval(timer); window.__codexControlConsoleJevRoutingInputCleanup?.(); for (const waiter of pending.values()) { clearTimeout(waiter.timeout); waiter.reject(new Error('页面已关闭')); } pending.clear(); }, { once: true });
+  window.__codexControlConsoleJevRoutingDiagnostics = { refreshMode: 'shared-mutation-events' };
+  window.addEventListener('beforeunload', () => { pendingTurnRetry && clearTimeout(pendingTurnRetry); window.__codexControlConsoleJevRoutingMutationCleanup?.(); window.__codexControlConsoleJevRoutingInputCleanup?.(); for (const waiter of pending.values()) { clearTimeout(waiter.timeout); waiter.reject(new Error('页面已关闭')); } pending.clear(); }, { once: true });
 })()`;
 }
