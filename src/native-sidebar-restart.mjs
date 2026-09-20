@@ -1,7 +1,7 @@
 import packageMetadata from "../package.json" with { type: "json" };
 
 export function installNativeSidebarRestart(dashboardUrl, productVersion) {
-  const VERSION = '2026-09-07.4';
+  const VERSION = '2026-09-21.1';
   if (window.__codexControlConsoleSidebarRestart?.version === VERSION) return;
   window.__codexControlConsoleSidebarRestart?.dispose();
   const origin = new URL(dashboardUrl).origin;
@@ -10,10 +10,13 @@ export function installNativeSidebarRestart(dashboardUrl, productVersion) {
   const version = document.createElement('span'); version.setAttribute('data-codex-control-console-native-version', '');
   version.setAttribute('aria-label', 'Codex Infinite 版本'); version.textContent = 'v' + productVersion;
   version.style.cssText = 'display:inline-flex;height:32px;align-items:center;padding:0 2px;font:500 10px/16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:.58;pointer-events:none';
+  const nativeButton = document.createElement('button'); nativeButton.type = 'button'; nativeButton.textContent = '原生';
+  nativeButton.title = '启动原生 Codex'; nativeButton.setAttribute('aria-label', '启动原生 Codex');
+  nativeButton.style.cssText = 'height:32px;padding:0 6px;width:auto;font-size:12px;-webkit-app-region:no-drag';
   const button = document.createElement('button'); button.type = 'button'; button.textContent = '重启';
   button.title = '重启控制台'; button.setAttribute('aria-label', '重启控制台');
   button.style.cssText = 'height:32px;padding:0 6px;width:auto;font-size:12px;-webkit-app-region:no-drag';
-  root.append(version, button); document.body.append(root);
+  root.append(version, nativeButton, button); document.body.append(root);
   const spacing = document.createElement('style');
   spacing.textContent = '[data-codex-control-console-restart-spacing]{margin-inline-start:84px !important}'; root.append(spacing);
   let spacingHost = null;
@@ -28,13 +31,21 @@ export function installNativeSidebarRestart(dashboardUrl, productVersion) {
     const visible = rect && rect.width > 0 && rect.height > 0;
     root.style.display = visible ? 'flex' : 'none';
     if (!visible) { close(); return; }
-    button.className = help.className;
+    nativeButton.className = button.className = help.className;
     version.style.color = getComputedStyle(help).color;
     const width = root.getBoundingClientRect?.().width || 76;
     root.style.left = Math.max(4, Math.min(rect.left >= width + 8 ? rect.left - width - 8 : rect.right + 4, window.innerWidth - width - 4)) + 'px'; root.style.top = rect.top + 'px';
     if (frame) { frame.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 368)) + 'px'; frame.style.bottom = Math.max(8, window.innerHeight - rect.top + 8) + 'px'; }
   }
   button.setAttribute('aria-expanded', 'false');
+  nativeButton.addEventListener('click', async () => {
+    nativeButton.disabled = true;
+    try {
+      const response = await fetch(new URL('/api/native-app/launch', origin), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      if (!response.ok) throw new Error('原生 Codex 启动失败');
+    } catch { nativeButton.title = '无法启动原生 Codex，请检查应用是否已安装'; }
+    finally { nativeButton.disabled = false; }
+  });
   button.addEventListener('click', () => {
     if (frame) { close(); return; }
     frame = document.createElement('iframe'); frame.title = '确认重启控制台';

@@ -5,6 +5,7 @@ import { SidebarFederationService } from './sidebar-federation.mjs';
 import { ProjectChecklistStore } from './project-checklist-store.mjs';
 import { TurnAnnotationStore } from './turn-annotation-store.mjs';
 import { RuntimeRestartService } from "./runtime-restart.mjs";
+import { NativeAppLaunchService } from "./native-app-launch.mjs";
 import { AttentionConversationService } from "./attention-conversation-service.mjs";
 import { NewProjectService } from "./new-project-service.mjs";
 import { getConfig } from "./config.mjs";
@@ -193,8 +194,9 @@ export async function run() {
   let injector;
   let nativeOwnerInjector = null;
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); scheduler.stop(); } });
+  const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
-  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService });
+  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService });
   await dashboard.listen();
   try {
     const codex = attachedCodex || await ensureDedicatedCodex(config);

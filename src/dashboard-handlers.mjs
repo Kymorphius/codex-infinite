@@ -1,6 +1,7 @@
 import { createExperimentsHttpHandler } from './experiments-http.mjs';
 import { createSidebarHttpHandler } from './sidebar-http.mjs';
 import { createRuntimeRestartHttpHandler } from "./runtime-restart-http.mjs";
+import { createNativeAppLaunchHttpHandler } from "./native-app-launch-http.mjs";
 import { createActivityHttpHandler } from "./activity-http.mjs";
 import { createContextHttpHandler } from "./context-http.mjs";
 import { createDispatchHttpHandler } from "./dispatch-http.mjs";
@@ -15,11 +16,12 @@ import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
 import { createJevRoutingHttpHandler } from "./jev-routing-http.mjs";
 
-export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService }) {
+export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService }) {
   const health = createHealthHttpHandler(config);
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
     createRuntimeRestartHttpHandler({ service: restartService, dashboardOrigin: config.dashboardOrigin }),
+    createNativeAppLaunchHttpHandler({ service: nativeAppLaunchService, dashboardOrigin: config.dashboardOrigin }),
     createSidebarHttpHandler({ sidebarService, nativeSidebarAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createExperimentsHttpHandler({ experimentService }),
     createDiagnosticsHttpHandler({ diagnosticsService }),
