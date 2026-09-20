@@ -246,9 +246,9 @@ export function buildNativeJevRoutingInjectionScript() {
     const active = effectiveEnabled(threadId);
     const overridden = Boolean(threadId && Object.prototype.hasOwnProperty.call(policy.threadOverrides, threadId));
     button.dataset.enabled = String(active); button.dataset.threadId = threadId || ''; button.dataset.override = String(overridden);
-    button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', active ? '当前会话 Jev 自动分流已开启' : '当前会话 Jev 自动分流已关闭'); button.disabled = togglePending || submissionPending || !threadId;
+    button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', threadId ? (active ? '当前会话 Jev 自动分流已开启' : '当前会话 Jev 自动分流已关闭') : (active ? '新建聊天的全局 Jev 自动分流已开启' : '新建聊天的全局 Jev 自动分流已关闭')); button.disabled = togglePending || submissionPending;
     button.textContent = submissionPending ? 'Jev 判断中…' : policy.transportMode === 'native' ? 'Jev 原生' : 'Jev 路由';
-    button.title = !threadId ? '当前没有可设置的原生会话' : submissionPending ? 'Jev 正在为这一轮选择模型与推理强度' : togglePending ? '正在保存当前会话设置…' : (overridden ? '当前会话单独' : '继承全局') + (active ? '开启；点击只关闭当前会话' : '关闭；点击只开启当前会话');
+    button.title = !threadId ? (active ? '新建聊天继承全局 Jev 路由；点击关闭全局路由' : '新建聊天继承全局设置；点击开启全局 Jev 路由') : submissionPending ? 'Jev 正在为这一轮选择模型与推理强度' : togglePending ? '正在保存当前会话设置…' : (overridden ? '当前会话单独' : '继承全局') + (active ? '开启；点击只关闭当前会话' : '关闭；点击只开启当前会话');
     button.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.25)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '1') + ';-webkit-app-region:no-drag;app-region:no-drag;';
   }
 ${buildNativeJevComposerControlSource()}
@@ -285,14 +285,14 @@ ${buildNativeJevComposerControlSource()}
     const threadId = currentThreadId(); const permission = document.querySelector('[data-composer-navigation-target="permissions"]'); const composerHost = permission?.parentElement;
     let current = document.querySelector('[data-codex-control-console-native-jev-current]'), choice = document.querySelector('[data-codex-control-console-native-jev-choice]');
     reconcileTurnChoices(); decorateTurnChoices();
-    const active = effectiveEnabled(threadId); renderNativeModelControl(Boolean(threadId && active));
-    if (!threadId || !composerHost) { current?.remove(); choice?.remove(); return; }
+    const active = effectiveEnabled(threadId); renderNativeModelControl(active);
+    if (!composerHost) { current?.remove(); choice?.remove(); return; }
     if (!current) {
       current = document.createElement('button'); current.type = 'button'; current.setAttribute('data-codex-control-console-native-jev-current', '');
       current.addEventListener('click', async (event) => {
-        event.preventDefault(); event.stopPropagation(); const selectedThreadId = currentThreadId(); if (togglePending || !selectedThreadId) return;
+        event.preventDefault(); event.stopPropagation(); const selectedThreadId = currentThreadId(); if (togglePending) return;
         togglePending = true; renderCurrentButton(current); if (button) renderGlobalButton(button);
-        try { const response = await request('set-thread-enabled', { threadId: selectedThreadId, enabled: !effectiveEnabled(selectedThreadId) }, 8000); applySnapshot(response.snapshot); }
+        try { const response = selectedThreadId ? await request('set-thread-enabled', { threadId: selectedThreadId, enabled: !effectiveEnabled(selectedThreadId) }, 8000) : await request('set-enabled', { enabled: !policy.enabled }, 8000); applySnapshot(response.snapshot); }
         catch (error) { current.title = String(error?.message || error); }
         finally { togglePending = false; renderCurrentButton(current); if (button) renderGlobalButton(button); }
       });

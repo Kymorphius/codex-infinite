@@ -60,6 +60,12 @@ Turbo controls. It changes the default for every conversation and clears prior
 per-conversation overrides so it acts as a true unified switch. A second
 `Jev 原生` or `Jev 路由` switch is mounted in the composer footer beside the
 permission and million-context controls; it changes only the currently visible conversation.
+Before the first turn of a new chat, there is no conversation ID to override,
+but the same composer control remains visible and shows the global Jev state.
+It renders the fallback model/strength preview and greys out the native
+selector whenever the global setting is on. Clicking it changes that global
+default; after the first turn creates a conversation, the control automatically
+becomes the per-conversation override.
 While that conversation's Jev switch is on, Codex's native model/reasoning
 selector is visibly greyed out and cannot be changed directly: Jev owns both
 fields. Immediately beside the Jev switch, a compact read-only label shows the
@@ -108,6 +114,9 @@ The shared configuration panel exposes two explicit transport choices:
 - Saving either control surface preserves the enabled state.
 - The global native switch and the current-conversation composer switch are
   visibly present and initially on.
+- A new chat with no conversation ID still shows the composer Jev control,
+  inherits the global state, previews the fallback mapping, and transitions to
+  per-conversation behavior after its first turn.
 - With a current conversation's Jev switch on, the native model/reasoning
   chooser is greyed out and non-interactive, while a nearby read-only model and
   reasoning label identifies the most recent routed result or fallback preview.
