@@ -3,9 +3,9 @@
 ## Outcome
 
 The native Codex composer exposes a Jev auto-routing switch. It is enabled by
-default. While enabled, every new native `turn/start` request—including turns
-sent in an existing conversation—is classified before dispatch. The selected
-model and reasoning effort are applied to that turn.
+default. While enabled, every native composer submission—including turns sent
+in an existing conversation—is classified before dispatch. The selected model
+and reasoning effort are applied to that turn.
 
 Previously completed turns are not rewritten. Disabling the switch restores
 the native request unchanged on subsequent turns.
@@ -22,21 +22,24 @@ primary native Codex window all read the same file.
 
 ## Native dispatch flow
 
-1. The renderer intercepts a local native `turn/start` request through the
-   existing owned bridge wrapper.
-2. When auto-routing is enabled, it extracts bounded text from the turn input
+1. The renderer captures the native composer send action before Codex submits
+   it. This works with the current frozen Electron bridge; writable legacy
+   bridges retain the bounded `turn/start` wrapper as a compatibility path.
+2. When auto-routing is enabled, it extracts bounded text from the composer
    and requests a classification through a CDP runtime binding.
 3. The Node-side Jev routing service reads the latest shared configuration and
    returns a bounded classification result.
-4. The renderer clones the request and applies the selected model and effort.
-   Collaboration-mode settings are updated inside their existing settings
-   object; ordinary turns use top-level `model` and `effort`.
+4. The renderer applies the selected model and effort through the native
+   `thread/settings/update` path, then releases the original send action. On a
+   writable compatibility bridge it clones the request and updates the
+   corresponding ordinary or collaboration-mode fields.
 5. Turbo may still control context size, speed, and permissions, but Jev owns
    model and reasoning effort while auto-routing is enabled.
 
 An attachment-only or otherwise text-free turn uses the configured fallback
-tier without invoking Jev. If the binding is unavailable or times out, the
-turn is sent unchanged rather than being lost. Jev's own unavailable,
+tier without invoking Jev. If the binding or native settings path is
+unavailable or times out, the original send action is released unchanged
+rather than being lost. Jev's own unavailable,
 malformed, timeout, and low-confidence paths continue to use the configured
 fallback tier.
 
@@ -51,12 +54,16 @@ Conversations without an override inherit the global state. Both controls are
 present in the dedicated enhanced window and the primary native window when the
 primary bridge is enabled. Their state is saved through the same CDP binding.
 After a routed turn, the composer control reports the selected tier, model, and
-effort in its accessible label and tooltip.
+effort in its accessible label and tooltip. The same bounded result is attached
+to that turn's user-message footer as a compact badge, for example
+`Jev · 复杂 · GPT-5.6 Sol · medium`. Turn badges are retained locally with a
+bounded history and never added to the model prompt.
 
 ## Compatibility and boundaries
 
-- Native request objects are cloned; the application's original objects are
-  not mutated.
+- The original composer action is delayed only while classification and native
+  settings are applied; it is then released once. Compatibility request
+  objects are cloned rather than mutated.
 - Non-local messages and methods other than `turn/start` are untouched.
 - The feature does not intercept CLI-only, scheduled, remote-node, or external
   client turns that do not pass through the native renderer bridge.
@@ -71,6 +78,8 @@ effort in its accessible label and tooltip.
   visibly present and initially on.
 - A new conversation and an existing conversation both apply the Jev-selected
   model and effort on their next turn.
+- Each routed turn visibly shows its tier, model, and reasoning effort without
+  changing the conversation content sent to the model.
 - Disabling the current-conversation switch leaves that conversation's next
   native turn model and effort intact without changing other conversations.
 - Turbo context, speed, and permission behavior remains operational, while Jev

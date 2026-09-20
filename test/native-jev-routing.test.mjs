@@ -5,16 +5,18 @@ import vm from "node:vm";
 import {
   buildNativeJevRoutingInjectionScript,
   buildNativeJevRoutingSnapshotScript,
+  formatNativeJevTurnChoice,
   handleNativeJevRoutingRequest,
   NATIVE_JEV_ROUTING_BINDING,
   normalizeNativeJevRoutingSnapshot,
-  parseNativeJevRoutingRequest
+  parseNativeJevRoutingRequest,
+  selectNativeJevRoutingTurn
 } from "../src/native-jev-routing.mjs";
 
 const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
 
 function runtime({ classification } = {}) {
-  const document = { querySelector() { return null; } };
+  const document = { querySelector() { return null; }, querySelectorAll() { return []; }, addEventListener() {}, removeEventListener() {} };
   const listeners = new Map();
   const window = {
     addEventListener(type, listener) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(listener); }
@@ -37,6 +39,43 @@ function runtime({ classification } = {}) {
     config: { enabled: true, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } }
   }), context);
   return { context, window };
+}
+
+function composerRuntime() {
+  const thread = { getAttribute(name) { return name === "data-above-composer-conversation-id" ? threadId : null; } };
+  const editor = { innerText: "Route this composer turn", closest(selector) { return selector.includes("data-codex-composer") ? this : null; } };
+  const documentListeners = new Map();
+  let sends = 0;
+  const send = {
+    disabled: false,
+    closest(selector) { return selector.includes("aria-label") ? this : null; },
+    click() { sends += 1; documentListeners.get("click")?.({ target: this, preventDefault() {}, stopImmediatePropagation() {} }); }
+  };
+  const document = {
+    querySelector(selector) {
+      if (selector === "[data-above-composer-conversation-id]") return thread;
+      if (selector.includes("data-codex-composer")) return editor;
+      if (selector.includes('button[aria-label="发送"]')) return send;
+      return null;
+    },
+    querySelectorAll() { return []; },
+    addEventListener(type, listener) { documentListeners.set(type, listener); },
+    removeEventListener(type) { documentListeners.delete(type); }
+  };
+  const applied = [];
+  const window = {
+    electronBridge: Object.freeze({ sendMessageFromView() { throw new Error("frozen bridge must not be wrapped"); } }),
+    async __codexControlConsoleApplyThreadSettings(id, changes) { applied.push({ id, changes }); return { applied: true }; },
+    addEventListener() {}
+  };
+  window[NATIVE_JEV_ROUTING_BINDING] = (payload) => {
+    const request = JSON.parse(payload);
+    queueMicrotask(() => window.__codexControlConsoleResolveJevRouting({ id: request.id, kind: request.kind, ok: true, classification: { tier: "complex", model: "gpt-5.6-sol", effort: "high", confidence: 0.9, fallback: false } }));
+  };
+  const context = { window, document, setInterval() { return 1; }, clearInterval() {}, setTimeout, clearTimeout, queueMicrotask, Date, Map, Set, JSON, Object, Number, String, Array, RegExp };
+  vm.runInNewContext(buildNativeJevRoutingInjectionScript(), context);
+  vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } } }), context);
+  return { applied, documentListeners, editor, send, sends: () => sends, window };
 }
 
 test("native Jev binding accepts only bounded classify and toggle requests", async () => {
@@ -64,6 +103,17 @@ test("native Jev snapshot is bounded and enables only from stored configuration"
   assert.deepEqual(normalizeNativeJevRoutingSnapshot({ available: true, config: { enabled: false, fallbackTier: "deep", mappings: {
     deep: { model: "gpt-5.6-sol", effort: "xhigh" }, bad: { model: "unknown", effort: "high" }
   } }, threadOverrides: { [threadId.toUpperCase()]: false, invalid: true } }), { enabled: false, available: true, fallbackTier: "deep", mappings: { deep: { model: "gpt-5.6-sol", effort: "xhigh" } }, threadOverrides: { [threadId]: false } });
+});
+
+test("turn choice labels and pending-turn matching stay bounded and deterministic", () => {
+  const first = "01a0bf0e-f99d-7712-ada7-4a676030e96b", second = "01a0bf10-1497-7263-a1ca-4ea079c001de";
+  assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-5.6-sol", effort: "medium" }), "Jev · 复杂 · GPT-5.6 Sol · medium");
+  assert.equal(formatNativeJevTurnChoice({ tier: "everyday", model: "gpt-5.6-terra", effort: "low", fallback: true }), "Jev · 日常 · GPT-5.6 Terra · low · 兜底");
+  const candidates = [{ id: first, userText: "same" }, { id: second, userText: "same" }];
+  assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], []), second);
+  assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first, second], []), null);
+  assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first, second], [], true), second);
+  assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], [second]), null);
 });
 
 test("every native turn is cloned and routed, including an existing conversation", async () => {
@@ -107,12 +157,30 @@ test("a current-conversation override wins over the global default", async () =>
   assert.equal((await window.__codexControlConsoleRouteNativeTurn(request)).request.params.model, "gpt-5.6-sol");
 });
 
+test("composer capture routes through native settings when the Electron bridge is frozen", async () => {
+  const harness = composerRuntime();
+  let prevented = false, stopped = false;
+  harness.documentListeners.get("keydown")({ key: "Enter", shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, isComposing: false, target: harness.editor, preventDefault() { prevented = true; }, stopImmediatePropagation() { stopped = true; } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+  assert.equal(harness.applied.length, 1);
+  assert.equal(harness.applied[0].id, threadId);
+  assert.equal(harness.applied[0].changes.model, "gpt-5.6-sol");
+  assert.equal(harness.applied[0].changes.reasoningEffort, "high");
+  assert.equal(harness.sends(), 1);
+  assert.equal(harness.window.__codexControlConsoleLastJevRouting.tier, "complex");
+  assert.equal(harness.window.__codexControlConsoleJevRoutingDiagnostics.mode, "composer-capture");
+});
+
 test("native Jev source installs the visible default-on switch", () => {
   const source = buildNativeJevRoutingInjectionScript();
   assert.match(source, /data-codex-control-console-native-jev/);
   assert.match(source, /data-codex-control-console-native-jev-current/);
   assert.match(source, /data-composer-navigation-target="permissions"/);
   assert.match(source, /Jev 全局/);
+  assert.match(source, /data-codex-control-console-jev-turn/);
+  assert.match(source, /composer-capture/);
   assert.match(source, /Jev 自动分流已开启/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.match(source, new RegExp(NATIVE_JEV_ROUTING_BINDING));
