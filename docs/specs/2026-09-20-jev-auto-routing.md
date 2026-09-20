@@ -9,8 +9,13 @@ same workflow without creating a second configuration authority.
 ## Product contract
 
 - Add an `自动分流` module to the enhanced console.
-- The user can edit the model and reasoning effort independently for four
-  capability tiers: `quick`, `everyday`, `complex`, and `critical`.
+- The user can edit the model and reasoning effort independently for eight
+  capability tiers: `instant`, `quick`, `everyday`, `substantial`, `complex`,
+  `deep`, `critical`, and `extreme`.
+- Version 1 four-tier documents migrate in memory to version 2: the four
+  existing mappings, threshold, and fallback are retained while the four new
+  tiers receive defaults. The normalized document is persisted on the next
+  user save.
 - Both Codex Router and the enhanced console read and write the same versioned
   JSON document under the router state directory. This installation resolves
   it to `~/.codex-control-console/codex-router/jev-task-routing.json`; explicit
@@ -40,10 +45,14 @@ same workflow without creating a second configuration authority.
 
 | Tier | Model | Effort |
 | --- | --- | --- |
-| quick | `gpt-5.6-luna` | `low` |
+| instant | `gpt-5.6-luna` | `low` |
+| quick | `gpt-5.6-luna` | `medium` |
 | everyday | `gpt-5.6-terra` | `medium` |
+| substantial | `gpt-5.6-terra` | `high` |
 | complex | `gpt-5.6-sol` | `high` |
+| deep | `gpt-5.6-sol` | `xhigh` |
 | critical | `gpt-6-astra` | `xhigh` |
+| extreme | `gpt-6-astra` | `ultra` |
 
 Minimum confidence is `0.70`; fallback tier is `everyday`. Luna rejects
 `ultra`, matching its advertised capability.

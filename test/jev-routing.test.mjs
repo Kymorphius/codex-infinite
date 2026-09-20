@@ -37,10 +37,37 @@ function jsonRequest(method, body, origin = "http://127.0.0.1:47831") {
 
 test("routing policy keeps configurable model and effort mappings bounded", () => {
   const defaults = defaultJevRoutingConfig();
+  assert.equal(defaults.version, 2);
+  assert.equal(Object.keys(defaults.mappings).length, 8);
+  assert.deepEqual(defaults.mappings.instant, { model: "gpt-5.6-luna", effort: "low" });
   assert.deepEqual(defaults.mappings.critical, { model: "gpt-6-astra", effort: "xhigh" });
+  assert.deepEqual(defaults.mappings.extreme, { model: "gpt-6-astra", effort: "ultra" });
   const changed = normalizeJevRoutingConfig({ ...defaults, mappings: { ...defaults.mappings, quick: { model: "gpt-5.6-sol", effort: "max" } } });
   assert.deepEqual(changed.mappings.quick, { model: "gpt-5.6-sol", effort: "max" });
   assert.throws(() => normalizeJevRoutingConfig({ ...defaults, mappings: { ...defaults.mappings, quick: { model: "gpt-5.6-luna", effort: "ultra" } } }), /不支持 Ultra/);
+});
+
+test("legacy four-tier config migrates without losing existing mappings", () => {
+  const legacy = {
+    version: 1,
+    minConfidence: 0.83,
+    fallbackTier: "critical",
+    mappings: {
+      quick: { model: "gpt-5.6-luna", effort: "low" },
+      everyday: { model: "gpt-5.6-terra", effort: "high" },
+      complex: { model: "gpt-5.6-sol", effort: "max" },
+      critical: { model: "gpt-6-astra", effort: "ultra" }
+    }
+  };
+  const migrated = normalizeJevRoutingConfig(legacy);
+  assert.equal(migrated.version, 2);
+  assert.equal(Object.keys(migrated.mappings).length, 8);
+  for (const tier of ["quick", "everyday", "complex", "critical"]) {
+    assert.deepEqual(migrated.mappings[tier], legacy.mappings[tier]);
+  }
+  assert.deepEqual(migrated.mappings.substantial, { model: "gpt-5.6-terra", effort: "high" });
+  assert.deepEqual(migrated.mappings.deep, { model: "gpt-5.6-sol", effort: "xhigh" });
+  assert.equal(migrated.fallbackTier, "critical");
 });
 
 test("routing store reads and writes the shared Router document", async (t) => {
@@ -71,6 +98,27 @@ test("Jev classification uses stdin and returns the mapped choice", async () => 
   assert.equal(invocation.command, "/bin/jev");
   assert.deepEqual(result, { tier: "complex", classifiedTier: "complex", confidence: 0.91, fallback: false, reason: "Jev 以 0.91 置信度选择 complex", model: "gpt-5.6-sol", effort: "high" });
   assert.ok(invocation.args.includes("--json"));
+});
+
+test("Jev classification accepts the new intermediate and extreme tiers", async () => {
+  const choices = [
+    ["substantial", "gpt-5.6-terra", "high"],
+    ["deep", "gpt-5.6-sol", "xhigh"],
+    ["extreme", "gpt-6-astra", "ultra"]
+  ];
+  for (const [choice, model, effort] of choices) {
+    const service = new JevRoutingService({
+      store: { read: async () => defaultJevRoutingConfig() }, jevPath: "/bin/jev", taskDispatcher: {}, exists: () => true,
+      spawnImpl() {
+        const child = processDouble(() => queueMicrotask(() => { child.stdout.end(JSON.stringify({ answer: { choice, confidence: 0.92 } })); child.emit("close", 0); }));
+        return child;
+      }
+    });
+    const result = await service.classify(`route ${choice}`, defaultJevRoutingConfig());
+    assert.equal(result.tier, choice);
+    assert.equal(result.model, model);
+    assert.equal(result.effort, effort);
+  }
 });
 
 test("missing Jev falls back without blocking native dispatch", async () => {

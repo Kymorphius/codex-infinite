@@ -1,10 +1,14 @@
 import { requestJson } from "../../core/transport.js";
 
 export const JEV_TIERS = Object.freeze([
+  { id: "instant", label: "即时", description: "极小、确定性任务" },
   { id: "quick", label: "轻快", description: "机械、低风险" },
-  { id: "everyday", label: "日常", description: "常规开发与分析" },
+  { id: "everyday", label: "日常", description: "边界清晰的开发与分析" },
+  { id: "substantial", label: "进阶", description: "多文件与多依赖" },
   { id: "complex", label: "复杂", description: "跨模块或研究型" },
-  { id: "critical", label: "关键", description: "高风险与架构判断" }
+  { id: "deep", label: "深度", description: "困难系统问题" },
+  { id: "critical", label: "关键", description: "高风险架构或迁移" },
+  { id: "extreme", label: "极限", description: "极高风险或高度模糊" }
 ]);
 export const JEV_MODELS = Object.freeze(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
 export const JEV_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]);
@@ -54,7 +58,7 @@ export function createJevRoutingFeature({ $, showToast }) {
 
   function readConfig() {
     return {
-      version: 1,
+      version: 2,
       minConfidence: Number(configForm.elements.minConfidence.value),
       fallbackTier: configForm.elements.fallbackTier.value,
       mappings: Object.fromEntries(JEV_TIERS.map((tier) => [tier.id, {
