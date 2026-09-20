@@ -12,7 +12,9 @@ same workflow without creating a second configuration authority.
 - The user can edit the model and reasoning effort independently for four
   capability tiers: `quick`, `everyday`, `complex`, and `critical`.
 - Both Codex Router and the enhanced console read and write the same versioned
-  JSON document at `~/.codex/codex-router/jev-task-routing.json` by default.
+  JSON document under the router state directory. This installation resolves
+  it to `~/.codex-control-console/codex-router/jev-task-routing.json`; explicit
+  router state-directory environment overrides remain authoritative.
 - A prompt is sent to the local `jev` executable through stdin. Jev returns
   only the chosen tier and confidence; it never chooses a model directly.
 - Confidence below the configured threshold, a missing executable, or a Jev
