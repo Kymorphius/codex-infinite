@@ -26,10 +26,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-20.3' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-20.4' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-20.3';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-20.4';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const overrides = new Map();
@@ -154,7 +154,7 @@ export function buildNativeContextInjectionScript() {
     if (!existing) {
       button.type = 'button';
       button.setAttribute('data-codex-control-console-context-toggle', '');
-      button.setAttribute('aria-label', '百万上下文');
+      button.setAttribute('aria-label', '百万');
       button.innerHTML = '<span data-context-toggle-dot aria-hidden="true" style="width:6px;height:6px;border-radius:50%"></span><span>百万</span>';
       button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void toggleCurrent(button); });
     }
