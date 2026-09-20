@@ -57,7 +57,9 @@ test("save-as-todo isolates pointer activation from native composer submission",
 
 test("native held queue exposes composer management and stale queue recovery", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /待发管理/);
+  assert.match(source, /待办/);
+  assert.match(source, /toolbar\.textContent = '待办 '/);
+  assert.match(source, /button\('待办', \(\) =>/);
   assert.match(source, /暂停/);
   assert.match(source, /恢复/);
   assert.match(source, /同步原生队列/);

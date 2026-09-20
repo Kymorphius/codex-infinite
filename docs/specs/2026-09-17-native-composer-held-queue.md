@@ -40,7 +40,7 @@ messages, and explicitly resume a held item later.
 
 ## User experience
 
-The native composer toolbar exposes `存为待办` and `待发管理` with executable
+The native composer toolbar exposes `存为待办` and `待办` with executable
 and held counts. `存为待办` saves the current text draft locally without making
 an app-server request, then clears only the text after persistence succeeds.
 Draft clearing creates and verifies a selection whose entire range is contained

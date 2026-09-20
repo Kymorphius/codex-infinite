@@ -5,7 +5,7 @@ import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-20.2', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
+  const VERSION = '2026-09-20.3', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE_DRAFT_GUARD_VERSION = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -244,7 +244,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     location.reload();
   }
   function updateShell(id, toolbar, panel) {
-    toolbar.textContent = '待发管理 ' + (serverItems.length + heldFor(id).length); toolbar.dataset.warning = warning || staleThreads.has(id) ? 'true' : 'false';
+    toolbar.textContent = '待办 ' + (serverItems.length + heldFor(id).length); toolbar.dataset.warning = warning || staleThreads.has(id) ? 'true' : 'false';
     panel.hidden = !open;
   }
   function render() {
@@ -290,7 +290,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const threadChanged = activeThreadId !== id;
     if (threadChanged) { activeThreadId = id; serverItems = []; warning = ''; heldView = readHeldView(id); if (open) void refresh(); }
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
-    if (!toolbar) { toolbar = button('待发管理', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
+    if (!toolbar) { toolbar = button('待办', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
     let panel = document.querySelector('[data-ccc-held-queue-panel]'); const panelCreated = !panel;
