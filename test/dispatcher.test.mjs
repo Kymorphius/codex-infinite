@@ -45,6 +45,27 @@ test("Codex dispatcher applies only the selected thread's context override", asy
   assert.deepEqual(invocations[1], ["exec", "resume", "--skip-git-repo-check", "--json", "thread-default", "-"]);
 });
 
+test("Codex dispatcher creates a persistent thread and captures its native identifier", async () => {
+  let invocation;
+  const spawnImpl = (command, args, options) => {
+    const child = new EventEmitter();
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.stdin.on("finish", () => {
+      child.stdout.write(`${JSON.stringify({ type: "thread.started", thread_id: "new-thread-1" })}\n`);
+      queueMicrotask(() => child.emit("close", 0, null));
+    });
+    invocation = { command, args, options };
+    return child;
+  };
+  const dispatcher = new CodexCliDispatcher({ codexPath: "codex", spawnImpl });
+  const result = await dispatcher.dispatch({ actionType: "new_thread", cwd: "/tmp/demo", prompt: "Start" });
+  assert.deepEqual(invocation.args, ["exec", "--skip-git-repo-check", "--json", "-"]);
+  assert.equal(invocation.options.cwd, "/tmp/demo");
+  assert.deepEqual(result, { ok: true, threadId: "new-thread-1" });
+});
+
 test("scheduler claims one queued task and records successful completion", async () => {
   const calls = [];
   const store = {
@@ -55,4 +76,15 @@ test("scheduler claims one queued task and records successful completion", async
   const scheduler = new DispatchScheduler({ store, dispatcher: { async dispatch(item) { calls.push(["dispatch", item.id]); } } });
   await scheduler.tick();
   assert.deepEqual(calls, ["promote", "claim", ["dispatch", "job-1"], ["job-1", { ok: true }]]);
+});
+
+test("scheduler promotes due generators before claiming dispatch work", async () => {
+  const calls = [];
+  const scheduler = new DispatchScheduler({
+    generatorService: { async promoteDue() { calls.push("generators"); } },
+    store: { async promoteDue() { calls.push("dispatches"); }, async claimNext() { calls.push("claim"); return null; } },
+    dispatcher: {}
+  });
+  await scheduler.tick();
+  assert.deepEqual(calls, ["generators", "dispatches", "claim"]);
 });

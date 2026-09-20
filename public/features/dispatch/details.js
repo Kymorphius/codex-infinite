@@ -52,17 +52,20 @@ export function createDispatchDetails({ state, $, formatDate, showToast, onSaved
   }
 
   function render(item) {
-    const editable = EDITABLE_STATUSES.has(item.status);
+    const createsThread = item.actionType === "new_thread";
+    const editable = EDITABLE_STATUSES.has(item.status) && !createsThread;
     form.elements.title.value = item.title || "";
     form.elements.prompt.value = item.prompt || "";
     form.elements.scheduledAt.value = localDateTimeValue(item.scheduledAt);
     fillProjects(item);
-    fillThreads(item.project, item.targetThreadId, item.targetThreadTitle);
+    if (createsThread) form.elements.targetThreadId.replaceChildren(new Option("执行时新建会话", ""));
+    else fillThreads(item.project, item.targetThreadId, item.targetThreadTitle);
     for (const field of [form.elements.title, form.elements.prompt, form.elements.project, form.elements.targetThreadId, form.elements.scheduledAt]) field.disabled = !editable;
     save.classList.toggle("hidden", !editable);
-    notice.textContent = editable ? "修改发送时间会重新排期；清空时间会放回待排期。" : item.status === "queued" ? "任务已进入队列。移到待排期后才能编辑。" : item.status === "delivery_unknown" ? "控制台在发送期间重启。请先核对目标对话，再明确选择是否重新尝试。" : "当前状态为只读，仍可查看完整任务信息。";
+    notice.textContent = createsThread ? "这个任务会在执行时创建持久会话并发送首条消息，路由保持只读。" : editable ? "修改发送时间会重新排期；清空时间会放回待排期。" : item.status === "queued" ? "任务已进入队列。移到待排期后才能编辑。" : item.status === "delivery_unknown" ? "控制台在发送期间重启。请先核对目标对话，再明确选择是否重新尝试。" : "当前状态为只读，仍可查看完整任务信息。";
     meta.replaceChildren();
-    const metadata = [["状态", STATUS_LABELS[item.status] || item.status], ["目标", `${item.project} → ${item.targetThreadTitle}`], ["尝试次数", String(item.attemptCount || 0)], ["创建", formatDate(item.createdAt)], ["更新", formatDate(item.updatedAt)]];
+    const targetLabel = createsThread ? (item.createdThreadId ? `已新建 ${item.createdThreadId}` : "执行时新建会话") : item.targetThreadTitle;
+    const metadata = [["状态", STATUS_LABELS[item.status] || item.status], ["目标", `${item.project} → ${targetLabel}`], ["尝试次数", String(item.attemptCount || 0)], ["创建", formatDate(item.createdAt)], ["更新", formatDate(item.updatedAt)]];
     if (item.activeAttemptId) metadata.splice(3, 0, ["最近尝试", item.activeAttemptId]);
     for (const [term, value] of metadata) {
       const dt = document.createElement("dt");

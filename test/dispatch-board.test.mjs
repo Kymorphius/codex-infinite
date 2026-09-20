@@ -47,3 +47,20 @@ test("dispatch changes edit only planning states and preserve system-owned statu
   assert.throws(() => normalizeDispatchChanges(item, { status: "sent" }, now), /不能手动设置/);
   assert.throws(() => normalizeDispatchChanges(item, { status: "scheduled", scheduledAt: "2026-09-03T09:00:00.000Z" }, now), /晚于当前时间/);
 });
+
+test("generated new-conversation dispatches are idempotent and retain the created thread", async (context) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-generated-dispatch-"));
+  context.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new DispatchBoardStore({ filePath: path.join(directory, "board.json"), idFactory: () => "dispatch-new" });
+  await store.init();
+  const input = {
+    actionType: "new_thread", title: "新工作", prompt: "开始", project: "demo", cwd: "/tmp/demo",
+    generatorId: "generator-1", generatorName: "组合", generatorRunId: "run-1", generatorTaskId: "task-1"
+  };
+  const item = await store.createGenerated(input);
+  assert.equal((await store.createGenerated(input)).id, item.id);
+  assert.equal(store.list().length, 1);
+  const claimed = await store.claimNext();
+  await store.finish(claimed.id, { ok: true, attemptId: claimed.activeAttemptId, threadId: "thread-created" });
+  assert.equal(store.get(item.id).createdThreadId, "thread-created");
+});

@@ -49,6 +49,7 @@ export function initialDispatchStatus({ mode, scheduledAt }, now = new Date()) {
 }
 
 export function validateDispatchInput(input, now = new Date()) {
+  const actionType = input?.actionType === "new_thread" ? "new_thread" : "existing_thread";
   const title = cleanText(input?.title, 160);
   const prompt = cleanText(input?.prompt, 12000);
   const project = cleanText(input?.project, 200);
@@ -59,14 +60,15 @@ export function validateDispatchInput(input, now = new Date()) {
   if (!title) throw new Error("任务标题不能为空");
   if (!prompt) throw new Error("发送内容不能为空");
   if (!project) throw new Error("必须选择项目");
-  if (!targetThreadId) throw new Error("目标项目没有可用对话");
+  if (actionType === "existing_thread" && !targetThreadId) throw new Error("目标项目没有可用对话");
   if (input?.scheduledAt && !scheduledAt) throw new Error("排期时间无效");
   return {
+    actionType,
     title,
     prompt,
     project,
-    targetThreadId,
-    targetThreadTitle: targetThreadTitle || `对话 ${targetThreadId.slice(0, 8)}`,
+    targetThreadId: actionType === "existing_thread" ? targetThreadId : null,
+    targetThreadTitle: actionType === "existing_thread" ? (targetThreadTitle || `对话 ${targetThreadId.slice(0, 8)}`) : "新建会话",
     cwd: cwd || null,
     scheduledAt,
     status: initialDispatchStatus({ mode: input?.mode, scheduledAt }, now)
@@ -199,10 +201,23 @@ export class DispatchBoardStore {
       deliveryUncertainAt: null,
       queueOrder: normalized.status === "queued" ? this.appendQueueOrder() : null
     };
+    for (const key of ["generatorId", "generatorName", "generatorRunId", "generatorTaskId"]) {
+      const value = cleanText(input?.[key], key === "generatorName" ? 160 : 120);
+      item[key] = value || null;
+    }
+    item.createdThreadId = null;
     this.items.push(item);
     await this.save();
     await this.audit(normalized.status === "scheduled" ? "scheduled" : normalized.status === "queued" ? "queued" : "created", item);
     return item;
+  }
+
+  async createGenerated(input) {
+    const runId = cleanText(input?.generatorRunId, 120);
+    const taskId = cleanText(input?.generatorTaskId, 120);
+    if (!runId || !taskId) throw new Error("发生器运行标识无效");
+    const existing = this.items.find((item) => item.generatorRunId === runId && item.generatorTaskId === taskId);
+    return existing || this.create({ ...input, mode: "queue" });
   }
 
   async update(id, changes) {
@@ -290,7 +305,7 @@ export class DispatchBoardStore {
     return item;
   }
 
-  async finish(id, { ok, error = null, attemptId = null }) {
+  async finish(id, { ok, error = null, attemptId = null, threadId = null }) {
     const item = this.items.find((candidate) => candidate.id === id);
     if (!item) return null;
     if (item.activeAttemptId && item.activeAttemptId !== attemptId) return null;
@@ -299,6 +314,7 @@ export class DispatchBoardStore {
     item.completedAt = this.now().toISOString();
     item.updatedAt = item.completedAt;
     item.lastError = ok ? null : cleanText(error, 2000) || "Codex 发送失败";
+    if (ok) item.createdThreadId = cleanText(threadId, 120) || item.createdThreadId || null;
     await this.save();
     await this.audit(ok ? "completed" : "failed", item, ok ? null : "Codex 调度失败");
     return item;

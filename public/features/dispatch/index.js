@@ -17,7 +17,7 @@ export function dispatchMetrics(items = []) {
   return {
     count: items.length,
     waitingCount: items.filter((item) => ["scheduled", "queued", "sending"].includes(item.status)).length,
-    targetCount: new Set(items.map((item) => item.targetThreadId)).size
+    targetCount: new Set(items.map((item) => item.targetThreadId || item.createdThreadId).filter(Boolean)).size
   };
 }
 
@@ -96,13 +96,19 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     title.textContent = item.title;
     const route = document.createElement("div");
     route.className = "dispatch-route";
-    route.textContent = `${item.project} → ${item.targetThreadTitle}`;
+    route.textContent = `${item.project} → ${item.actionType === "new_thread" ? (item.createdThreadId ? "已新建会话" : "新建会话") : item.targetThreadTitle}`;
     const prompt = document.createElement("p");
     prompt.textContent = item.prompt;
     const meta = document.createElement("div");
     meta.className = "dispatch-meta";
     meta.textContent = item.status === "queued" ? `发送顺序 ${item.queueOrder || "—"}` : item.status === "backlog" ? "仅保留为待办，不会自动发送" : item.status === "scheduled" ? `计划 ${formatDate(item.scheduledAt)} · ${scheduleRelativeLabel(item.scheduledAt)}` : item.status === "sending" ? `开始 ${formatDate(item.startedAt)}` : `更新 ${formatDate(item.updatedAt)}`;
     card.append(title, route, prompt, meta);
+    if (item.generatorName) {
+      const source = document.createElement("div");
+      source.className = "dispatch-source";
+      source.textContent = `来自发生器：${item.generatorName}`;
+      card.append(source);
+    }
     if (item.lastError) {
       const error = document.createElement("div");
       error.className = "dispatch-error";

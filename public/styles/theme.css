@@ -61,6 +61,9 @@
 :root[data-theme="dark"] .board-column,
 :root[data-theme="dark"] .session-device-card { border-color: var(--native-ui-border); background: var(--native-ui-surface); }
 :root[data-theme="dark"] .composer-card,
+:root[data-theme="dark"] .generator-overview,
+:root[data-theme="dark"] .generator-card,
+:root[data-theme="dark"] .generator-run,
 :root[data-theme="dark"] .context-card,
 :root[data-theme="dark"] .dispatch-card,
 :root[data-theme="dark"] .task-card,
@@ -73,6 +76,9 @@
 :root[data-theme="dark"] .zotero-note-section,
 :root[data-theme="dark"] .zotero-collection-form,
 :root[data-theme="dark"] .zotero-confirmation { border-color: var(--native-ui-border); background: var(--native-ui-surface-raised); box-shadow: none; }
+:root[data-theme="dark"] .generator-task-row { border-color: var(--native-ui-border); background: var(--native-ui-surface); }
+:root[data-theme="dark"] .generator-task-chip,
+:root[data-theme="dark"] .generator-run-status { background: var(--native-ui-surface-hover); color: var(--native-ui-text-secondary); }
 :root[data-theme="dark"] .context-values > div,
 :root[data-theme="dark"] .session-scope-summary span,
 :root[data-theme="dark"] .session-device-role,

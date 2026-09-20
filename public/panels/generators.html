@@ -1,0 +1,50 @@
+        <section class="generators-panel hidden" data-module-panel="generators">
+          <section class="generator-overview">
+            <div>
+              <p class="eyebrow">TRIGGERS &amp; GENERATORS</p>
+              <h2>发生器</h2>
+              <p class="muted">预先准备一组消息任务，通过按钮立即触发，或在指定时间一次性触发。</p>
+            </div>
+            <div class="generator-metrics" aria-label="发生器概览">
+              <span><strong data-testid="generator-count">—</strong> 个发生器</span>
+              <span><strong data-testid="generator-pending-count">—</strong> 个定时待触发</span>
+              <span><strong data-testid="generator-run-count">—</strong> 次运行</span>
+            </div>
+            <button class="primary-button" type="button" data-action="toggle-generator-composer" aria-expanded="false" aria-controls="generator-composer">新建发生器</button>
+          </section>
+
+          <section class="composer-card generator-composer hidden" id="generator-composer" data-testid="generator-composer">
+            <div class="section-heading">
+              <div><p class="eyebrow">NEW GENERATOR</p><h2>准备待发生任务</h2></div>
+              <button class="quiet-button" type="button" data-action="toggle-generator-composer" aria-expanded="true" aria-controls="generator-composer">收起</button>
+            </div>
+            <form data-testid="generator-form" class="generator-form">
+              <div class="generator-definition-fields">
+                <label class="field"><span>发生器名称</span><input name="name" maxlength="160" required placeholder="例如：每日发布检查"></label>
+                <label class="field"><span>指定触发时间（可选）</span><input name="scheduledAt" type="datetime-local"></label>
+              </div>
+              <div class="generator-task-heading">
+                <div><h3>任务序列</h3><p>按这里的顺序进入发送队列。</p></div>
+                <button class="quiet-button" type="button" data-action="add-generator-task">添加任务</button>
+              </div>
+              <div class="generator-task-editor" data-testid="generator-task-editor"></div>
+              <div class="form-footer"><span>保存后不会立即执行；请使用手动按钮或设置未来时间。</span><button class="primary-button" type="submit">保存发生器</button></div>
+            </form>
+          </section>
+
+          <section class="generator-content">
+            <div class="section-heading">
+              <div><p class="eyebrow">SAVED GENERATORS</p><h2>已准备</h2></div>
+              <button class="quiet-button" type="button" data-action="refresh-generators">刷新</button>
+            </div>
+            <div class="state-card" data-generator-state="loading"><div class="spinner" aria-hidden="true"></div><h3>正在读取发生器</h3><p>定义和运行记录保存在本机。</p></div>
+            <div class="state-card hidden" data-generator-state="empty"><div class="state-icon">○</div><h3>还没有发生器</h3><p>先准备一组任务，再选择手动或定时触发。</p></div>
+            <div class="state-card hidden" data-generator-state="error"><div class="state-icon">!</div><h3>发生器暂时不可用</h3><p data-generator-state-message>请稍后重试。</p></div>
+            <div class="generator-list hidden" data-generator-state="connected" data-testid="generator-list" aria-live="polite"></div>
+          </section>
+
+          <section class="generator-runs hidden" data-testid="generator-runs">
+            <div class="section-heading"><div><p class="eyebrow">RECENT RUNS</p><h2>最近发生</h2></div></div>
+            <div class="generator-run-list" data-testid="generator-run-list" aria-live="polite"></div>
+          </section>
+        </section>

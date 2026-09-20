@@ -78,6 +78,7 @@
 .dispatch-card p { display: -webkit-box; margin: 0; overflow: hidden; color: #66666b; font-size: 13px; line-height: 19px; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .dispatch-meta { color: #9a9a9f; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
 .dispatch-error { padding: 7px 8px; border-radius: 7px; background: #fff0f0; color: #a23f3f; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
+.dispatch-source { color: var(--native-ui-text-tertiary); font-size: 11px; line-height: 16px; }
 .dispatch-actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
 .small-button { padding: 6px 8px; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); }
 .dispatch-detail-open { overflow: hidden; }
