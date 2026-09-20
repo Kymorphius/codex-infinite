@@ -10,6 +10,15 @@ export function formatNativeJevTurnChoice(value = {}) {
   return tier && model && effort ? `Jev · ${tier} · ${model} · ${effort}${value.fallback ? " · 兜底" : ""}` : "";
 }
 
+export function formatNativeJevModelChange(value = {}) {
+  const labels = { "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-6-astra": "GPT-6 Astra" };
+  const model = labels[value.model] || String(value.model || "").trim();
+  const effort = String(value.effort || "").trim();
+  if (!model || !effort) return "";
+  const confidence = Number.isFinite(value.confidence) ? value.confidence.toFixed(2) : "—";
+  return `模型已设置为 ${model}，推理强度 ${effort}，置信度 ${confidence}${value.fallback ? "（兜底）" : ""}。`;
+}
+
 export function selectNativeJevRoutingTurn(candidates = [], prompt = "", beforeIds = [], usedIds = [], allowExisting = false) {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const before = new Set(Array.isArray(beforeIds) ? beforeIds : []), used = new Set(Array.isArray(usedIds) ? usedIds : []);

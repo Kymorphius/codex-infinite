@@ -68,6 +68,12 @@ to that turn's user-message footer as a compact badge, for example
 `Jev · 复杂 · GPT-5.6 Sol · medium`. Turn badges are retained locally with a
 bounded history and never added to the model prompt.
 
+When Router interception makes Codex's native model-change notice collapse both
+the old and new model names to `自定义`, the enhanced renderer rewrites only the
+new Jev-generated notice to show the concrete selected model, reasoning effort,
+confidence, and fallback state. Unrelated native notices and conversation text
+remain untouched.
+
 The shared configuration panel exposes two explicit transport choices:
 
 - `原生直连并自动发送` removes the enhanced runtime's Router endpoint. Jev
@@ -100,6 +106,9 @@ The shared configuration panel exposes two explicit transport choices:
   model and effort on their next turn.
 - Each routed turn visibly shows its tier, model, and reasoning effort without
   changing the conversation content sent to the model.
+- A Router-intercepted turn never leaves the Jev-generated native status line as
+  `自定义 → 自定义`; it shows the selected model, reasoning effort, confidence,
+  and whether the fallback mapping was used.
 - Disabling the current-conversation switch leaves that conversation's next
   native turn model and effort intact without changing other conversations.
 - Turbo context, speed, and permission behavior remains operational, while Jev

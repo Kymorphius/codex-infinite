@@ -5,6 +5,7 @@ import vm from "node:vm";
 import {
   buildNativeJevRoutingInjectionScript,
   buildNativeJevRoutingSnapshotScript,
+  formatNativeJevModelChange,
   formatNativeJevTurnChoice,
   handleNativeJevRoutingRequest,
   NATIVE_JEV_ROUTING_BINDING,
@@ -42,12 +43,15 @@ function runtime({ classification } = {}) {
   return { context, window };
 }
 
-function composerRuntime({ delayedSendRecovery = false } = {}) {
+function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = false } = {}) {
   const thread = { getAttribute(name) { return name === "data-above-composer-conversation-id" ? threadId : null; } };
   const editor = { innerText: "Route this composer turn", closest(selector) { return selector.includes("data-codex-composer") ? this : null; } };
   const documentListeners = new Map();
   let sends = 0;
   let sendVisible = true;
+  let noticeVisible = false;
+  const noticeText = { nodeType: 3, nodeValue: "模型已从 自定义 更改为 自定义。" };
+  const notice = { childNodes: [{ nodeType: 1 }, noticeText, { nodeType: 1 }], setAttribute(name) { this.marker = name; } };
   const send = {
     disabled: false,
     closest(selector) { return selector.includes("aria-label") ? this : null; },
@@ -60,7 +64,7 @@ function composerRuntime({ delayedSendRecovery = false } = {}) {
       if (selector.includes('button[aria-label="发送"]')) return sendVisible ? send : null;
       return null;
     },
-    querySelectorAll() { return []; },
+    querySelectorAll(selector) { return selector === "span" && noticeVisible ? [notice] : []; },
     addEventListener(type, listener) { documentListeners.set(type, listener); },
     removeEventListener(type) { documentListeners.delete(type); }
   };
@@ -69,6 +73,7 @@ function composerRuntime({ delayedSendRecovery = false } = {}) {
     electronBridge: Object.freeze({ sendMessageFromView() { throw new Error("frozen bridge must not be wrapped"); } }),
     async __codexControlConsoleApplyThreadSettings(id, changes) {
       applied.push({ id, changes });
+      if (modelChangeNotice) noticeVisible = true;
       if (delayedSendRecovery) { sendVisible = false; setTimeout(() => { sendVisible = true; }, 100); }
       return { applied: true };
     },
@@ -81,7 +86,7 @@ function composerRuntime({ delayedSendRecovery = false } = {}) {
   const context = { window, document, setInterval() { return 1; }, clearInterval() {}, setTimeout, clearTimeout, queueMicrotask, Date, Map, Set, JSON, Object, Number, String, Array, RegExp };
   vm.runInNewContext(buildNativeJevRoutingInjectionScript(), context);
   vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } } }), context);
-  return { applied, documentListeners, editor, send, sends: () => sends, window };
+  return { applied, documentListeners, editor, notice, noticeText, send, sends: () => sends, window };
 }
 
 test("native Jev binding accepts only bounded classify and toggle requests", async () => {
@@ -115,6 +120,8 @@ test("turn choice labels and pending-turn matching stay bounded and deterministi
   const first = "01a0bf0e-f99d-7712-ada7-4a676030e96b", second = "01a0bf10-1497-7263-a1ca-4ea079c001de";
   assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-5.6-sol", effort: "medium" }), "Jev · 复杂 · GPT-5.6 Sol · medium");
   assert.equal(formatNativeJevTurnChoice({ tier: "everyday", model: "gpt-5.6-terra", effort: "low", fallback: true }), "Jev · 日常 · GPT-5.6 Terra · low · 兜底");
+  assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.9 }), "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.90。");
+  assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-terra", effort: "medium", confidence: 0.18, fallback: true }), "模型已设置为 GPT-5.6 Terra，推理强度 medium，置信度 0.18（兜底）。");
   const candidates = [{ id: first, userText: "same" }, { id: second, userText: "same" }];
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], []), second);
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first, second], []), null);
@@ -199,6 +206,14 @@ test("composer waits for a settings rerender and releases native send exactly on
   assert.equal(harness.applied.length, 1);
   assert.equal(harness.sends(), 1);
   assert.equal(harness.window.__codexControlConsoleLastJevRouting.ok, true);
+});
+
+test("Router custom-to-custom notice shows the concrete Jev model, effort, and confidence", async () => {
+  const harness = composerRuntime({ modelChangeNotice: true });
+  harness.documentListeners.get("keydown")({ key: "Enter", shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, isComposing: false, target: harness.editor, preventDefault() {}, stopImmediatePropagation() {} });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(harness.noticeText.nodeValue, "模型已设置为 GPT-5.6 Sol，推理强度 high，置信度 0.90。");
+  assert.equal(harness.notice.marker, "data-codex-control-console-jev-model-change");
 });
 
 test("native Jev source installs the visible default-on switch", () => {

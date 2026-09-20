@@ -1,6 +1,6 @@
-import { formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+import { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
-export { formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+export { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 
 export const NATIVE_JEV_ROUTING_BINDING = "__codexControlConsoleJevRouting";
@@ -22,15 +22,16 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.4') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.5') return;
   if (window.__codexControlConsoleJevRoutingInstallTimer) clearInterval(window.__codexControlConsoleJevRoutingInstallTimer);
   window.__codexControlConsoleJevRoutingInputCleanup?.();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.4';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.5';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
+  const formatModelChange = ${formatNativeJevModelChange.toString()};
   const formatTurnChoice = ${formatNativeJevTurnChoice.toString()};
   const selectTurn = ${selectNativeJevRoutingTurn.toString()};
   const releaseSend = ${releaseNativeJevSend.toString()};
@@ -149,6 +150,28 @@ export function buildNativeJevRoutingInjectionScript() {
     return document.querySelector('button[aria-label="发送"],button[aria-label="Send"]');
   }
 
+  function genericModelChangeNotices() {
+    return Array.from(document.querySelectorAll('span')).filter((node) => {
+      const value = Array.from(node.childNodes || []).filter((child) => child.nodeType === 3).map((child) => child.nodeValue || '').join('').trim();
+      return value === '模型已从 自定义 更改为 自定义。' || value === 'Model changed from Custom to Custom.';
+    });
+  }
+
+  function watchNativeModelChange(classification) {
+    const existing = new Set(genericModelChangeNotices());
+    let attempts = 0;
+    const poll = () => {
+      const notice = genericModelChangeNotices().filter((node) => !existing.has(node)).at(-1);
+      if (notice) {
+        const text = Array.from(notice.childNodes || []).find((child) => child.nodeType === 3 && String(child.nodeValue || '').trim());
+        if (text) { text.nodeValue = formatModelChange(classification); notice.setAttribute('data-codex-control-console-jev-model-change', ''); }
+        return;
+      }
+      if (++attempts < 40) setTimeout(poll, 50);
+    };
+    setTimeout(poll, 0);
+  }
+
   async function routeComposerSubmission() {
     const threadId = currentThreadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     if (submissionPending || !threadId || !editor) return;
@@ -160,6 +183,7 @@ export function buildNativeJevRoutingInjectionScript() {
       if (!classification) throw new Error('没有可用的 Jev 路由结果');
       const apply = window.__codexControlConsoleApplyThreadSettings;
       if (typeof apply !== 'function') throw new Error('原生会话设置桥接不可用');
+      watchNativeModelChange(classification);
       await apply(threadId, { model: classification.model, reasoningEffort: classification.effort });
       lastResult = classification;
       window.__codexControlConsoleLastJevRouting = { ok: true, threadId, ...classification, appliedAt: new Date().toISOString() };
