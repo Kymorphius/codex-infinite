@@ -7,7 +7,7 @@ import { createNativeSaveDraftTodoButton } from "./native-save-draft-control.mjs
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-20.4', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
+  const VERSION = '2026-09-20.5', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
