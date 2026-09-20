@@ -37,6 +37,8 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /__codexControlConsoleNativeContextObserver/);
   assert.match(source, /__codexControlConsoleOpenNativeThread/);
   assert.match(source, /data-codex-control-console-context-toggle/);
+  assert.match(source, /pending-million-context/);
+  assert.match(source, /新建聊天将使用百万上下文/);
   assert.match(source, /button\.dataset\.renderState === renderState/);
   assert.match(source, /data-context-toggle-dot/);
   assert.match(source, /<span>百万<\/span>/);

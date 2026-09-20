@@ -45,6 +45,9 @@ native desktop interface does not apply the saved override.
    the choice in the background. Renderer refreshes may update the switch only
    when its bound thread, mode, or pending state actually changes; they must not
    replace descendants continuously and cancel physical pointer clicks.
+   In a new chat the switch remains available as a pending first-turn preset;
+   after the first turn receives a conversation id, that preset is applied and
+   persisted to the new conversation.
 3. Saving an override from the management page remains available for bulk
    inspection, but is not required for normal use.
 4. Opening an enabled thread from the session center resumes it with

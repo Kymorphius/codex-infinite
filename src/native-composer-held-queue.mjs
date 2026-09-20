@@ -4,6 +4,7 @@ import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { createNativeClaimTaskBridge } from "./native-claim-task-control.mjs";
 import { createNativeSaveDraftTodoButton } from "./native-save-draft-control.mjs";
+import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
@@ -284,7 +285,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function install() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]'), root = editor?.closest('[data-composer-surface-variant]');
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
-    if (!id || !root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-claim-task]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
+    if (!root || !host) { document.querySelector('[data-ccc-held-queue-button]')?.remove(); document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-claim-task]')?.remove(); document.querySelector('[data-ccc-held-queue-panel]')?.remove(); return; }
+    ${noThread('held')}
     const threadChanged = activeThreadId !== id;
     if (threadChanged) { activeThreadId = id; serverItems = []; warning = ''; heldView = readHeldView(id); if (open) void refresh(); }
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
@@ -301,7 +303,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function installSaveDraftTodo() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
-    if (!id || !editor || !host) { document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-claim-task]')?.remove(); return; }
+    if (!editor || !host) { document.querySelector('[data-ccc-save-draft-todo]')?.remove(); document.querySelector('[data-ccc-claim-task]')?.remove(); return; }
+    ${noThread('draft')}
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) {
       save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
