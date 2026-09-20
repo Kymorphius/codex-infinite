@@ -220,7 +220,8 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /新建聊天继承全局 Jev 路由/);
   assert.match(source, /selectedThreadId \? await request\('set-thread-enabled'/);
   assert.match(source, /if \(!composerHost\) \{ current\?\.remove\(\); choice\?\.remove\(\); return; \}/);
-  assert.match(source, /Jev 全局/);
+  assert.match(source, /button\.textContent = 'Jev';/);
+  assert.doesNotMatch(source, /Jev 全局/);
   assert.match(source, /'Jev 原生' : 'Jev 路由'/);
   assert.match(source, /Jev 当前模型和推理强度/);
   assert.doesNotMatch(source, /Jev 自动 ·/);

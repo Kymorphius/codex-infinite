@@ -148,6 +148,7 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   assert.match(source, /百万上下文/);
   assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /Fast/);
+  assert.doesNotMatch(source, /const badge = document\.createElement\('small'\).*textContent = '1M'/);
   assert.match(source, /button\[aria-label="搜索"\]/);
   assert.match(source, /data-codex-control-console-interactive-header/);
   assert.match(source, /-webkit-app-region', 'drag', 'important/);

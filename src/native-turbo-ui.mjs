@@ -23,7 +23,6 @@ export function buildNativeTurboUiSource(bindingName) {
     bolt.setAttribute('d', 'M13 2 3 14h9l-1 8 10-12h-9l1-8Z'); icon.append(bolt);
     const text = document.createElement('span'); text.textContent = 'Turbo';
     button.append(icon, text);
-    if (policy.millionContext) { const badge = document.createElement('small'); badge.textContent = '1M'; badge.style.cssText = 'font-size:9px;opacity:.8'; button.append(badge); }
   }
 
   function restoreReasoningControl(button) {
