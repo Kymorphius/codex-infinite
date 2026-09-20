@@ -15,6 +15,7 @@ import { createSessionsFeature } from "./features/sessions/index.js";
 import { createZoteroFeature } from "./features/zotero/index.js";
 import { createTurboFeature } from "./features/turbo/index.js";
 import { createSkillsFeature } from "./features/skills/index.js";
+import { createJevRoutingFeature } from "./features/jev-routing/index.js";
 
 (() => {
   announceEmbeddedReady();
@@ -34,6 +35,7 @@ import { createSkillsFeature } from "./features/skills/index.js";
       if (module === "experiments") void experimentsFeature.load();
       if (module === "skills") void skillsFeature.load();
       if (module === "generators") void generatorsFeature.load();
+      if (module === "jev-routing") void jevRoutingFeature.load();
     },
     async onRefresh() {
       if (state.module === "experiments") return experimentsFeature.load();
@@ -63,6 +65,7 @@ import { createSkillsFeature } from "./features/skills/index.js";
   const turboFeature = createTurboFeature({ $, showToast });
   const experimentsFeature = createExperimentsFeature({ $ });
   const skillsFeature = createSkillsFeature({ $, showToast });
+  const jevRoutingFeature = createJevRoutingFeature({ $, showToast });
 
   const taskSource = createTaskSource({
     state,
@@ -95,6 +98,7 @@ import { createSkillsFeature } from "./features/skills/index.js";
   turboFeature.bind();
   experimentsFeature.bind();
   skillsFeature.bind();
+  jevRoutingFeature.bind();
   navigation.bind();
   navigation.updateChrome();
   Promise.all([taskSource.load(), dispatchFeature.load(), generatorsFeature.load(), turboFeature.load()]);
@@ -102,6 +106,7 @@ import { createSkillsFeature } from "./features/skills/index.js";
   if (state.module === "context") void contextFeature.load();
   if (state.module === "experiments") void experimentsFeature.load();
   if (state.module === "skills") void skillsFeature.load();
+  if (state.module === "jev-routing") void jevRoutingFeature.load();
   setInterval(() => void dispatchFeature.load({ quiet: true }), 2500);
   setInterval(() => void generatorsFeature.load({ quiet: true }), 2500);
   createAdaptiveRefreshScheduler({

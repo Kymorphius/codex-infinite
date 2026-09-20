@@ -13,8 +13,9 @@ import { createTurboHttpHandler } from "./turbo-http.mjs";
 import { createProjectCopyHttpHandler } from "./project-copy-http.mjs";
 import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
+import { createJevRoutingHttpHandler } from "./jev-routing-http.mjs";
 
-export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog }) {
+export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService }) {
   const health = createHealthHttpHandler(config);
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
@@ -25,6 +26,7 @@ export function createDashboardHandlers({ config, experimentService, adapter, lo
     createSkillsHttpHandler({ skillSyncService, localSkillAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createTurboHttpHandler({ turboCoordinator, turboPolicyService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
+    createJevRoutingHttpHandler({ service: jevRoutingService, dashboardOrigin: config.dashboardOrigin }),
     createProjectCopyHttpHandler({ service: projectCopyService, dashboardOrigin: config.dashboardOrigin }),
     createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService, remoteThreadSettingsService }),
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),

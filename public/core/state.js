@@ -1,6 +1,7 @@
 export const MODULES = Object.freeze({
   board: { title: "看板", caption: "任务排期与对话发送" },
   generators: { title: "发生器", caption: "手动或定时触发一组预设任务" },
+  "jev-routing": { title: "自动分流", caption: "Jev 判断任务档位，模型与推理强度由你映射" },
   console: { title: "控制台", caption: "只读本机任务记录" },
   sessions: { title: "会话中心", caption: "按工作目录查看原生 Codex 会话" },
   context: { title: "上下文状态", caption: "普通会话使用模型默认窗口；需要时按会话扩展" },

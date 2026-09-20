@@ -8,6 +8,7 @@ test("browser state accepts only registered modules and creates isolated mutable
   assert.equal(zoteroState.module, "zotero");
   assert.equal(invalidState.module, "board");
   assert.equal(Object.hasOwn(MODULES, "sessions"), true);
+  assert.equal(Object.hasOwn(MODULES, "jev-routing"), true);
   zoteroState.tasks.push({ id: "one" });
   assert.deepEqual(invalidState.tasks, []);
 });

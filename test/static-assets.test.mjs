@@ -16,7 +16,7 @@ function responseRecorder() {
 
 test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/").file, "index.html");
-  for (const name of ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "generators", "responsive"]) {
+  for (const name of ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "generators", "jev-routing", "responsive"]) {
     const asset = resolveStaticAsset(`/styles/${name}.css?v=1`);
     assert.equal(asset.file, `styles/${name}.css`);
     assert.equal(asset.type, "text/css; charset=utf-8");
@@ -35,6 +35,7 @@ test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/features/context/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/dispatch/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/generators/index.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/jev-routing/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/dispatch/details.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/skills/group-actions.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/sessions/index.js").type, "text/javascript; charset=utf-8");
@@ -123,8 +124,8 @@ test("index GET assembles only the fixed private panel files", async () => {
       return Buffer.from(`<section>${filePath.split("/").at(-1)}</section>`);
     }
   });
-  assert.equal(reads.length, 10);
-  assert.match(response.body.toString(), /board\.html.*generators\.html.*context\.html.*experiments\.html.*skills\.html.*zotero\.html/s);
+  assert.equal(reads.length, 11);
+  assert.match(response.body.toString(), /board\.html.*generators\.html.*jev-routing\.html.*context\.html.*experiments\.html.*skills\.html.*zotero\.html/s);
 });
 
 test("static GET uses trusted path, MIME, and security headers", async () => {

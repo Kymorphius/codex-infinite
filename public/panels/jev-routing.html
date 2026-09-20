@@ -1,0 +1,26 @@
+        <section class="jev-routing-panel hidden" data-module-panel="jev-routing">
+          <section class="intro-card jev-routing-intro">
+            <div><p class="eyebrow">JEV AUTO ROUTING</p><h2>让任务自己选档，但映射由你决定</h2><p class="muted">Jev 只判断任务属于哪一档；每档对应哪个模型、用多大推理强度，都可以在这里修改，并与 Codex Router 共用。</p></div>
+            <span class="section-status" data-testid="jev-status"><span class="status-dot"></span><span data-jev-availability>正在检查 Jev</span></span>
+          </section>
+
+          <section class="jev-routing-grid">
+            <form class="composer-card jev-dispatch-form" data-testid="jev-dispatch-form">
+              <div class="section-heading"><div><p class="eyebrow">NEW AUTO-ROUTED TASK</p><h2>创建自动分流任务</h2></div></div>
+              <label class="field"><span>任务内容</span><textarea name="prompt" required maxlength="131072" rows="8" placeholder="描述要完成的任务，Jev 会选择最小够用档位"></textarea></label>
+              <label class="field"><span>工作目录</span><input name="cwd" required placeholder="/Users/dev/333.dev/your-project"></label>
+              <div class="jev-submit-row"><span class="muted">创建后会成为原生 Codex 持久任务。</span><button class="primary-button" type="submit" data-jev-dispatch>判断并创建任务</button></div>
+              <div class="jev-result hidden" data-testid="jev-result" aria-live="polite"></div>
+            </form>
+
+            <form class="composer-card jev-config-form" data-testid="jev-config-form">
+              <div class="section-heading"><div><p class="eyebrow">SHARED ROUTING MAP</p><h2>档位映射</h2><p class="muted">这里保存的规则会同时被加强版和 Router 控制中心读取。</p></div></div>
+              <div class="jev-mapping-list" data-jev-mappings></div>
+              <div class="jev-routing-options">
+                <label class="field"><span>最低置信度</span><select name="minConfidence"><option value="0.5">0.50</option><option value="0.6">0.60</option><option value="0.7">0.70</option><option value="0.8">0.80</option><option value="0.9">0.90</option><option value="0.95">0.95</option></select></label>
+                <label class="field"><span>低置信度兜底档位</span><select name="fallbackTier"></select></label>
+              </div>
+              <div class="jev-submit-row"><span class="muted" data-jev-config-path>共享配置</span><button class="primary-button" type="submit" data-jev-save>保存映射</button></div>
+            </form>
+          </section>
+        </section>

@@ -56,6 +56,9 @@ import { LocalSkillAdapter } from "./local-skill-adapter.mjs";
 import { SkillSyncService } from "./skill-sync-service.mjs";
 import { SkillConfigStore } from "./skill-config-store.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { JevRoutingStore } from "./jev-routing-store.mjs";
+import { JevRoutingService } from "./jev-routing-service.mjs";
+import { JevTaskDispatcher } from "./jev-task-dispatcher.mjs";
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -159,6 +162,12 @@ export async function run() {
   await generatorStore.init();
   const generatorService = new GeneratorService({ store: generatorStore, dispatchStore });
   await generatorService.reconcile();
+  const jevTaskDispatcher = new JevTaskDispatcher({ codexPath: config.codexPath, codexHome: config.nativeCodexHome });
+  const jevRoutingService = new JevRoutingService({
+    store: new JevRoutingStore({ filePath: config.jevRoutingPath }),
+    jevPath: config.jevPath,
+    taskDispatcher: jevTaskDispatcher
+  });
   const dispatcher = new CodexCliDispatcher({
     codexPath: config.codexPath,
     codexHome: config.nativeCodexHome,
@@ -179,7 +188,7 @@ export async function run() {
   let nativeOwnerInjector = null;
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); scheduler.stop(); } });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
-  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog });
+  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService });
   await dashboard.listen();
   try {
     const codex = attachedCodex || await ensureDedicatedCodex(config);
@@ -217,6 +226,7 @@ export async function run() {
   }
 
   const shutdown = async () => {
+    jevTaskDispatcher.close();
     await injector.stop();
     await nativeOwnerInjector?.stop();
     scheduler.stop();
