@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { ensureDedicatedCodex, WRAPPER_DISABLED_FEATURES } from "../src/launcher.mjs";
+import { ensureDedicatedCodex, wrapperSignature, WRAPPER_DISABLED_FEATURES } from "../src/launcher.mjs";
 
 function config() {
   return {
@@ -54,10 +54,10 @@ test("launcher scopes Chromium LNA compatibility to the dedicated wrapper proces
   const launches = [];
   let fetchCount = 0;
   const spawnImpl = (_file, args, options) => {
-    launches.push({ args, options });
+    launches.push({ file: _file, args, options });
     return { pid: 456, unref() {} };
   };
-  const execFileImpl = async () => ({ stdout: "" });
+  const execFileImpl = async () => ({ stdout: launches.length ? `789 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=${config().profileDirectory} --remote-debugging-port=9231 --codex-control-wrapper-signature=${wrapperSignature(config())}` : "" });
   const fetchImpl = async () => {
     fetchCount += 1;
     if (fetchCount === 1) throw new Error("not running");
@@ -77,8 +77,13 @@ test("launcher scopes Chromium LNA compatibility to the dedicated wrapper proces
   assert.equal(launches[0].args.filter((arg) => arg.startsWith("--disable-features=")).length, 1);
   assert.ok(launches[0].args.includes(`--disable-features=${WRAPPER_DISABLED_FEATURES}`));
   assert.ok(launches[0].args.some((arg) => arg.startsWith("--codex-control-wrapper-signature=")));
-  assert.equal(launches[0].options.env.CODEX_HOME, config().wrapperCodexHome);
-  assert.equal(launches[0].options.env.CODEX_ELECTRON_USER_DATA_PATH, config().profileDirectory);
+  assert.equal(result.pid, 789);
+  assert.equal(launches[0].file, "/usr/bin/open");
+  assert.deepEqual(launches[0].args.slice(0, 3), ["-n", "-a", config().appPath]);
+  assert.ok(launches[0].args.includes(`CODEX_HOME=${config().wrapperCodexHome}`));
+  assert.ok(launches[0].args.includes(`CODEX_ELECTRON_USER_DATA_PATH=${config().profileDirectory}`));
+  assert.equal(launches[0].args.filter((arg) => arg === "--env").length, 4);
+  assert.ok(launches[0].args.indexOf("--args") < launches[0].args.indexOf(`--user-data-dir=${config().profileDirectory}`));
 });
 
 test("launcher starts the Windows package with an isolated profile and verifiable fingerprint", async () => {
@@ -124,4 +129,13 @@ test("launcher starts the Windows package with an isolated profile and verifiabl
   assert.equal(launched.options.env.CODEX_ELECTRON_USER_DATA_PATH, current.profileDirectory);
   assert.equal(launched.options.env.CODEX_HOME, current.nativeCodexHome);
   assert.equal(launched.options.windowsHide, false);
+});
+
+ test("launcher surfaces LaunchServices failures", async () => {
+  await assert.rejects(ensureDedicatedCodex(config(), {
+    platform: "darwin", accessImpl: async () => {},
+    execFileImpl: async () => ({ stdout: "" }),
+    fetchImpl: async () => { throw new Error("not running"); },
+    spawnImpl: () => ({ on(event, handler) { if (event === "exit") handler(1); }, unref() {} })
+  }), /Desktop launcher exited with code 1/);
 });

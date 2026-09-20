@@ -4,7 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { assertLoopbackConfig } from "./loopback.mjs";
 import { fetchJson } from "./cdp-client.mjs";
-import { desktopSpawnOptions, listDesktopProcesses, processSwitchValue, resolveDesktopExecutable } from "./desktop-host.mjs";
+import { desktopLaunchPlan, listDesktopProcesses, processSwitchValue, resolveDesktopExecutable } from "./desktop-host.mjs";
 
 const execFile = promisify(nodeExecFile);
 export const WRAPPER_DISABLED_FEATURES = "LocalNetworkAccessForSubframeNavigations";
@@ -98,34 +98,42 @@ export async function ensureDedicatedCodex(config, {
     throw new Error(`ChatGPT.app executable not found at ${executable}`);
   }
   await fs.mkdir(config.profileDirectory, { recursive: true });
-  const child = spawnImpl(executable, [
+  const launch = desktopLaunchPlan({ config, executable, platform, args: [
     `--user-data-dir=${config.profileDirectory}`,
     `--remote-debugging-address=${config.cdpHost}`,
     `--remote-debugging-port=${config.cdpPort}`,
     `--remote-allow-origins=${config.cdpOrigin}`,
     `--disable-features=${WRAPPER_DISABLED_FEATURES}`,
     `--codex-control-wrapper-signature=${wrapperSignature(config)}`
-  ], desktopSpawnOptions({
-    platform,
-    environment: {
-      ...process.env,
+  ], environment: {
       ...(config.nativeCodexHome || config.wrapperCodexHome ? { CODEX_HOME: config.nativeCodexHome || config.wrapperCodexHome } : {}),
       CODEX_ELECTRON_USER_DATA_PATH: config.profileDirectory,
       CODEX_CONTROL_PER_THREAD_CONTEXT_WINDOW: String(config.perThreadContextWindow || ""),
       CODEX_CONTROL_WRAPPER_SIGNATURE: wrapperSignature(config)
     }
-  }));
+  });
+  const child = spawnImpl(launch.executable, launch.args, launch.options);
+  let launchError = null;
+  child.on?.("error", (error) => { launchError = error; });
+  child.on?.("exit", (code) => {
+    if (code) launchError = new Error(`Desktop launcher exited with code ${code}`);
+  });
   child.unref?.();
 
   const deadline = Date.now() + maxWaitMs;
   while (Date.now() < deadline) {
+    if (launchError) throw launchError;
     try {
       const version = await fetchJson(endpoint, { fetchImpl, timeoutMs: Math.min(1500, Math.max(200, deadline - Date.now())) });
       const processInfo = await findCdpProcess({ port: config.cdpPort, executable, platform, execFileImpl });
       if (processInfo?.profileDirectory && path.resolve(processInfo.profileDirectory) !== path.resolve(config.profileDirectory)) {
         throw new Error(`CDP port ${config.cdpPort} was claimed by a different profile while launching`);
       }
-      return { mode: "launched", pid: processInfo?.pid ?? child.pid ?? null, profileDirectory: config.profileDirectory, version: version.Browser || null };
+      if (!processInfo?.profileDirectory) throw new Error("Waiting for dedicated application process");
+      if (await processWrapperSignature(processInfo, platform, execFileImpl) !== wrapperSignature(config)) {
+        throw new Error("CDP port was claimed by a different profile or wrapper configuration while launching");
+      }
+      return { mode: "launched", pid: processInfo.pid, profileDirectory: config.profileDirectory, version: version.Browser || null };
     } catch (error) {
       if (error.message.includes("claimed by a different profile")) throw error;
       await waitImpl(pollMs);

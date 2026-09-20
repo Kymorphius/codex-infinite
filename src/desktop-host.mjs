@@ -89,3 +89,16 @@ export function desktopSpawnOptions({ environment, platform = process.platform }
     ...(platform === "win32" ? { windowsHide: false } : {})
   };
 }
+
+export function desktopLaunchPlan({ config, executable, args, environment, platform = process.platform }) {
+  if (platform === "darwin") {
+    return {
+      executable: "/usr/bin/open",
+      args: ["-n", "-a", config.appPath,
+        ...Object.entries(environment).flatMap(([key, value]) => ["--env", `${key}=${value}`]),
+        "--args", ...args],
+      options: desktopSpawnOptions({ platform, environment: process.env })
+    };
+  }
+  return { executable, args, options: desktopSpawnOptions({ platform, environment: { ...process.env, ...environment } }) };
+}
