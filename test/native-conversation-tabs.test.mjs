@@ -78,6 +78,20 @@ test("native conversation tabs deduplicate while refreshing the label", () => {
   assert.equal(state.active().kind, "remote");
 });
 
+test("activating a remembered conversation moves it to the recent end", () => {
+  const state = new NativeConversationTabState();
+  state.open(localOne);
+  state.open(localTwo);
+  state.open(remote);
+  state.open({ ...localOne, title: "最近查看的本地会话" });
+  assert.deepEqual(state.tabs.map((tab) => tab.key), [
+    `local:${localTwo.id}`,
+    normalizeNativeConversationTab(remote).key,
+    `local:${localOne.id}`
+  ]);
+  assert.equal(state.active().title, "最近查看的本地会话");
+});
+
 test("native conversation tabs retain the last console module", () => {
   const state = new NativeConversationTabState();
   assert.equal(state.showConsole("priority").module, "priority");
@@ -86,16 +100,14 @@ test("native conversation tabs retain the last console module", () => {
   assert.equal(state.showConsole("unsupported").module, "priority");
 });
 
-test("closing the active native tab selects right, left, then Console", () => {
+test("closing the active native page returns to Console", () => {
   const state = new NativeConversationTabState();
   state.open(localOne);
   state.open(localTwo);
   state.open(remote);
   state.activate(`local:${localTwo.id}`);
-  assert.equal(state.close(`local:${localTwo.id}`).kind, "remote");
-  assert.equal(state.close(normalizeNativeConversationTab(remote).key).id, localOne.id);
-  assert.equal(state.close(`local:${localOne.id}`).kind, "console");
-  assert.equal(state.tabs.length, 0);
+  assert.equal(state.close(`local:${localTwo.id}`).kind, "console");
+  assert.deepEqual(state.tabs.map((tab) => tab.key), [`local:${localOne.id}`, normalizeNativeConversationTab(remote).key]);
 });
 
 test("closing an inactive tab does not change the active native view", () => {
@@ -214,6 +226,12 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
   assert.match(source, /data-window-opening/);
   assert.match(source, /data-window-error/);
+  assert.match(source, /2026-09-20\.recent-menu1/);
+  assert.match(source, /openNativeConversationPages/);
+  assert.match(source, /installNativeRecentConversationMenu/);
+  assert.match(source, /recentMenu\?\.render/);
+  assert.match(source, /aria-label', '打开的页面'/);
+  assert.match(source, /state\.activeKey = 'console'/);
   assert.match(source, /data-sidebar-chatgpt-conversation-key/);
   assert.match(source, /data-codex-control-console-ordinary-chat-row/);
   assert.match(source, /querySelector\?\.\('\[data-thread-title="true"\]'\)/);
@@ -223,6 +241,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /textContent = tab\.title/);
   assert.match(source, /-webkit-app-region:no-drag/);
   assert.match(source, /overflow-x:auto/);
+  assert.match(source, /overflow:visible/);
   assert.match(source, /leftControlEdge/);
   assert.match(source, /style\.pointerEvents !== 'none'/);
   assert.match(source, /data-codex-control-console-native-title-hidden/);
@@ -239,27 +258,13 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /render\(\); scheduleSync\(true\)/);
   assert.match(source, /background:var\(--color-background-primary,#202022\)/);
   assert.doesNotMatch(source, /const takeoverActive =/);
-  assert.match(source, /addEventListener\(["']wheel["']/);
-  assert.match(source, /\{ passive: false \}/);
-  assert.match(source, /Math\.abs\(event\.deltaY\) <= Math\.abs\(event\.deltaX\)/);
-  assert.match(source, /accumulator = 0;/);
-  assert.doesNotMatch(source, /wheelGestureHandled|wheelResetTimer/);
-  assert.match(source, /advanceMomentum\(momentum, delta, performance\.now\(\)\)/);
-  assert.match(source, /momentum\.ignoring/);
-  assert.match(source, /installNativeConversationTabWheelPreferences/);
-  assert.match(source, /nativeConversationTabWheelOffset\(accumulator, state\.wheelDirection\)/);
-  assert.match(source, /wheelDirection: state\.wheelDirection/);
-  assert.match(source, /\+ keys\.length\) % keys\.length/);
-  assert.match(source, /advanceNativeTabClickSequence\(tabClickSequence/);
-  assert.match(source, /tabClickSequence\.close/);
-  assert.match(source, /close\(tab\.dataset\.tabKey\)/);
+  assert.doesNotMatch(source, /installNativeConversationTabWheelPreferences/);
+  assert.doesNotMatch(source, /installNativeConversationTabDragging/);
+  assert.doesNotMatch(source, /advanceNativeTabClickSequence\(tabClickSequence/);
   assert.doesNotMatch(source, /addEventListener\('dblclick'/);
-  assert.match(source, /item\.draggable = true/);
-  assert.match(source, /addEventListener\(["']dragstart["']/);
-  assert.match(source, /addEventListener\(["']dragover["']/);
-  assert.match(source, /addEventListener\(["']drop["']/);
-  assert.match(source, /data-drop-position/);
-  assert.match(source, /reorderNativeConversationTabs/);
+  assert.match(source, /item\.draggable = false/);
+  assert.doesNotMatch(source, /addEventListener\(["']dragstart["']/);
+  assert.doesNotMatch(source, /data-drop-position/);
   assert.doesNotMatch(source, /consoleTab\.draggable/);
   assert.match(source, /bounds\.left >= workspaceRect\.left \+ 4/);
   assert.match(source, /removeAttribute\(TITLE_HIDDEN_ATTRIBUTE\)/);

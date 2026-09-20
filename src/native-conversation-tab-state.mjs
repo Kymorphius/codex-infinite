@@ -112,8 +112,8 @@ export class NativeConversationTabState {
     }
     const index = this.tabs.findIndex((item) => item.key === value.key);
     if (index >= 0) value = Object.freeze({ ...value, title: preferNativeConversationTitle(value.title, this.tabs[index].title) });
-    if (index < 0) this.tabs.push(value);
-    else this.tabs[index] = value;
+    if (index >= 0) this.tabs.splice(index, 1);
+    this.tabs.push(value);
     this.activeKey = value.key;
     return value;
   }
@@ -141,11 +141,6 @@ export class NativeConversationTabState {
     const wasActive = this.activeKey === key;
     this.tabs.splice(index, 1);
     if (!wasActive) return this.active();
-    const next = this.tabs[index] || this.tabs[index - 1];
-    if (next) {
-      this.activeKey = next.key;
-      return next;
-    }
     return this.showConsole();
   }
 

@@ -3,8 +3,8 @@ import { buildNativeLocalConversationSyncSource, resolveNativeLocalConversationI
 import { buildNativeConversationTabTitlePolicySource } from './native-conversation-tab-titles.mjs';
 import { buildNativeConversationTabTransitionSource } from './native-conversation-tab-transition.mjs';
 import { buildNativeConversationWindowInjectionSource, NATIVE_CONVERSATION_WINDOW_STYLE } from "./native-conversation-window.mjs";
-import { installNativeConversationTabDragging, reorderNativeConversationTabs } from "./native-conversation-tab-drag.mjs";
-import { installNativeConversationTabWheelPreferences, nativeConversationTabWheelOffset, normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
+import { buildNativeRecentConversationMenuInjectionSource, NATIVE_RECENT_CONVERSATION_STYLE } from "./native-recent-conversations.mjs";
+import { normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
   advanceNativeTabClickSequence,
   advanceNativeWheelMomentum,
@@ -25,29 +25,18 @@ export {
 };
 
 export function buildNativeConversationTabsInjectionSource() {
-  const clickSequenceSource = advanceNativeTabClickSequence.toString();
-  const wheelMomentumSource = advanceNativeWheelMomentum.toString();
   const wheelDirectionSource = normalizeNativeConversationTabWheelDirection.toString();
-  const wheelOffsetSource = nativeConversationTabWheelOffset.toString();
-  const wheelPreferencesSource = installNativeConversationTabWheelPreferences.toString();
-  const reorderTabsSource = reorderNativeConversationTabs.toString();
-  const dragInstallerSource = installNativeConversationTabDragging.toString();
   const titlePolicySource = buildNativeConversationTabTitlePolicySource();
   return `
   ${buildInsetSource()}
   ${buildNativeLocalConversationSyncSource()}
-  ${clickSequenceSource}
-  ${wheelMomentumSource}
   ${wheelDirectionSource}
-  ${wheelOffsetSource}
-  ${wheelPreferencesSource}
-  ${reorderTabsSource}
-  ${dragInstallerSource}
   ${buildNativeConversationWindowInjectionSource()}
   ${titlePolicySource}
+  ${buildNativeRecentConversationMenuInjectionSource()}
   ${buildNativeConversationTabTransitionSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-15.multi-window1';
+    const VERSION = '2026-09-20.recent-menu1';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -64,8 +53,7 @@ export function buildNativeConversationTabsInjectionSource() {
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
-    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableWorkspaceLeft = null, transition = null, titleTakeoverNodes = new Set();
-    let tabClickSequence = {};
+    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableWorkspaceLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set();
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
     const normalizeTab = createNativeConversationTabNormalizer(localStorage, clean, UUID);
@@ -168,7 +156,7 @@ export function buildNativeConversationTabsInjectionSource() {
     function tabButton(tab) {
       const key = keyFor(tab), item = document.createElement('div');
       item.className = 'ccc-native-tab'; item.dataset.tabKey = key; item.setAttribute('role', 'tab');
-      item.draggable = true;
+      item.draggable = false;
       item.setAttribute('aria-selected', String(state.activeKey === key)); item.tabIndex = state.activeKey === key ? 0 : -1;
       item.title = tab.title + (tab.kind === 'remote' && tab.deviceName ? '\\n' + tab.deviceName : '');
       const dot = document.createElement('span'); dot.className = 'ccc-native-tab-dot'; dot.dataset.kind = tab.kind; dot.setAttribute('aria-hidden', 'true');
@@ -183,7 +171,9 @@ export function buildNativeConversationTabsInjectionSource() {
       persist();
       const consoleTab = root.querySelector('[data-console-tab]');
       consoleTab.setAttribute('aria-selected', String(state.activeKey === 'console')); consoleTab.tabIndex = state.activeKey === 'console' ? 0 : -1;
-      const list = root.querySelector('[data-native-tab-list]'); list.replaceChildren(...state.tabs.map(tabButton));
+      const pages = openNativeConversationPages(state.tabs.map((tab) => ({ ...tab, key: keyFor(tab) })), state.activeKey);
+      const list = root.querySelector('[data-native-tab-list]'); list.replaceChildren(...pages.map(tabButton));
+      recentMenu?.render();
       position();
       (state.activeKey === 'console' ? consoleTab : list.querySelector('[aria-selected="true"]'))?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
@@ -195,7 +185,8 @@ export function buildNativeConversationTabsInjectionSource() {
       if (dismissedIndex >= 0 && !explicitView) return false;
       if (dismissedIndex >= 0) state.dismissedLocalKeys.splice(dismissedIndex, 1);
       const same = index >= 0 && JSON.stringify(state.tabs[index]) === JSON.stringify(value);
-      if (index < 0) state.tabs.push(value); else state.tabs[index] = value;
+      if (index >= 0) state.tabs.splice(index, 1);
+      state.tabs.push(value);
       const changedActive = activate && state.activeKey !== key; if (activate) state.activeKey = key;
       if (index < 0 || !same || changedActive) render();
       if (activate && (changedActive || explicitView) && value.kind === 'local') window.__codexControlConsoleAttentionConversations?.view?.(value);
@@ -243,8 +234,8 @@ export function buildNativeConversationTabsInjectionSource() {
       if (closing.kind === 'local') state.dismissedLocalKeys = [...state.dismissedLocalKeys.filter((value) => value !== key), key].slice(-MAX_TABS);
       state.tabs.splice(index, 1);
       if (!wasActive) { render(); if (q) activate(state.activeKey); return; }
-      const next = state.tabs[index] || state.tabs[index - 1], nextKey = next ? keyFor(next) : 'console';
-      render(); activate(nextKey);
+      state.activeKey = 'console';
+      render(); activate('console');
     }
 
     function syncLocal() {
@@ -280,28 +271,25 @@ export function buildNativeConversationTabsInjectionSource() {
     }
 
     const style = document.createElement('style'); style.setAttribute('data-codex-control-console-native-tab-style', '');
-    style.textContent = '[' + TITLE_HIDDEN_ATTRIBUTE + ']{display:none!important}' + ROOT_SELECTOR + '{position:fixed;top:5px;z-index:2147482999;display:flex;height:34px;min-width:0;align-items:center;gap:3px;overflow:hidden;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:10px;padding:3px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 2px 12px rgba(0,0,0,.08);backdrop-filter:blur(18px);-webkit-app-region:no-drag;app-region:no-drag}' +
+    style.textContent = '[' + TITLE_HIDDEN_ATTRIBUTE + ']{display:none!important}' + ROOT_SELECTOR + '{position:fixed;top:5px;z-index:2147482999;display:flex;height:34px;min-width:0;align-items:center;gap:3px;overflow:visible;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:10px;padding:3px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 2px 12px rgba(0,0,0,.08);backdrop-filter:blur(18px);-webkit-app-region:no-drag;app-region:no-drag}' +
       ROOT_SELECTOR + ' .ccc-native-tab-list{display:flex;min-width:0;flex:1;gap:2px;overflow-x:auto;scrollbar-width:none}' + ROOT_SELECTOR + ' .ccc-native-tab-list::-webkit-scrollbar{display:none}' +
       ROOT_SELECTOR + ' .ccc-native-tab{display:flex;height:26px;min-width:112px;max-width:220px;flex:0 1 190px;align-items:center;gap:7px;border:0;border-radius:7px;padding:0 6px 0 9px;background:transparent;color:inherit;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}' +
       ROOT_SELECTOR + ' .ccc-native-tab:hover{background:color-mix(in srgb,currentColor 8%,transparent)}' + nativeConversationTabTransitionStyle(ROOT_SELECTOR) +
-      ROOT_SELECTOR + ' .ccc-native-tab[draggable="true"]{cursor:grab}' + ROOT_SELECTOR + ' .ccc-native-tab[data-dragging]{cursor:grabbing;opacity:.52}' +
-      ROOT_SELECTOR + ' .ccc-native-tab[data-drop-position="before"]{box-shadow:inset 3px 0 0 #7aa2ff}' + ROOT_SELECTOR + ' .ccc-native-tab[data-drop-position="after"]{box-shadow:inset -3px 0 0 #7aa2ff}' +
       ROOT_SELECTOR + ' .ccc-native-console{min-width:88px;max-width:110px;flex-basis:100px}' + ROOT_SELECTOR + ' .ccc-native-tab-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#7d8ca8}' + ROOT_SELECTOR + ' .ccc-native-tab-dot[data-kind="chatgpt"]{background:#8b74d6}' + ROOT_SELECTOR + ' .ccc-native-tab-dot[data-kind="remote"]{background:#42a575}' +
-      ROOT_SELECTOR + ' .ccc-native-tab-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' + ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE)} +
+      ROOT_SELECTOR + ' .ccc-native-tab-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' + ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE + NATIVE_RECENT_CONVERSATION_STYLE)} +
       '@media(max-width:720px){' + ROOT_SELECTOR + ' .ccc-native-console{min-width:76px;flex-basis:82px}' + ROOT_SELECTOR + ' .ccc-native-tab{min-width:104px;flex-basis:150px}}';
     document.head.append(style);
 
-    root = document.createElement('nav'); root.setAttribute('data-codex-control-console-native-tabs', ''); root.setAttribute('aria-label', '已打开会话');
+    root = document.createElement('nav'); root.setAttribute('data-codex-control-console-native-tabs', ''); root.setAttribute('aria-label', '打开的页面');
     const consoleTab = document.createElement('button'); consoleTab.type = 'button'; consoleTab.className = 'ccc-native-tab ccc-native-console'; consoleTab.dataset.consoleTab = ''; consoleTab.dataset.tabKey = 'console'; consoleTab.setAttribute('role', 'tab');
     const mark = document.createElement('span'); mark.className = 'ccc-native-tab-dot'; mark.setAttribute('aria-hidden', 'true');
     const consoleLabel = document.createElement('span'); consoleLabel.className = 'ccc-native-tab-title'; consoleLabel.textContent = '控制台'; consoleTab.append(mark, consoleLabel);
     const list = document.createElement('div'); list.className = 'ccc-native-tab-list'; list.dataset.nativeTabList = ''; list.setAttribute('role', 'tablist');
     root.append(consoleTab, list); document.body.append(root);
+    recentMenu = installNativeRecentConversationMenu({ documentRef: document, root, state, keyFor, activate, openWindow: options.openWindow });
     transition = createNativeConversationTabTransition(root, () => { render(); syncLocal(); });
-    const dragController = installNativeConversationTabDragging({ root, state, keyFor, render });
-    const wheelPreferences = installNativeConversationTabWheelPreferences({ root, state, persist, adjacentKey, activate, advanceMomentum: advanceNativeWheelMomentum });
 
-    root.addEventListener('click', (event) => { const pop=event.target.closest('[data-window-key]'); if(pop){tabClickSequence={};event.preventDefault();event.stopPropagation();void openNativeConversationWindow({state,keyFor,key:pop.dataset.windowKey,button:pop,openWindow:options.openWindow});return;} const closeButton = event.target.closest('[data-close-key]'); if (closeButton) { tabClickSequence = {}; event.stopPropagation(); close(closeButton.dataset.closeKey); return; } const tab = event.target.closest('[data-tab-key]'); if (!tab) return; tabClickSequence = advanceNativeTabClickSequence(tabClickSequence, tab.dataset.tabKey, performance.now()); if (tabClickSequence.close) { event.preventDefault(); close(tab.dataset.tabKey); return; } activate(tab.dataset.tabKey); });
+    root.addEventListener('click', (event) => { const pop=event.target.closest('[data-window-key]'); if(pop){event.preventDefault();event.stopPropagation();void openNativeConversationWindow({state,keyFor,key:pop.dataset.windowKey,button:pop,openWindow:options.openWindow});return;} const closeButton = event.target.closest('[data-close-key]'); if (closeButton) { event.stopPropagation(); close(closeButton.dataset.closeKey); return; } const tab = event.target.closest('[data-tab-key]'); if (tab) activate(tab.dataset.tabKey); });
     root.addEventListener('keydown', (event) => { if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; const tabs = [consoleTab, ...list.querySelectorAll('[role="tab"]')], index = tabs.indexOf(event.target.closest('[role="tab"]')); if (index < 0) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; tabs[nextIndex].focus(); activate(tabs[nextIndex].dataset.tabKey); });
     const nativeClick = (event) => {
       const localRow = event.target?.closest?.('[data-app-action-sidebar-thread-id^="local:"]');
@@ -319,7 +307,7 @@ export function buildNativeConversationTabsInjectionSource() {
 
     const onResize = () => scheduleSync(true);
     window.addEventListener('resize', onResize);
-    const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, reorder: dragController.reorder, destroy() { pageInset.dispose(); observer?.disconnect(); transition.dispose(); dragController.destroy(); wheelPreferences.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
+    const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, destroy() { pageInset.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
     render(); scheduleSync(true); return controller;
   }
   `;
