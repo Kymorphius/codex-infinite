@@ -35,8 +35,9 @@ export const JEV_TIER_DESCRIPTIONS = Object.freeze({
 
 export function defaultJevRoutingConfig() {
   return {
-    version: 3,
+    version: 4,
     enabled: true,
+    transportMode: "router",
     minConfidence: 0.7,
     fallbackTier: "everyday",
     mappings: Object.fromEntries(JEV_ROUTE_TIERS.map((tier) => [tier, { ...DEFAULT_MAPPINGS[tier] }]))
@@ -58,9 +59,12 @@ export function normalizeJevRoutingConfig(value) {
   if (!Number.isFinite(minConfidence) || minConfidence < 0.5 || minConfidence > 0.95) throw new Error("最低置信度必须在 0.50 到 0.95 之间");
   const fallbackTier = typeof value?.fallbackTier === "string" ? value.fallbackTier : defaults.fallbackTier;
   if (!JEV_ROUTE_TIERS.includes(fallbackTier)) throw new Error("兜底档位无效");
+  const transportMode = value?.transportMode ?? defaults.transportMode;
+  if (!["native", "router"].includes(transportMode)) throw new Error("Jev 传输方式无效");
   return {
-    version: 3,
+    version: 4,
     enabled: typeof value?.enabled === "boolean" ? value.enabled : defaults.enabled,
+    transportMode,
     minConfidence,
     fallbackTier,
     mappings: Object.fromEntries(JEV_ROUTE_TIERS.map((tier) => [tier, normalizeMapping(value?.mappings?.[tier] ?? defaults.mappings[tier], tier)]))

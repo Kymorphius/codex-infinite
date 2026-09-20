@@ -30,3 +30,10 @@
 .jev-native-toggle > span { display: grid; gap: 3px; }
 .jev-native-toggle small { color: var(--native-ui-text-secondary); font-size: 11px; line-height: 1.4; }
 .jev-native-toggle input { width: 17px; height: 17px; accent-color: var(--native-ui-accent); }
+
+.jev-transport-options { display: grid; gap: 8px; margin: 0 0 14px; padding: 12px; border: 1px solid var(--native-ui-border); border-radius: 12px; }
+.jev-transport-options legend { padding: 0 5px; color: var(--native-ui-text-secondary); font-size: var(--native-ui-meta-size); }
+.jev-transport-options label { display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px; border-radius: 9px; background: var(--native-ui-surface-raised); cursor: pointer; }
+.jev-transport-options input { margin-top: 2px; accent-color: var(--native-ui-accent); }
+.jev-transport-options span { display: grid; gap: 2px; }
+.jev-transport-options small { color: var(--native-ui-text-secondary); font-size: 11px; line-height: 1.4; }

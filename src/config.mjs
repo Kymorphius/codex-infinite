@@ -116,6 +116,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     zoteroLocalApiOrigin,
     zoteroCredentialPath,
     modelCatalogPath,
+    routerStateDirectory,
     jevRoutingPath,
     jevThreadRoutingPath,
     jevPath,

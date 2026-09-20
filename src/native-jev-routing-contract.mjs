@@ -11,8 +11,9 @@ export function formatNativeJevTurnChoice(value = {}) {
 }
 
 export function selectNativeJevRoutingTurn(candidates = [], prompt = "", beforeIds = [], usedIds = [], allowExisting = false) {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const before = new Set(Array.isArray(beforeIds) ? beforeIds : []), used = new Set(Array.isArray(usedIds) ? usedIds : []);
-  const available = (Array.isArray(candidates) ? candidates : []).filter((item) => THREAD_ID_PATTERN.test(String(item?.id || "")) && !used.has(String(item.id).toLowerCase()));
+  const available = (Array.isArray(candidates) ? candidates : []).filter((item) => uuid.test(String(item?.id || "")) && !used.has(String(item.id).toLowerCase()));
   const text = String(prompt || "").trim();
   if (text) {
     const exact = [...available].reverse().find((item) => String(item.userText || "").trim() === text && !before.has(String(item.id).toLowerCase()));
@@ -25,9 +26,19 @@ export function selectNativeJevRoutingTurn(candidates = [], prompt = "", beforeI
   return existing ? String(existing.id).toLowerCase() : null;
 }
 
+export async function releaseNativeJevSend(findSend, release, wait, now = Date.now, timeoutMs = 5000) {
+  const deadline = now() + timeoutMs;
+  while (now() < deadline) {
+    const send = findSend();
+    if (send && !send.disabled) { release(send); return true; }
+    await wait(80);
+  }
+  return false;
+}
+
 export function normalizeNativeJevRoutingSnapshot(snapshot = {}) {
   if (!snapshot?.config || typeof snapshot.config !== "object") {
-    return { enabled: false, available: false, fallbackTier: "everyday", mappings: {}, threadOverrides: {} };
+    return { enabled: false, available: false, transportMode: "router", fallbackTier: "everyday", mappings: {}, threadOverrides: {} };
   }
   const config = snapshot.config;
   const mappings = {};
@@ -39,5 +50,5 @@ export function normalizeNativeJevRoutingSnapshot(snapshot = {}) {
     const threadId = String(rawThreadId).toLowerCase();
     if (THREAD_ID_PATTERN.test(threadId) && typeof enabled === "boolean") threadOverrides[threadId] = enabled;
   }
-  return { enabled: config.enabled !== false, available: snapshot.available === true, fallbackTier: typeof config.fallbackTier === "string" ? config.fallbackTier : "everyday", mappings, threadOverrides };
+  return { enabled: config.enabled !== false, available: snapshot.available === true, transportMode: config.transportMode === "native" ? "native" : "router", fallbackTier: typeof config.fallbackTier === "string" ? config.fallbackTier : "everyday", mappings, threadOverrides };
 }

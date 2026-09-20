@@ -1,39 +1,9 @@
-const MAX_PROMPT_BYTES = 128 * 1024;
-const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-import { formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
-export { formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+import { formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
+export { formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 
 export const NATIVE_JEV_ROUTING_BINDING = "__codexControlConsoleJevRouting";
-
-export function parseNativeJevRoutingRequest(payload) {
-  let value;
-  try { value = JSON.parse(String(payload || "")); } catch { return null; }
-  if (!value || typeof value !== "object" || Array.isArray(value) || !/^[A-Za-z0-9_.:-]{1,100}$/.test(String(value.id || ""))) return null;
-  if (value.kind === "set-enabled" && typeof value.enabled === "boolean") return { id: String(value.id), kind: value.kind, enabled: value.enabled };
-  if (value.kind === "set-thread-enabled" && THREAD_ID_PATTERN.test(String(value.threadId || "")) && typeof value.enabled === "boolean") return { id: String(value.id), kind: value.kind, threadId: String(value.threadId).toLowerCase(), enabled: value.enabled };
-  if (value.kind !== "classify" || typeof value.prompt !== "string") return null;
-  const prompt = value.prompt.trim();
-  if (!prompt || Buffer.byteLength(prompt, "utf8") > MAX_PROMPT_BYTES) return null;
-  return { id: String(value.id), kind: value.kind, prompt };
-}
-
-export async function handleNativeJevRoutingRequest(payload, service) {
-  const request = parseNativeJevRoutingRequest(payload);
-  if (!request || !service) return null;
-  try {
-    if (request.kind === "set-enabled") {
-      await service.setEnabled(request.enabled);
-      return { id: request.id, kind: request.kind, ok: true, snapshot: await service.snapshot() };
-    }
-    if (request.kind === "set-thread-enabled") {
-      return { id: request.id, kind: request.kind, ok: true, snapshot: await service.setThreadEnabled(request.threadId, request.enabled) };
-    }
-    const classification = await service.classifyCurrent(request.prompt);
-    return { id: request.id, kind: request.kind, ok: true, classification };
-  } catch (error) {
-    return { id: request.id, kind: request.kind, ok: false, message: String(error?.message || error).slice(0, 500) };
-  }
-}
 
 export function buildNativeJevRoutingResponseScript(response) {
   return `window.__codexControlConsoleResolveJevRouting?.(${JSON.stringify(response ?? null)})`;
@@ -52,18 +22,19 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.3') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.4') return;
   if (window.__codexControlConsoleJevRoutingInstallTimer) clearInterval(window.__codexControlConsoleJevRoutingInstallTimer);
   window.__codexControlConsoleJevRoutingInputCleanup?.();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.3';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.4';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatTurnChoice = ${formatNativeJevTurnChoice.toString()};
   const selectTurn = ${selectNativeJevRoutingTurn.toString()};
-  let policy = { enabled: false, available: false, fallbackTier: 'everyday', mappings: {}, threadOverrides: {} };
+  const releaseSend = ${releaseNativeJevSend.toString()};
+  let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {} };
   let lastResult = null;
   let sequence = 0;
   let togglePending = false;
@@ -198,8 +169,8 @@ export function buildNativeJevRoutingInjectionScript() {
       window.__codexControlConsoleLastJevRouting = { ok: false, threadId, message: String(error?.message || error), appliedAt: new Date().toISOString() };
     } finally {
       submissionPending = false; installButtons();
-      const send = nativeSendButton();
-      if (send && !send.disabled) { bypassNextComposerClick = true; send.click(); }
+      const sent = await releaseSend(nativeSendButton, (send) => { bypassNextComposerClick = true; send.click(); if (bypassNextComposerClick) queueMicrotask(() => { bypassNextComposerClick = false; }); }, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+      if (!sent) window.__codexControlConsoleLastJevRouting = { ...(window.__codexControlConsoleLastJevRouting || {}), ok: false, message: 'Jev 已完成选择，但原生发送按钮在 5 秒内没有恢复可用' };
     }
   }
 
@@ -257,8 +228,9 @@ export function buildNativeJevRoutingInjectionScript() {
     const overridden = Boolean(threadId && Object.prototype.hasOwnProperty.call(policy.threadOverrides, threadId));
     button.dataset.enabled = String(active); button.dataset.threadId = threadId || ''; button.dataset.override = String(overridden);
     button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', active ? '当前会话 Jev 自动分流已开启' : '当前会话 Jev 自动分流已关闭'); button.disabled = togglePending || submissionPending || !threadId;
+    const mode = policy.transportMode === 'native' ? '原生' : '拦截';
     const suffix = active && lastResult?.tier ? ' · ' + String(lastResult.tier).replace(/^./, (value) => value.toUpperCase()) : '';
-    button.textContent = submissionPending ? 'Jev 判断中…' : 'Jev 自动' + suffix;
+    button.textContent = submissionPending ? 'Jev 判断中…' : 'Jev 自动 · ' + mode + suffix;
     button.title = !threadId ? '当前没有可设置的原生会话' : submissionPending ? 'Jev 正在为这一轮选择模型与推理强度' : togglePending ? '正在保存当前会话设置…' : (overridden ? '当前会话单独' : '继承全局') + (active ? '开启；点击只关闭当前会话' : '关闭；点击只开启当前会话');
     button.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.25)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '1') + ';-webkit-app-region:no-drag;app-region:no-drag;';
   }
@@ -266,7 +238,7 @@ export function buildNativeJevRoutingInjectionScript() {
   function applySnapshot(snapshot) {
     const value = snapshot || {};
     const config = value.config || value;
-    policy = { enabled: config?.enabled !== false, available: value?.available === true || policy.available, fallbackTier: String(config?.fallbackTier || 'everyday'), mappings: config?.mappings && typeof config.mappings === 'object' ? config.mappings : {}, threadOverrides: value?.threadOverrides && typeof value.threadOverrides === 'object' ? value.threadOverrides : {} };
+    policy = { enabled: config?.enabled !== false, available: value?.available === true || policy.available, transportMode: config?.transportMode === 'native' ? 'native' : 'router', fallbackTier: String(config?.fallbackTier || 'everyday'), mappings: config?.mappings && typeof config.mappings === 'object' ? config.mappings : {}, threadOverrides: value?.threadOverrides && typeof value.threadOverrides === 'object' ? value.threadOverrides : {} };
   }
 
   function installButtons() {

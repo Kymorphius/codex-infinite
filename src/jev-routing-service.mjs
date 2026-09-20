@@ -43,16 +43,24 @@ function collect(child, input, timeoutMs) {
 }
 
 export class JevRoutingService {
-  constructor({ store, threadStore = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
-    Object.assign(this, { store, threadStore, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
+  constructor({ store, threadStore = null, transportManager = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
+    Object.assign(this, { store, threadStore, transportManager, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
   }
+
+  async initialize() { return this.transportManager?.apply?.((await this.store.read()).transportMode); }
 
   async snapshot() {
     const threadState = await this.threadStore?.read?.();
-    return { config: await this.store.read(), threadOverrides: threadState?.overrides || {}, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
+    const config = await this.store.read();
+    await this.transportManager?.apply?.(config.transportMode);
+    return { config, threadOverrides: threadState?.overrides || {}, transport: this.transportManager?.status?.() || null, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
   }
 
-  update(value) { return this.store.write(value); }
+  async update(value) {
+    const config = await this.store.write(value);
+    await this.transportManager?.apply?.(config.transportMode);
+    return config;
+  }
 
   async setEnabled(enabled) {
     const config = await this.store.read();
@@ -68,7 +76,9 @@ export class JevRoutingService {
   }
 
   async classifyCurrent(rawPrompt) {
-    return this.classify(rawPrompt, await this.store.read());
+    const config = await this.store.read();
+    await this.transportManager?.apply?.(config.transportMode);
+    return this.classify(rawPrompt, config);
   }
 
   async classify(rawPrompt, configValue) {

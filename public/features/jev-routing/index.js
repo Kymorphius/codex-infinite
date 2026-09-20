@@ -49,6 +49,8 @@ export function createJevRoutingFeature({ $, showToast }) {
 
   function applyConfig(config) {
     configForm.elements.enabled.checked = config.enabled !== false;
+    const transport = configForm.querySelector(`[name="transportMode"][value="${config.transportMode === "native" ? "native" : "router"}"]`);
+    if (transport) transport.checked = true;
     for (const tier of JEV_TIERS) {
       configForm.elements[`${tier.id}.model`].value = config.mappings[tier.id].model;
       configForm.elements[`${tier.id}.effort`].value = config.mappings[tier.id].effort;
@@ -59,8 +61,9 @@ export function createJevRoutingFeature({ $, showToast }) {
 
   function readConfig() {
     return {
-      version: 3,
+      version: 4,
       enabled: configForm.elements.enabled.checked,
+      transportMode: configForm.elements.transportMode.value,
       minConfidence: Number(configForm.elements.minConfidence.value),
       fallbackTier: configForm.elements.fallbackTier.value,
       mappings: Object.fromEntries(JEV_TIERS.map((tier) => [tier.id, {
@@ -98,7 +101,9 @@ export function createJevRoutingFeature({ $, showToast }) {
       const data = await requestJson("/api/jev-routing", { method: "PUT", body: readConfig() });
       applyConfig(data.config);
       syncEfforts();
-      showToast("自动分流映射已保存，两边共用。");
+      showToast(data.transport?.runtimeRestartRequired
+        ? "设置已保存；重新打开加强版后，传输方式会完全生效。"
+        : "自动分流设置已保存，两边共用。");
     } catch (error) { showToast(error.message); }
     finally { button.disabled = false; }
   }

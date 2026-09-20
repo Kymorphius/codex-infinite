@@ -59,6 +59,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { JevRoutingStore } from "./jev-routing-store.mjs";
 import { JevThreadRoutingStore } from "./jev-thread-routing-store.mjs";
 import { JevRoutingService } from "./jev-routing-service.mjs";
+import { JevTransportModeManager } from "./jev-transport-mode.mjs";
 import { JevTaskDispatcher } from "./jev-task-dispatcher.mjs";
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -167,9 +168,11 @@ export async function run() {
   const jevRoutingService = new JevRoutingService({
     store: new JevRoutingStore({ filePath: config.jevRoutingPath }),
     threadStore: new JevThreadRoutingStore({ filePath: config.jevThreadRoutingPath }),
+    transportManager: new JevTransportModeManager({ configPath: path.join(config.wrapperCodexHome, "config.toml"), discoveryPath: path.join(config.routerStateDirectory, "discovery-mode.json") }),
     jevPath: config.jevPath,
     taskDispatcher: jevTaskDispatcher
   });
+  await jevRoutingService.initialize();
   const dispatcher = new CodexCliDispatcher({
     codexPath: config.codexPath,
     codexHome: config.nativeCodexHome,

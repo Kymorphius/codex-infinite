@@ -13,9 +13,10 @@ the native request unchanged on subsequent turns.
 ## Shared configuration
 
 The existing shared `jev-task-routing.json` remains the single authority for
-the eight tier mappings, confidence threshold, fallback tier, and the new
-`enabled` flag. Schema version 3 adds `enabled`, defaulting to `true`; version 1
-and version 2 files migrate without losing their mappings.
+the eight tier mappings, confidence threshold, fallback tier, global `enabled`
+flag, and transport mode. Schema version 4 adds `transportMode`, defaulting to
+`router`; version 1 through version 3 files migrate without losing their
+mappings.
 
 The Router control center, enhanced console, dedicated Codex window, and
 primary native Codex window all read the same file.
@@ -29,11 +30,19 @@ primary native Codex window all read the same file.
    and requests a classification through a CDP runtime binding.
 3. The Node-side Jev routing service reads the latest shared configuration and
    returns a bounded classification result.
-4. The renderer applies the selected model and effort through the native
-   `thread/settings/update` path, then releases the original send action. On a
+4. In `native` transport mode, the renderer applies the selected model and
+   effort through the native `thread/settings/update` path, waits up to five
+   seconds for the native send control to recover from any settings rerender,
+   then releases the original send action exactly once. On a
    writable compatibility bridge it clones the request and updates the
    corresponding ordinary or collaboration-mode fields.
-5. Turbo may still control context size, speed, and permissions, but Jev owns
+5. In `router` transport mode, the enhanced runtime keeps its root
+   `openai_base_url` on the local Router. Router discovery is enabled so the
+   current Codex ChatGPT bearer can be verified instead of being rejected with
+   a caller-capability 401. Changing that authentication state restarts only
+   the Router service; changing the enhanced runtime endpoint is reported as
+   requiring a runtime restart.
+6. Turbo may still control context size, speed, and permissions, but Jev owns
    model and reasoning effort while auto-routing is enabled.
 
 An attachment-only or otherwise text-free turn uses the configured fallback
@@ -59,6 +68,13 @@ to that turn's user-message footer as a compact badge, for example
 `Jev · 复杂 · GPT-5.6 Sol · medium`. Turn badges are retained locally with a
 bounded history and never added to the model prompt.
 
+The shared configuration panel exposes two explicit transport choices:
+
+- `原生直连并自动发送` removes the enhanced runtime's Router endpoint. Jev
+  still selects the native model and effort before releasing the send action.
+- `Router 全局拦截` keeps every enhanced-runtime request on the local Router and
+  enables authenticated native-session discovery for existing conversations.
+
 ## Compatibility and boundaries
 
 - The original composer action is delayed only while classification and native
@@ -72,7 +88,11 @@ bounded history and never added to the model prompt.
 
 ## Acceptance
 
-- The shared schema migrates to version 3 with `enabled: true` by default.
+- The shared schema migrates to version 4 with `enabled: true` and
+  `transportMode: "router"` by default.
+- Saving either transport choice preserves the mappings and clearly reports
+  when the enhanced runtime must be restarted before the endpoint change is
+  active.
 - Saving either control surface preserves the enabled state.
 - The global native switch and the current-conversation composer switch are
   visibly present and initially on.

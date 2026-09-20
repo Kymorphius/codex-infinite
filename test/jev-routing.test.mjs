@@ -38,8 +38,9 @@ function jsonRequest(method, body, origin = "http://127.0.0.1:47831") {
 
 test("routing policy keeps configurable model and effort mappings bounded", () => {
   const defaults = defaultJevRoutingConfig();
-  assert.equal(defaults.version, 3);
+  assert.equal(defaults.version, 4);
   assert.equal(defaults.enabled, true);
+  assert.equal(defaults.transportMode, "router");
   assert.equal(Object.keys(defaults.mappings).length, 8);
   assert.deepEqual(defaults.mappings.instant, { model: "gpt-5.6-luna", effort: "low" });
   assert.deepEqual(defaults.mappings.critical, { model: "gpt-6-astra", effort: "xhigh" });
@@ -47,6 +48,7 @@ test("routing policy keeps configurable model and effort mappings bounded", () =
   const changed = normalizeJevRoutingConfig({ ...defaults, mappings: { ...defaults.mappings, quick: { model: "gpt-5.6-sol", effort: "max" } } });
   assert.deepEqual(changed.mappings.quick, { model: "gpt-5.6-sol", effort: "max" });
   assert.throws(() => normalizeJevRoutingConfig({ ...defaults, mappings: { ...defaults.mappings, quick: { model: "gpt-5.6-luna", effort: "ultra" } } }), /不支持 Ultra/);
+  assert.throws(() => normalizeJevRoutingConfig({ ...defaults, transportMode: "proxy-ish" }), /传输方式无效/);
 });
 
 test("legacy four-tier config migrates without losing existing mappings", () => {
@@ -62,8 +64,9 @@ test("legacy four-tier config migrates without losing existing mappings", () => 
     }
   };
   const migrated = normalizeJevRoutingConfig(legacy);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.enabled, true);
+  assert.equal(migrated.transportMode, "router");
   assert.equal(Object.keys(migrated.mappings).length, 8);
   for (const tier of ["quick", "everyday", "complex", "critical"]) {
     assert.deepEqual(migrated.mappings[tier], legacy.mappings[tier]);
@@ -184,7 +187,7 @@ test("native dispatcher starts a durable thread with routed model and effort", a
 test("HTTP boundary shares config and protects mutations by exact origin", async () => {
   let current = defaultJevRoutingConfig();
   const service = {
-    async snapshot() { return { config: current, available: true }; },
+    async snapshot() { return { config: current, available: true, transport: { mode: current.transportMode, runtimeRestartRequired: true } }; },
     async update(input) { current = normalizeJevRoutingConfig(input); return current; },
     async dispatch() { return { threadId: "thread-2", model: "gpt-5.6-sol", effort: "high", classification: { tier: "complex" } }; }
   };
@@ -196,6 +199,7 @@ test("HTTP boundary shares config and protects mutations by exact origin", async
   const putResponse = responseRecorder();
   await handler(jsonRequest("PUT", { ...current, fallbackTier: "quick" }), putResponse, new URL("http://127.0.0.1:47831/api/jev-routing"));
   assert.equal(putResponse.body.config.fallbackTier, "quick");
+  assert.equal(putResponse.body.transport.runtimeRestartRequired, true);
   const dispatchResponse = responseRecorder();
   await handler(jsonRequest("POST", { prompt: "任务", cwd: "/tmp" }), dispatchResponse, new URL("http://127.0.0.1:47831/api/jev-routing/dispatch"));
   assert.equal(dispatchResponse.code, 201);

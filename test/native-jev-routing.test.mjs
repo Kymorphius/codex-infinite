@@ -10,6 +10,7 @@ import {
   NATIVE_JEV_ROUTING_BINDING,
   normalizeNativeJevRoutingSnapshot,
   parseNativeJevRoutingRequest,
+  releaseNativeJevSend,
   selectNativeJevRoutingTurn
 } from "../src/native-jev-routing.mjs";
 
@@ -41,11 +42,12 @@ function runtime({ classification } = {}) {
   return { context, window };
 }
 
-function composerRuntime() {
+function composerRuntime({ delayedSendRecovery = false } = {}) {
   const thread = { getAttribute(name) { return name === "data-above-composer-conversation-id" ? threadId : null; } };
   const editor = { innerText: "Route this composer turn", closest(selector) { return selector.includes("data-codex-composer") ? this : null; } };
   const documentListeners = new Map();
   let sends = 0;
+  let sendVisible = true;
   const send = {
     disabled: false,
     closest(selector) { return selector.includes("aria-label") ? this : null; },
@@ -55,7 +57,7 @@ function composerRuntime() {
     querySelector(selector) {
       if (selector === "[data-above-composer-conversation-id]") return thread;
       if (selector.includes("data-codex-composer")) return editor;
-      if (selector.includes('button[aria-label="发送"]')) return send;
+      if (selector.includes('button[aria-label="发送"]')) return sendVisible ? send : null;
       return null;
     },
     querySelectorAll() { return []; },
@@ -65,7 +67,11 @@ function composerRuntime() {
   const applied = [];
   const window = {
     electronBridge: Object.freeze({ sendMessageFromView() { throw new Error("frozen bridge must not be wrapped"); } }),
-    async __codexControlConsoleApplyThreadSettings(id, changes) { applied.push({ id, changes }); return { applied: true }; },
+    async __codexControlConsoleApplyThreadSettings(id, changes) {
+      applied.push({ id, changes });
+      if (delayedSendRecovery) { sendVisible = false; setTimeout(() => { sendVisible = true; }, 100); }
+      return { applied: true };
+    },
     addEventListener() {}
   };
   window[NATIVE_JEV_ROUTING_BINDING] = (payload) => {
@@ -99,10 +105,10 @@ test("native Jev binding accepts only bounded classify and toggle requests", asy
 });
 
 test("native Jev snapshot is bounded and enables only from stored configuration", () => {
-  assert.deepEqual(normalizeNativeJevRoutingSnapshot({}), { enabled: false, available: false, fallbackTier: "everyday", mappings: {}, threadOverrides: {} });
+  assert.deepEqual(normalizeNativeJevRoutingSnapshot({}), { enabled: false, available: false, transportMode: "router", fallbackTier: "everyday", mappings: {}, threadOverrides: {} });
   assert.deepEqual(normalizeNativeJevRoutingSnapshot({ available: true, config: { enabled: false, fallbackTier: "deep", mappings: {
     deep: { model: "gpt-5.6-sol", effort: "xhigh" }, bad: { model: "unknown", effort: "high" }
-  } }, threadOverrides: { [threadId.toUpperCase()]: false, invalid: true } }), { enabled: false, available: true, fallbackTier: "deep", mappings: { deep: { model: "gpt-5.6-sol", effort: "xhigh" } }, threadOverrides: { [threadId]: false } });
+  }, transportMode: "native" }, threadOverrides: { [threadId.toUpperCase()]: false, invalid: true } }), { enabled: false, available: true, transportMode: "native", fallbackTier: "deep", mappings: { deep: { model: "gpt-5.6-sol", effort: "xhigh" } }, threadOverrides: { [threadId]: false } });
 });
 
 test("turn choice labels and pending-turn matching stay bounded and deterministic", () => {
@@ -114,6 +120,19 @@ test("turn choice labels and pending-turn matching stay bounded and deterministi
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first, second], []), null);
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first, second], [], true), second);
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], [second]), null);
+});
+
+test("native send release waits for availability and fires once", async () => {
+  let clock = 0, attempts = 0, releases = 0;
+  const sent = await releaseNativeJevSend(
+    () => (++attempts < 3 ? null : { disabled: false }),
+    () => { releases += 1; },
+    async (ms) => { clock += ms; },
+    () => clock,
+  );
+  assert.equal(sent, true);
+  assert.equal(attempts, 3);
+  assert.equal(releases, 1);
 });
 
 test("every native turn is cloned and routed, including an existing conversation", async () => {
@@ -173,6 +192,15 @@ test("composer capture routes through native settings when the Electron bridge i
   assert.equal(harness.window.__codexControlConsoleJevRoutingDiagnostics.mode, "composer-capture");
 });
 
+test("composer waits for a settings rerender and releases native send exactly once", async () => {
+  const harness = composerRuntime({ delayedSendRecovery: true });
+  harness.documentListeners.get("keydown")({ key: "Enter", shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, isComposing: false, target: harness.editor, preventDefault() {}, stopImmediatePropagation() {} });
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  assert.equal(harness.applied.length, 1);
+  assert.equal(harness.sends(), 1);
+  assert.equal(harness.window.__codexControlConsoleLastJevRouting.ok, true);
+});
+
 test("native Jev source installs the visible default-on switch", () => {
   const source = buildNativeJevRoutingInjectionScript();
   assert.match(source, /data-codex-control-console-native-jev/);
@@ -183,5 +211,6 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /composer-capture/);
   assert.match(source, /Jev 自动分流已开启/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
+  assert.doesNotMatch(selectNativeJevRoutingTurn.toString(), /THREAD_ID_PATTERN/);
   assert.match(source, new RegExp(NATIVE_JEV_ROUTING_BINDING));
 });

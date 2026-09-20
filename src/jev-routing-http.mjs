@@ -14,7 +14,10 @@ export function createJevRoutingHttpHandler({ service, dashboardOrigin }) {
       assertExactMutationOrigin(request, dashboardOrigin);
       assertJsonContentType(request);
       const input = await readJsonBody(request, 160 * 1024);
-      if (collection) sendJson(response, 200, { status: "ok", config: await service.update(input) });
+      if (collection) {
+        const config = await service.update(input);
+        sendJson(response, 200, { status: "ok", config, transport: (await service.snapshot()).transport });
+      }
       else sendJson(response, 201, { status: "ok", result: await service.dispatch(input) });
       return true;
     }
