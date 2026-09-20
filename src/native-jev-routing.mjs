@@ -22,13 +22,13 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.8') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.10') return;
   if (window.__codexControlConsoleJevRoutingInstallTimer) clearInterval(window.__codexControlConsoleJevRoutingInstallTimer);
   window.__codexControlConsoleJevRoutingInputCleanup?.();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.8';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.10';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatModelChange = ${formatNativeJevModelChange.toString()};
@@ -134,6 +134,14 @@ export function buildNativeJevRoutingInjectionScript() {
       const choice = turnChoices.find((item) => item.threadId === threadId && item.turnId === turn.id);
       let badge = turn.node.querySelector('[data-codex-control-console-jev-turn]');
       if (!choice) { badge?.remove(); continue; }
+      const notice = genericModelChangeNotices(turn.node).at(-1);
+      const textNodes = Array.from(notice?.childNodes || []).filter((child) => child.nodeType === 3);
+      const modelChange = formatModelChange(choice);
+      if (notice && textNodes.length && textNodes.map((child) => child.nodeValue || '').join('').trim() !== modelChange) {
+        textNodes[0].nodeValue = modelChange;
+        for (const text of textNodes.slice(1)) text.nodeValue = '';
+        notice.setAttribute('data-codex-control-console-jev-model-change', '');
+      }
       const label = formatTurnChoice(choice), bubble = turn.node.querySelector('[data-user-message-bubble]'), host = bubble?.parentElement;
       if (!label || !host) { badge?.remove(); continue; }
       if (!badge) { badge = document.createElement('div'); badge.setAttribute('data-codex-control-console-jev-turn', ''); bubble.after(badge); }
@@ -149,26 +157,12 @@ export function buildNativeJevRoutingInjectionScript() {
     return document.querySelector('button[aria-label="发送"],button[aria-label="Send"]');
   }
 
-  function genericModelChangeNotices() {
-    return Array.from(document.querySelectorAll('span')).filter((node) => {
+  function genericModelChangeNotices(root = document) {
+    return Array.from(root.querySelectorAll('span')).filter((node) => {
+      if (node.hasAttribute('data-codex-control-console-jev-model-change')) return true;
       const value = Array.from(node.childNodes || []).filter((child) => child.nodeType === 3).map((child) => child.nodeValue || '').join('').trim();
       return value === '模型已从 自定义 更改为 自定义。' || value === 'Model changed from Custom to Custom.';
     });
-  }
-
-  function watchNativeModelChange(classification) {
-    const existing = new Set(genericModelChangeNotices());
-    let attempts = 0;
-    const poll = () => {
-      const notice = genericModelChangeNotices().filter((node) => !existing.has(node)).at(-1);
-      if (notice) {
-        const text = Array.from(notice.childNodes || []).find((child) => child.nodeType === 3 && String(child.nodeValue || '').trim());
-        if (text) { text.nodeValue = formatModelChange(classification); notice.setAttribute('data-codex-control-console-jev-model-change', ''); }
-        return;
-      }
-      if (++attempts < 40) setTimeout(poll, 50);
-    };
-    setTimeout(poll, 0);
   }
 
   async function routeComposerSubmission() {
@@ -182,7 +176,6 @@ export function buildNativeJevRoutingInjectionScript() {
       if (!classification) throw new Error('没有可用的 Jev 路由结果');
       const apply = window.__codexControlConsoleApplyThreadSettings;
       if (typeof apply !== 'function') throw new Error('原生会话设置桥接不可用');
-      watchNativeModelChange(classification);
       await apply(threadId, { model: classification.model, reasoningEffort: classification.effort });
       window.__codexControlConsoleLastJevRouting = { ok: true, threadId, ...classification, appliedAt: new Date().toISOString() };
       queueTurnChoice(threadId, prompt, beforeIds, classification);
@@ -281,6 +274,7 @@ export function buildNativeJevRoutingInjectionScript() {
 
     const threadId = currentThreadId(); const permission = document.querySelector('[data-composer-navigation-target="permissions"]'); const composerHost = permission?.parentElement;
     let current = document.querySelector('[data-codex-control-console-native-jev-current]');
+    reconcileTurnChoices(); decorateTurnChoices();
     if (!threadId || !composerHost) { current?.remove(); return; }
     if (!current) {
       current = document.createElement('button'); current.type = 'button'; current.setAttribute('data-codex-control-console-native-jev-current', '');
@@ -295,7 +289,6 @@ export function buildNativeJevRoutingInjectionScript() {
     renderCurrentButton(current);
     const context = composerHost.querySelector('[data-codex-control-console-context-toggle]');
     if (context) context.after(current); else permission.after(current);
-    reconcileTurnChoices(); decorateTurnChoices();
   }
 
   window.__codexControlConsoleRouteNativeTurn = async (message) => {
