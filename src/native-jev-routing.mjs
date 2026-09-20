@@ -22,13 +22,13 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.6') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-20.7') return;
   if (window.__codexControlConsoleJevRoutingInstallTimer) clearInterval(window.__codexControlConsoleJevRoutingInstallTimer);
   window.__codexControlConsoleJevRoutingInputCleanup?.();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.6';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-20.7';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatModelChange = ${formatNativeJevModelChange.toString()};
@@ -36,7 +36,6 @@ export function buildNativeJevRoutingInjectionScript() {
   const selectTurn = ${selectNativeJevRoutingTurn.toString()};
   const releaseSend = ${releaseNativeJevSend.toString()};
   let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {} };
-  let lastResult = null;
   let sequence = 0;
   let togglePending = false;
   let submissionPending = false;
@@ -185,7 +184,6 @@ export function buildNativeJevRoutingInjectionScript() {
       if (typeof apply !== 'function') throw new Error('原生会话设置桥接不可用');
       watchNativeModelChange(classification);
       await apply(threadId, { model: classification.model, reasoningEffort: classification.effort });
-      lastResult = classification;
       window.__codexControlConsoleLastJevRouting = { ok: true, threadId, ...classification, appliedAt: new Date().toISOString() };
       queueTurnChoice(threadId, prompt, beforeIds, classification);
       if (window.electronBridge?.sendMessageFromView?.__codexControlTurboWrapped) bypassNativeTurn = { threadId, expiresAt: Date.now() + 30000 };
@@ -241,7 +239,7 @@ export function buildNativeJevRoutingInjectionScript() {
     button.setAttribute('aria-pressed', String(active));
     button.setAttribute('aria-label', active ? 'Jev 自动分流已开启' : 'Jev 自动分流已关闭');
     button.disabled = togglePending;
-    button.textContent = 'Jev 全局路由';
+    button.textContent = 'Jev 全局';
     button.title = togglePending ? '正在统一所有会话的自动分流设置…' : active ? '统一开启：所有未单独设置的会话自动分流；点击关闭并清除会话覆盖' : '统一关闭：所有未单独设置的会话不自动分流；点击开启并清除会话覆盖';
     button.style.cssText = 'display:inline-flex;align-items:center;height:24px;padding:0 8px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '.88') + ';-webkit-app-region:no-drag;app-region:no-drag;';
   }
@@ -252,9 +250,7 @@ export function buildNativeJevRoutingInjectionScript() {
     const overridden = Boolean(threadId && Object.prototype.hasOwnProperty.call(policy.threadOverrides, threadId));
     button.dataset.enabled = String(active); button.dataset.threadId = threadId || ''; button.dataset.override = String(overridden);
     button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', active ? '当前会话 Jev 自动分流已开启' : '当前会话 Jev 自动分流已关闭'); button.disabled = togglePending || submissionPending || !threadId;
-    const mode = policy.transportMode === 'native' ? '原生' : '路由';
-    const suffix = active && lastResult?.tier ? ' · ' + String(lastResult.tier).replace(/^./, (value) => value.toUpperCase()) : '';
-    button.textContent = submissionPending ? 'Jev 判断中…' : 'Jev 自动 · ' + mode + suffix;
+    button.textContent = submissionPending ? 'Jev 判断中…' : policy.transportMode === 'native' ? 'Jev 原生' : 'Jev 路由';
     button.title = !threadId ? '当前没有可设置的原生会话' : submissionPending ? 'Jev 正在为这一轮选择模型与推理强度' : togglePending ? '正在保存当前会话设置…' : (overridden ? '当前会话单独' : '继承全局') + (active ? '开启；点击只关闭当前会话' : '关闭；点击只开启当前会话');
     button.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.25)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '1') + ';-webkit-app-region:no-drag;app-region:no-drag;';
   }
@@ -276,7 +272,7 @@ export function buildNativeJevRoutingInjectionScript() {
         togglePending = true; renderGlobalButton(button); const current = document.querySelector('[data-codex-control-console-native-jev-current]'); if (current) renderCurrentButton(current);
         try {
           const response = await request('set-enabled', { enabled: !policy.enabled }, 8000);
-          applySnapshot(response.snapshot); lastResult = null;
+          applySnapshot(response.snapshot);
         } catch (error) { button.title = String(error?.message || error); }
         finally { togglePending = false; renderGlobalButton(button); if (current) renderCurrentButton(current); }
       });
@@ -291,7 +287,7 @@ export function buildNativeJevRoutingInjectionScript() {
       current.addEventListener('click', async (event) => {
         event.preventDefault(); event.stopPropagation(); const selectedThreadId = currentThreadId(); if (togglePending || !selectedThreadId) return;
         togglePending = true; renderCurrentButton(current); if (button) renderGlobalButton(button);
-        try { const response = await request('set-thread-enabled', { threadId: selectedThreadId, enabled: !effectiveEnabled(selectedThreadId) }, 8000); applySnapshot(response.snapshot); lastResult = null; }
+        try { const response = await request('set-thread-enabled', { threadId: selectedThreadId, enabled: !effectiveEnabled(selectedThreadId) }, 8000); applySnapshot(response.snapshot); }
         catch (error) { current.title = String(error?.message || error); }
         finally { togglePending = false; renderCurrentButton(current); if (button) renderGlobalButton(button); }
       });
@@ -313,7 +309,7 @@ export function buildNativeJevRoutingInjectionScript() {
     try {
       const classification = prompt ? (await request('classify', { prompt }, 22000)).classification : fallbackClassification('当前轮次没有文本，已使用兜底档位');
       if (!classification) return message;
-      lastResult = classification; const button = document.querySelector('[data-codex-control-console-native-jev]'); const current = document.querySelector('[data-codex-control-console-native-jev-current]'); if (button) renderGlobalButton(button); if (current) renderCurrentButton(current);
+      const button = document.querySelector('[data-codex-control-console-native-jev]'); const current = document.querySelector('[data-codex-control-console-native-jev-current]'); if (button) renderGlobalButton(button); if (current) renderCurrentButton(current);
       window.__codexControlConsoleLastJevRouting = { ok: true, threadId, ...classification, appliedAt: new Date().toISOString() };
       queueTurnChoice(threadId, prompt, beforeIds, classification);
       return transform(message, classification);

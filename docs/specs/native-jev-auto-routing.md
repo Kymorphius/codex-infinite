@@ -57,14 +57,12 @@ fallback tier.
 A compact `Jev 全局` switch is mounted in the native header beside the existing
 Turbo controls. It changes the default for every conversation and clears prior
 per-conversation overrides so it acts as a true unified switch. A second
-`Jev 自动` switch is mounted in the composer footer beside the permission and
-million-context controls; it changes only the currently visible conversation.
+`Jev 原生` or `Jev 路由` switch is mounted in the composer footer beside the
+permission and million-context controls; it changes only the currently visible conversation.
 Conversations without an override inherit the global state. Both controls are
 present in the dedicated enhanced window and the primary native window when the
 primary bridge is enabled. Their state is saved through the same CDP binding.
-After a routed turn, the composer control reports the selected tier, model, and
-effort in its accessible label and tooltip. The same bounded result is attached
-to that turn's user-message footer as a compact badge, for example
+After a routed turn, the bounded result is attached to that turn's user-message footer as a compact badge, for example
 `Jev · 复杂 · GPT-5.6 Sol · medium`. Turn badges are retained locally with a
 bounded history and never added to the model prompt.
 
@@ -76,9 +74,9 @@ remain untouched.
 
 The shared configuration panel exposes two explicit transport choices:
 
-- `原生直连并自动发送` removes the enhanced runtime's Router endpoint. Jev
+- `Jev 原生` removes the enhanced runtime's Router endpoint. Jev
   still selects the native model and effort before releasing the send action.
-- `Jev 全局路由` keeps every enhanced-runtime request on the local Router and
+- `Jev 路由` keeps every enhanced-runtime request on the local Router and
   enables authenticated native-session discovery for existing conversations.
 
 ## Compatibility and boundaries
