@@ -244,7 +244,10 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /medium: '中'/);
   assert.match(source, /ultra: 'Ultra'/);
   assert.match(source, /child\.tagName === 'svg'/);
-  assert.match(source, /inset:0 20px 0 0/);
+  assert.match(source, /inset:4px 28px 4px 8px/);
+  assert.match(source, /'min-width', '145px'/);
+  assert.match(source, /'right', '8px'/);
+  assert.match(source, /native-arrow-style/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
   assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);
