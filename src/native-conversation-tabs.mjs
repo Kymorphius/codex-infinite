@@ -53,7 +53,7 @@ export function buildNativeConversationTabsInjectionSource() {
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
-    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set();
+    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set(), topControls = [], topControlsScannedAt = -Infinity;
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
     const normalizeTab = createNativeConversationTabNormalizer(localStorage, clean, UUID);
@@ -106,18 +106,22 @@ export function buildNativeConversationTabsInjectionSource() {
       return state.activeKey === 'console' ? { kind: 'console', module: state.consoleModule } : state.tabs.find((tab) => keyFor(tab) === state.activeKey) || null;
     }
 
-    function syncNativeTitleTakeover(workspace, workspaceRect) {
+    function syncNativeTitleTakeover(workspace, workspaceRect, force = false) {
+      const now = performance.now();
+      if (!force && now - topControlsScannedAt < 1000) return topControls.filter((record) => record.button.isConnected);
+      topControlsScannedAt = now;
       const actionLabels = ['聊天操作', 'Chat actions'];
       const projectPrefixes = ['项目：', 'Project:'];
       const retained = new Set(Array.from(titleTakeoverNodes).filter((node) => node.isConnected));
-      const buttonRecords = Array.from(document.querySelectorAll('button')).filter((button) => !root?.contains(button)).map((button) => {
-        const bounds = button.getBoundingClientRect(), style = getComputedStyle(button);
-        return { button, bounds, style };
-      }).filter(({ bounds, style }) => bounds.width > 0 && bounds.height > 0 && bounds.top < 42 && style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none');
+      const buttonRecords = Array.from(document.querySelectorAll('button')).filter((button) => !root?.contains(button)).map((button) => ({ button, bounds: button.getBoundingClientRect() }))
+        .filter(({ bounds }) => bounds.width > 0 && bounds.height > 0 && bounds.top < 42)
+        .map((record) => ({ ...record, style: getComputedStyle(record.button) }))
+        .filter(({ style }) => style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none');
       const chatAction = buttonRecords.find(({ button }) => actionLabels.includes(clean(button.getAttribute('aria-label'), 80)));
       if (!chatAction) {
         titleTakeoverNodes = retained;
-        return buttonRecords;
+        topControls = buttonRecords;
+        return topControls;
       }
       const next = new Set();
       if (chatAction && workspaceRect?.width > 260) {
@@ -135,14 +139,15 @@ export function buildNativeConversationTabsInjectionSource() {
       });
       next.forEach((node) => node.setAttribute(TITLE_HIDDEN_ATTRIBUTE, ''));
       titleTakeoverNodes = next;
-      return buttonRecords;
+      topControls = buttonRecords;
+      return topControls;
     }
 
-    function position() {
+    function position(forceTitleScan = false) {
       if (!root) return;
       const candidate = options.workspaceCandidate?.();
       const rect = candidate?.getBoundingClientRect?.();
-      const topControls = syncNativeTitleTakeover(candidate, rect);
+      const topControls = syncNativeTitleTakeover(candidate, rect, forceTitleScan);
       const leftControlEdge = topControls.reduce((edge, { bounds }) => bounds.right < innerWidth * .62 ? Math.max(edge, bounds.right) : edge, 0);
       if (rect?.width > 260) stableLeft = Math.max(76, Math.round(rect.left + 8));
       const left = stableLeft ?? Math.max(236, Math.round(leftControlEdge + 8));
@@ -267,7 +272,7 @@ export function buildNativeConversationTabsInjectionSource() {
       renderPending = true;
       const interval = urgent ? 0 : 320;
       const delay = Math.max(0, interval - (performance.now() - lastSyncAt));
-      const queue = () => requestAnimationFrame(() => { renderPending = false; renderTimer = null; lastSyncAt = performance.now(); syncLocal(); position(); });
+      const queue = () => requestAnimationFrame(() => { renderPending = false; renderTimer = null; lastSyncAt = performance.now(); syncLocal(); position(urgent); });
       if (delay > 0) renderTimer = setTimeout(queue, delay); else queue();
     }
 

@@ -10,7 +10,10 @@ test("native conversation tabs coalesce broad mutation layout work", () => {
   assert.match(source, /const interval = urgent \? 0 : 320/);
   assert.match(source, /scheduleSync\(routeChanged\(records\)\)/);
   assert.doesNotMatch(source, /position\(\); scheduleSync\(\)/);
-  assert.match(source, /syncNativeTitleTakeover\(candidate, rect\)/);
+  assert.match(source, /function syncNativeTitleTakeover\(workspace, workspaceRect, force = false\)/);
+  assert.match(source, /now - topControlsScannedAt < 1000/);
+  assert.match(source, /position\(urgent\)/);
+  assert.match(source, /filter\(\(\{ bounds \}\) => bounds\.width > 0 && bounds\.height > 0 && bounds\.top < 42\)\s*\.map\(\(record\) => \(\{ \.\.\.record, style: getComputedStyle\(record\.button\) \}\)\)/);
 });
 
 test("turn annotations skip repeated bridge snapshots and coalesce layout reads", () => {
