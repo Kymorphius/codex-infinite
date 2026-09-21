@@ -52,7 +52,7 @@ export function buildNativeTurboInjectionScript() {
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
   const enforcementSource = buildNativeTurboEnforcementSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-21.send-deadline1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-21.prepared-send1') return;
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
   try {
     const currentSend = window.electronBridge?.sendMessageFromView;
@@ -62,12 +62,14 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-21.send-deadline1';
-  const TURBO_PREPARE_TIMEOUT_MS = 200;
+  window.__codexControlConsoleTurboVersion = '2026-09-21.prepared-send1';
+  const TURBO_PREPARE_TIMEOUT_MS = 8000;
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
   let requestSequence = 0;
+  const preparedContextSignatures = new Map();
+  const preparingContexts = new Map();
   const affectedStorageKey = 'codex-control-console-turbo-context-threads';
   let affectedContextThreads = new Set();
   try {
@@ -106,22 +108,31 @@ export function buildNativeTurboInjectionScript() {
     });
   }
 
-  async function prepareTurboContext(originalSend, message) {
+  function prepareTurboContext(originalSend, message) {
     const params = message?.type === 'mcp-request' && message?.hostId === 'local' && message?.request?.method === 'turn/start' ? message.request.params : null;
     const threadId = typeof params?.threadId === 'string' ? params.threadId.toLowerCase() : '';
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return null;
     const shouldExtend = policy.enabled && policy.active && policy.millionContext;
-    if (!shouldExtend && !affectedContextThreads.has(threadId)) return;
+    if (!shouldExtend && !affectedContextThreads.has(threadId)) return null;
     const ordinaryWindow = Number(window.__codexControlConsoleGetContextWindow?.(threadId)) || null;
     const contextWindow = shouldExtend ? 1000000 : ordinaryWindow;
-    try {
-      await resumeContext(originalSend, threadId, contextWindow);
+    const preparationSignature = [shouldExtend ? 'extended' : 'ordinary', contextWindow || 'default'].join(':');
+    if (preparedContextSignatures.get(threadId) === preparationSignature) return null;
+    const current = preparingContexts.get(threadId);
+    if (current?.signature === preparationSignature) return current.promise;
+    const preparation = resumeContext(originalSend, threadId, contextWindow).then(() => {
       if (shouldExtend) affectedContextThreads.add(threadId); else affectedContextThreads.delete(threadId);
+      preparedContextSignatures.set(threadId, preparationSignature);
       persistAffectedThreads();
       window.__codexControlConsoleLastTurboContext = { ok: true, threadId, contextWindow, restored: !shouldExtend, appliedAt: new Date().toISOString() };
-    } catch (error) {
+    }).catch((error) => {
       window.__codexControlConsoleLastTurboContext = { ok: false, threadId, contextWindow, message: String(error?.message || error), appliedAt: new Date().toISOString() };
-    }
+      throw error;
+    }).finally(() => {
+      if (preparingContexts.get(threadId)?.promise === preparation) preparingContexts.delete(threadId);
+    });
+    preparingContexts.set(threadId, { signature: preparationSignature, promise: preparation });
+    return preparation;
   }
 
   function transform(message) {
@@ -155,19 +166,23 @@ export function buildNativeTurboInjectionScript() {
     decorateReasoningControl();
     const bridge = window.electronBridge;
     const current = bridge?.sendMessageFromView;
-    if (typeof current !== 'function' || current.__codexControlTurboWrapped) return;
-    const originalSend = current.bind(bridge);
-    const wrapped = async function(message) {
-      await prepareTurboContext(originalSend, message);
+    if (typeof current !== 'function') return;
+    const originalSend = (current.__codexControlTurboOriginal || current).bind(bridge);
+    const warmCurrentThread = () => {
+      const threadId = selectedTurboThreadId();
+      if (!threadId) return;
+      prepareTurboContext(originalSend, { type: 'mcp-request', hostId: 'local', request: { method: 'turn/start', params: { threadId } } })?.catch(() => {});
+    };
+    if (current.__codexControlTurboWrapped) { warmCurrentThread(); return; }
+    const wrapped = function(message) {
+      const preparation = prepareTurboContext(originalSend, message);
       const transformed = transform(message);
-      const routed = typeof window.__codexControlConsoleRouteNativeTurn === 'function'
-        ? await window.__codexControlConsoleRouteNativeTurn(transformed)
-        : transformed;
-      return originalSend(routed);
+      return preparation ? preparation.then(() => originalSend(transformed)) : originalSend(transformed);
     };
     wrapped.__codexControlTurboWrapped = true;
     wrapped.__codexControlTurboOriginal = current;
     try { bridge.sendMessageFromView = wrapped; } catch {}
+    warmCurrentThread();
     void syncTurboEnforcement();
   }
 

@@ -11,13 +11,13 @@ import {
 
 const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
 
-function runtime() {
+function runtime({ respondToResume = true } = {}) {
   const sent = [];
   const listeners = new Map();
   const window = {
     electronBridge: { sendMessageFromView(message) {
       sent.push(message);
-      if (message?.request?.method === "thread/resume") queueMicrotask(() => {
+      if (respondToResume && message?.request?.method === "thread/resume") queueMicrotask(() => {
         for (const listener of listeners.get("message") || []) listener({ data: { type: "mcp-response", hostId: "local", message: { id: message.request.id, result: {} } } });
       });
       return Promise.resolve();
@@ -30,7 +30,8 @@ function runtime() {
   const localStorage = { getItem(key) { return storage.get(key) || null; }, setItem(key, value) { storage.set(key, String(value)); } };
   const context = { window, document, localStorage, setInterval() { return 1; }, clearInterval() {}, setTimeout, clearTimeout, queueMicrotask, Math, Date, Map, Set, JSON };
   vm.runInNewContext(buildNativeTurboInjectionScript(), context);
-  return { context, window, sent };
+  const respond = (id) => { for (const listener of listeners.get("message") || []) listener({ data: { type: "mcp-response", hostId: "local", message: { id, result: {} } } }); };
+  return { context, window, sent, respond };
 }
 
 test("Turbo clones turn/start and applies model maximum plus Fast without changing sticky settings", async () => {
@@ -91,21 +92,32 @@ test("Turbo fixed strategy overrides model, effort, and access while Fast can re
   assert.equal(request.request.params.model, "gpt-5.6-sol");
 });
 
-test("Jev routing runs after Turbo so it owns model and effort without losing Turbo controls", async () => {
+test("renderer routing cannot delay or replace the Turbo native send", async () => {
   const { context, window, sent } = runtime();
   vm.runInNewContext(buildNativeTurboSnapshotScript({
     enabled: true, model: "gpt-5.6-luna", reasoningEffort: "high", fast: true,
     accessMode: "read-only", modelEfforts: [{ model: "gpt-5.6-luna", effort: "high" }]
   }), context);
-  window.__codexControlConsoleRouteNativeTurn = async (message) => ({
-    ...message,
-    request: { ...message.request, params: { ...message.request.params, model: "gpt-6-astra", effort: "ultra" } }
-  });
+  let rendererRoutingCalls = 0;
+  window.__codexControlConsoleRouteNativeTurn = () => { rendererRoutingCalls += 1; return new Promise(() => {}); };
   await window.electronBridge.sendMessageFromView({ type: "mcp-request", hostId: "local", request: { method: "turn/start", params: { threadId, model: "gpt-5.6-sol", effort: "medium", input: [] } } });
-  assert.equal(sent[0].request.params.model, "gpt-6-astra");
-  assert.equal(sent[0].request.params.effort, "ultra");
+  assert.equal(rendererRoutingCalls, 0);
+  assert.equal(sent[0].request.params.model, "gpt-5.6-luna");
+  assert.equal(sent[0].request.params.effort, "high");
   assert.equal(sent[0].request.params.permissions, ":read-only");
   assert.equal(sent[0].request.params.serviceTierForTurn, "priority");
+});
+
+test("unprepared million-context send waits for enhancement and never falls back", async () => {
+  const { context, window, sent, respond } = runtime({ respondToResume: false });
+  vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: true, millionContext: true, modelEfforts: [{ model: "gpt-5.6-sol", effort: "ultra" }] }), context);
+  const sending = window.electronBridge.sendMessageFromView({ type: "mcp-request", hostId: "local", request: { method: "turn/start", params: { threadId, model: "gpt-5.6-sol", effort: "medium", input: [] } } });
+  await new Promise((resolve) => queueMicrotask(resolve));
+  assert.deepEqual(sent.map((item) => item.request.method), ["thread/resume"]);
+  assert.equal(typeof sending?.then, "function");
+  respond(sent[0].request.id);
+  await sending;
+  assert.deepEqual(sent.map((item) => item.request.method), ["thread/resume", "turn/start"]);
 });
 
 test("Turbo leaves a node outside the configured device range untouched", async () => {
@@ -142,9 +154,10 @@ test("disabling Turbo restores the next turn to the native conversation settings
 
 test("native sidebar Turbo control uses one bounded binding action", async () => {
   const source = buildNativeTurboInjectionScript();
-  assert.match(source, /const TURBO_PREPARE_TIMEOUT_MS = 200/);
+  assert.match(source, /const TURBO_PREPARE_TIMEOUT_MS = 8000/);
   assert.match(source, /timeoutMs = TURBO_PREPARE_TIMEOUT_MS/);
-  assert.doesNotMatch(source, /Turbo 上下文设置超时'\); \}, 8000/);
+  assert.match(source, /preparation \? preparation\.then\(\(\) => originalSend\(transformed\)\) : originalSend\(transformed\)/);
+  assert.doesNotMatch(source, /await window\.__codexControlConsoleRouteNativeTurn/);
   assert.match(source, /data-codex-control-console-native-turbo/);
   assert.match(source, /data-codex-control-console-turbo-effective/);
   assert.match(source, /data-codex-control-console-native-turbo-settings/);
