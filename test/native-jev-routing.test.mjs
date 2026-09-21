@@ -239,6 +239,8 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /color:#62bd84/);
   assert.match(source, /font:inherit/);
   assert.doesNotMatch(source, /style\.setProperty\('border-color'/);
+  assert.match(source, /medium: '中'/);
+  assert.match(source, /ultra: 'Ultra'/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
   assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);

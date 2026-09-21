@@ -20,7 +20,9 @@ export function buildNativeJevComposerControlSource() {
     let effective = control.querySelector('[data-codex-control-console-jev-native-model-effective]');
     if (!effective) { effective = document.createElement('span'); effective.setAttribute('data-codex-control-console-jev-native-model-effective', ''); control.append(effective); }
     const model = String(choice?.value?.model || '').replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1));
-    effective.textContent = model && choice?.value?.effort ? model + ' ' + choice.value.effort : 'Jev 自动选择';
+    const effortLabels = { none: '无', minimal: '极低', low: '轻度', medium: '中', high: '高', xhigh: '极高', max: '最高', ultra: 'Ultra' };
+    const effort = effortLabels[choice?.value?.effort] || choice?.value?.effort;
+    effective.textContent = model && effort ? model + ' ' + effort : 'Jev 自动选择';
     effective.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:inherit;visibility:visible;color:#62bd84;font:inherit;white-space:nowrap;pointer-events:none;';
     control.setAttribute('aria-disabled', 'true'); control.setAttribute('data-codex-control-console-jev-native-model-disabled', ''); control.tabIndex = -1;
     control.setAttribute('aria-label', 'Jev 当前模型和推理强度：' + effective.textContent);
