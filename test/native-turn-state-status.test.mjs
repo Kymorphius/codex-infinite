@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript, normalizeNativeTurnStateSnapshot, summarizeNativeTurnState, summarizeNativeTurnStates } from "../src/native-turn-state-status.mjs";
+import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript, normalizeNativeTurnStateSnapshot, summarizeGlobalNativeTurnStates, summarizeNativeTurnState, summarizeNativeTurnStates } from "../src/native-turn-state-status.mjs";
 
 const current = "01a0c463-6db9-7672-92d6-62b6367c3114";
 const other = "01a0c47f-f950-79b3-80fd-bd634f05ee17";
@@ -22,16 +22,31 @@ test("native turn-state summaries remain conversation scoped", () => {
 test("native injection renders header and exact-turn badges with an explicit quality disclaimer", () => {
   const source = buildNativeTurnStateInjectionScript();
   assert.match(source, /data-codex-control-console-turn-state/);
-  assert.match(source, /State 292|State ' \+ entry\.turnState\.length/);
+  assert.match(source, /String\(entry\.turnState\.length\)/);
   assert.match(source, /长度本身不代表模型质量/);
   assert.match(source, /data-above-composer-conversation-id/);
   assert.match(source, /data-content-search-turn-key/);
   assert.match(source, /data-codex-control-console-turn-state-turn/);
   assert.match(source, /data-codex-control-console-native-jev-current/);
+  assert.match(source, /data-codex-control-console-global-turn-state/);
+  assert.match(source, /header\[data-app-shell-header-layout\]/);
   assert.match(source, /jev\.after\(button\)/);
   assert.doesNotMatch(source, /button\[aria-label=\\"搜索\\"\]/);
   assert.match(source, /const summarizeNativeTurnStates = summarize/);
   const snapshot = buildNativeTurnStateSnapshotScript({ available: true, entries: [{ threadId: current, turnState: { present: true, length: 292 } }] });
   assert.match(snapshot, /SetTurnStateSnapshot/);
   assert.doesNotMatch(snapshot, /x-codex-turn-state/);
+});
+
+test("global summary keeps one latest effective state per conversation", () => {
+  const snapshot = normalizeNativeTurnStateSnapshot({ available: true, entries: [
+    { threadId: current, endedAt: 10, turnState: { present: true, length: 292 } },
+    { threadId: current, endedAt: 20, turnState: { present: false } },
+    { threadId: other, endedAt: 30, turnState: { present: true, length: 312 } },
+    { threadId: "01a0c4bb-2222-7333-8444-123456789abc", endedAt: 40, turnState: { present: false } },
+  ] });
+  const summary = summarizeGlobalNativeTurnStates(snapshot);
+  assert.equal(summary.conversationCount, 3);
+  assert.deepEqual(summary.counts, { 292: 1, 312: 1, none: 1 });
+  assert.deepEqual(summary.latest.turnState, { present: true, length: 312 });
 });

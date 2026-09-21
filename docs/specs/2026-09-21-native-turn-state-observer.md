@@ -27,12 +27,16 @@ about model quality or entitlement.
 - Add the compact conversation badge to the composer control row, immediately
   after the current-conversation `Jev 路由` control. Do not place it in the
   window title/header controls.
+- Add a compact numeric badge to the right side of the upper-left navigation
+  slot. It summarizes the latest effective State for each observed conversation
+  and opens a global distribution popover; keep the composer badge scoped to the
+  current conversation.
 - Add a compact badge beside each visible user turn when Router activity has
   an exact matching native turn id. Never infer a match from timestamps.
-- Label the latest current-conversation observation as `State N`, `State —`,
-  or `State ?` when the observer is unavailable.
-- Keep the last valid `State N` label when newer requests carry no state. Change
-  the label only after observing another valid length; use `State —` only when
+- Label observations with the numeric length only (`292`, `312`, etc.), `—`,
+  or `?` when the observer is unavailable.
+- Keep the last valid numeric label when newer requests carry no state. Change
+  the label only after observing another valid length; use `—` only when
   the conversation has never produced a valid length in the retained snapshot.
 - Clicking the badge opens a bounded popover with per-length counts and recent
   records for the current conversation only.

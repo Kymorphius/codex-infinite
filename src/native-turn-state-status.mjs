@@ -32,27 +32,43 @@ export function summarizeNativeTurnStates(snapshot, threadId) {
   return { available: snapshot.available, entries, counts, latest };
 }
 
+export function summarizeGlobalNativeTurnStates(snapshot) {
+  const grouped = new Map();
+  for (const entry of snapshot.entries) grouped.set(entry.threadId, [...(grouped.get(entry.threadId) || []), entry]);
+  const entries = [...grouped.values()].map((items) => {
+    const sorted = items.slice().sort((a, b) => (a.endedAt || a.startedAt || 0) - (b.endedAt || b.startedAt || 0));
+    return [...sorted].reverse().find((entry) => entry.turnState.present) || sorted.at(-1);
+  }).filter(Boolean);
+  const counts = {};
+  for (const entry of entries) { const key = entry.turnState.present ? String(entry.turnState.length) : "none"; counts[key] = (counts[key] || 0) + 1; }
+  const ordered = entries.slice().sort((a, b) => (a.endedAt || a.startedAt || 0) - (b.endedAt || b.startedAt || 0));
+  const latest = [...snapshot.entries].sort((a, b) => (a.endedAt || a.startedAt || 0) - (b.endedAt || b.startedAt || 0)).reverse().find((entry) => entry.turnState.present) || ordered.at(-1) || null;
+  return { available: snapshot.available, entries: ordered, counts, latest, conversationCount: ordered.length };
+}
+
 export function buildNativeTurnStateSnapshotScript(snapshot) {
   return `window.__codexControlConsoleSetTurnStateSnapshot?.(${JSON.stringify(normalizeNativeTurnStateSnapshot(snapshot))}) || null`;
 }
 
 export function buildNativeTurnStateInjectionScript() {
   return `(() => {
-  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.5') return;
+  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.6') return;
   if (window.__codexControlConsoleTurnStateTimer) clearInterval(window.__codexControlConsoleTurnStateTimer);
   document.querySelector('[data-codex-control-console-turn-state]')?.remove();
   document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove();
+  document.querySelector('[data-codex-control-console-global-turn-state]')?.remove();
   document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((node)=>node.remove());
-  window.__codexControlConsoleTurnStateVersion = '2026-09-21.5';
+  window.__codexControlConsoleTurnStateVersion = '2026-09-21.6';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const summarize = ${summarizeNativeTurnStates.toString()};
   const summarizeNativeTurnStates = summarize;
   const summarizeTurn = ${summarizeNativeTurnState.toString()};
+  const summarizeGlobal = ${summarizeGlobalNativeTurnStates.toString()};
   let snapshot = { available:false, observedAt:Date.now(), entries:[] };
 
   function closePopover() { document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove(); }
   function toneFor(entry) { if (!entry?.turnState?.present) return '#a7a7ad'; if (entry.turnState.length === 292) return '#62bd84'; if (entry.turnState.length === 312) return '#d39a19'; return '#8ab4f8'; }
-  function labelFor(entry) { return entry?.turnState?.present ? 'State ' + entry.turnState.length : 'State —'; }
+  function labelFor(entry) { return entry?.turnState?.present ? String(entry.turnState.length) : '—'; }
   function formatTime(value) { if (!value) return '进行中'; try { return new Date(value).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}); } catch { return '未知时间'; } }
 
   function openPopover(button, summary, titleText='当前会话 · Turn State') {
@@ -80,11 +96,17 @@ export function buildNativeTurnStateInjectionScript() {
     document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((badge)=>{if(!visible.has(badge.getAttribute('data-codex-control-console-turn-state-turn')))badge.remove();});
   }
 
+  function renderGlobal() {
+    const host=document.querySelector('header[data-app-shell-header-layout] [data-test-id="header-shell-slot"]')||document.querySelector('[data-test-id="header-shell-slot"]');if(!host)return;
+    const summary=summarizeGlobal(snapshot);let button=document.querySelector('[data-codex-control-console-global-turn-state]');if(!button){button=document.createElement('button');button.type='button';button.setAttribute('data-codex-control-console-global-turn-state','');button.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openPopover(button,summarizeGlobal(snapshot),'全部会话 · Turn State');});}
+    const latest=summary.latest,label=snapshot.available?(latest?labelFor(latest):'—'):'?',color=snapshot.available?toneFor(latest):'#a7a7ad',signature=JSON.stringify([label,summary.conversationCount,summary.counts,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title='全局会话最近一次有效 turn state；点击查看各会话分布';button.setAttribute('aria-label',button.title);button.style.cssText='position:absolute;right:12px;top:50%;z-index:40;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:26px;padding:0 8px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.92;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}if(button.parentElement!==host)host.append(button);
+  }
+
   function render() {
     const jev=document.querySelector('button[data-codex-control-console-native-jev-current]');const host=jev?.parentElement;if(!host)return;
     const threadId=readThreadId(document);const summary=summarize(snapshot,threadId);let button=document.querySelector('[data-codex-control-console-turn-state]');if(!button){button=document.createElement('button');button.type='button';button.setAttribute('data-codex-control-console-turn-state','');button.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openPopover(button,summarize(snapshot,readThreadId(document)));});}
-    const latest=summary.latest;const label=snapshot.available?labelFor(latest):'State ?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;position:relative;z-index:1;flex:0 0 auto;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
-    if(button.parentElement!==host||button.previousElementSibling!==jev)jev.after(button);decorateTurns(threadId);
+    const latest=summary.latest;const label=snapshot.available?labelFor(latest):'?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;position:relative;z-index:1;flex:0 0 auto;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
+    if(button.parentElement!==host||button.previousElementSibling!==jev)jev.after(button);decorateTurns(threadId);renderGlobal();
   }
   window.__codexControlConsoleSetTurnStateSnapshot=(value)=>{snapshot=value&&Array.isArray(value.entries)?value:{available:false,observedAt:Date.now(),entries:[]};render();return true;};
   window.__codexControlConsoleTurnStateTimer=setInterval(render,700);render();
