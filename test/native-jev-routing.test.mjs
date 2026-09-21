@@ -102,7 +102,7 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
       if (selector === "span") return noticeVisible ? [notice] : [];
       return [];
     },
-    createElement() { return { setAttribute() {}, style: {}, remove() {} }; },
+    createElement() { const attributes = new Map(); return { setAttribute(key, value) { attributes.set(key, String(value)); }, getAttribute(key) { return attributes.get(key) ?? null; }, style: {}, remove() {} }; },
     addEventListener(type, listener) { documentListeners.set(type, listener); },
     removeEventListener(type) { documentListeners.delete(type); }
   };

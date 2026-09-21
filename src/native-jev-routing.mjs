@@ -2,6 +2,7 @@ import { formatNativeJevEffort, formatNativeJevModelChange, formatNativeJevTurnC
 import { findNativeJevModelChangeNotices, installNativeJevMutationRefresh, updateNativeJevPendingRetry } from "./native-jev-mutation-refresh.mjs";
 import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 import { buildNativeJevComposerControlSource } from "./native-jev-composer-controls.mjs";
+import { buildNativeJevButtonRenderSource } from "./native-jev-button-render.mjs";
 import { installNativeJevButtonActivation } from "./native-jev-button-activation.mjs";
 export { formatNativeJevEffort, formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
@@ -25,7 +26,7 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.16') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.17') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
@@ -36,7 +37,7 @@ export function buildNativeJevRoutingInjectionScript() {
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-choice]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.16';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.17';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatNativeJevEffort=${formatNativeJevEffort.toString()};
@@ -160,11 +161,14 @@ export function buildNativeJevRoutingInjectionScript() {
       const label = formatTurnChoice(choice), bubble = turn.node.querySelector('[data-user-message-bubble]'), host = bubble?.parentElement;
       if (!label || !host) { badge?.remove(); continue; }
       if (!badge) { badge = document.createElement('div'); badge.setAttribute('data-codex-control-console-jev-turn', ''); bubble.after(badge); }
-      badge.textContent = label;
       const confidence = Number.isFinite(choice.confidence) ? ' · 置信度 ' + choice.confidence.toFixed(2) : '';
+      const badgeSignature = JSON.stringify([label, choice.reason || 'Jev 自动选择', confidence]);
+      if (badge.getAttribute('data-codex-control-console-jev-render-signature') === badgeSignature) continue;
+      badge.textContent = label;
       badge.title = (choice.reason || 'Jev 自动选择') + confidence;
       badge.setAttribute('aria-label', '本轮 ' + label);
       badge.style.cssText = 'align-self:flex-end;display:inline-flex;max-width:100%;height:22px;align-items:center;padding:0 8px;border:1px solid rgba(106,190,138,.34);border-radius:999px;background:rgba(75,166,110,.10);color:#62bd84;font:600 10px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.86;';
+      badge.setAttribute('data-codex-control-console-jev-render-signature', badgeSignature);
     }
   }
 
@@ -233,27 +237,7 @@ export function buildNativeJevRoutingInjectionScript() {
     return search?.parentElement?.parentElement?.parentElement || null;
   }
 
-  function renderGlobalButton(button) {
-    const active = policy.enabled;
-    button.dataset.enabled = String(active);
-    button.setAttribute('aria-pressed', String(active));
-    button.setAttribute('aria-label', active ? 'Jev 自动分流已开启' : 'Jev 自动分流已关闭');
-    button.disabled = togglePending;
-    button.textContent = 'Jev';
-    button.title = togglePending ? '正在统一所有会话的自动分流设置…' : active ? '统一开启：所有未单独设置的会话自动分流；点击关闭并清除会话覆盖' : '统一关闭：所有未单独设置的会话不自动分流；点击开启并清除会话覆盖';
-    button.style.cssText = 'display:inline-flex;position:relative;z-index:1;align-items:center;height:24px;padding:0 8px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '.88') + ';pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
-  }
-
-  function renderCurrentButton(button) {
-    const threadId = currentThreadId();
-    const active = effectiveEnabled(threadId);
-    const overridden = Boolean(threadId && Object.prototype.hasOwnProperty.call(policy.threadOverrides, threadId));
-    button.dataset.enabled = String(active); button.dataset.threadId = threadId || ''; button.dataset.override = String(overridden);
-    button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', threadId ? (active ? '当前会话 Jev 自动分流已开启' : '当前会话 Jev 自动分流已关闭') : (active ? '新建聊天的全局 Jev 自动分流已开启' : '新建聊天的全局 Jev 自动分流已关闭')); button.disabled = togglePending || submissionPending;
-    button.textContent = submissionPending ? 'Jev 判断中…' : policy.transportMode === 'native' ? 'Jev 原生' : 'Jev 路由';
-    button.title = !threadId ? (active ? '新建聊天继承全局 Jev 路由；点击关闭全局路由' : '新建聊天继承全局设置；点击开启全局 Jev 路由') : submissionPending ? 'Jev 正在为这一轮选择模型与推理强度' : togglePending ? '正在保存当前会话设置…' : (overridden ? '当前会话单独' : '继承全局') + (active ? '开启；点击只关闭当前会话' : '关闭；点击只开启当前会话');
-    button.style.cssText = 'display:inline-flex;position:relative;z-index:1;flex:0 0 82px;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.25)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '1') + ';pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
-  }
+${buildNativeJevButtonRenderSource()}
 ${buildNativeJevComposerControlSource()}
   function applySnapshot(snapshot) {
     const value = snapshot || {};
@@ -269,7 +253,7 @@ ${buildNativeJevComposerControlSource()}
   }
   function installButtons() {
     const host = buttonHost();
-    if (host && host.classList?.contains('ms-auto')) host.parentElement?.setAttribute('data-codex-control-console-interactive-header', '');
+    if (host && host.classList?.contains('ms-auto') && !host.parentElement?.hasAttribute('data-codex-control-console-interactive-header')) host.parentElement?.setAttribute('data-codex-control-console-interactive-header', '');
     let button = document.querySelector('[data-codex-control-console-native-jev]');
     if (host && !button) {
       button = document.createElement('button'); button.type = 'button'; button.setAttribute('data-codex-control-console-native-jev', '');
@@ -303,8 +287,9 @@ ${buildNativeJevComposerControlSource()}
     renderCurrentButton(current);
     choice = renderCurrentChoice(choice, threadId, active);
     const context = composerHost.querySelector('[data-codex-control-console-context-toggle]');
-    if (context) context.after(current); else permission.after(current);
-    if (choice) current.after(choice);
+    const anchor = context || permission;
+    if (anchor.nextElementSibling !== current) anchor.after(current);
+    if (choice && current.nextElementSibling !== choice) current.after(choice);
   }
   // Sending remains entirely native. Jev routing now happens after the
   // authenticated request reaches Codex Router, and exact turn receipts flow

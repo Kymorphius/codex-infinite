@@ -29,12 +29,16 @@ export function buildNativeJevComposerControlSource() {
     const model = String(choice?.value?.model || '').replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1));
     const effortLabels = { none: '无', minimal: '极低', low: '轻度', medium: '中', high: '高', xhigh: '极高', max: '最高', ultra: 'Ultra' };
     const effort = effortLabels[choice?.value?.effort] || choice?.value?.effort;
-    effective.textContent = model && effort ? model + ' ' + effort : 'Jev 自动选择';
+    const effectiveText = model && effort ? model + ' ' + effort : 'Jev 自动选择';
+    const renderSignature = JSON.stringify([threadId || '', effectiveText, choice?.title || '']);
+    if (control.getAttribute('data-codex-control-console-jev-native-render-signature') === renderSignature) return;
+    effective.textContent = effectiveText;
     effective.style.cssText = 'position:absolute;inset:4px 28px 4px 8px;display:flex;align-items:center;justify-content:center;padding:0;visibility:visible;color:#62bd84;font:inherit;white-space:nowrap;pointer-events:none;';
     control.setAttribute('aria-disabled', 'true'); control.setAttribute('data-codex-control-console-jev-native-model-disabled', ''); control.tabIndex = -1;
     control.setAttribute('aria-label', 'Jev 当前模型和推理强度：' + effective.textContent);
     control.title = (choice?.title ? choice.title + '；' : '') + 'Jev 已接管模型与推理强度；关闭 Jev 路由后可恢复原生选择';
     control.style.setProperty('position', 'relative', 'important'); control.style.setProperty('min-width', '145px', 'important'); control.style.setProperty('opacity', '1', 'important'); control.style.setProperty('filter', 'none', 'important'); control.style.setProperty('color', '#62bd84', 'important'); control.style.setProperty('pointer-events', 'none', 'important'); control.style.setProperty('cursor', 'not-allowed', 'important');
+    control.setAttribute('data-codex-control-console-jev-native-render-signature', renderSignature);
   }
 
   window.__codexControlConsoleRestoreJevNativeModelControl = () => {
@@ -46,7 +50,7 @@ export function buildNativeJevComposerControlSource() {
     control.querySelector('[data-codex-control-console-jev-native-model-effective]')?.remove();
     for (const child of Array.from(control.children)) { if (!child.hasAttribute('data-codex-control-console-jev-native-child-visibility')) continue; child.style.visibility = child.getAttribute('data-codex-control-console-jev-native-child-visibility') || ''; child.removeAttribute('data-codex-control-console-jev-native-child-visibility'); }
     const arrow = Array.from(control.children).find((child) => child.tagName === 'svg'), arrowStyle = arrow?.getAttribute('data-codex-control-console-jev-native-arrow-style'); if (arrowStyle !== undefined) { if (arrowStyle) arrow.setAttribute('style', arrowStyle); else arrow.removeAttribute('style'); arrow.removeAttribute('data-codex-control-console-jev-native-arrow-style'); }
-    control.removeAttribute('aria-disabled'); control.removeAttribute('data-codex-control-console-jev-native-model-disabled'); control.removeAttribute('data-codex-control-console-jev-native-model-style'); control.removeAttribute('data-codex-control-console-jev-native-model-title'); control.removeAttribute('data-codex-control-console-jev-native-model-tabindex'); control.removeAttribute('data-codex-control-console-jev-native-model-label');
+    control.removeAttribute('aria-disabled'); control.removeAttribute('data-codex-control-console-jev-native-model-disabled'); control.removeAttribute('data-codex-control-console-jev-native-model-style'); control.removeAttribute('data-codex-control-console-jev-native-model-title'); control.removeAttribute('data-codex-control-console-jev-native-model-tabindex'); control.removeAttribute('data-codex-control-console-jev-native-model-label'); control.removeAttribute('data-codex-control-console-jev-native-render-signature');
   };
 
   function renderCurrentChoice(node) { node?.remove(); return null; }

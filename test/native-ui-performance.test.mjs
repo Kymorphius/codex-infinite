@@ -6,6 +6,7 @@ import { buildNativeNewProjectsInjectionScript } from "../src/native-new-project
 import { buildNativeAttentionConversationsInjectionScript } from "../src/native-attention-conversations.mjs";
 import { nativeOwnerPollDelay } from "../src/native-owner-injector.mjs";
 import { installNativeJevMutationRefresh } from "../src/native-jev-mutation-refresh.mjs";
+import { buildNativeJevRoutingInjectionScript } from "../src/native-jev-routing.mjs";
 
 test("native conversation tabs coalesce broad mutation layout work", () => {
   const source = buildNativeConversationTabsInjectionSource();
@@ -56,6 +57,14 @@ test("Jev mutation refresh ignores its own render but detects native remounts", 
   receive([{ type: "childList", target: ordinary, addedNodes: [native], removedNodes: [] }]);
   assert.equal(installs, 1);
   cleanup();
+});
+
+test("Jev rendering is idempotent after state and placement settle", () => {
+  const source = buildNativeJevRoutingInjectionScript();
+  assert.match(source, /data-codex-control-console-jev-render-signature/);
+  assert.match(source, /data-codex-control-console-jev-native-render-signature/);
+  assert.match(source, /if \(anchor\.nextElementSibling !== current\) anchor\.after\(current\)/);
+  assert.match(source, /if \(choice && current\.nextElementSibling !== choice\) current\.after\(choice\)/);
 });
 
 test("primary native bridge retry delay backs off and remains capped", () => {
