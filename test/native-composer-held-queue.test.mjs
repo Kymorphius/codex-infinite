@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { buildNativeComposerHeldQueueInjectionScript } from "../src/native-composer-held-queue.mjs";
 import { readHeldEditableText, replaceHeldEditableText } from "../src/held-queue-edit.mjs";
 import { formatHeldInitialTime, orderHeldForView } from "../src/held-queue-presentation.mjs";
+import { renderNativeClaimTaskButton } from "../src/native-claim-task-control.mjs";
+import { updateHeldQueueShell } from "../src/native-assigned-checklist-tasks.mjs";
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
@@ -71,7 +73,7 @@ test("save-as-todo isolates pointer activation from native composer submission",
 test("native held queue exposes composer management and stale queue recovery", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
   assert.match(source, /待办/);
-  assert.match(source, /toolbar\.textContent = '待办 '/);
+  assert.match(source, /const text = '待办 '/);
   assert.match(source, /button\('待办', \(\) =>/);
   assert.match(source, /暂停/);
   assert.match(source, /恢复/);
@@ -96,7 +98,10 @@ test("save-as-todo survives composer remounts independently of legacy queue rein
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoObserver = new MutationObserver/);
   assert.match(lifecycle, /scheduleSaveDraftTodo/);
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoInputCleanup/);
-  assert.match(lifecycle, /updateIndependentDraftButton/);
+  assert.match(lifecycle, /removeDraftInputListener/);
+  assert.match(lifecycle, /!document\.querySelector\('\[data-ccc-save-draft-todo\]'\) \|\| !document\.querySelector\('\[data-ccc-claim-task\]'\)/);
+  const saveObserver = lifecycle.slice(lifecycle.indexOf('__codexControlConsoleSaveDraftTodoObserver ='), lifecycle.indexOf('__codexControlConsoleSaveDraftTodoObserver.observe') + 180);
+  assert.doesNotMatch(saveObserver, /attributeFilter: \['aria-current'\]/);
   assert.match(lifecycle, /data-ccc-save-draft-todo/);
   assert.match(lifecycle, /draftTodoButton\(\)/);
   assert.match(lifecycle, /manager\?\.parentElement === host \? manager : null/);
@@ -183,4 +188,25 @@ test("held manager avoids observer repaint loops and unchanged queue refreshes",
   assert.match(install, /const panelCreated = !panel/);
   assert.match(install, /if \(threadChanged \|\| panelCreated\) render\(\); else updateShell\(id, toolbar, panel\)/);
   assert.doesNotMatch(install, /restoreDraft\(\); render\(\)/);
+  assert.match(source, /JSON\.stringify\(next\) !== JSON\.stringify\(assignedTasks\)/);
+});
+
+test("held shell and claim controls skip identical DOM writes", () => {
+  let toolbarText = "待办 3", toolbarWrites = 0, warning = "false", warningWrites = 0, hidden = true, hiddenWrites = 0;
+  const toolbar = { dataset: {} };
+  Object.defineProperty(toolbar, "textContent", { get: () => toolbarText, set: (value) => { toolbarText = value; toolbarWrites += 1; } });
+  Object.defineProperty(toolbar.dataset, "warning", { get: () => warning, set: (value) => { warning = value; warningWrites += 1; } });
+  const panel = {};
+  Object.defineProperty(panel, "hidden", { get: () => hidden, set: (value) => { hidden = value; hiddenWrites += 1; } });
+  updateHeldQueueShell(toolbar, panel, [{}], [{}], [{}], "", false);
+  assert.deepEqual([toolbarWrites, warningWrites, hiddenWrites], [0, 0, 0]);
+
+  let buttonText = "领取任务 7", buttonTitle = "从综合任务清单领取 7 项未指派任务到当前会话", buttonWrites = 0;
+  const button = {};
+  Object.defineProperty(button, "textContent", { get: () => buttonText, set: (value) => { buttonText = value; buttonWrites += 1; } });
+  Object.defineProperty(button, "title", { get: () => buttonTitle, set: (value) => { buttonTitle = value; buttonWrites += 1; } });
+  renderNativeClaimTaskButton(button, 7);
+  assert.equal(buttonWrites, 0);
+  renderNativeClaimTaskButton(button, 8);
+  assert.equal(buttonWrites, 2);
 });

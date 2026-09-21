@@ -11,8 +11,8 @@ import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-21.2', LEGACY = '2026-09-18.3';
-  const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE = '2026-09-18.1';
+  const VERSION = '2026-09-21.3', LEGACY = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-21.3', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -201,7 +201,12 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function updateDraftButton() {
     const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     const save = document.querySelector('[data-ccc-save-draft-todo]');
-    if (save) { save.disabled = busy || !draftText(editor); save.style.opacity = save.disabled ? '.35' : '1'; save.style.cursor = save.disabled ? 'default' : 'pointer'; }
+    if (save) {
+      const disabled = busy || !draftText(editor), opacity = disabled ? '.35' : '1', cursor = disabled ? 'default' : 'pointer';
+      if (save.disabled !== disabled) save.disabled = disabled;
+      if (save.style.opacity !== opacity) save.style.opacity = opacity;
+      if (save.style.cursor !== cursor) save.style.cursor = cursor;
+    }
   }
   function clearDraftText(editor) {
     if (!(editor instanceof HTMLElement) || !editor.isContentEditable) return false;
@@ -313,18 +318,23 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   });
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   document.addEventListener('input', updateDraftButton, true);
-  window.__codexControlConsoleHeldQueueInputCleanup = () => document.removeEventListener('input', updateDraftButton, true);
-  window.__codexControlConsoleSaveDraftTodoObserver = new MutationObserver(scheduleSaveDraftTodo);
-  window.__codexControlConsoleSaveDraftTodoObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
-  const updateIndependentDraftButton = () => updateDraftButton();
-  document.addEventListener('input', updateIndependentDraftButton, true);
-  window.__codexControlConsoleSaveDraftTodoInputCleanup = () => document.removeEventListener('input', updateIndependentDraftButton, true);
+  const removeDraftInputListener = () => document.removeEventListener('input', updateDraftButton, true);
+  window.__codexControlConsoleHeldQueueInputCleanup = removeDraftInputListener;
+  window.__codexControlConsoleSaveDraftTodoInputCleanup = removeDraftInputListener;
+  window.__codexControlConsoleSaveDraftTodoObserver = new MutationObserver(() => {
+    if (!document.querySelector('[data-ccc-save-draft-todo]') || !document.querySelector('[data-ccc-claim-task]')) scheduleSaveDraftTodo();
+  });
+  window.__codexControlConsoleSaveDraftTodoObserver.observe(document.documentElement, { childList: true, subtree: true });
   window.__codexControlConsoleHeldQueueTimer = setInterval(() => { const id = threadId();
     if (id && (id !== activeThreadId || !document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) install(); }, 1000);
   window.__codexControlConsoleHeldQueueRefreshTimer = setInterval(() => { if (open && !busy && !editing) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
   window.__codexControlConsoleSetClaimableTaskCount = claimTasks.set;
-  window.__codexControlConsoleSetAssignedChecklistTasks = (items) => { assignedTasks = normalizeAssignedChecklistTasks(items); render(); return assignedTasks.length; };
+  window.__codexControlConsoleSetAssignedChecklistTasks = (items) => {
+    const next = normalizeAssignedChecklistTasks(items);
+    if (JSON.stringify(next) !== JSON.stringify(assignedTasks)) { assignedTasks = next; render(); }
+    return assignedTasks.length;
+  };
   window.__codexControlConsoleHeldQueueVersion = LEGACY;
   window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE;
   schedule(); scheduleSaveDraftTodo();

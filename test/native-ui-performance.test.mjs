@@ -35,6 +35,9 @@ test("turn annotations skip repeated bridge snapshots and coalesce layout reads"
   assert.match(source, /outputCard\?\.isConnected/);
   assert.match(source, /const timer = setTimeout\(\(\) => schedule\(\), 1000\)/);
   assert.doesNotMatch(source, /setInterval\(refresh, 1000\)/);
+  assert.match(source, /const setHidden = \(node, value\) => \{ if \(node\.hidden !== value\) node\.hidden = value; \}/);
+  assert.match(source, /now - lastCardScanAt < 1000/);
+  assert.match(source, /lastCardScanAt = 0/);
 });
 
 test("native sidebar projections do not observe their own render mutations", () => {

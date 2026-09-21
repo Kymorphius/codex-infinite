@@ -18,5 +18,8 @@ export async function resumeAssignedTask(task, context) {
 }
 
 export function updateHeldQueueShell(toolbar, panel, queued, held, assigned, warning, open) {
-  toolbar.textContent = '待办 ' + (queued.length + held.length + assigned.length); toolbar.dataset.warning = warning ? 'true' : 'false'; panel.hidden = !open;
+  const text = '待办 ' + (queued.length + held.length + assigned.length), warningState = warning ? 'true' : 'false', hidden = !open;
+  if (toolbar.textContent !== text) toolbar.textContent = text;
+  if (toolbar.dataset.warning !== warningState) toolbar.dataset.warning = warningState;
+  if (panel.hidden !== hidden) panel.hidden = hidden;
 }

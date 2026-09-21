@@ -5,15 +5,19 @@ import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
 import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
 export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-21.idle-refresh1', KEY = 'codex-control-console.annotation-drafts.v1';
+  const VERSION = '2026-09-21.switch-settle1', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
-  let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', acceptedSignature = '', disposed = false, scheduled = false, refreshTimer = null, lastRefreshAt = 0, layout = null, hover = null;
+  let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', acceptedSignature = '', disposed = false, scheduled = false, refreshTimer = null, lastRefreshAt = 0, lastCardScanAt = 0, layout = null, hover = null;
   let followScroll = false, composing = false, scrollSequence = 0, presentationSuppressed = false;
   let expanded = true;
   try { expanded = localStorage.getItem(KEY + '.open') !== 'false'; } catch { /* optional presentation */ }
   try { const saved = JSON.parse(localStorage.getItem(KEY) || '[]'); if (Array.isArray(saved)) pending = saved; } catch { storageError = '草稿读取失败'; }
   const make = (tag, text) => { const n = document.createElement(tag); if (text) n.textContent = text; return n; };
+  const setText = (node, value) => { if (node.textContent !== value) node.textContent = value; };
+  const setHidden = (node, value) => { if (node.hidden !== value) node.hidden = value; };
+  const setClass = (node, value) => { if (node.className !== value) node.className = value; };
+  const setStyle = (node, key, value) => { if (node.style[key] !== value) node.style[key] = value; };
   const style = make('style'); style.textContent = css; document.head.append(style);
   const panel = make('aside'); panel.setAttribute('data-ccc-annotations', ''); panel.setAttribute('aria-label', '会话批注');
   const header = make('header'), close = make('button', '−');
@@ -35,8 +39,9 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   function choose(id, manual = true) { if (manual) { scrollSequence++; followScroll = false; } selected = id; editor.value = note(id); select.value = id; updateStatus(); }
   function updateStatus() {
     const dirty = pending.some(x => x.threadId === context?.threadId && x.turnId === selected);
-    status.textContent = storageError || error || (dirty ? '正在保存…' : loadedThread === context?.threadId ? '已保存' : '正在读取…');
-    editor.disabled = !selected || (loadedThread !== context?.threadId && !dirty);
+    setText(status, storageError || error || (dirty ? '正在保存…' : loadedThread === context?.threadId ? '已保存' : '正在读取…'));
+    const disabled = !selected || (loadedThread !== context?.threadId && !dirty);
+    if (editor.disabled !== disabled) editor.disabled = disabled;
   }
   function setExpanded(value) { expanded = value; try { localStorage.setItem(KEY + '.open', String(value)); } catch {} refresh(); }
   close.addEventListener('click', () => setExpanded(false)); toggle.addEventListener('click', () => setExpanded(true));
@@ -67,12 +72,12 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   function placePreview() {
     const text = hover && note(hover.turnId);
     const native = document.querySelector('[data-thread-user-message-navigation-tooltip-preview]');
-    if (!text?.trim() || !hover.marker.isConnected || !native) { preview.hidden = true; releasePreviewHost(); return; }
-    previewText.textContent = text.slice(0, 800);
-    preview.className = native.className;
+    if (!text?.trim() || !hover.marker.isConnected || !native) { setHidden(preview, true); releasePreviewHost(); return; }
+    setText(previewText, text.slice(0, 800));
+    setClass(preview, native.className);
     const bounds = native.getBoundingClientRect();
-    preview.style.width = bounds.width + 'px';
-    preview.hidden = false;
+    setStyle(preview, 'width', bounds.width + 'px');
+    setHidden(preview, false);
     const height = Math.ceil(preview.getBoundingClientRect().height) + 4 + 'px';
     if (previewHost !== native || native.style.getPropertyValue('--ccc-annotation-height') !== height) {
       if (previewHost !== native) releasePreviewHost();
@@ -81,8 +86,8 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
       // Let the native floating container reposition for the combined card height.
       setTimeout(() => { if (!disposed) placePreview(); }, 60);
     }
-    preview.style.left = bounds.left + 'px';
-    preview.style.top = bounds.bottom + 4 + 'px';
+    setStyle(preview, 'left', bounds.left + 'px');
+    setStyle(preview, 'top', bounds.bottom + 4 + 'px');
   }
 
   function markerAt(target) { return target?.closest?.('[data-thread-user-message-navigation-item-id]'); }
@@ -91,7 +96,7 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
     const turn = context?.turns.find(turn => turn.markers.includes(marker));
     hover = turn ? { marker, turnId: turn.id } : null; placePreview();
   }
-  function hidePreview(event) { if (markerAt(event.target) && !markerAt(event.relatedTarget)) { hover = null; preview.hidden = true; releasePreviewHost(); } }
+  function hidePreview(event) { if (markerAt(event.target) && !markerAt(event.relatedTarget)) { hover = null; setHidden(preview, true); releasePreviewHost(); } }
   function selectMarker(event) {
     const marker = markerAt(event.target), turn = context?.turns.find(turn => turn.markers.includes(marker));
     if (turn) choose(turn.id);
@@ -107,6 +112,9 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   function positionCard() {
     let card = outputCard?.isConnected ? outputCard : null;
     if (!card) {
+      const now = Date.now();
+      if (now - lastCardScanAt < 1000) return false;
+      lastCardScanAt = now;
       const heading = Array.from(document.querySelectorAll('button')).find(button =>
         ['输出内容', '来源', 'Outputs', 'Sources'].includes(button.textContent?.trim()) && button.getBoundingClientRect().width > 0);
       card = heading?.closest('[class*="rounded-3xl"][class*="bg-surface-elevated-secondary"]');
@@ -115,8 +123,8 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
     const target = expanded ? panel : toggle;
     if (!context || !card) {
       releaseOutputCard();
-      panel.className = ''; toggle.className = '';
-      for (const element of [panel, toggle]) for (const key of ['left', 'top', 'width', 'height', 'background', 'borderRadius', 'boxShadow', 'color']) element.style[key] = '';
+      setClass(panel, ''); setClass(toggle, '');
+      for (const element of [panel, toggle]) for (const key of ['left', 'top', 'width', 'height', 'background', 'borderRadius', 'boxShadow', 'color']) setStyle(element, key, '');
       return false;
     }
     if (expanded) {
@@ -125,23 +133,24 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
       card.style.setProperty('--ccc-annotation-output-limit', limit + 'px');
     } else { card.removeAttribute('data-ccc-annotation-output-host'); card.style.removeProperty('--ccc-annotation-output-limit'); }
     const bounds = card.getBoundingClientRect(), appearance = getComputedStyle(card);
-    target.className = card.className;
-    Object.assign(target.style, { left: bounds.left + 'px', top: bounds.bottom + 12 + 'px', width: bounds.width + 'px',
+    setClass(target, card.className);
+    const styles = { left: bounds.left + 'px', top: bounds.bottom + 12 + 'px', width: bounds.width + 'px',
       height: expanded ? Math.max(160, Math.min(420, window.innerHeight - bounds.bottom - 28)) + 'px' : '40px',
-      background: appearance.backgroundColor, borderRadius: appearance.borderRadius, boxShadow: appearance.boxShadow, color: appearance.color });
+      background: appearance.backgroundColor, borderRadius: appearance.borderRadius, boxShadow: appearance.boxShadow, color: appearance.color };
+    for (const [key, value] of Object.entries(styles)) setStyle(target, key, value);
     return true;
   }
   function refresh() {
     if (disposed) return;
     lastRefreshAt = Date.now();
     const next = presentationSuppressed ? null : readContext(document);
-    if (next?.threadId !== context?.threadId) { scrollSequence++; followScroll = false; context = next; notes = {}; loadedThread = ''; selected = ''; signature = ''; error = ''; hover = null; editor.value = ''; }
+    if (next?.threadId !== context?.threadId) { scrollSequence++; followScroll = false; context = next; notes = {}; loadedThread = ''; selected = ''; signature = ''; error = ''; hover = null; editor.value = ''; lastCardScanAt = 0; }
     else context = next;
     const attached = positionCard();
-    panel.hidden = !context || !expanded || !attached; toggle.hidden = !context || expanded || !attached;
+    setHidden(panel, !context || !expanded || !attached); setHidden(toggle, !context || expanded || !attached);
     const newLayout = null;
     if (layout !== newLayout) { layout?.removeAttribute('data-ccc-annotation-layout'); layout = newLayout; layout?.setAttribute('data-ccc-annotation-layout', ''); }
-    if (!context) { decorate(); preview.hidden = true; releasePreviewHost(); navigation.update(null, null); return; }
+    if (!context) { decorate(); setHidden(preview, true); releasePreviewHost(); navigation.update(null, null); return; }
     const ids = context.turns.map(turn => turn.id);
     const nextSignature = JSON.stringify([context.threadId, ids]);
     if (signature !== nextSignature) {

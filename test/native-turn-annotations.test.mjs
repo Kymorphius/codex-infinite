@@ -42,7 +42,7 @@ function harness() {
   return { window, document, marker, storage, listeners, install, nativePreview,
     enableFollow() { current = { ...current, content: { closest: () => timeline }, turns: [...current.turns, { id: other, markers: [] }] }; reading = turnId; tick(); },
     scrollTo(id, target = timeline) { reading = id; listeners.scroll({ target }); },
-    settleAt(id) { reading = id; delayed.splice(0).forEach(fn => fn()); }, outputCard, host, showOutput() { showOutput = true; tick(); }, hideNative() { showNative = false; tick(); }, control: () => window.__codexControlConsoleAnnotations,
+    settleAt(id) { reading = id; delayed.splice(0).forEach(fn => fn()); }, outputCard, host, showOutput() { showOutput = true; now += 1000; tick(); }, hideNative() { showNative = false; tick(); }, control: () => window.__codexControlConsoleAnnotations,
     node: tag => all(body).find(n => n.tag === tag), toggle: () => all(body).find(n => n.hasAttribute('data-ccc-annotation-toggle')), preview: () => all(body).find(n => n.hasAttribute('data-ccc-annotation-preview')),
     advance() { now += 1000; tick(); }, switchThread() { current = { ...current, threadId: other }; tick(); } };
 }
