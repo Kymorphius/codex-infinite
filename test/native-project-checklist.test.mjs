@@ -68,6 +68,9 @@ test('general checklist projects held composer todos without copying them into e
   assert.match(source, /打开会话/);
   assert.match(source, /codex-control-console-held-todos-changed/);
   assert.match(source, /__codexControlConsoleOpenNativeThread/);
+  assert.match(source, /requestIdleCallback/);
+  assert.match(source, /正在加载会话待办/);
+  assert.match(source, /scheduleHeldLoad/);
 });
 
 test('general checklist can assign or claim an unassigned task without sending it', () => {
