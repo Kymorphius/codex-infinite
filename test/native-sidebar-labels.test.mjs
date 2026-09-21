@@ -128,6 +128,11 @@ test("native sidebar injection decorates existing thread entries without reorder
   assert.match(source, /projectLabel/);
   assert.match(source, /deviceLabel/);
   assert.match(source, /MutationObserver/);
+  assert.match(source, /function affectsLabelMount\(record\)/);
+  assert.match(source, /records\.some\(affectsLabelMount\)/);
+  assert.match(source, /record\.addedNodes/);
+  assert.match(source, /record\.removedNodes/);
+  assert.doesNotMatch(source, /new MutationObserver\(scheduleRender\)/);
   assert.match(source, /function labelHost\(marker\)/);
   assert.match(source, /data-thread-title-trigger="true"/);
   assert.match(source, /titleTrigger\?\.parentElement/);

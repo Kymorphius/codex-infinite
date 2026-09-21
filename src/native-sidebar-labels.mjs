@@ -126,7 +126,7 @@ export function buildNativeSidebarLabelsInjectionScript() {
     '[data-codex-control-console-sidebar-label-host]::after{content:attr(data-codex-control-console-device-label) / "";order:101;max-width:58px;margin-left:3px;border:1px solid rgba(93,145,112,.3);background:rgba(93,145,112,.11);}'
   ].join('');
   return `(() => {
-  const VERSION = '2026-09-07.1';
+  const VERSION = '2026-09-21.2';
   const LAYOUT_VERSION = 'generated-labels-v2';
   const THREAD_SELECTOR = '[data-app-action-sidebar-thread-id]';
   const LABEL_SELECTOR = '[data-codex-control-console-sidebar-labels]';
@@ -210,6 +210,18 @@ export function buildNativeSidebarLabelsInjectionScript() {
     });
   }
 
+  function containsLabelMount(node) {
+    if (node?.nodeType !== 1) return false;
+    return node.matches?.(THREAD_SELECTOR + ',[data-thread-title-trigger="true"]')
+      || Boolean(node.querySelector?.(THREAD_SELECTOR + ',[data-thread-title-trigger="true"]'));
+  }
+
+  function affectsLabelMount(record) {
+    if (record.type === 'attributes') return true;
+    return Array.from(record.addedNodes || []).some(containsLabelMount)
+      || Array.from(record.removedNodes || []).some(containsLabelMount);
+  }
+
   window.__codexControlConsoleSetSidebarLabels = (items) => {
     labels.clear();
     for (const item of Array.isArray(items) ? items.slice(0, ${MAX_LABELS}) : []) {
@@ -222,7 +234,9 @@ export function buildNativeSidebarLabelsInjectionScript() {
     return { count: labels.size };
   };
 
-  window.__codexControlConsoleSidebarLabelObserver = new MutationObserver(scheduleRender);
+  window.__codexControlConsoleSidebarLabelObserver = new MutationObserver((records) => {
+    if (records.some(affectsLabelMount)) scheduleRender();
+  });
   window.__codexControlConsoleSidebarLabelObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id'] });
   scheduleRender();
 })()`;
