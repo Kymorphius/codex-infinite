@@ -5,6 +5,7 @@ import { buildNativeTurnAnnotationsScript } from "../src/native-turn-annotations
 import { buildNativeNewProjectsInjectionScript } from "../src/native-new-projects.mjs";
 import { buildNativeAttentionConversationsInjectionScript } from "../src/native-attention-conversations.mjs";
 import { nativeOwnerPollDelay } from "../src/native-owner-injector.mjs";
+import { installNativeJevMutationRefresh } from "../src/native-jev-mutation-refresh.mjs";
 
 test("native conversation tabs coalesce broad mutation layout work", () => {
   const source = buildNativeConversationTabsInjectionSource();
@@ -38,6 +39,23 @@ test("native sidebar projections do not observe their own render mutations", () 
   const newProjects = buildNativeNewProjectsInjectionScript();
   assert.match(newProjects, /function scheduleExpiry\(\)/);
   assert.doesNotMatch(newProjects, /setInterval\(schedule, 1000\)/);
+});
+
+test("Jev mutation refresh ignores its own render but detects native remounts", () => {
+  let installs = 0;
+  const subscribers = new Set();
+  const own = { nodeType: 1, matches: selector => selector.includes("data-codex-control-console-native-jev"), closest: selector => selector.includes("data-codex-control-console-native-jev") ? own : null, querySelector: () => null };
+  const native = { nodeType: 1, matches: selector => selector.includes("data-above-composer-conversation-id"), closest: () => null, querySelector: () => null };
+  const ordinary = { nodeType: 1, matches: () => false, closest: () => null, querySelector: () => null };
+  const hostWindow = { __codexControlConsoleMutationSubscribers: subscribers, requestAnimationFrame(callback) { callback(); return 1; }, cancelAnimationFrame() {} };
+  const cleanup = installNativeJevMutationRefresh({ install: () => { installs += 1; }, findModelChangeNotices: () => [], hostWindow });
+  const receive = [...subscribers][0];
+  receive([{ type: "childList", target: own, addedNodes: [], removedNodes: [] }]);
+  receive([{ type: "childList", target: ordinary, addedNodes: [ordinary], removedNodes: [] }]);
+  assert.equal(installs, 0);
+  receive([{ type: "childList", target: ordinary, addedNodes: [native], removedNodes: [] }]);
+  assert.equal(installs, 1);
+  cleanup();
 });
 
 test("primary native bridge retry delay backs off and remains capped", () => {

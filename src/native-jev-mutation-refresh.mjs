@@ -15,8 +15,12 @@ export function updateNativeJevPendingRetry(items, currentTimer, retry, now = Da
 }
 
 export function installNativeJevMutationRefresh({ install, findModelChangeNotices, hostWindow = window }) {
-  const selector = '[data-content-search-turn-key],[data-above-composer-conversation-id],[data-composer-navigation-target="permissions"],button[aria-label="搜索"],button[aria-label="Search"],[data-codex-control-console-native-jev],[data-codex-control-console-native-jev-current],[data-codex-control-console-jev-turn]';
+  const nativeSelector = '[data-content-search-turn-key],[data-above-composer-conversation-id],[data-composer-navigation-target="permissions"],button[aria-label="搜索"],button[aria-label="Search"]';
+  const ownSelector = '[data-codex-control-console-native-jev],[data-codex-control-console-native-jev-current],[data-codex-control-console-native-jev-choice],[data-codex-control-console-jev-turn]';
+  const selector = nativeSelector + ',' + ownSelector;
   let installFrame = null;
+  const requestFrame = hostWindow.requestAnimationFrame?.bind(hostWindow) || requestAnimationFrame;
+  const cancelFrame = hostWindow.cancelAnimationFrame?.bind(hostWindow) || cancelAnimationFrame;
 
   function isModelChangeNotice(node) {
     if (node?.nodeType !== 1 || !node.matches?.('span')) return false;
@@ -25,24 +29,36 @@ export function installNativeJevMutationRefresh({ install, findModelChangeNotice
     return value === '模型已从 自定义 更改为 自定义。' || value === 'Model changed from Custom to Custom.';
   }
 
-  function relevant(node) {
+  function owned(node) {
+    const element = node?.nodeType === 3 ? node.parentElement : node;
+    return Boolean(element?.matches?.(ownSelector) || element?.closest?.(ownSelector));
+  }
+
+  function directRelevant(node) {
     if (node?.nodeType === 3) return isModelChangeNotice(node.parentElement);
     if (node?.nodeType !== 1) return false;
-    return isModelChangeNotice(node) || node.matches?.(selector) || Boolean(node.querySelector?.(selector)) || findModelChangeNotices(node).length > 0;
+    return isModelChangeNotice(node) || node.matches?.(selector);
+  }
+
+  function subtreeRelevant(node) {
+    return directRelevant(node) || Boolean(node?.querySelector?.(selector)) || findModelChangeNotices(node).length > 0;
   }
 
   function schedule() {
     if (installFrame !== null) return;
     installFrame = 0;
-    const frame = requestAnimationFrame(() => { installFrame = null; install(); });
+    const frame = requestFrame(() => { installFrame = null; install(); });
     if (installFrame !== null) installFrame = frame;
   }
 
   function receive(records) {
     if ((Array.isArray(records) ? records : []).some((record) => {
-      if (record?.type === 'characterData') return relevant(record.target);
+      if (record?.type === 'characterData') return !owned(record.target) && directRelevant(record.target);
       if (record?.type !== 'childList') return false;
-      return relevant(record.target) || Array.from(record.addedNodes || []).some(relevant) || Array.from(record.removedNodes || []).some(relevant);
+      if (owned(record.target)) return false;
+      return directRelevant(record.target)
+        || Array.from(record.addedNodes || []).some(node => !owned(node) && subtreeRelevant(node))
+        || Array.from(record.removedNodes || []).some(subtreeRelevant);
     })) schedule();
   }
 
@@ -50,7 +66,7 @@ export function installNativeJevMutationRefresh({ install, findModelChangeNotice
   subscribers.add(receive);
   return () => {
     subscribers.delete(receive);
-    if (installFrame !== null) cancelAnimationFrame(installFrame);
+    if (installFrame !== null) cancelFrame(installFrame);
     installFrame = null;
   };
 }
