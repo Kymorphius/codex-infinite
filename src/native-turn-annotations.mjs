@@ -5,7 +5,7 @@ import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
 import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
 export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-17.navigation-idempotency', KEY = 'codex-control-console.annotation-drafts.v1';
+  const VERSION = '2026-09-21.idle-refresh1', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
   let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', acceptedSignature = '', disposed = false, scheduled = false, refreshTimer = null, lastRefreshAt = 0, layout = null, hover = null;
@@ -178,7 +178,7 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   document.addEventListener('scroll', onTimelineScroll, { passive: true, capture: true });
   const onResize = () => schedule();
   window.addEventListener('resize', onResize);
-  const timer = setInterval(refresh, 1000);
+  const timer = setTimeout(() => schedule(), 1000);
   window.__codexControlConsoleAnnotations = {
     version: VERSION,
     setPresentationSuppressed(value) { const next = Boolean(value); if (next === presentationSuppressed) return; presentationSuppressed = next; refresh(); },
@@ -197,7 +197,7 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
       }
       if (changed) refresh(); else updateStatus();
     },
-    dispose() { disposed = true; navigation.dispose(); releasePreviewHost(); releaseOutputCard(); observer.disconnect(); clearInterval(timer); if (refreshTimer) clearTimeout(refreshTimer); window.removeEventListener('resize', onResize); document.removeEventListener('scroll', onTimelineScroll, true); listeners.forEach(([type, listener]) => document.removeEventListener(type, listener, true)); layout?.removeAttribute('data-ccc-annotation-layout'); document.querySelectorAll('[data-ccc-annotated]').forEach(x => x.removeAttribute('data-ccc-annotated')); panel.remove(); toggle.remove(); preview.remove(); style.remove(); }
+    dispose() { disposed = true; navigation.dispose(); releasePreviewHost(); releaseOutputCard(); observer.disconnect(); clearTimeout(timer); if (refreshTimer) clearTimeout(refreshTimer); window.removeEventListener('resize', onResize); document.removeEventListener('scroll', onTimelineScroll, true); listeners.forEach(([type, listener]) => document.removeEventListener(type, listener, true)); layout?.removeAttribute('data-ccc-annotation-layout'); document.querySelectorAll('[data-ccc-annotated]').forEach(x => x.removeAttribute('data-ccc-annotated')); panel.remove(); toggle.remove(); preview.remove(); style.remove(); }
   };
   refresh();
 }

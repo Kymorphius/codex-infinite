@@ -37,7 +37,7 @@ function harness() {
     addEventListener: (k, fn) => listeners[k] = fn, removeEventListener() {} };
   const window = { innerWidth: 1400, innerHeight: 900, addEventListener() {}, removeEventListener() {} };
   const context = vm.createContext({ getComputedStyle: () => ({ backgroundColor: 'rgb(45, 45, 45)', borderRadius: '25px', boxShadow: 'native-shadow', color: 'white' }), document, window, readContext: () => current, readingTurn: () => reading, localStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
-    crypto: { randomUUID: () => 'req-' + ++sequence }, Date: { now: () => now }, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(), setInterval: fn => { tick = fn; return 1; }, clearInterval() {}, setTimeout(fn) { delayed.push(fn); } });
+    crypto: { randomUUID: () => 'req-' + ++sequence }, Date: { now: () => now }, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(), setTimeout(fn, delay) { if (delay === 1000 && !tick) { tick = fn; return 1; } delayed.push(fn); return delayed.length; }, clearTimeout() {} });
   const install = () => vm.runInContext(`(${installNativeTurnAnnotations.toString()})(readContext,'',undefined,undefined,readingTurn)`, context); install();
   return { window, document, marker, storage, listeners, install, nativePreview,
     enableFollow() { current = { ...current, content: { closest: () => timeline }, turns: [...current.turns, { id: other, markers: [] }] }; reading = turnId; tick(); },

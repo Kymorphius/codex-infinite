@@ -1,7 +1,7 @@
 import { createConversationViewHistory } from './conversation-view-history.mjs';
 
 export function installNativeAttentionConversations(createHistory = createConversationViewHistory) {
-  const VERSION = '2026-09-15.stable-titles2';
+  const VERSION = '2026-09-21.idle-observer1';
   if (window.__codexControlConsoleAttentionConversations?.version === VERSION) return;
   window.__codexControlConsoleAttentionConversations?.dispose();
   const ROOT = 'data-codex-control-console-attention-conversations';
@@ -135,7 +135,12 @@ export function installNativeAttentionConversations(createHistory = createConver
     if (pending || disposed) return; pending = true;
     requestAnimationFrame(() => { pending = false; render(); });
   }
-  const observer = new MutationObserver(schedule);
+  function isOwnMutation(record) {
+    const own = node => roots.some(root => root === node || root.contains(node)) || node?.nodeType === 1 && (node.matches?.('[' + ROOT + ']') || node.closest?.('[' + ROOT + ']'));
+    const nodes = [...(record.addedNodes || []), ...(record.removedNodes || [])];
+    return record.type === 'childList' && (own(record.target) || nodes.length > 0 && nodes.every(own));
+  }
+  const observer = new MutationObserver(records => { if (!records.every(isOwnMutation)) schedule(); });
   observer.observe(document.documentElement, { childList: true, subtree: true });
   window.__codexControlConsoleAttentionConversations = {
     version: VERSION,

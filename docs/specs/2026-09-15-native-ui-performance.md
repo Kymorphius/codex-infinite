@@ -10,6 +10,8 @@ The enhanced Windows client can become visibly unresponsive on large Codex pages
 - Preserve immediate positioning for explicit renders, route changes, and window resize.
 - Read each candidate element's geometry at most once during one tab-positioning pass, and reuse the workspace candidate and rectangle across that pass.
 - Reuse the discovered native top controls between ordinary mutation refreshes. A fresh scan is required on route or window-size changes and is otherwise limited to once per second; when scanning, filter by geometry before reading computed styles so offscreen buttons avoid that extra layout work.
+- Native sidebar projections must ignore mutations caused solely by their own render cycle, so inserting a projection cannot schedule an endless sequence of animation-frame renders. Project expiry uses one timer for its next known deadline, rather than polling every second.
+- Turn annotations must be event-driven after an initial delayed reconciliation; no permanent one-second document refresh is permitted while the enhanced client is idle.
 - Coalesce turn-annotation mutation and scroll refreshes through animation-frame scheduling.
 - Do not refresh turn annotations when bridge snapshots repeat the same presentation and annotation state.
 - Reuse an attached output card instead of searching every button on every annotation refresh.

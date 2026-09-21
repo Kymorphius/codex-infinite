@@ -24,11 +24,11 @@ function harness() {
   const context = vm.createContext({ document, window: { postMessage: message => messages.push(message) },
     localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: callback => callback(),
-    setInterval: callback => { timer = callback; return 1; }, clearInterval() {}, Date: { now: () => now } });
+    setTimeout: callback => { timer = callback; return 1; }, clearTimeout() {}, Date: { now: () => now } });
   const run = () => vm.runInContext(buildNativeNewProjectsInjectionScript(), context);
   const set = items => vm.runInContext(buildNativeNewProjectsSnapshotScript(items), context);
   const find = attribute => all(parent).find(node => node.attrs[attribute]);
-  return { parent, wrapper, nativeRow, creations: () => creations, run, set, find, messages, context, expire: () => { now += 10_000; timer(); } };
+  return { parent, wrapper, nativeRow, creations: () => creations, run, set, find, messages, context, expire: () => { now += 10_000; timer?.(); } };
 }
 test('additional project view preserves native rows, disclosure navigates same task and expiry removes alias', () => {
   const h = harness(); h.run();

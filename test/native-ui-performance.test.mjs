@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
 import { buildNativeTurnAnnotationsScript } from "../src/native-turn-annotations.mjs";
+import { buildNativeNewProjectsInjectionScript } from "../src/native-new-projects.mjs";
+import { buildNativeAttentionConversationsInjectionScript } from "../src/native-attention-conversations.mjs";
 import { nativeOwnerPollDelay } from "../src/native-owner-injector.mjs";
 
 test("native conversation tabs coalesce broad mutation layout work", () => {
@@ -24,6 +26,18 @@ test("turn annotations skip repeated bridge snapshots and coalesce layout reads"
   assert.match(source, /function schedulePaint\(\)/);
   assert.match(source, /paintFrame = requestFrame/);
   assert.match(source, /outputCard\?\.isConnected/);
+  assert.match(source, /const timer = setTimeout\(\(\) => schedule\(\), 1000\)/);
+  assert.doesNotMatch(source, /setInterval\(refresh, 1000\)/);
+});
+
+test("native sidebar projections do not observe their own render mutations", () => {
+  for (const source of [buildNativeNewProjectsInjectionScript(), buildNativeAttentionConversationsInjectionScript()]) {
+    assert.match(source, /function isOwnMutation\(record\)/);
+    assert.match(source, /new MutationObserver\(records => \{ if \(!records\.every\(isOwnMutation\)\) schedule\(\); \}\)/);
+  }
+  const newProjects = buildNativeNewProjectsInjectionScript();
+  assert.match(newProjects, /function scheduleExpiry\(\)/);
+  assert.doesNotMatch(newProjects, /setInterval\(schedule, 1000\)/);
 });
 
 test("primary native bridge retry delay backs off and remains capped", () => {

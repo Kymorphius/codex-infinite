@@ -1,6 +1,6 @@
 // This root and its children belong to the console; native rows remain untouched.
 export function installNativeNewProjects() {
-  const VERSION = '2026-09-05.5';
+  const VERSION = '2026-09-21.idle-observer1';
   if (window.__codexControlConsoleNewProjects?.version === VERSION) return;
   window.__codexControlConsoleNewProjects?.dispose();
   const ROOT = 'data-codex-control-console-new-projects';
@@ -14,6 +14,7 @@ export function installNativeNewProjects() {
   let root = null;
   let signature = '';
   let scheduled = false;
+  let expiryTimer = null;
   let disposed = false;
   function save() {
     try { localStorage.setItem(STORAGE, JSON.stringify({ expanded, projects: [...openProjects] })); } catch { /* optional UI state */ }
@@ -49,6 +50,11 @@ export function installNativeNewProjects() {
     button.setAttribute('draggable', 'false');
     button.setAttribute('aria-expanded', String(open));
     button.addEventListener('click', toggle);
+  }
+  function scheduleExpiry() {
+    if (expiryTimer) clearTimeout(expiryTimer);
+    const next = Math.min(...projects.map(project => Number(project.expiresAt)).filter(value => Number.isFinite(value) && value > Date.now()));
+    expiryTimer = Number.isFinite(next) ? setTimeout(() => { expiryTimer = null; render(); }, Math.max(0, next - Date.now())) : null;
   }
   function render() {
     if (disposed) return;
@@ -156,19 +162,24 @@ export function installNativeNewProjects() {
     root?.remove();
     root = next;
     parent.insertBefore(root, native.parentElement);
+    scheduleExpiry();
   }
   function schedule() {
     if (scheduled) return;
     scheduled = true;
     requestAnimationFrame(() => { scheduled = false; render(); });
   }
-  const observer = new MutationObserver(schedule);
+  function isOwnMutation(record) {
+    const own = node => node === root || root?.contains(node) || node?.nodeType === 1 && (node.matches?.('[' + ROOT + ']') || node.closest?.('[' + ROOT + ']'));
+    const nodes = [...(record.addedNodes || []), ...(record.removedNodes || [])];
+    return record.type === 'childList' && (own(record.target) || nodes.length > 0 && nodes.every(own));
+  }
+  const observer = new MutationObserver(records => { if (!records.every(isOwnMutation)) schedule(); });
   observer.observe(document.documentElement, { subtree: true, childList: true });
-  const timer = setInterval(schedule, 1000);
   window.__codexControlConsoleNewProjects = {
     version: VERSION,
     set(items) { projects = Array.isArray(items) ? items : []; render(); },
-    dispose() { disposed = true; observer.disconnect(); clearInterval(timer); root?.remove(); }
+    dispose() { disposed = true; observer.disconnect(); if (expiryTimer) clearTimeout(expiryTimer); root?.remove(); }
   };
   render();
 }
