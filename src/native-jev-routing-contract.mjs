@@ -1,13 +1,17 @@
 const ROUTE_MODELS = new Set(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
 const ROUTE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max", "ultra"]);
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function formatNativeJevEffort(value) {
+  const labels = { none: "无", minimal: "极低", low: "轻度", medium: "中", high: "高", xhigh: "极高", max: "最高", ultra: "Ultra" };
+  return labels[value] || String(value || "");
+}
 
 export function formatNativeJevTurnChoice(value = {}) {
   const tiers = { instant: "即时", quick: "轻快", everyday: "日常", substantial: "进阶", complex: "复杂", deep: "深度", critical: "关键", extreme: "极限" };
   const tier = tiers[value.tier] || String(value.tier || "").trim();
   const model = String(value.model || "").trim().replace(/^gpt-/i, "GPT-").replace(/-(luna|terra|sol|astra)$/i, (_, name) => ` ${name[0].toUpperCase()}${name.slice(1).toLowerCase()}`);
   const effort = String(value.effort || "").trim();
-  return tier && model && effort ? `Jev · ${tier} · ${model} · ${effort}${value.fallback ? " · 兜底" : value.lowConfidence ? " · 低置信度" : ""}` : "";
+  return tier && model && effort ? `Jev · ${tier} · ${model} · ${formatNativeJevEffort(effort)}${value.fallback ? " · 兜底" : value.lowConfidence ? " · 低置信度" : ""}` : "";
 }
 
 export function formatNativeJevModelChange(value = {}) {
@@ -16,7 +20,7 @@ export function formatNativeJevModelChange(value = {}) {
   const effort = String(value.effort || "").trim();
   if (!model || !effort) return "";
   const confidence = Number.isFinite(value.confidence) ? value.confidence.toFixed(2) : "—";
-  return `模型已设置为 ${model}，推理强度 ${effort}，置信度 ${confidence}${value.fallback ? "（兜底）" : value.lowConfidence ? "（低置信度）" : ""}。`;
+  return `模型已设置为 ${model}，推理强度 ${formatNativeJevEffort(effort)}，置信度 ${confidence}${value.fallback ? "（兜底）" : value.lowConfidence ? "（低置信度）" : ""}。`;
 }
 
 export function selectNativeJevRoutingTurn(candidates = [], prompt = "", beforeIds = [], usedIds = [], allowExisting = false) {

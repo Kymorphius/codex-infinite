@@ -1,9 +1,9 @@
-import { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+import { formatNativeJevEffort, formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 import { findNativeJevModelChangeNotices, installNativeJevMutationRefresh, updateNativeJevPendingRetry } from "./native-jev-mutation-refresh.mjs";
 import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 import { buildNativeJevComposerControlSource } from "./native-jev-composer-controls.mjs";
 import { installNativeJevButtonActivation } from "./native-jev-button-activation.mjs";
-export { formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
+export { formatNativeJevEffort, formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 
 export const NATIVE_JEV_ROUTING_BINDING = "__codexControlConsoleJevRouting";
@@ -25,7 +25,7 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.10') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-21.11') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
@@ -36,10 +36,11 @@ export function buildNativeJevRoutingInjectionScript() {
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-choice]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.10';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-21.11';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
-  const formatModelChange = ${formatNativeJevModelChange.toString()};
+  const formatNativeJevEffort=${formatNativeJevEffort.toString()};
+  const formatModelChange=${formatNativeJevModelChange.toString()};
   const formatTurnChoice = ${formatNativeJevTurnChoice.toString()};
   const selectTurn = ${selectNativeJevRoutingTurn.toString()};
   const releaseSend = ${releaseNativeJevSend.toString()};
