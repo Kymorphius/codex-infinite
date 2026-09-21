@@ -30,3 +30,4 @@ The enhanced Windows client can become visibly unresponsive on large Codex pages
 
 - Persistent enhanced controls must treat an unchanged render state as a no-op. Project search placement, unified-sidebar state, Turbo state, and header hit-testing must not rewrite identical attributes, styles, or children during unrelated native mutations.
 - This optimization is behavior preserving: it does not disable Jev, Turbo, project search, unified navigation, routing, context preparation, or native-send enforcement.
+- Unified navigation remains mounted against both current `新对话` and legacy `新聊天` Chinese native labels, plus `New chat`.

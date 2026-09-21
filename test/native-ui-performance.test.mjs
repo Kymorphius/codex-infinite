@@ -73,6 +73,7 @@ test("Jev rendering is idempotent after state and placement settle", () => {
 test("persistent native controls skip identical idle-state DOM writes", () => {
   assert.match(installNativeProjectSearch.toString(), /if \(root\.className !== rootClassName\) root\.className = rootClassName/);
   assert.match(installUnifiedSidebar.toString(), /if \(toggle\.getAttribute\('aria-pressed'\) !== pressed\) toggle\.setAttribute\('aria-pressed', pressed\)/);
+  assert.match(installUnifiedSidebar.toString(), /新聊天\|新对话\|New chat/);
   const turbo = buildNativeTurboInjectionScript();
   assert.match(turbo, /data-codex-control-console-turbo-render-signature/);
   assert.match(turbo, /if \(!row\.hasAttribute\('data-codex-control-console-interactive-header'\)\)/);

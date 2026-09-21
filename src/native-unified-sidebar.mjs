@@ -3,7 +3,7 @@ import { createSourceSidebarRenderer } from './native-sidebar-render.mjs';
 import { installSidebarMenu } from './native-sidebar-menu.mjs';
 
 export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, createMenu) {
-  const VERSION = '2026-09-21.owner.5';
+  const VERSION = '2026-09-21.owner.6';
   if (window.__codexControlConsoleUnifiedSidebar?.version === VERSION) return;
   window.__codexControlConsoleUnifiedSidebar?.dispose();
   document.querySelectorAll('[data-codex-control-console-unified-list]').forEach(node => node.remove());
@@ -52,7 +52,7 @@ export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, c
   }
   function place() {
     if (disposed) return;
-    const newChat = Array.from(document.querySelectorAll('button')).find(node => /^(新聊天|New chat)$/.test(node.textContent?.trim()));
+    const newChat = Array.from(document.querySelectorAll('button')).find(node => /^(新聊天|新对话|New chat)$/.test(node.textContent?.trim()));
     if (newChat) {
       const rect = newChat.getBoundingClientRect();
       if (control.parentElement !== document.body) document.body.append(control);
