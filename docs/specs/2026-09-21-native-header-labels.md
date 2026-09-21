@@ -18,9 +18,10 @@ and the current-conversation State indicator,
 creates one shared local layout preference:
 the latest order is used by every conversation panel in the current profile.
 Ordinary clicks continue to invoke the control action and do not initiate dragging.
-On conversation changes, the native access control remains hidden and the
-custom composer controls are revealed as one settled group rather than flashing
-into the toolbar one by one.
+On conversation changes, the native access control remains hidden. Existing
+custom composer control nodes are retained and moved as a stable group into a
+replacement composer host, preserving their listeners, state, and saved order;
+modules update those nodes only when their displayed state changes.
 
 Tests verify that the generated native injection sources contain the simplified
 Jev label and do not append the top-level Turbo `1M` badge.

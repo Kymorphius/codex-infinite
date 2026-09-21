@@ -43,10 +43,16 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.doesNotMatch(source, /data-context-toggle-dot/);
   assert.match(source, /button\.textContent = '百万'/);
   assert.match(source, /permission\.style\.setProperty\('display', 'none', 'important'\)/);
-  assert.match(source, /data-ccc-composer-controls-transition/);
   assert.match(source, /data-ccc-composer-transition-style/);
   assert.match(source, /\[data-composer-navigation-target="permissions"\]\{display:none!important\}/);
   assert.match(source, /__codexControlConsoleComposerTransition\?\.begin\?\.\(\)/);
+  assert.match(source, /const retained = new Map/);
+  assert.match(source, /queueMicrotask\(stabilize\)/);
+  assert.match(source, /host\.append\(node\)/);
+  assert.match(source, /addedNodes, \.\.\.record\.removedNodes/);
+  assert.doesNotMatch(source, /visibility:hidden!important/);
+  assert.match(source, /threadId !== observedThreadId/);
+  assert.doesNotMatch(source, /records\.some\(\(record\) => record\.type === 'attributes'/);
   assert.match(source, /button\.setAttribute\('aria-label', '百万'\)/);
   assert.doesNotMatch(source, /data-context-toggle-status/);
   assert.match(source, /__codexControlConsoleDrainContextActions/);

@@ -27,10 +27,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.3' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.5' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-22.3';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-22.5';
   ${buildNativeComposerTransitionShieldSource()}
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
@@ -39,6 +39,7 @@ export function buildNativeContextInjectionScript() {
   const actions = [];
   let requestSequence = 0;
   let installTimer = null;
+  let observedThreadId = readThreadId(document);
 
   function persistAction(action) {
     const binding = window[${bindingName}];
@@ -304,8 +305,9 @@ export function buildNativeContextInjectionScript() {
     }), 350);
   }, true);
 
-  window.__codexControlConsoleNativeContextObserver = new MutationObserver((records) => {
-    if (records.some((record) => record.type === 'attributes')) window.__codexControlConsoleComposerTransition?.begin?.();
+  window.__codexControlConsoleNativeContextObserver = new MutationObserver(() => {
+    const threadId = selectedThreadId();
+    if (threadId !== observedThreadId) { observedThreadId = threadId; window.__codexControlConsoleComposerTransition?.begin?.(); }
     scheduleToggle();
   });
   window.__codexControlConsoleNativeContextObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'data-app-action-sidebar-thread-selected', 'data-above-composer-conversation-id'] });
