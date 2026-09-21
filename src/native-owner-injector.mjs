@@ -19,6 +19,7 @@ import { buildNativeAttentionStickyInjectionScript } from "./native-attention-st
 import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-chat-section.mjs";
 import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
 import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
+import { buildNativeComposerControlOrderSource } from "./native-composer-control-order.mjs";
 import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
 
@@ -37,6 +38,7 @@ function nativeOwnerInjectionScripts() {
     buildNativeChatgptChatSectionInjectionScript(),
     buildNativeOpenLocalProjectInjectionScript(),
     buildNativeComposerHeldQueueInjectionScript(),
+    `(() => { ${buildNativeComposerControlOrderSource()} })()`,
     buildNativeLongConversationInjectionScript(),
     buildNativeTurnStateInjectionScript(),
     buildNativeNewProjectsInjectionScript(),
