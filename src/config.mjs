@@ -70,6 +70,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const jevThreadRoutingPath = env.CODEX_CONTROL_JEV_THREAD_ROUTING_PATH || hostPath.join(routerStateDirectory, "jev-native-thread-routing.json");
   const jevRoutingReceiptsDirectory = env.CODEX_CONTROL_JEV_RECEIPTS_DIR || hostPath.join(routerStateDirectory, "jev-routing-receipts");
   const routerCallerSecretPath = env.CODEX_CONTROL_ROUTER_CALLER_SECRET || hostPath.join(routerStateDirectory, "caller-secret");
+  const routerOrigin = env.CODEX_CONTROL_ROUTER_ORIGIN || "http://127.0.0.1:4202";
   const jevPath = env.CODEX_CONTROL_JEV_PATH || hostPath.join(homeDirectory, ".local", "bin", platform === "win32" ? "jev.cmd" : "jev");
   const hostname = os.hostname() || "本机";
   const nodeDevice = Object.freeze({
@@ -123,6 +124,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     jevThreadRoutingPath,
     jevRoutingReceiptsDirectory,
     routerCallerSecretPath,
+    routerOrigin,
     jevPath,
     threadStateDatabasePath: env.CODEX_CONTROL_THREAD_STATE_DB || hostPath.join(sourceCodexHome, "state_5.sqlite"),
     sessionTitleIndexPath: env.CODEX_CONTROL_SESSION_TITLE_INDEX || path.join(sourceCodexHome, "session_index.jsonl"),

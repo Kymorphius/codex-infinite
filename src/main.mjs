@@ -43,6 +43,7 @@ import { CurrentProjectNameIndex } from "./current-project-names.mjs";
 import { CurrentThreadProjectIndex } from "./current-thread-projects.mjs";
 import { NativeDesktopRouter } from "./native-desktop-router.mjs";
 import { NativeOwnerInjector } from "./native-owner-injector.mjs";
+import { RouterTurnStateService } from "./router-turn-state-service.mjs";
 import { TurboPolicyService, TurboPolicyStore } from "./turbo-policy.mjs";
 import { TurboCoordinator } from "./turbo-control.mjs";
 import { NativeSidebarLabelService } from "./native-sidebar-labels.mjs";
@@ -193,6 +194,7 @@ export async function run() {
   const diagnosticsService = new RuntimeDiagnosticsService({ nodeRuntimeService, dispatchStore, auditStore: dispatchAuditStore, scheduler });
   let injector;
   let nativeOwnerInjector = null;
+  const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
@@ -213,12 +215,13 @@ export async function run() {
       remoteSidebarProvider: remoteSidebarService,
       newProjectProvider: newProjectService,
       attentionConversationProvider: attentionConversations,
+      turnStateProvider: turnStateService,
       recoverTarget: () => ensureDedicatedCodex(config),
       reloadAfterCspBypass: config.cspReloadRequired
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
-      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, attentionConversationProvider: primaryAttentionConversations });
+      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
       await nativeOwnerInjector.start();
     }
     scheduler.start();

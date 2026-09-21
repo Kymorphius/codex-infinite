@@ -20,6 +20,7 @@ import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-c
 import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
 import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
 import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
+import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
 
 function nativeOwnerInjectionScripts() {
   return [
@@ -37,6 +38,7 @@ function nativeOwnerInjectionScripts() {
     buildNativeOpenLocalProjectInjectionScript(),
     buildNativeComposerHeldQueueInjectionScript(),
     buildNativeLongConversationInjectionScript(),
+    buildNativeTurnStateInjectionScript(),
     buildNativeNewProjectsInjectionScript(),
     buildNativeAttentionConversationsInjectionScript()
   ];
@@ -49,7 +51,7 @@ export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
 }
 
 export class NativeOwnerInjector {
-  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, turnStateProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
     this.contextWindowStore = contextWindowStore;
     this.turboPolicyProvider = turboPolicyProvider;
@@ -59,6 +61,7 @@ export class NativeOwnerInjector {
     this.remoteSidebarProvider = remoteSidebarProvider;
     this.newProjectProvider = newProjectProvider;
     this.attentionConversationProvider = attentionConversationProvider;
+    this.turnStateProvider = turnStateProvider;
     this.pollMs = pollMs;
     this.backoffMaxMs = backoffMaxMs;
     this.logger = logger;
@@ -133,6 +136,7 @@ export class NativeOwnerInjector {
       await this.connection.evaluate(buildNativeProjectSearchSnapshotScript(await this.newProjectProvider?.readSearch?.()));
       await this.connection.evaluate(buildNativeNewProjectsSnapshotScript(await this.newProjectProvider?.read?.() || []));
       await this.connection.evaluate(buildNativeAttentionConversationsSnapshotScript(await this.attentionConversationProvider?.read?.()));
+      await this.connection.evaluate(buildNativeTurnStateSnapshotScript(await this.turnStateProvider?.snapshot?.()));
       this.failureCount = 0;
       this.lastFailureMessage = "";
     } catch (error) {

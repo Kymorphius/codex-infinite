@@ -18,6 +18,7 @@ test("primary owner injector installs only native bridges and does not add the d
     contextWindowStore: { list() { return []; } },
     sidebarLabelProvider: { async read() { return [{ threadId: "01a05852-9f3a-77b2-8ad3-74aa8e49c7c3", projectLabel: "看板", deviceLabel: "本地" }]; } },
     remoteSidebarProvider: { async read() { return [{ id: "windows-pc", name: "Windows Desktop", status: "connected", projectCount: 1, conversationCount: 2, projects: [] }]; } },
+    turnStateProvider: { async snapshot() { return { available: true, entries: [{ threadId: "01a05852-9f3a-77b2-8ad3-74aa8e49c7c3", turnState: { present: true, length: 292 } }] }; } },
     async discover(origin) { assert.equal(origin, "http://127.0.0.1:9232"); return [{ id: "primary", webSocketDebuggerUrl: "ws://primary" }]; },
     choose(targets) { return targets[0]; },
     connectionFactory() { return connection; },
@@ -37,6 +38,8 @@ test("primary owner injector installs only native bridges and does not add the d
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-attention-sticky") && source.includes("position:sticky")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-chat-title") && source.includes("聊天")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-open-local-project") && source.includes("打开本地项目")));
+  assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-turn-state-turn")));
+  assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleSetTurnStateSnapshot") && source.includes('"length":292')));
   assert.equal(evaluated.some((source) => /createElement\(['\"]iframe/.test(source)), false);
   await injector.stop();
   assert.equal(closed, true);
@@ -66,6 +69,7 @@ test("primary owner injector reapplies version-guarded native injections when th
   assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleSidebarLabelVersion")));
   assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleRemoteSidebarVersion")));
   assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleOpenLocalProjectVersion")));
+  assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleTurnStateVersion")));
   await injector.stop();
 });
 
