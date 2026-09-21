@@ -1,4 +1,5 @@
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
+import { buildNativeComposerTransitionShieldSource } from "./native-composer-transition-shield.mjs";
 
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,10 +27,11 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.2' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.3' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-22.2';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-22.3';
+  ${buildNativeComposerTransitionShieldSource()}
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
   const readThreadId = ${readNativeComposerThreadId.toString()};
@@ -295,14 +297,18 @@ export function buildNativeContextInjectionScript() {
     const entry = event.target?.closest?.('[data-app-action-sidebar-thread-id]');
     const value = entry?.getAttribute('data-app-action-sidebar-thread-id') || '';
     const threadId = value.startsWith('local:') ? value.slice(6).toLowerCase() : '';
+    if (threadId) window.__codexControlConsoleComposerTransition?.begin?.();
     if (!overrides.has(threadId)) return;
     setTimeout(() => void resume(threadId).catch((error) => {
       window.__codexControlConsoleLastContextResume = { threadId, ok: false, message: error.message };
     }), 350);
   }, true);
 
-  window.__codexControlConsoleNativeContextObserver = new MutationObserver(scheduleToggle);
-  window.__codexControlConsoleNativeContextObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+  window.__codexControlConsoleNativeContextObserver = new MutationObserver((records) => {
+    if (records.some((record) => record.type === 'attributes')) window.__codexControlConsoleComposerTransition?.begin?.();
+    scheduleToggle();
+  });
+  window.__codexControlConsoleNativeContextObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'data-app-action-sidebar-thread-selected', 'data-above-composer-conversation-id'] });
   scheduleToggle();
 })();`;
 }
