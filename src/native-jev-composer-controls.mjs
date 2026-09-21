@@ -16,14 +16,18 @@ export function buildNativeJevComposerControlSource() {
     if (!control.hasAttribute('data-codex-control-console-jev-native-model-title')) control.setAttribute('data-codex-control-console-jev-native-model-title', control.getAttribute('title') || '');
     if (!control.hasAttribute('data-codex-control-console-jev-native-model-tabindex')) control.setAttribute('data-codex-control-console-jev-native-model-tabindex', control.getAttribute('tabindex') || '');
     if (!control.hasAttribute('data-codex-control-console-jev-native-model-label')) control.setAttribute('data-codex-control-console-jev-native-model-label', control.getAttribute('aria-label') || '');
-    for (const child of Array.from(control.children)) { if (!child.hasAttribute('data-codex-control-console-jev-native-child-visibility')) child.setAttribute('data-codex-control-console-jev-native-child-visibility', child.style.visibility || ''); child.style.visibility = 'hidden'; }
+    for (const child of Array.from(control.children)) {
+      if (child.tagName === 'svg' || child.hasAttribute('data-codex-control-console-jev-native-model-effective')) continue;
+      if (!child.hasAttribute('data-codex-control-console-jev-native-child-visibility')) child.setAttribute('data-codex-control-console-jev-native-child-visibility', child.style.visibility || '');
+      child.style.visibility = 'hidden';
+    }
     let effective = control.querySelector('[data-codex-control-console-jev-native-model-effective]');
     if (!effective) { effective = document.createElement('span'); effective.setAttribute('data-codex-control-console-jev-native-model-effective', ''); control.append(effective); }
     const model = String(choice?.value?.model || '').replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1));
     const effortLabels = { none: '无', minimal: '极低', low: '轻度', medium: '中', high: '高', xhigh: '极高', max: '最高', ultra: 'Ultra' };
     const effort = effortLabels[choice?.value?.effort] || choice?.value?.effort;
     effective.textContent = model && effort ? model + ' ' + effort : 'Jev 自动选择';
-    effective.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:inherit;visibility:visible;color:#62bd84;font:inherit;white-space:nowrap;pointer-events:none;';
+    effective.style.cssText = 'position:absolute;inset:0 20px 0 0;display:flex;align-items:center;justify-content:center;padding:0 4px;visibility:visible;color:#62bd84;font:inherit;white-space:nowrap;pointer-events:none;';
     control.setAttribute('aria-disabled', 'true'); control.setAttribute('data-codex-control-console-jev-native-model-disabled', ''); control.tabIndex = -1;
     control.setAttribute('aria-label', 'Jev 当前模型和推理强度：' + effective.textContent);
     control.title = (choice?.title ? choice.title + '；' : '') + 'Jev 已接管模型与推理强度；关闭 Jev 路由后可恢复原生选择';
