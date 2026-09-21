@@ -70,7 +70,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const jevThreadRoutingPath = env.CODEX_CONTROL_JEV_THREAD_ROUTING_PATH || hostPath.join(routerStateDirectory, "jev-native-thread-routing.json");
   const jevRoutingReceiptsDirectory = env.CODEX_CONTROL_JEV_RECEIPTS_DIR || hostPath.join(routerStateDirectory, "jev-routing-receipts");
   const routerCallerSecretPath = env.CODEX_CONTROL_ROUTER_CALLER_SECRET || hostPath.join(routerStateDirectory, "caller-secret");
-  const jevPath = env.CODEX_CONTROL_JEV_PATH || hostPath.join(homeDirectory, ".local", "bin", platform === "win32" ? "jev.exe" : "jev");
+  const jevPath = env.CODEX_CONTROL_JEV_PATH || hostPath.join(homeDirectory, ".local", "bin", platform === "win32" ? "jev.cmd" : "jev");
   const hostname = os.hostname() || "本机";
   const nodeDevice = Object.freeze({
     id: env.CODEX_CONTROL_NODE_ID || `local:${hostname}`,

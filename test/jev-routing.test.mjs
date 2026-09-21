@@ -124,6 +124,21 @@ test("Jev classification uses stdin and returns the mapped choice", async () => 
   assert.ok(invocation.args.includes("--json"));
 });
 
+test("Windows Jev command wrappers run through cmd.exe", async () => {
+  let invocation;
+  const service = new JevRoutingService({
+    store: { read: async () => defaultJevRoutingConfig() }, jevPath: "C:\\Users\\Admin\\.local\\bin\\jev.cmd", taskDispatcher: {}, exists: () => true, platform: "win32",
+    spawnImpl(command, args) {
+      invocation = { command, args };
+      const child = processDouble(() => queueMicrotask(() => { child.stdout.end('{"answer":{"choice":"quick","confidence":0.92}}'); child.emit("close", 0); }));
+      return child;
+    }
+  });
+  assert.equal((await service.classify("quick check", defaultJevRoutingConfig())).fallback, false);
+  assert.equal(invocation.command, "cmd.exe");
+  assert.deepEqual(invocation.args.slice(0, 4), ["/d", "/s", "/c", '"C:\\Users\\Admin\\.local\\bin\\jev.cmd"']);
+});
+
 test("low-confidence Jev choices remain routed while invalid results use the fallback", async () => {
   const config = { ...defaultJevRoutingConfig(), fallbackTier: "critical" };
   const lowService = new JevRoutingService({

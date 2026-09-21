@@ -80,8 +80,8 @@ function collect(child, input, timeoutMs) {
 }
 
 export class JevRoutingService {
-  constructor({ store, threadStore = null, transportManager = null, receiptDirectory = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000 } = {}) {
-    Object.assign(this, { store, threadStore, transportManager, receiptDirectory, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs });
+  constructor({ store, threadStore = null, transportManager = null, receiptDirectory = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000, platform = process.platform } = {}) {
+    Object.assign(this, { store, threadStore, transportManager, receiptDirectory, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs, platform });
   }
 
   async initialize() { return this.transportManager?.apply?.((await this.store.read()).transportMode); }
@@ -124,7 +124,10 @@ export class JevRoutingService {
     if (!this.jevPath || !this.exists(this.jevPath)) return fallbackJevClassification(config, "Jev 未安装，已使用兜底档位");
     const args = ["pick", "Choose the smallest Codex capability tier that can reliably complete this task.", ...JEV_ROUTE_TIERS.map((tier) => `${tier}=${JEV_TIER_DESCRIPTIONS[tier]}`), "--min-confidence", String(config.minConfidence), "--json"];
     let result;
-    try { result = await collect(this.spawnImpl(this.jevPath, args, { env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }), prompt, this.timeoutMs); }
+    const windowsCommand = this.platform === "win32" && /\.cmd$/i.test(this.jevPath || "");
+    const command = windowsCommand ? (process.env.ComSpec || "cmd.exe") : this.jevPath;
+    const commandArgs = windowsCommand ? ["/d", "/s", "/c", `\"${this.jevPath}\"`, ...args] : args;
+    try { result = await collect(this.spawnImpl(command, commandArgs, { env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }), prompt, this.timeoutMs); }
     catch (error) { return fallbackJevClassification(config, `${error.message}，已使用兜底档位`); }
     let parsed;
     try { parsed = JSON.parse(result.stdout.trim()); } catch {}
