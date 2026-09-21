@@ -19,6 +19,10 @@ test("composer control order source uses modifier pointer movement without nativ
   assert.match(source, /addEventListener\('pointerup'/);
   assert.match(source, /Math\.hypot/);
   assert.match(source, /setPointerCapture/);
+  const pointerDown = source.slice(source.indexOf('const onPointerDown'), source.indexOf('const onPointerMove'));
+  assert.match(pointerDown, /event\.preventDefault\(\)/);
+  assert.match(pointerDown, /event\.stopImmediatePropagation\(\)/);
+  assert.match(pointerDown, /suppressClickUntil = Date\.now\(\) \+ 1500/);
   assert.match(source, /composer-control-order\.v1/);
   assert.match(source, /data-ccc-control-drag-armed/);
   assert.match(source, /node\.draggable = false/);
