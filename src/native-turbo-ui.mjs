@@ -8,11 +8,15 @@ export function buildNativeTurboUiSource(bindingName) {
   function renderButton(button) {
     const active = policy.enabled && policy.active;
     const enforced = !active || typeof turboIsEnforcedForCurrentThread !== 'function' || turboIsEnforcedForCurrentThread();
+    const badges = [policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : ''].filter(Boolean).join(' · ');
+    const title = pending ? '正在同步所有设备…' : policy.enabled && !policy.active ? 'Turbo 已开启，但这台设备不在作用范围内' : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
+    const signature = [active, enforced, pending, title].join(':');
+    if (button.getAttribute('data-codex-control-console-turbo-render-signature') === signature) return;
+    button.setAttribute('data-codex-control-console-turbo-render-signature', signature);
     button.dataset.enabled = active ? 'true' : 'false';
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
     button.disabled = pending;
-    const badges = [policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : ''].filter(Boolean).join(' · ');
-    button.title = pending ? '正在同步所有设备…' : policy.enabled && !policy.active ? 'Turbo 已开启，但这台设备不在作用范围内' : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
+    button.title = title;
     button.style.cssText = 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
     button.textContent = '';
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -73,15 +77,15 @@ export function buildNativeTurboUiSource(bindingName) {
   function makeTurboHeaderInteractive(host) {
     const row = host?.parentElement;
     if (!row) return;
-    row.setAttribute('data-codex-control-console-interactive-header', '');
+    if (!row.hasAttribute('data-codex-control-console-interactive-header')) row.setAttribute('data-codex-control-console-interactive-header', '');
     for (const element of [row, host]) {
-      element.style.setProperty('-webkit-app-region', 'drag', 'important');
-      element.style.setProperty('app-region', 'drag', 'important');
+      if (element.style.getPropertyValue('-webkit-app-region') !== 'drag' || element.style.getPropertyPriority('-webkit-app-region') !== 'important') element.style.setProperty('-webkit-app-region', 'drag', 'important');
+      if (element.style.getPropertyValue('app-region') !== 'drag' || element.style.getPropertyPriority('app-region') !== 'important') element.style.setProperty('app-region', 'drag', 'important');
     }
     for (const element of row.querySelectorAll('button,[role="button"]')) {
-      element.style.setProperty('-webkit-app-region', 'no-drag', 'important');
-      element.style.setProperty('app-region', 'no-drag', 'important');
-      element.style.setProperty('pointer-events', 'auto', 'important');
+      if (element.style.getPropertyValue('-webkit-app-region') !== 'no-drag' || element.style.getPropertyPriority('-webkit-app-region') !== 'important') element.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+      if (element.style.getPropertyValue('app-region') !== 'no-drag' || element.style.getPropertyPriority('app-region') !== 'important') element.style.setProperty('app-region', 'no-drag', 'important');
+      if (element.style.getPropertyValue('pointer-events') !== 'auto' || element.style.getPropertyPriority('pointer-events') !== 'important') element.style.setProperty('pointer-events', 'auto', 'important');
     }
   }
 

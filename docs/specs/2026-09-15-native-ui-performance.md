@@ -26,3 +26,7 @@ The enhanced Windows client can become visibly unresponsive on large Codex pages
 - Primary-owner injector tests assert capped exponential retry delay and reset after a successful sync.
 - `npm run check` and `npm test` pass.
 - On Windows, the installed client renders its native controls and a four-second live measurement shows materially fewer long tasks and lower event-loop delay than the pre-fix baseline.
+## 2026-09-21 idle render follow-up
+
+- Persistent enhanced controls must treat an unchanged render state as a no-op. Project search placement, unified-sidebar state, Turbo state, and header hit-testing must not rewrite identical attributes, styles, or children during unrelated native mutations.
+- This optimization is behavior preserving: it does not disable Jev, Turbo, project search, unified navigation, routing, context preparation, or native-send enforcement.

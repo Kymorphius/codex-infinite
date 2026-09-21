@@ -7,6 +7,9 @@ import { buildNativeAttentionConversationsInjectionScript } from "../src/native-
 import { nativeOwnerPollDelay } from "../src/native-owner-injector.mjs";
 import { installNativeJevMutationRefresh } from "../src/native-jev-mutation-refresh.mjs";
 import { buildNativeJevRoutingInjectionScript } from "../src/native-jev-routing.mjs";
+import { installNativeProjectSearch } from "../src/native-project-search.mjs";
+import { installUnifiedSidebar } from "../src/native-unified-sidebar.mjs";
+import { buildNativeTurboInjectionScript } from "../src/native-turbo-injection.mjs";
 
 test("native conversation tabs coalesce broad mutation layout work", () => {
   const source = buildNativeConversationTabsInjectionSource();
@@ -65,6 +68,14 @@ test("Jev rendering is idempotent after state and placement settle", () => {
   assert.match(source, /data-codex-control-console-jev-native-render-signature/);
   assert.match(source, /if \(anchor\.nextElementSibling !== current\) anchor\.after\(current\)/);
   assert.match(source, /if \(choice && current\.nextElementSibling !== choice\) current\.after\(choice\)/);
+});
+
+test("persistent native controls skip identical idle-state DOM writes", () => {
+  assert.match(installNativeProjectSearch.toString(), /if \(root\.className !== rootClassName\) root\.className = rootClassName/);
+  assert.match(installUnifiedSidebar.toString(), /if \(toggle\.getAttribute\('aria-pressed'\) !== pressed\) toggle\.setAttribute\('aria-pressed', pressed\)/);
+  const turbo = buildNativeTurboInjectionScript();
+  assert.match(turbo, /data-codex-control-console-turbo-render-signature/);
+  assert.match(turbo, /if \(!row\.hasAttribute\('data-codex-control-console-interactive-header'\)\)/);
 });
 
 test("primary native bridge retry delay backs off and remains capped", () => {

@@ -3,7 +3,7 @@ import { filterProjectNames } from './project-search.mjs';
 import { installNativeProjectSearchActions } from './native-project-search-actions.mjs';
 
 export function installNativeProjectSearch(filter) {
-  const VERSION = '2026-09-09.1';
+  const VERSION = '2026-09-21.2';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -74,7 +74,8 @@ export function installNativeProjectSearch(filter) {
     const query = input.value || '';
     const style = templates();
     const next = JSON.stringify([query, snapshot, [...expanded], style.signature]);
-    root.className = (native.className || 'relative px-row-x') + ' py-1';
+    const rootClassName = (native.className || 'relative px-row-x') + ' py-1';
+    if (root.className !== rootClassName) root.className = rootClassName;
     if (signature === next) return;
     signature = next;
     clear.hidden = !query;

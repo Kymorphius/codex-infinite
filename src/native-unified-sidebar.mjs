@@ -3,7 +3,7 @@ import { createSourceSidebarRenderer } from './native-sidebar-render.mjs';
 import { installSidebarMenu } from './native-sidebar-menu.mjs';
 
 export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, createMenu) {
-  const VERSION = '2026-09-08.owner.4';
+  const VERSION = '2026-09-21.owner.5';
   if (window.__codexControlConsoleUnifiedSidebar?.version === VERSION) return;
   window.__codexControlConsoleUnifiedSidebar?.dispose();
   document.querySelectorAll('[data-codex-control-console-unified-list]').forEach(node => node.remove());
@@ -58,7 +58,10 @@ export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, c
       if (control.parentElement !== document.body) document.body.append(control);
       control.style.cssText = 'position:fixed;z-index:60;display:' + (rect.width > 100 && rect.height > 0 ? 'flex' : 'none') + ';gap:3px;left:' + (rect.right - (enabled ? 96 : 52)) + 'px;top:' + (rect.top + Math.max(0, (rect.height - 28) / 2)) + 'px';
     }
-    toggle.setAttribute('aria-pressed', String(enabled)); toggle.style.background = enabled ? 'var(--color-background-selected,#555)' : 'var(--color-background-primary,#252525)'; manage.hidden = !enabled;
+    const pressed = String(enabled), background = enabled ? 'var(--color-background-selected,#555)' : 'var(--color-background-primary,#252525)';
+    if (toggle.getAttribute('aria-pressed') !== pressed) toggle.setAttribute('aria-pressed', pressed);
+    if (toggle.style.background !== background) toggle.style.background = background;
+    if (manage.hidden === enabled) manage.hidden = !enabled;
     if (enabled) { document.querySelector('[data-codex-control-console-remote-sidebar]')?.remove(); renderer.place(); }
   }
   toggle.onclick = () => {
