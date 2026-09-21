@@ -52,7 +52,7 @@ export function buildNativeTurboInjectionScript() {
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
   const enforcementSource = buildNativeTurboEnforcementSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-12.4') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-21.send-deadline1') return;
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
   try {
     const currentSend = window.electronBridge?.sendMessageFromView;
@@ -62,7 +62,8 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-12.4';
+  window.__codexControlConsoleTurboVersion = '2026-09-21.send-deadline1';
+  const TURBO_PREPARE_TIMEOUT_MS = 200;
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
@@ -80,7 +81,7 @@ export function buildNativeTurboInjectionScript() {
     try { localStorage.setItem(affectedStorageKey, JSON.stringify(Array.from(affectedContextThreads).slice(-256))); } catch {}
   }
 
-  function resumeContext(originalSend, threadId, contextWindow) {
+  function resumeContext(originalSend, threadId, contextWindow, timeoutMs = TURBO_PREPARE_TIMEOUT_MS) {
     const id = 'codex-control-turbo-context-' + Date.now() + '-' + (++requestSequence);
     const config = {};
     if (contextWindow) {
@@ -88,7 +89,7 @@ export function buildNativeTurboInjectionScript() {
       config.model_auto_compact_token_limit = contextWindow;
     }
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => { cleanup(); reject(new Error('Turbo 上下文设置超时')); }, 8000);
+      const timeout = setTimeout(() => { cleanup(); reject(new Error('Turbo 上下文设置超时')); }, timeoutMs);
       const receive = (event) => {
         const data = event.data;
         if (data?.type !== 'mcp-response' || data?.hostId !== 'local' || data?.message?.id !== id) return;

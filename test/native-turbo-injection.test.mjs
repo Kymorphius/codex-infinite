@@ -142,6 +142,9 @@ test("disabling Turbo restores the next turn to the native conversation settings
 
 test("native sidebar Turbo control uses one bounded binding action", async () => {
   const source = buildNativeTurboInjectionScript();
+  assert.match(source, /const TURBO_PREPARE_TIMEOUT_MS = 200/);
+  assert.match(source, /timeoutMs = TURBO_PREPARE_TIMEOUT_MS/);
+  assert.doesNotMatch(source, /Turbo 上下文设置超时'\); \}, 8000/);
   assert.match(source, /data-codex-control-console-native-turbo/);
   assert.match(source, /data-codex-control-console-turbo-effective/);
   assert.match(source, /data-codex-control-console-native-turbo-settings/);
