@@ -23,7 +23,7 @@ export function buildNativeJevComposerControlSource() {
     }
     const arrow = Array.from(control.children).find((child) => child.tagName === 'svg');
     if (arrow && !arrow.hasAttribute('data-codex-control-console-jev-native-arrow-style')) arrow.setAttribute('data-codex-control-console-jev-native-arrow-style', arrow.getAttribute('style') || '');
-    if (arrow) { arrow.style.setProperty('position', 'absolute', 'important'); arrow.style.setProperty('right', '8px', 'important'); arrow.style.setProperty('visibility', 'visible', 'important'); }
+    if (arrow) { arrow.style.setProperty('position', 'absolute', 'important'); arrow.style.setProperty('right', '8px', 'important'); arrow.style.setProperty('visibility', 'visible', 'important'); arrow.style.setProperty('color', '#62bd84', 'important'); }
     let effective = control.querySelector('[data-codex-control-console-jev-native-model-effective]');
     if (!effective) { effective = document.createElement('span'); effective.setAttribute('data-codex-control-console-jev-native-model-effective', ''); control.append(effective); }
     const model = String(choice?.value?.model || '').replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1));
@@ -34,7 +34,7 @@ export function buildNativeJevComposerControlSource() {
     control.setAttribute('aria-disabled', 'true'); control.setAttribute('data-codex-control-console-jev-native-model-disabled', ''); control.tabIndex = -1;
     control.setAttribute('aria-label', 'Jev 当前模型和推理强度：' + effective.textContent);
     control.title = (choice?.title ? choice.title + '；' : '') + 'Jev 已接管模型与推理强度；关闭 Jev 路由后可恢复原生选择';
-    control.style.setProperty('position', 'relative', 'important'); control.style.setProperty('min-width', '145px', 'important'); control.style.setProperty('opacity', '1', 'important'); control.style.setProperty('filter', 'none', 'important'); control.style.setProperty('pointer-events', 'none', 'important'); control.style.setProperty('cursor', 'not-allowed', 'important');
+    control.style.setProperty('position', 'relative', 'important'); control.style.setProperty('min-width', '145px', 'important'); control.style.setProperty('opacity', '1', 'important'); control.style.setProperty('filter', 'none', 'important'); control.style.setProperty('color', '#62bd84', 'important'); control.style.setProperty('pointer-events', 'none', 'important'); control.style.setProperty('cursor', 'not-allowed', 'important');
   }
 
   window.__codexControlConsoleRestoreJevNativeModelControl = () => {

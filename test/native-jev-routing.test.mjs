@@ -248,6 +248,8 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /'min-width', '145px'/);
   assert.match(source, /'right', '8px'/);
   assert.match(source, /native-arrow-style/);
+  assert.match(source, /'color', '#62bd84'/);
+  assert.match(source, /arrow\.style\.setProperty\('color', '#62bd84'/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
   assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
   assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);
