@@ -4,6 +4,7 @@ import { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./n
 import { buildNativeJevComposerControlSource } from "./native-jev-composer-controls.mjs";
 import { buildNativeJevButtonRenderSource } from "./native-jev-button-render.mjs";
 import { installNativeJevButtonActivation } from "./native-jev-button-activation.mjs";
+import { buildNativeJevRoutingPanelSource } from "./native-jev-routing-panel.mjs";
 export { formatNativeJevEffort, formatNativeJevModelChange, formatNativeJevTurnChoice, normalizeNativeJevRoutingSnapshot, releaseNativeJevSend, selectNativeJevRoutingTurn } from "./native-jev-routing-contract.mjs";
 export { handleNativeJevRoutingRequest, parseNativeJevRoutingRequest } from "./native-jev-routing-request.mjs";
 
@@ -26,18 +27,19 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-22.5') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-22.6') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
   window.__codexControlConsoleJevRoutingInputCleanup?.();
   window.__codexControlConsoleJevRoutingMutationCleanup?.();
   window.__codexControlConsoleRestoreJevNativeModelControl?.();
+  document.querySelector('[data-codex-control-console-jev-routing-panel]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-choice]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-22.5';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-22.6';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatNativeJevEffort=${formatNativeJevEffort.toString()};
@@ -239,6 +241,7 @@ export function buildNativeJevRoutingInjectionScript() {
 
 ${buildNativeJevButtonRenderSource()}
 ${buildNativeJevComposerControlSource()}
+${buildNativeJevRoutingPanelSource()}
   function applySnapshot(snapshot) {
     const value = snapshot || {};
     const config = value.config || value;
@@ -266,6 +269,7 @@ ${buildNativeJevComposerControlSource()}
         } catch (error) { button.title = String(error?.message || error); }
         finally { togglePending = false; renderGlobalButton(button); if (current) renderCurrentButton(current); }
       });
+      button.addEventListener('contextmenu', (event) => { event.preventDefault(); event.stopPropagation(); if (!togglePending) openRoutingPanel(button); });
     }
     if (host && button) { renderGlobalButton(button); if (button.parentElement !== host) host.insertBefore(button, host.firstChild); }
 

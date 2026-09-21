@@ -129,10 +129,13 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
   return { applied, badge: () => badge, context, documentListeners, editor, mutate, notice, noticeTail, noticeText, send, sends: () => sends, turn, window };
 }
 
-test("native Jev binding accepts only bounded classify and toggle requests", async () => {
+test("native Jev binding accepts only bounded classify, toggle, and mapping requests", async () => {
   assert.deepEqual(parseNativeJevRoutingRequest('{"id":"one","kind":"set-enabled","enabled":false}'), { id: "one", kind: "set-enabled", enabled: false });
   assert.deepEqual(parseNativeJevRoutingRequest(`{"id":"thread","kind":"set-thread-enabled","threadId":"${threadId}","enabled":false}`), { id: "thread", kind: "set-thread-enabled", threadId, enabled: false });
   assert.deepEqual(parseNativeJevRoutingRequest('{"id":"two","kind":"classify","prompt":" fix it "}'), { id: "two", kind: "classify", prompt: "fix it" });
+  const mappings = { instant: { model: "gpt-5.6-luna", effort: "low" }, quick: { model: "gpt-5.6-luna", effort: "medium" }, everyday: { model: "gpt-5.6-terra", effort: "medium" }, substantial: { model: "gpt-5.6-terra", effort: "high" }, complex: { model: "gpt-5.6-sol", effort: "high" }, deep: { model: "gpt-5.6-sol", effort: "xhigh" }, critical: { model: "gpt-6-astra", effort: "xhigh" }, extreme: { model: "gpt-6-astra", effort: "ultra" } };
+  assert.deepEqual(parseNativeJevRoutingRequest(JSON.stringify({ id: "map", kind: "set-mappings", mappings })), { id: "map", kind: "set-mappings", mappings });
+  assert.equal(parseNativeJevRoutingRequest(JSON.stringify({ id: "map", kind: "set-mappings", mappings: { ...mappings, instant: { model: "gpt-5.6-luna", effort: "ultra" } } })), null);
   assert.equal(parseNativeJevRoutingRequest('{"id":"two","kind":"classify","prompt":""}'), null);
   assert.equal(parseNativeJevRoutingRequest('{"id":"two","kind":"other"}'), null);
 
@@ -140,13 +143,15 @@ test("native Jev binding accepts only bounded classify and toggle requests", asy
   const service = {
     async setEnabled(enabled) { calls.push(["enabled", enabled]); return { enabled }; },
     async setThreadEnabled(id, enabled) { calls.push(["thread", id, enabled]); return { config: { enabled: true }, threadOverrides: { [id]: enabled } }; },
-    async snapshot() { return { config: { enabled: false }, threadOverrides: {} }; },
+    async snapshot() { return { config: { enabled: false, mappings }, threadOverrides: {} }; },
+    async update(value) { calls.push(["mappings", value.mappings]); return value; },
     async classifyCurrent(prompt) { calls.push(["classify", prompt]); return { tier: "quick" }; }
   };
   assert.equal((await handleNativeJevRoutingRequest('{"id":"one","kind":"set-enabled","enabled":false}', service)).snapshot.config.enabled, false);
   assert.equal((await handleNativeJevRoutingRequest(`{"id":"thread","kind":"set-thread-enabled","threadId":"${threadId}","enabled":false}`, service)).snapshot.threadOverrides[threadId], false);
   assert.equal((await handleNativeJevRoutingRequest('{"id":"two","kind":"classify","prompt":"fix"}', service)).classification.tier, "quick");
-  assert.deepEqual(calls, [["enabled", false], ["thread", threadId, false], ["classify", "fix"]]);
+  assert.equal((await handleNativeJevRoutingRequest(JSON.stringify({ id: "map", kind: "set-mappings", mappings }), service)).snapshot.config.mappings.extreme.effort, "ultra");
+  assert.deepEqual(calls, [["enabled", false], ["thread", threadId, false], ["classify", "fix"], ["mappings", mappings]]);
 });
 
 test("native Jev snapshot is bounded and enables only from stored configuration", () => {
@@ -234,6 +239,10 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /Jev 自动分流已开启/);
   assert.match(source, /addEventListener\('pointerup'/);
   assert.match(source, /pointer-events:auto!important/);
+  assert.match(source, /data-codex-control-console-jev-routing-panel/);
+  assert.match(source, /set-mappings/);
+  assert.match(source, /addEventListener\('contextmenu'/);
+  assert.match(source, /路由档位/);
   assert.match(source, /ignoreClickUntil/);
   assert.match(source, /flex:0 0 48px/);
   assert.match(source, /padding:0 6px/);

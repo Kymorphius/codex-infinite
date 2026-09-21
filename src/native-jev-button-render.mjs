@@ -2,7 +2,7 @@ export function buildNativeJevButtonRenderSource() {
   return `
   function renderGlobalButton(button) {
     const active = policy.enabled;
-    const signature = JSON.stringify([active, togglePending]);
+    const signature = JSON.stringify([active, togglePending, policy.transportMode]);
     if (button.getAttribute('data-codex-control-console-jev-render-signature') === signature) return;
     button.dataset.enabled = String(active);
     button.setAttribute('aria-pressed', String(active));
