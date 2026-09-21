@@ -16,7 +16,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /data-above-composer-conversation-id/);
   assert.match(source, /data-app-action-sidebar-thread-selected/);
   assert.match(source, /codex-control-console-held-todos-changed/);
-  assert.match(source, /领取任务/);
+  assert.match(source, /领任务/);
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
   assert.match(source, /__codexControlConsoleSetAssignedChecklistTasks/);
@@ -25,7 +25,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /completeAssignedTask/);
   assert.match(source, /恢复发送/);
   assert.match(source, /查看综合清单/);
-  assert.match(source, /领取任务 ' \+ count/);
+  assert.match(source, /领任务 ' \+ count/);
   assert.match(source, /新建聊天后即可领取/);
   assert.match(source, /if \(!id\) \{.*claimTasks\.ensure/);
 });
@@ -45,7 +45,7 @@ test("native held queue saves the current text draft before clearing it", () => 
   const read = source.slice(source.indexOf("function draftText"), source.indexOf("function updateDraftButton"));
   const clear = source.slice(source.indexOf("function clearDraftText"), source.indexOf("function saveDraftTodo"));
   const save = source.slice(source.indexOf("function saveDraftTodo"), source.indexOf("const draftTodoButton"));
-  assert.match(source, /存为待办/);
+  assert.match(source, /存待办/);
   assert.match(source, /data-ccc-save-draft-todo/);
   assert.ok(save.indexOf("writeHeld") < save.indexOf("clearDraftText"));
   assert.match(save, /\[{ type: 'text', text }\]/);
@@ -201,7 +201,7 @@ test("held shell and claim controls skip identical DOM writes", () => {
   updateHeldQueueShell(toolbar, panel, [{}], [{}], [{}], "", false);
   assert.deepEqual([toolbarWrites, warningWrites, hiddenWrites], [0, 0, 0]);
 
-  let buttonText = "领取任务 7", buttonTitle = "从综合任务清单领取 7 项未指派任务到当前会话", buttonWrites = 0;
+  let buttonText = "领任务 7", buttonTitle = "从综合任务清单领取 7 项未指派任务到当前会话", buttonWrites = 0;
   const button = {};
   Object.defineProperty(button, "textContent", { get: () => buttonText, set: (value) => { buttonText = value; buttonWrites += 1; } });
   Object.defineProperty(button, "title", { get: () => buttonTitle, set: (value) => { buttonTitle = value; buttonWrites += 1; } });

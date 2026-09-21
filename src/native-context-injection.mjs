@@ -26,10 +26,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-20.4' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.1' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-20.4';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-22.1';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
   const readThreadId = ${readNativeComposerThreadId.toString()};
@@ -123,8 +123,6 @@ export function buildNativeContextInjectionScript() {
     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     button.title = !threadId ? (enabled ? '新建聊天将使用百万上下文；首轮发送后自动应用到会话' : '新建聊天尚未启用百万上下文；点击为首轮预设') : enabled ? '当前会话已启用扩展上下文；点击恢复模型默认' : '点击仅为当前会话启用百万上下文';
     button.style.cssText = 'display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:999px;border:1px solid ' + (enabled ? 'rgba(184,134,11,.46)' : 'rgba(128,128,128,.25)') + ';background:' + (enabled ? 'rgba(234,179,8,.15)' : 'transparent') + ';color:' + (enabled ? '#a47400' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.62' : '1') + ';';
-    const dot = button.querySelector('[data-context-toggle-dot]');
-    if (dot) dot.style.background = enabled ? '#d9a400' : '#96969b';
   }
 
   async function toggleCurrent(button) {
@@ -169,11 +167,14 @@ export function buildNativeContextInjectionScript() {
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]');
     const host = permission?.parentElement;
     if (!host) { existing?.remove(); return; }
+    permission.style.setProperty('display', 'none', 'important');
+    permission.setAttribute('aria-hidden', 'true');
+    permission.tabIndex = -1;
     const button = existing || document.createElement('button');
     if (!existing) {
       button.type = 'button';
       button.setAttribute('data-codex-control-console-context-toggle', '');
-      button.innerHTML = '<span data-context-toggle-dot aria-hidden="true" style="width:6px;height:6px;border-radius:50%"></span><span>百万</span>';
+      button.textContent = '百万';
       button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void toggleCurrent(button); });
     }
     button.setAttribute('aria-label', '百万');

@@ -55,7 +55,7 @@ export function buildNativeTurboUiSource(bindingName) {
     const model = policy.model || nativeModel;
     const modelLabel = model ? turboLabel(model) : nativeText.replace(/\\s+(低|中|高|最高|low|medium|high|max|ultra)$/i, '');
     const effort = policy.reasoningEffort === 'preserve' ? '原强度' : policy.reasoningEffort === 'maximum' ? policy.efforts.get(model) || '最高' : policy.reasoningEffort;
-    const parts = [modelLabel, effort, policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : '', policy.accessMode !== 'preserve' ? ({ 'read-only':'只读', workspace:'工作区', 'full-access':'完全访问' }[policy.accessMode]) : ''].filter(Boolean);
+    const parts = [modelLabel, effort, policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : ''].filter(Boolean);
     const state = parts.join(':');
     if (button.getAttribute('data-codex-control-console-turbo-effective-state') === state && button.querySelector('[data-codex-control-console-turbo-effective]')) return;
     restoreReasoningControl(button);
@@ -120,7 +120,6 @@ export function buildNativeTurboUiSource(bindingName) {
     reasoningSelect.value = policy.reasoningEffort; renderReasoning(); modelSelect.addEventListener('change', renderReasoning);
     const fast = addSwitch(form, 'Fast 推理速度', '关闭后保持会话原速度', 'fast', policy.fast);
     const million = addSwitch(form, '百万上下文', '新一轮请求 1M', 'millionContext', policy.millionContext);
-    const access = addSelect(form, '访问权限', 'accessMode', [{value:'preserve',label:'保持会话原权限'},{value:'read-only',label:'只读'},{value:'workspace',label:'工作区'},{value:'full-access',label:'完全访问'}], policy.accessMode);
     const allDevices = addSwitch(form, '全部设备', '关闭后可单独选择节点', 'allDevices', !policy.deviceIds.length);
     const deviceBox = document.createElement('div'); deviceBox.style.cssText = 'display:grid;gap:6px;padding:8px;border:1px solid #45454a;border-radius:9px';
     const deviceInputs = policy.devices.map((device) => { const label = document.createElement('label'); label.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:11px'; const input = document.createElement('input'); input.type='checkbox'; input.value=device.id; input.checked=!policy.deviceIds.length || policy.deviceIds.includes(device.id); input.disabled=allDevices.checked; input.style.accentColor='#d99a22'; const text=document.createElement('span'); text.textContent=device.name; label.append(input,text); deviceBox.append(label); return input; });
@@ -128,7 +127,7 @@ export function buildNativeTurboUiSource(bindingName) {
     const save = document.createElement('button'); save.type='submit'; save.textContent='保存并同步'; save.style.cssText='height:36px;margin-top:2px;border:0;border-radius:9px;background:#d99a22;color:#1d1608;font-weight:700;cursor:pointer'; form.append(save);
     form.addEventListener('submit', (event) => {
       event.preventDefault(); const targetIds = allDevices.checked ? [] : deviceInputs.filter((input) => input.checked).map((input) => input.value); if (!allDevices.checked && !targetIds.length) return;
-      const action = { model:modelSelect.value || null, reasoningEffort:reasoningSelect.value, fast:fast.checked, millionContext:million.checked, accessMode:access.value, deviceIds:targetIds };
+      const action = { model:modelSelect.value || null, reasoningEffort:reasoningSelect.value, fast:fast.checked, millionContext:million.checked, deviceIds:targetIds };
       const bindingFn = window[${binding}]; if (pending || typeof bindingFn !== 'function') return; pending=true; closeSettings(); const turbo=document.querySelector('[data-codex-control-console-native-turbo]'); if (turbo) renderButton(turbo);
       try { bindingFn(JSON.stringify(action)); } catch { pending=false; if (turbo) renderButton(turbo); }
     });
