@@ -26,6 +26,9 @@ test("native injection renders header and exact-turn badges with an explicit qua
   assert.match(source, /data-above-composer-conversation-id/);
   assert.match(source, /data-content-search-turn-key/);
   assert.match(source, /data-codex-control-console-turn-state-turn/);
+  assert.match(source, /data-codex-control-console-native-jev-current/);
+  assert.match(source, /jev\.after\(button\)/);
+  assert.doesNotMatch(source, /button\[aria-label=\\"搜索\\"\]/);
   assert.match(source, /const summarizeNativeTurnStates = summarize/);
   const snapshot = buildNativeTurnStateSnapshotScript({ available: true, entries: [{ threadId: current, turnState: { present: true, length: 292 } }] });
   assert.match(snapshot, /SetTurnStateSnapshot/);

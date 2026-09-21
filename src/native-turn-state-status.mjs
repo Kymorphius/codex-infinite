@@ -36,12 +36,12 @@ export function buildNativeTurnStateSnapshotScript(snapshot) {
 
 export function buildNativeTurnStateInjectionScript() {
   return `(() => {
-  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.3') return;
+  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.4') return;
   if (window.__codexControlConsoleTurnStateTimer) clearInterval(window.__codexControlConsoleTurnStateTimer);
   document.querySelector('[data-codex-control-console-turn-state]')?.remove();
   document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove();
   document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((node)=>node.remove());
-  window.__codexControlConsoleTurnStateVersion = '2026-09-21.3';
+  window.__codexControlConsoleTurnStateVersion = '2026-09-21.4';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const summarize = ${summarizeNativeTurnStates.toString()};
   const summarizeNativeTurnStates = summarize;
@@ -79,10 +79,10 @@ export function buildNativeTurnStateInjectionScript() {
   }
 
   function render() {
-    const search=document.querySelector('button[aria-label="搜索"],button[aria-label="Search"]');const host=search?.parentElement?.parentElement?.parentElement;if(!host||!host.classList?.contains('ms-auto'))return;
+    const jev=document.querySelector('button[data-codex-control-console-native-jev-current]');const host=jev?.parentElement;if(!host)return;
     const threadId=readThreadId(document);const summary=summarize(snapshot,threadId);let button=document.querySelector('[data-codex-control-console-turn-state]');if(!button){button=document.createElement('button');button.type='button';button.setAttribute('data-codex-control-console-turn-state','');button.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openPopover(button,summarize(snapshot,readThreadId(document)));});}
-    const latest=summary.latest;const label=snapshot.available?labelFor(latest):'State ?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;align-items:center;height:24px;padding:0 8px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
-    if(button.parentElement!==host){const turbo=host.querySelector('[data-codex-control-console-native-turbo]');if(turbo)turbo.after(button);else host.insertBefore(button,host.firstChild);}decorateTurns(threadId);
+    const latest=summary.latest;const label=snapshot.available?labelFor(latest):'State ?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;position:relative;z-index:1;flex:0 0 auto;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
+    if(button.parentElement!==host||button.previousElementSibling!==jev)jev.after(button);decorateTurns(threadId);
   }
   window.__codexControlConsoleSetTurnStateSnapshot=(value)=>{snapshot=value&&Array.isArray(value.entries)?value:{available:false,observedAt:Date.now(),entries:[]};render();return true;};
   window.__codexControlConsoleTurnStateTimer=setInterval(render,700);render();

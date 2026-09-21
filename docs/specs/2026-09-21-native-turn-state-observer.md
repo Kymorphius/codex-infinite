@@ -24,7 +24,9 @@ about model quality or entitlement.
 
 ## Native UI
 
-- Add a compact header badge beside the existing Jev and Turbo controls.
+- Add the compact conversation badge to the composer control row, immediately
+  after the current-conversation `Jev 路由` control. Do not place it in the
+  window title/header controls.
 - Add a compact badge beside each visible user turn when Router activity has
   an exact matching native turn id. Never infer a match from timestamps.
 - Label the latest current-conversation observation as `State N`, `State —`,
