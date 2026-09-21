@@ -19,4 +19,6 @@ test("composer control order source requires a modifier before native drag reord
   assert.match(source, /addEventListener\('drop'/);
   assert.match(source, /composer-control-order\.v1/);
   assert.match(source, /data-ccc-control-drag-armed/);
+  assert.match(source, /node\.draggable = true/);
+  assert.match(source, /event\.preventDefault\(\); return;/);
 });
