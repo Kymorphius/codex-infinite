@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
 import { buildNativeTurnAnnotationsScript } from "../src/native-turn-annotations.mjs";
 import { buildNativeNewProjectsInjectionScript } from "../src/native-new-projects.mjs";
@@ -10,6 +11,7 @@ import { buildNativeJevRoutingInjectionScript } from "../src/native-jev-routing.
 import { installNativeProjectSearch } from "../src/native-project-search.mjs";
 import { installUnifiedSidebar } from "../src/native-unified-sidebar.mjs";
 import { buildNativeTurboInjectionScript } from "../src/native-turbo-injection.mjs";
+import { buildNativeLongConversationInjectionScript, longConversationColdTurnIndexes } from "../src/native-long-conversation.mjs";
 
 test("native conversation tabs coalesce broad mutation layout work", () => {
   const source = buildNativeConversationTabsInjectionSource();
@@ -85,4 +87,60 @@ test("primary native bridge retry delay backs off and remains capped", () => {
   assert.equal(nativeOwnerPollDelay(1200, 1, 30000), 2400);
   assert.equal(nativeOwnerPollDelay(1200, 4, 30000), 19200);
   assert.equal(nativeOwnerPollDelay(1200, 8, 30000), 30000);
+});
+
+test("long conversations keep the newest turns eager without removing history", () => {
+  assert.deepEqual(longConversationColdTurnIndexes(12), []);
+  assert.deepEqual(longConversationColdTurnIndexes(20), [0, 1, 2, 3, 4, 5, 6, 7]);
+  const source = buildNativeLongConversationInjectionScript();
+  assert.match(source, /content-visibility:auto/);
+  assert.match(source, /contain-intrinsic-size:auto 560px/);
+  assert.match(source, /turns\.length - eager/);
+  assert.match(source, /records\.some\(relevantMutation\)/);
+  assert.doesNotMatch(source, /setInterval/);
+  assert.doesNotMatch(source, /\.remove\(\).*data-turn-key/);
+});
+
+test("long conversation controller cools only old turns and advances the boundary after append", () => {
+  class Element {
+    constructor(kind = "turn") { this.nodeType = 1; this.kind = kind; this.attrs = new Map(); this.children = []; this.isConnected = true; }
+    matches(selector) { return (selector.includes("data-turn-key") && this.kind === "turn") || (selector.includes("data-thread-user-message-navigation-content") && this.kind === "root"); }
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+    querySelectorAll(selector) {
+      if (selector.includes("data-turn-key")) return this.kind === "root" ? this.children : [];
+      if (selector.includes("data-ccc-long-conversation-cold-turn")) return this.children.filter((child) => child.hasAttribute("data-ccc-long-conversation-cold-turn"));
+      return [];
+    }
+    setAttribute(name, value) { this.attrs.set(name, value); }
+    hasAttribute(name) { return this.attrs.has(name); }
+    removeAttribute(name) { this.attrs.delete(name); }
+    append(...children) { this.children.push(...children); }
+    remove() { this.isConnected = false; }
+  }
+  const root = new Element("root");
+  root.append(...Array.from({ length: 20 }, () => new Element()));
+  const head = new Element("head"), documentElement = new Element("document"), idle = [];
+  let receiveMutation;
+  const document = {
+    head, documentElement,
+    getElementById: () => null,
+    createElement: () => new Element("style"),
+    querySelector: (selector) => selector.includes("data-thread-user-message-navigation-content") ? root : null,
+    querySelectorAll: (selector) => root.querySelectorAll(selector)
+  };
+  const window = {};
+  const context = vm.createContext({
+    window, document,
+    MutationObserver: class { constructor(callback) { receiveMutation = callback; } observe() {} disconnect() {} },
+    requestIdleCallback(callback) { idle.push(callback); return idle.length; },
+    cancelIdleCallback() {}, clearTimeout() {}, setTimeout(callback) { idle.push(callback); return idle.length; }
+  });
+  vm.runInContext(buildNativeLongConversationInjectionScript(), context);
+  assert.equal(root.children.filter((turn) => turn.hasAttribute("data-ccc-long-conversation-cold-turn")).length, 8);
+  root.children.push(new Element());
+  receiveMutation([{ type: "childList", addedNodes: [root.children.at(-1)], removedNodes: [] }]);
+  idle.shift()();
+  assert.equal(root.children.filter((turn) => turn.hasAttribute("data-ccc-long-conversation-cold-turn")).length, 9);
+  assert.equal(root.children.at(-1).hasAttribute("data-ccc-long-conversation-cold-turn"), false);
+  assert.equal(root.children.length, 21);
 });

@@ -26,6 +26,7 @@ import { buildNativeAttentionStickyInjectionScript } from "./native-attention-st
 import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-chat-section.mjs";
 import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
 import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
+import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
 
 export async function persistNativeContextAction(payload, contextWindowStore) {
   if (!contextWindowStore) return null;
@@ -67,6 +68,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeChatgptChatSectionInjectionScript());
   await connection.evaluate(buildNativeOpenLocalProjectInjectionScript());
   await connection.evaluate(buildNativeComposerHeldQueueInjectionScript());
+  await connection.evaluate(buildNativeLongConversationInjectionScript());
   await connection.evaluate(buildNativeNewProjectsInjectionScript());
   await connection.evaluate(buildNativeNewProjectsSnapshotScript(newProjects));
   await connection.evaluate(buildNativeAttentionConversationsInjectionScript());
@@ -145,6 +147,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       source: buildNativeOpenLocalProjectInjectionScript()
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeComposerHeldQueueInjectionScript() });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeLongConversationInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeNewProjectsInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeAttentionConversationsInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeProjectSearchInjectionScript() });
