@@ -17,7 +17,8 @@ export function normalizeNativeTurnStateSnapshot(value) {
 
 export function summarizeNativeTurnState(snapshot, threadId, turnId) {
   const entries = summarizeNativeTurnStates(snapshot, threadId).entries.filter((entry) => entry.turnId === turnId);
-  return { available: snapshot.available, entries, counts: entries.reduce((counts, entry) => { const key = entry.turnState.present ? String(entry.turnState.length) : "none"; counts[key] = (counts[key] || 0) + 1; return counts; }, {}), latest: entries.at(-1) || null };
+  const latest = [...entries].reverse().find((entry) => entry.turnState.present) || entries.at(-1) || null;
+  return { available: snapshot.available, entries, counts: entries.reduce((counts, entry) => { const key = entry.turnState.present ? String(entry.turnState.length) : "none"; counts[key] = (counts[key] || 0) + 1; return counts; }, {}), latest };
 }
 
 export function summarizeNativeTurnStates(snapshot, threadId) {
@@ -27,7 +28,8 @@ export function summarizeNativeTurnStates(snapshot, threadId) {
     const key = entry.turnState.present ? String(entry.turnState.length) : "none";
     counts[key] = (counts[key] || 0) + 1;
   }
-  return { available: snapshot.available, entries, counts, latest: entries.at(-1) || null };
+  const latest = [...entries].reverse().find((entry) => entry.turnState.present) || entries.at(-1) || null;
+  return { available: snapshot.available, entries, counts, latest };
 }
 
 export function buildNativeTurnStateSnapshotScript(snapshot) {
@@ -36,12 +38,12 @@ export function buildNativeTurnStateSnapshotScript(snapshot) {
 
 export function buildNativeTurnStateInjectionScript() {
   return `(() => {
-  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.4') return;
+  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.5') return;
   if (window.__codexControlConsoleTurnStateTimer) clearInterval(window.__codexControlConsoleTurnStateTimer);
   document.querySelector('[data-codex-control-console-turn-state]')?.remove();
   document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove();
   document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((node)=>node.remove());
-  window.__codexControlConsoleTurnStateVersion = '2026-09-21.4';
+  window.__codexControlConsoleTurnStateVersion = '2026-09-21.5';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const summarize = ${summarizeNativeTurnStates.toString()};
   const summarizeNativeTurnStates = summarize;

@@ -7,12 +7,13 @@ const other = "01a0c47f-f950-79b3-80fd-bd634f05ee17";
 const turnId = "01a0c4aa-1111-7222-8333-123456789abc";
 
 test("native turn-state summaries remain conversation scoped", () => {
-  const snapshot = normalizeNativeTurnStateSnapshot({ available: true, observedAt: 50, entries: [{ threadId: current, model: "gpt-5.6-sol", status: 200, turnState: { present: false } }, { threadId: other, model: "gpt-6-astra", status: 200, turnState: { present: true, length: 312 } }, { threadId: current, turnId, model: "gpt-5.6-sol", status: 200, upstreamAttempts: 1, endedAt: 40, turnState: { present: true, length: 292, value: "private" } }] });
+  const snapshot = normalizeNativeTurnStateSnapshot({ available: true, observedAt: 50, entries: [{ threadId: current, turnId, model: "gpt-5.6-sol", status: 200, upstreamAttempts: 1, endedAt: 40, turnState: { present: true, length: 292, value: "private" } }, { threadId: other, model: "gpt-6-astra", status: 200, turnState: { present: true, length: 312 } }, { threadId: current, turnId, model: "gpt-5.6-sol", status: 200, endedAt: 50, turnState: { present: false } }] });
   const summary = summarizeNativeTurnStates(snapshot, current);
   assert.equal(summary.entries.length, 2);
   assert.deepEqual(summary.counts, { none: 1, 292: 1 });
   assert.deepEqual(summary.latest.turnState, { present: true, length: 292 });
   assert.equal(summarizeNativeTurnState(snapshot, current, turnId).latest.turnId, turnId);
+  assert.deepEqual(summarizeNativeTurnState(snapshot, current, turnId).latest.turnState, { present: true, length: 292 });
   assert.equal(summarizeNativeTurnState(snapshot, current, other).latest, null);
   assert.doesNotMatch(JSON.stringify(snapshot), /private/);
   assert.doesNotMatch(JSON.stringify(summary), /gpt-6-astra/);

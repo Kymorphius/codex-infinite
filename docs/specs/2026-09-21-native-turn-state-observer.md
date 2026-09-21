@@ -31,6 +31,9 @@ about model quality or entitlement.
   an exact matching native turn id. Never infer a match from timestamps.
 - Label the latest current-conversation observation as `State N`, `State —`,
   or `State ?` when the observer is unavailable.
+- Keep the last valid `State N` label when newer requests carry no state. Change
+  the label only after observing another valid length; use `State —` only when
+  the conversation has never produced a valid length in the retained snapshot.
 - Clicking the badge opens a bounded popover with per-length counts and recent
   records for the current conversation only.
 - Switching conversations immediately re-filters the already supplied
