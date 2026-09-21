@@ -235,7 +235,8 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /addEventListener\('pointerup'/);
   assert.match(source, /pointer-events:auto!important/);
   assert.match(source, /ignoreClickUntil/);
-  assert.match(source, /flex:0 0 58px/);
+  assert.match(source, /flex:0 0 48px/);
+  assert.match(source, /padding:0 6px/);
   assert.doesNotMatch(source, /flex:0 0 82px/);
   assert.match(source, /data-codex-control-console-jev-native-model-effective/);
   assert.match(source, /Jev 当前模型和推理强度/);
