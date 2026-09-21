@@ -12,7 +12,8 @@ Jev control uses `路由` or `直连` without repeating the `Jev` prefix; routin
 direct-send behavior remain unchanged. The composer keeps these controls in the
 fixed visual order `存待办 → 领任务 → 百万 → 路由/直连`, independently of module
 injection order. Holding Command on macOS or Ctrl on other platforms while
-dragging one of these controls, including the queue-management `待办` control,
+dragging one of these controls, including the queue-management `待办` control
+and the current-conversation State indicator,
 creates one shared local layout preference:
 the latest order is used by every conversation panel in the current profile.
 Ordinary clicks continue to invoke the control action and do not initiate dragging.

@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { buildNativeComposerControlOrderSource, normalizeNativeComposerControlOrder, reorderNativeComposerControlOrder } from "../src/native-composer-control-order.mjs";
 
 test("composer control order normalizes stale local preferences to all known controls", () => {
-  assert.deepEqual(normalizeNativeComposerControlOrder(["routing", "save", "routing", "unknown"]), ["queue", "routing", "save", "claim", "context"]);
-  assert.deepEqual(normalizeNativeComposerControlOrder(null), ["queue", "save", "claim", "context", "routing"]);
+  assert.deepEqual(normalizeNativeComposerControlOrder(["routing", "save", "routing", "unknown"]), ["state", "queue", "routing", "save", "claim", "context"]);
+  assert.deepEqual(normalizeNativeComposerControlOrder(null), ["state", "queue", "save", "claim", "context", "routing"]);
 });
 
 test("composer control order moves a control before or after its drop target", () => {
-  assert.deepEqual(reorderNativeComposerControlOrder(["queue", "save", "claim", "context", "routing"], "routing", "save"), ["queue", "routing", "save", "claim", "context"]);
-  assert.deepEqual(reorderNativeComposerControlOrder(["queue", "save", "claim", "context", "routing"], "queue", "context", true), ["save", "claim", "context", "queue", "routing"]);
+  assert.deepEqual(reorderNativeComposerControlOrder(["state", "queue", "save", "claim", "context", "routing"], "routing", "save"), ["state", "queue", "routing", "save", "claim", "context"]);
+  assert.deepEqual(reorderNativeComposerControlOrder(["state", "queue", "save", "claim", "context", "routing"], "state", "context", true), ["queue", "save", "claim", "context", "state", "routing"]);
 });
 
 test("composer control order source uses modifier pointer movement without native HTML drag", () => {
@@ -26,6 +26,7 @@ test("composer control order source uses modifier pointer movement without nativ
   assert.match(source, /composer-control-order\.v1/);
   assert.match(source, /data-ccc-control-drag-armed/);
   assert.match(source, /data-ccc-held-queue-button/);
+  assert.match(source, /data-codex-control-console-turn-state/);
   assert.match(source, /data-ccc-composer-control-order-style/);
   assert.match(source, /data-ccc-control-dragging/);
   assert.match(source, /cursor:grabbing/);
