@@ -1,9 +1,10 @@
 # Native header label cleanup
 
-The native header keeps the Jev control labeled `Jev` without exposing the
-global-scope implementation detail in the visible pill. Turbo keeps its
-configuration and million-context behavior unchanged, but the header pill does
-not append a `1M` badge. The composer uses a text-only `百万` context button,
+The native header labels the Jev control `路由` or `直连` according to its current
+transport mode, without exposing the global-scope implementation detail. Turbo
+keeps its configuration and million-context behavior unchanged, but its header
+pill has neither a lightning icon nor a `1M` badge; right-clicking the Turbo
+pill opens settings and no separate settings button is rendered. The composer uses a text-only `百万` context button,
 hides the native access-permission control, and keeps the existing access policy
 unchanged. Turbo settings no longer expose an access-mode selector.
 

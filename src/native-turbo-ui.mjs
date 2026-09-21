@@ -16,17 +16,11 @@ export function buildNativeTurboUiSource(bindingName) {
     button.dataset.enabled = active ? 'true' : 'false';
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
     button.disabled = pending;
-    button.title = title;
+    button.title = title + '；右键打开设置';
     button.style.cssText = 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
     button.textContent = '';
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '12'); icon.setAttribute('height', '14');
-    icon.setAttribute('fill', 'currentColor'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('focusable', 'false');
-    icon.style.cssText = 'display:block;flex-shrink:0;pointer-events:none;';
-    const bolt = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    bolt.setAttribute('d', 'M13 2 3 14h9l-1 8 10-12h-9l1-8Z'); icon.append(bolt);
     const text = document.createElement('span'); text.textContent = 'Turbo';
-    button.append(icon, text);
+    button.append(text);
   }
 
   function restoreReasoningControl(button) {
@@ -138,14 +132,13 @@ export function buildNativeTurboUiSource(bindingName) {
   function installButton() {
     const search=document.querySelector('button[aria-label="搜索"],button[aria-label="Search"]'); const host=search?.parentElement?.parentElement?.parentElement; if (!host || !host.classList?.contains('ms-auto')) return;
     makeTurboHeaderInteractive(host);
-    let button=document.querySelector('[data-codex-control-console-native-turbo]'); if (!button) { button=document.createElement('button'); button.type='button'; button.setAttribute('data-codex-control-console-native-turbo',''); button.setAttribute('aria-label','Turbo 模式'); button.addEventListener('click',(event)=>{ event.preventDefault();event.stopPropagation();const bindingFn=window[${binding}];if(pending||typeof bindingFn!=='function')return;pending=true;renderButton(button);try{bindingFn(JSON.stringify({enabled:!policy.enabled}));}catch{pending=false;renderButton(button);}}); }
+    let button=document.querySelector('[data-codex-control-console-native-turbo]'); if (!button) { button=document.createElement('button'); button.type='button'; button.setAttribute('data-codex-control-console-native-turbo',''); button.setAttribute('aria-label','Turbo 模式'); button.addEventListener('click',(event)=>{ event.preventDefault();event.stopPropagation();const bindingFn=window[${binding}];if(pending||typeof bindingFn!=='function')return;pending=true;renderButton(button);try{bindingFn(JSON.stringify({enabled:!policy.enabled}));}catch{pending=false;renderButton(button);}}); button.addEventListener('contextmenu', (event) => { event.preventDefault(); event.stopPropagation(); openSettings(button); }); }
     renderButton(button); if(button.parentElement!==host)host.insertBefore(button,host.firstChild);
-    let settings=document.querySelector('[data-codex-control-console-native-turbo-settings]'); if(!settings){settings=document.createElement('button');settings.type='button';settings.setAttribute('data-codex-control-console-native-turbo-settings','');settings.setAttribute('aria-label','Turbo 设置');settings.title='Turbo 设置';settings.textContent='⚙';settings.style.cssText='display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:1px solid rgba(128,128,128,.2);border-radius:999px;background:transparent;color:currentColor;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;opacity:.72;-webkit-app-region:no-drag;app-region:no-drag;';settings.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openSettings(settings);});} if(settings.parentElement!==host)host.insertBefore(settings,button.nextSibling);
-    for (const control of [button, settings]) {
+    for (const control of [button]) {
       if (control.hasAttribute('data-codex-control-console-turbo-hover')) continue;
       control.setAttribute('data-codex-control-console-turbo-hover', '');
       control.addEventListener('mouseenter', () => { control.style.filter = 'brightness(1.22)'; control.style.opacity = '1'; });
-      control.addEventListener('mouseleave', () => { control.style.filter = ''; renderButton(button); if (control === settings) control.style.opacity = '.72'; });
+      control.addEventListener('mouseleave', () => { control.style.filter = ''; renderButton(button); });
     }
     makeTurboHeaderInteractive(host);
   }

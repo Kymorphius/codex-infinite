@@ -160,7 +160,11 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   assert.doesNotMatch(source, /await window\.__codexControlConsoleRouteNativeTurn/);
   assert.match(source, /data-codex-control-console-native-turbo/);
   assert.match(source, /data-codex-control-console-turbo-effective/);
-  assert.match(source, /data-codex-control-console-native-turbo-settings/);
+  assert.equal(source.match(/data-codex-control-console-native-turbo-settings/g)?.length, 1);
+  assert.doesNotMatch(source, /setAttribute\('data-codex-control-console-native-turbo-settings'/);
+  assert.match(source, /addEventListener\('contextmenu'/);
+  assert.match(source, /openSettings\(button\)/);
+  assert.doesNotMatch(source, /createElementNS\('http:\/\/www\.w3\.org\/2000\/svg'/);
   assert.match(source, /百万上下文/);
   assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /Fast/);
