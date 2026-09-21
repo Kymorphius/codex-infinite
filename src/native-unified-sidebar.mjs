@@ -3,14 +3,14 @@ import { createSourceSidebarRenderer } from './native-sidebar-render.mjs';
 import { installSidebarMenu } from './native-sidebar-menu.mjs';
 
 export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, createMenu) {
-  const VERSION = '2026-09-21.owner.6';
+  const VERSION = '2026-09-21.owner.7';
   if (window.__codexControlConsoleUnifiedSidebar?.version === VERSION) return;
   window.__codexControlConsoleUnifiedSidebar?.dispose();
   document.querySelectorAll('[data-codex-control-console-unified-list]').forEach(node => node.remove());
   const KEY = 'codex-control-console.unified-sidebar.v1', origin = new URL(dashboardUrl).origin;
   let enabled = false; try { enabled = JSON.parse(localStorage.getItem(KEY) || '{}').enabled === true; } catch {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ enabled })); } catch {} }; save();
-  let devices = [], ready = false, pendingRead = false, disposed = false, last = '', frame;
+  let devices = [], ready = false, pendingRead = false, disposed = false, last = '', placementSignature = '', frame;
   const pending = new Map(), channel = crypto.randomUUID();
   const control = document.createElement('div'); control.setAttribute('data-codex-control-console-unified-control', '');
   const toggle = document.createElement('button'); toggle.textContent = '统一'; toggle.setAttribute('data-codex-control-console-unified-toggle', '');
@@ -56,7 +56,11 @@ export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, c
     if (newChat) {
       const rect = newChat.getBoundingClientRect();
       if (control.parentElement !== document.body) document.body.append(control);
-      control.style.cssText = 'position:fixed;z-index:60;display:' + (rect.width > 100 && rect.height > 0 ? 'flex' : 'none') + ';gap:3px;left:' + (rect.right - (enabled ? 96 : 52)) + 'px;top:' + (rect.top + Math.max(0, (rect.height - 28) / 2)) + 'px';
+      const nextPlacement = [(rect.width > 100 && rect.height > 0 ? 'flex' : 'none'), rect.right - (enabled ? 96 : 52), rect.top + Math.max(0, (rect.height - 28) / 2)].join(':');
+      if (placementSignature !== nextPlacement) {
+        placementSignature = nextPlacement;
+        control.style.cssText = 'position:fixed;z-index:60;display:' + (rect.width > 100 && rect.height > 0 ? 'flex' : 'none') + ';gap:3px;left:' + (rect.right - (enabled ? 96 : 52)) + 'px;top:' + (rect.top + Math.max(0, (rect.height - 28) / 2)) + 'px';
+      }
     }
     const pressed = String(enabled), background = enabled ? 'var(--color-background-selected,#555)' : 'var(--color-background-primary,#252525)';
     if (toggle.getAttribute('aria-pressed') !== pressed) toggle.setAttribute('aria-pressed', pressed);
