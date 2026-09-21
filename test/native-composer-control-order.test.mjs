@@ -12,13 +12,16 @@ test("composer control order moves a control before or after its drop target", (
   assert.deepEqual(reorderNativeComposerControlOrder(["save", "claim", "context", "routing"], "save", "context", true), ["claim", "context", "save", "routing"]);
 });
 
-test("composer control order source requires a modifier before native drag reordering", () => {
+test("composer control order source uses modifier pointer movement without native HTML drag", () => {
   const source = buildNativeComposerControlOrderSource();
   assert.match(source, /event\.metaKey && !event\.ctrlKey/);
-  assert.match(source, /addEventListener\('dragstart'/);
-  assert.match(source, /addEventListener\('drop'/);
+  assert.match(source, /addEventListener\('pointermove'/);
+  assert.match(source, /addEventListener\('pointerup'/);
+  assert.match(source, /Math\.hypot/);
+  assert.match(source, /setPointerCapture/);
   assert.match(source, /composer-control-order\.v1/);
   assert.match(source, /data-ccc-control-drag-armed/);
-  assert.match(source, /node\.draggable = true/);
-  assert.match(source, /event\.preventDefault\(\); return;/);
+  assert.match(source, /node\.draggable = false/);
+  assert.match(source, /suppressClickUntil/);
+  assert.doesNotMatch(source, /addEventListener\('dragstart'/);
 });
