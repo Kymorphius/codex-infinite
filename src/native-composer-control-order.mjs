@@ -1,9 +1,12 @@
 export const NATIVE_COMPOSER_CONTROL_ORDER_KEY = "codex-control-console.composer-control-order.v1";
-export const NATIVE_COMPOSER_CONTROL_IDS = ["save", "claim", "context", "routing"];
+export const NATIVE_COMPOSER_CONTROL_IDS = ["queue", "save", "claim", "context", "routing"];
+export const NATIVE_COMPOSER_CONTROL_ORDER_VERSION = "2026-09-22.4";
 
 export function normalizeNativeComposerControlOrder(value) {
   const seen = new Set(), ordered = [];
-  for (const id of Array.isArray(value) ? value : []) if (NATIVE_COMPOSER_CONTROL_IDS.includes(id) && !seen.has(id)) { seen.add(id); ordered.push(id); }
+  const input = Array.isArray(value) ? value : [];
+  if (!input.includes("queue")) { seen.add("queue"); ordered.push("queue"); }
+  for (const id of input) if (NATIVE_COMPOSER_CONTROL_IDS.includes(id) && !seen.has(id)) { seen.add(id); ordered.push(id); }
   for (const id of NATIVE_COMPOSER_CONTROL_IDS) if (!seen.has(id)) ordered.push(id);
   return ordered;
 }
@@ -21,9 +24,11 @@ export function buildNativeComposerControlOrderSource() {
   ${reorderNativeComposerControlOrder.toString()}
   const NATIVE_COMPOSER_CONTROL_ORDER_KEY = ${JSON.stringify(NATIVE_COMPOSER_CONTROL_ORDER_KEY)};
   const NATIVE_COMPOSER_CONTROL_IDS = ${JSON.stringify(NATIVE_COMPOSER_CONTROL_IDS)};
+  const NATIVE_COMPOSER_CONTROL_ORDER_VERSION = ${JSON.stringify(NATIVE_COMPOSER_CONTROL_ORDER_VERSION)};
   const createNativeComposerControlOrder = () => {
-    const controls = [['save', '[data-ccc-save-draft-todo]'], ['claim', '[data-ccc-claim-task]'], ['context', '[data-codex-control-console-context-toggle]'], ['routing', '[data-codex-control-console-native-jev-current]']];
+    const controls = [['queue', '[data-ccc-held-queue-button]'], ['save', '[data-ccc-save-draft-todo]'], ['claim', '[data-ccc-claim-task]'], ['context', '[data-codex-control-console-context-toggle]'], ['routing', '[data-codex-control-console-native-jev-current]']];
     const selector = controls.map(([, value]) => value).join(',');
+    const style = document.createElement('style'); style.setAttribute('data-ccc-composer-control-order-style', ''); style.textContent = selector + '{transition:background-color .12s ease,border-color .12s ease,box-shadow .12s ease,transform .12s ease}' + selector.split(',').map((value) => value + '[data-ccc-control-drag-armed]').join(',') + '{background:rgba(112,146,205,.18)!important;border-color:rgba(132,166,225,.72)!important;box-shadow:0 0 0 2px rgba(96,137,210,.2)!important;transform:translateY(-1px);cursor:grabbing!important}' + selector.split(',').map((value) => value + '[data-ccc-control-dragging]').join(',') + '{background:rgba(112,146,205,.26)!important;box-shadow:0 0 0 3px rgba(96,137,210,.25)!important}'; document.head.append(style);
     let order = normalizeNativeComposerControlOrder((() => { try { return JSON.parse(localStorage.getItem(NATIVE_COMPOSER_CONTROL_ORDER_KEY) || '[]'); } catch { return []; } })()), gesture = null, suppressClickUntil = 0, scheduled = false;
     const idFor = (node) => controls.find(([, value]) => node?.matches?.(value))?.[0] || null;
     const controlFor = (node) => node?.closest?.(selector) || null;
@@ -41,7 +46,11 @@ export function buildNativeComposerControlOrderSource() {
     document.addEventListener('pointerdown', onPointerDown, true); document.addEventListener('pointermove', onPointerMove, true); document.addEventListener('pointerup', onPointerUp, true); document.addEventListener('pointercancel', onPointerCancel, true); document.addEventListener('click', onClick, true);
     const observer = new MutationObserver((records) => { if (records.some((record) => record.type === 'attributes' || [...record.addedNodes].some((node) => node.nodeType === 1 && (node.matches?.(selector) || node.querySelector?.(selector))))) scheduleApply(); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] }); apply();
-    return { apply, order: () => [...order], reorder, reset: () => { order = normalizeNativeComposerControlOrder([]); try { localStorage.removeItem(NATIVE_COMPOSER_CONTROL_ORDER_KEY); } catch {} apply(); return order; }, dispose: () => { observer.disconnect(); document.removeEventListener('pointerdown', onPointerDown, true); document.removeEventListener('pointermove', onPointerMove, true); document.removeEventListener('pointerup', onPointerUp, true); document.removeEventListener('pointercancel', onPointerCancel, true); document.removeEventListener('click', onClick, true); clearMarkers(); } };
+    return { apply, order: () => [...order], reorder, reset: () => { order = normalizeNativeComposerControlOrder([]); try { localStorage.removeItem(NATIVE_COMPOSER_CONTROL_ORDER_KEY); } catch {} apply(); return order; }, dispose: () => { observer.disconnect(); document.removeEventListener('pointerdown', onPointerDown, true); document.removeEventListener('pointermove', onPointerMove, true); document.removeEventListener('pointerup', onPointerUp, true); document.removeEventListener('pointercancel', onPointerCancel, true); document.removeEventListener('click', onClick, true); clearMarkers(); style.remove(); } };
   };
-  window.__codexControlConsoleComposerControlOrder?.dispose?.(); window.__codexControlConsoleComposerControlOrder = createNativeComposerControlOrder();`;
+  if (window.__codexControlConsoleComposerControlOrderVersion !== NATIVE_COMPOSER_CONTROL_ORDER_VERSION || !window.__codexControlConsoleComposerControlOrder) {
+    window.__codexControlConsoleComposerControlOrder?.dispose?.();
+    window.__codexControlConsoleComposerControlOrder = createNativeComposerControlOrder();
+    window.__codexControlConsoleComposerControlOrderVersion = NATIVE_COMPOSER_CONTROL_ORDER_VERSION;
+  } else window.__codexControlConsoleComposerControlOrder.apply();`;
 }
