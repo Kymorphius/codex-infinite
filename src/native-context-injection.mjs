@@ -26,10 +26,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.1' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.2' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-22.1';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-22.2';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
   const readThreadId = ${readNativeComposerThreadId.toString()};
@@ -122,7 +122,7 @@ export function buildNativeContextInjectionScript() {
     button.disabled = pending;
     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     button.title = !threadId ? (enabled ? '新建聊天将使用百万上下文；首轮发送后自动应用到会话' : '新建聊天尚未启用百万上下文；点击为首轮预设') : enabled ? '当前会话已启用扩展上下文；点击恢复模型默认' : '点击仅为当前会话启用百万上下文';
-    button.style.cssText = 'display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:999px;border:1px solid ' + (enabled ? 'rgba(184,134,11,.46)' : 'rgba(128,128,128,.25)') + ';background:' + (enabled ? 'rgba(234,179,8,.15)' : 'transparent') + ';color:' + (enabled ? '#a47400' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.62' : '1') + ';';
+    button.style.cssText = 'display:inline-flex;order:3;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:999px;border:1px solid ' + (enabled ? 'rgba(184,134,11,.46)' : 'rgba(128,128,128,.25)') + ';background:' + (enabled ? 'rgba(234,179,8,.15)' : 'transparent') + ';color:' + (enabled ? '#a47400' : 'currentColor') + ';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.62' : '1') + ';';
   }
 
   async function toggleCurrent(button) {

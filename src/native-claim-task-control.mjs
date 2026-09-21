@@ -10,7 +10,7 @@ export function ensureNativeClaimTaskButton(host, before, createButton) {
   let claim = document.querySelector('[data-ccc-claim-task]');
   if (!claim) {
     claim = createButton(); claim.dataset.cccClaimTask = '';
-    claim.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
+    claim.style.cssText = 'display:inline-flex;order:2;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
     host.insertBefore(claim, before?.parentElement === host ? before : null);
   }
   return claim;
@@ -32,6 +32,6 @@ export function createNativeClaimTaskBridge(getThreadId) {
     if (button.textContent !== text) button.textContent = text;
     if (button.title !== title) button.title = title;
   };
-  const ensure = (host, before) => { let button = document.querySelector('[data-ccc-claim-task]'); if (!button) { button = document.createElement('button'); button.type = 'button'; button.dataset.cccClaimTask = ''; button.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; button.addEventListener('click', (event) => { event.preventDefault(); event.stopImmediatePropagation(); const id = getThreadId(); if (id) window.__cccProjectChecklist?.openClaimableForCurrentThread?.(id); else window.__cccProjectChecklist?.openGeneral?.(); }, true); host.insertBefore(button, before?.parentElement === host ? before : null); } render(button); return button; };
+  const ensure = (host, before) => { let button = document.querySelector('[data-ccc-claim-task]'); if (!button) { button = document.createElement('button'); button.type = 'button'; button.dataset.cccClaimTask = ''; button.addEventListener('click', (event) => { event.preventDefault(); event.stopImmediatePropagation(); const id = getThreadId(); if (id) window.__cccProjectChecklist?.openClaimableForCurrentThread?.(id); else window.__cccProjectChecklist?.openGeneral?.(); }, true); host.insertBefore(button, before?.parentElement === host ? before : null); } button.style.cssText = 'display:inline-flex;order:2;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; render(button); return button; };
   return { ensure, set(value) { count = Math.max(0, Math.floor(Number(value) || 0)); const button = document.querySelector('[data-ccc-claim-task]'); if (button) render(button); return count; } };
 }

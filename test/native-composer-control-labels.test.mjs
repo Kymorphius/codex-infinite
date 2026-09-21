@@ -14,10 +14,13 @@ test('native composer controls use compact labels without changing their actions
   assert.match(context, /permission\.setAttribute\('aria-hidden', 'true'\)/);
 
   assert.match(createNativeSaveDraftTodoButton.toString(), /存待办/);
+  assert.match(buildNativeContextInjectionScript(), /order:3/);
   assert.match(createNativeClaimTaskBridge.toString(), /领任务/);
+  assert.match(createNativeClaimTaskBridge.toString(), /order:2/);
 
   const jev = buildNativeJevRoutingInjectionScript();
   assert.match(jev, /'直连' : '路由'/);
+  assert.match(jev, /order:4/);
   assert.doesNotMatch(jev, /'Jev 原生' : 'Jev 路由'/);
 
   const turbo = buildNativeTurboInjectionScript();

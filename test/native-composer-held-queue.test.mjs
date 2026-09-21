@@ -46,6 +46,7 @@ test("native held queue saves the current text draft before clearing it", () => 
   const clear = source.slice(source.indexOf("function clearDraftText"), source.indexOf("function saveDraftTodo"));
   const save = source.slice(source.indexOf("function saveDraftTodo"), source.indexOf("const draftTodoButton"));
   assert.match(source, /存待办/);
+  assert.match(source, /order:1/);
   assert.match(source, /data-ccc-save-draft-todo/);
   assert.ok(save.indexOf("writeHeld") < save.indexOf("clearDraftText"));
   assert.match(save, /\[{ type: 'text', text }\]/);

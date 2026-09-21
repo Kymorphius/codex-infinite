@@ -11,8 +11,8 @@ import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.1', LEGACY = '2026-09-18.3';
-  const SAVE_DRAFT_VERSION = '2026-09-22.1', LEGACY_SAVE = '2026-09-18.1';
+  const VERSION = '2026-09-22.2', LEGACY = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-22.2', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -281,7 +281,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待办', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
-    if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
+    if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
     claimTasks.ensure(host, toolbar);
     let panel = document.querySelector('[data-ccc-held-queue-panel]'); const panelCreated = !panel;
     if (panelCreated) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
@@ -297,7 +297,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) {
       save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
-      save.style.cssText = 'display:inline-flex;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
+      save.style.cssText = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
       const manager = document.querySelector('[data-ccc-held-queue-button]'); host.insertBefore(save, manager?.parentElement === host ? manager : null);
     }
     claimTasks.ensure(host, document.querySelector('[data-ccc-held-queue-button]'));
