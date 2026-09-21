@@ -1,7 +1,7 @@
 import { readNativeChecklistHeldTodos } from './native-checklist-held-todos.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => []) {
-  const VERSION = '2026-09-21.3', KEY = 'ccc.project-checklist.pending.v1';
+  const VERSION = '2026-09-21.4', KEY = 'ccc.project-checklist.pending.v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', storageError = '';
