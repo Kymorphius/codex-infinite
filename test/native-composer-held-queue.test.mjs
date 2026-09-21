@@ -17,6 +17,12 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /领取任务/);
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
+  assert.match(source, /__codexControlConsoleSetAssignedChecklistTasks/);
+  assert.match(source, /任务·已领取·暂停/);
+  assert.match(source, /resumeAssignedTask/);
+  assert.match(source, /completeAssignedTask/);
+  assert.match(source, /恢复发送/);
+  assert.match(source, /查看综合清单/);
   assert.match(source, /领取任务 ' \+ count/);
   assert.match(source, /新建聊天后即可领取/);
   assert.match(source, /if \(!id\) \{.*claimTasks\.ensure/);
@@ -36,7 +42,7 @@ test("native held queue saves the current text draft before clearing it", () => 
   const source = buildNativeComposerHeldQueueInjectionScript();
   const read = source.slice(source.indexOf("function draftText"), source.indexOf("function updateDraftButton"));
   const clear = source.slice(source.indexOf("function clearDraftText"), source.indexOf("function saveDraftTodo"));
-  const save = source.slice(source.indexOf("function saveDraftTodo"), source.indexOf("function syncNative"));
+  const save = source.slice(source.indexOf("function saveDraftTodo"), source.indexOf("const draftTodoButton"));
   assert.match(source, /存为待办/);
   assert.match(source, /data-ccc-save-draft-todo/);
   assert.ok(save.indexOf("writeHeld") < save.indexOf("clearDraftText"));
@@ -154,8 +160,8 @@ test("every pending row exposes edit and queued editing pauses before opening", 
 test("new held manager remains authoritative while a legacy hot runtime is active", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
   assert.match(source, /__codexControlConsoleHeldQueueInstalledVersion/);
-  assert.match(source, /LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18\.3'/);
-  assert.match(source, /__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION/);
+  assert.match(source, /LEGACY = '2026-09-18\.3'/);
+  assert.match(source, /__codexControlConsoleHeldQueueVersion = LEGACY/);
   assert.match(source, /__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION/);
   assert.match(source, /__codexControlConsoleHeldQueueObserver && window\.__codexControlConsoleSaveDraftTodoObserver/);
   assert.match(source, /!document\.querySelector\('\[data-ccc-held-queue-button\]'\) \|\| !document\.querySelector\('\[data-ccc-held-queue-panel\]'\)/);

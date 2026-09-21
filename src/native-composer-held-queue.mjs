@@ -4,11 +4,14 @@ import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { createNativeClaimTaskBridge } from "./native-claim-task-control.mjs";
 import { createNativeSaveDraftTodoButton } from "./native-save-draft-control.mjs";
+import { appendAssignedChecklistTaskRows, normalizeAssignedChecklistTasks, resumeAssignedTask, updateHeldQueueShell } from "./native-assigned-checklist-tasks.mjs";
+import { reloadWithHeldDraft, restoreNativeHeldDraft } from "./native-held-draft-recovery.mjs";
+import { summarizeNativeHeldMessage } from "./native-held-message-summary.mjs";
 import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-20.5', LEGACY_RUNTIME_GUARD_VERSION = '2026-09-18.3';
+  const VERSION = '2026-09-21.1', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-18.2', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -23,7 +26,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   document.querySelector('[data-ccc-held-queue-style]')?.remove();
   window.__codexControlConsoleHeldQueueInstalledVersion = VERSION;
   window.__codexControlConsoleSaveDraftTodoInstalledVersion = SAVE_DRAFT_VERSION;
-  window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
+  window.__codexControlConsoleHeldQueueVersion = LEGACY;
   window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const readThreadId = ${readNativeComposerThreadId.toString()};
@@ -38,13 +41,18 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   let serverItems = [];
   let warning = '';
   let editing = null;
-  let heldView = 'manual';
+  let heldView = 'manual', assignedTasks = [];
   const staleThreads = new Set();
   let activeThreadId = null;
 
   ${readHeldEditableText.toString()}
   ${replaceHeldEditableText.toString()} ${formatHeldInitialTime.toString()} ${orderHeldForView.toString()}
   ${createHeldDisplayRow.toString()} ${createHeldEditRow.toString()}
+  ${appendAssignedChecklistTaskRows.toString()} ${normalizeAssignedChecklistTasks.toString()}
+  ${resumeAssignedTask.toString()} ${updateHeldQueueShell.toString()}
+  ${restoreNativeHeldDraft.toString()}
+  ${reloadWithHeldDraft.toString()}
+  ${summarizeNativeHeldMessage.toString()}
 
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
@@ -77,17 +85,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
     window.dispatchEvent(new Event('codex-control-console-held-todos-changed'));
   }
-  function summarize(value) {
-    const found = [];
-    const visit = (entry, depth = 0) => {
-      if (found.length >= 4 || depth > 6 || entry == null) return;
-      if (typeof entry === 'string') { const text = entry.replace(/\\s+/g, ' ').trim(); if (text && !/^data:/i.test(text) && text.length < 12000) found.push(text); return; }
-      if (Array.isArray(entry)) { for (const part of entry) visit(part, depth + 1); return; }
-      if (typeof entry === 'object') for (const key of ['text','prompt','content','input']) if (Object.hasOwn(entry, key)) visit(entry[key], depth + 1);
-    };
-    visit(value);
-    return found.join(' · ').slice(0, 240) || '含附件或结构化内容的消息';
-  }
+  const summarize = summarizeNativeHeldMessage;
   function request(method, params) {
     const allowed = new Set(['thread/queue/list','thread/queue/delete','thread/queue/add','thread/queue/reorder']);
     if (!allowed.has(method)) return Promise.reject(new Error('队列操作无效'));
@@ -236,16 +234,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     render(); updateDraftButton();
   }
   const draftTodoButton = ${createNativeSaveDraftTodoButton.toString()}(saveDraftTodo);
-  function syncNative() {
-    const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-    const text = draftText(editor);
-    if (id && text) localStorage.setItem(DRAFT_KEY, JSON.stringify({ threadId: id, text, savedAt: Date.now() }));
-    location.reload();
-  }
-  function updateShell(id, toolbar, panel) {
-    toolbar.textContent = '待办 ' + (serverItems.length + heldFor(id).length); toolbar.dataset.warning = warning || staleThreads.has(id) ? 'true' : 'false';
-    panel.hidden = !open;
-  }
+  function syncNative() { reloadWithHeldDraft(threadId, draftText, DRAFT_KEY); }
+  const updateShell = (id, toolbar, panel) => updateHeldQueueShell(toolbar, panel, serverItems, heldFor(id), assignedTasks, warning || staleThreads.has(id), open);
   function render() {
     const id = threadId(), toolbar = document.querySelector('[data-ccc-held-queue-button]'), panel = document.querySelector('[data-ccc-held-queue-panel]');
     if (!id || !toolbar || !panel) return;
@@ -255,7 +245,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     panel.replaceChildren();
     const head = document.createElement('div'); head.dataset.cccHeldHead = '';
     const title = document.createElement('strong'); title.textContent = '待发消息';
-    const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + held.length + ' 待办';
+    const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + held.length + ' 待办 · ' + assignedTasks.length + ' 任务';
     const views = document.createElement('span'); views.dataset.cccHeldViews = '';
     views.append(button('手动视图', () => setHeldView(id, 'manual'), heldView === 'manual'), button('时间视图', () => setHeldView(id, 'time'), heldView === 'time'));
     head.append(title, views, state); panel.append(head);
@@ -271,17 +261,11 @@ export function buildNativeComposerHeldQueueInjectionScript() {
         button('编辑', () => startHeldEdit(item), busy), button('上移', () => reorderHeld(id, index, -1), busy || heldView === 'time' || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || heldView === 'time' || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
       ], item.heldAt));
     });
-    if (!serverItems.length && !held.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办消息'; list.append(empty); }
+    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, (task) => resumeAssignedTask(task, { threadId: id, busy: () => busy, setBusy, request, removeAssigned: (taskId) => { assignedTasks = assignedTasks.filter((item) => item.id !== taskId); }, setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
+    if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队、待办消息或已领取任务'; list.append(empty); }
     panel.append(list);
   }
-  function restoreDraft() {
-    const id = threadId(); if (!id) return;
-    let saved; try { saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch {}
-    if (!saved || saved.threadId !== id || Date.now() - saved.savedAt > 300000) return;
-    const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-    if (!editor || (editor.innerText || editor.textContent || '').trim()) return;
-    editor.focus(); document.execCommand('insertText', false, String(saved.text || '')); localStorage.removeItem(DRAFT_KEY);
-  }
+  const restoreDraft = () => restoreNativeHeldDraft(threadId, DRAFT_KEY);
   function install() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]'), root = editor?.closest('[data-composer-surface-variant]');
     const permission = document.querySelector('[data-composer-navigation-target="permissions"]'), host = permission?.parentElement;
@@ -340,7 +324,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   window.__codexControlConsoleHeldQueueRefreshTimer = setInterval(() => { if (open && !busy && !editing) void refresh(); }, 4000);
   window.__codexControlConsoleRefreshHeldQueue = refresh;
   window.__codexControlConsoleSetClaimableTaskCount = claimTasks.set;
-  window.__codexControlConsoleHeldQueueVersion = LEGACY_RUNTIME_GUARD_VERSION;
+  window.__codexControlConsoleSetAssignedChecklistTasks = (items) => { assignedTasks = normalizeAssignedChecklistTasks(items); render(); return assignedTasks.length; };
+  window.__codexControlConsoleHeldQueueVersion = LEGACY;
   window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE;
   schedule(); scheduleSaveDraftTodo();
 })();`;

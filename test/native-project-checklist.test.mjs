@@ -76,4 +76,5 @@ test('general checklist can assign or claim an unassigned task without sending i
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /领取不会发送消息/);
   assert.match(source, /assignedThreadId/);
+  assert.match(source, /completeAssignedTask/);
 });

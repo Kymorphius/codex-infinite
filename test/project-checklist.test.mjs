@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ProjectChecklistStore } from '../src/project-checklist-store.mjs';
 import { normalizeChecklistAction } from '../src/project-checklist-contract.mjs';
 import { syncProjectChecklist } from '../src/project-checklist-sync.mjs';
+import { assignedChecklistTasksForThread } from '../src/project-checklist-assignment.mjs';
 
 test('checklists isolate projects, persist edits and completion, delete and replay safely', async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'checklist-')); t.after(() => fs.rm(directory, { recursive: true, force: true }));
@@ -39,15 +40,28 @@ test('general checklist assignment persists without changing completion', async 
   const item = (await store.read('ccc:general-inbox:v1')).items[0];
   assert.equal(item.assignedThreadId, threadId); assert.equal(item.done, false);
 });
+
+test('assigned unfinished general tasks are normalized for their receiving conversation only', () => {
+  const threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a';
+  const tasks = assignedChecklistTasksForThread([
+    { id: 'keep', text: '  已领取任务  ', done: false, assignedThreadId: threadId },
+    { id: 'done', text: '已完成任务', done: true, assignedThreadId: threadId },
+    { id: 'other', text: '别的会话', done: false, assignedThreadId: '01a0ac42-2552-7141-8ec9-12c50515ac4b' },
+    { id: 'bad', text: '', done: false, assignedThreadId: threadId }
+  ], threadId.toUpperCase());
+  assert.deepEqual(tasks, [{ id: 'keep', text: '已领取任务' }]);
+  assert.deepEqual(assignedChecklistTasksForThread(tasks, 'not-a-thread'), []);
+});
 test('bridge does not install or mutate outside exact app page', async () => {
   const calls = []; await syncProjectChecklist({ evaluate: async code => { calls.push(code); return false; } }, { apply() { throw Error('must not write'); } });
   assert.equal(calls.length, 1);
 });
 
 test('checklist sync publishes only unfinished unassigned general tasks to the composer', async () => {
-  const calls = []; const store = { async read(key) { return { items: key === 'ccc:general-inbox:v1' ? [{ done: false }, { done: true }, { done: false, assignedThreadId: '01a0ac42-2552-7141-8ec9-12c50515ac4a' }] : [] }; }, async apply() {} };
-  await syncProjectChecklist({ evaluate: async code => { calls.push(code); if (code.includes("location.href")) return true; if (code.includes('window.__cccProjectChecklist?.packet()')) return {}; return false; } }, store);
+  const calls = [], threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a'; const store = { async read(key) { return { items: key === 'ccc:general-inbox:v1' ? [{ id: 'free', text: '未领取', done: false }, { id: 'done', text: '已完成', done: true }, { id: 'claimed', text: '已领取', done: false, assignedThreadId: threadId }] : [] }; }, async apply() {} };
+  await syncProjectChecklist({ evaluate: async code => { calls.push(code); if (code.includes("location.href")) return true; if (code.includes('window.__cccProjectChecklist?.packet()')) return {}; if (code.includes('data-above-composer-conversation-id')) return threadId; return false; } }, store);
   assert.ok(calls.some(code => code.includes('__codexControlConsoleSetClaimableTaskCount?.(1)')));
+  assert.ok(calls.some(code => code.includes('__codexControlConsoleSetAssignedChecklistTasks?.([{\"id\":\"claimed\",\"text\":\"已领取\"}])')));
 });
 
 test('catalog identity resolves to native sidebar ID and ignores remote host mappings', async t => {
