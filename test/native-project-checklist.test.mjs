@@ -3,17 +3,19 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { buildNativeProjectChecklistScript } from '../src/native-project-checklist.mjs';
 import { readNativeChecklistHeldTodos } from '../src/native-checklist-held-todos.mjs';
-function harness(saved = '[]') {
+import { readNativeChecklistConversationChoices } from '../src/native-checklist-conversation-choices.mjs';
+function harness(saved = '[]', conversationRows = []) {
   class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.dataset = {}; this.listeners = {}; this.value = ''; }
-    append(...nodes) { this.children.push(...nodes); }
-    replaceChildren(...nodes) { this.children = nodes; }
+    append(...nodes) { for (const node of nodes) if (node && typeof node === 'object') node.parent = this; this.children.push(...nodes); }
+    replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
+    replaceWith(...nodes) { const index = this.parent?.children.indexOf(this) ?? -1; if (index >= 0) { for (const node of nodes) if (node && typeof node === 'object') node.parent = this.parent; this.parent.children.splice(index, 1, ...nodes); } }
     setAttribute(k, v) { this.attrs[k] = v; }
     addEventListener(k, fn) { this.listeners[k] = fn; }
     focus() {} remove() {} showModal() { this.open = true; } close() { this.open = false; }
   }
   let storage = saved, id = 0;
-  const document = { body: new Node('body'), head: new Node('head'), createElement: tag => new Node(tag) };
+  const document = { body: new Node('body'), head: new Node('head'), createElement: tag => new Node(tag), querySelectorAll: () => conversationRows };
   const context = vm.createContext({ document, window: { addEventListener() {}, removeEventListener() {} }, crypto: { randomUUID: () => 'id-' + ++id }, localStorage: { getItem: () => storage, setItem: (_, v) => { storage = v; } } });
   vm.runInContext(buildNativeProjectChecklistScript(), context);
   return { api: context.window.__cccProjectChecklist, dialog: document.body.children[0], storage: () => storage };
@@ -59,6 +61,29 @@ test('general inbox opens without project and keeps actions separate from projec
   assert.equal(h.dialog.children[4].children[0].children[1].value, '还没确定谁来做');
 });
 
+test('general inbox opens from the proactively published snapshot without waiting for a read', () => {
+  const h = harness(); h.api.cacheGeneral([{ id: 'cached', text: '立即显示', done: false, assignedThreadId: null }]); h.api.openGeneral();
+  assert.equal(h.dialog.children[2].children[0].disabled, false);
+  assert.equal(h.dialog.children[4].children[0].children[1].value, '立即显示');
+});
+
+test('assigned general tasks leave the main list and expose reassignment in the lower todo projection', () => {
+  const threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a';
+  const row = { getAttribute: name => name.includes('thread-id') ? 'local:' + threadId : '当前会话', textContent: '当前会话' };
+  const h = harness('[]', [row]); h.api.cacheGeneral([{ id: 'task', text: '准备发送', done: false, assignedThreadId: null }]); h.api.openGeneral();
+  const list = h.dialog.children[4]; list.children[0].children[2].listeners.click();
+  list.children[0].children[2].value = threadId; list.children[0].children[3].listeners.click();
+  assert.equal(list.children.length, 1);
+  assert.equal(list.children[0].children[0].textContent, '会话待办');
+  assert.equal(list.children[0].children[2].textContent, '改派会话');
+});
+
+test('native conversation choices normalize only local UUID rows', () => {
+  const id = '01a0ac42-2552-7141-8ec9-12c50515ac4a';
+  const rows = [{ getAttribute: name => name.includes('thread-id') ? 'local:' + id.toUpperCase() : '会话 A', textContent: 'fallback' }, { getAttribute: () => 'remote:bad', textContent: 'bad' }];
+  assert.deepEqual(readNativeChecklistConversationChoices({ querySelectorAll: () => rows }), [{ id, title: '会话 A' }]);
+});
+
 test('general checklist projects held composer todos without copying them into editable checklist actions', () => {
   const threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a', todoId = 'cafcb830-d98c-40e9-9240-39e11ed11d7b';
   const storage = { getItem: () => JSON.stringify({ [threadId]: [{ id: todoId, summary: '只保留在会话待办里', heldAt: 1, origin: 'draft' }] }) };
@@ -80,4 +105,8 @@ test('general checklist can assign or claim an unassigned task without sending i
   assert.match(source, /领取不会发送消息/);
   assert.match(source, /assignedThreadId/);
   assert.match(source, /completeAssignedTask/);
+  assert.match(source, /选择指派会话/);
+  assert.match(source, /确认/);
+  assert.match(source, /取消/);
+  assert.doesNotMatch(source, /window\.prompt/);
 });

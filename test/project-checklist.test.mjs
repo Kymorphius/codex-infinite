@@ -61,6 +61,7 @@ test('checklist sync publishes only unfinished unassigned general tasks to the c
   const calls = [], threadId = '01a0ac42-2552-7141-8ec9-12c50515ac4a'; const store = { async read(key) { return { items: key === 'ccc:general-inbox:v1' ? [{ id: 'free', text: '未领取', done: false }, { id: 'done', text: '已完成', done: true }, { id: 'claimed', text: '已领取', done: false, assignedThreadId: threadId }] : [] }; }, async apply() {} };
   await syncProjectChecklist({ evaluate: async code => { calls.push(code); if (code.includes("location.href")) return true; if (code.includes('window.__cccProjectChecklist?.packet()')) return {}; if (code.includes('data-above-composer-conversation-id')) return threadId; return false; } }, store);
   assert.ok(calls.some(code => code.includes('__codexControlConsoleSetClaimableTaskCount?.(1)')));
+  assert.ok(calls.some(code => code.includes('__cccProjectChecklist?.cacheGeneral(')));
   assert.ok(calls.some(code => code.includes('__codexControlConsoleSetAssignedChecklistTasks?.([{\"id\":\"claimed\",\"text\":\"已领取\"}])')));
 });
 

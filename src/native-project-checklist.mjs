@@ -1,10 +1,11 @@
 import { readNativeChecklistHeldTodos } from './native-checklist-held-todos.mjs';
+import { readNativeChecklistConversationChoices } from './native-checklist-conversation-choices.mjs';
 
-export function installNativeProjectChecklist(readHeldTodos = () => []) {
-  const VERSION = '2026-09-21.4', KEY = 'ccc.project-checklist.pending.v1';
+export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => []) {
+  const VERSION = '2026-09-22.1', KEY = 'ccc.project-checklist.pending.v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
-  let project = null, items = [], held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', storageError = '';
+  let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', storageError = '';
   try { const saved = JSON.parse(localStorage.getItem(KEY) || '[]'); if (Array.isArray(saved)) pending = saved; }
   catch { storageError = '无法读取待保存任务，请勿关闭窗口'; }
   const make = (tag, text) => { const node = document.createElement(tag); if (text) node.textContent = text; return node; };
@@ -14,6 +15,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => []) {
     [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px}
     [data-ccc-checklist] h2{font-size:18px;margin:0}[data-ccc-checklist] p{color:#999;margin:6px 0 18px;overflow-wrap:anywhere}
     [data-ccc-checklist] button{cursor:pointer;border:1px solid #8885;border-radius:7px;padding:5px 10px;background:transparent;color:inherit}
+    [data-ccc-checklist] select{min-width:150px;max-width:240px;border:1px solid #8885;border-radius:7px;padding:5px 8px;background:var(--color-background-primary,#252525);color:inherit}
     [data-ccc-checklist] form{display:flex;gap:8px;margin:16px 0}
     [data-ccc-checklist] input[type=text]{min-width:0;flex:1;border:1px solid #8885;border-radius:7px;background:transparent;color:inherit;padding:8px}
     [data-ccc-checklist] ul{list-style:none;padding:0;margin:12px 0;max-height:45vh;overflow:auto}
@@ -48,11 +50,24 @@ export function installNativeProjectChecklist(readHeldTodos = () => []) {
     pending.push({ projectKey: project.key, type, id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, requestId: crypto.randomUUID() });
     persist(); render();
   }
+  function appendAssignmentControl(row, item, label) {
+    const assign = make('button', label); assign.disabled = loaded !== project?.key;
+    assign.addEventListener('click', () => {
+      const choices = readConversationChoices(document);
+      if (!choices.length) { error = '暂时没有可指派的本机会话'; state(); return; }
+      const select = make('select'), confirm = make('button', '确认'), cancel = make('button', '取消');
+      select.setAttribute('aria-label', '选择指派会话'); const none = make('option', '不指派'); none.value = ''; select.append(none);
+      for (const choice of choices) { const option = make('option', choice.title || choice.id); option.value = choice.id; option.selected = choice.id === item.assignedThreadId; select.append(option); }
+      confirm.addEventListener('click', () => act('upsert', { ...item, assignedThreadId: select.value || null }));
+      cancel.addEventListener('click', render); assign.replaceWith(select, confirm, cancel);
+    }); row.append(assign);
+  }
   function render() {
     state(); list.replaceChildren(); const values = view(), projectedHeld = project?.general ? held : [];
-    count.textContent = `${values.filter(item => !item.done).length} 项待办 · ${values.filter(item => item.done).length} 项已完成${project?.general ? ' · ' + (heldLoaded ? projectedHeld.length + ' 项会话待办' : '正在加载会话待办…') : ''}`;
-    if (!values.length && (!heldLoaded || !projectedHeld.length)) { list.append(make('li', loaded === project?.key ? (project?.general && !heldLoaded ? '正在加载会话待办…' : '还没有任务，先记下一件想做的事。') : '正在读取清单…')); return; }
-    const visible = project?.claimThreadId ? values.filter(item => !item.done && !item.assignedThreadId) : values;
+    const assigned = project?.general && !project.claimThreadId ? values.filter(item => !item.done && item.assignedThreadId) : [];
+    const visible = project?.claimThreadId ? values.filter(item => !item.done && !item.assignedThreadId) : project?.general ? values.filter(item => !item.assignedThreadId) : values;
+    count.textContent = project?.general ? `${visible.filter(item => !item.done).length} 项未指派 · ${values.filter(item => item.done).length} 项已完成 · ${heldLoaded ? assigned.length + projectedHeld.length + ' 项会话待办' : '正在加载会话待办…'}` : `${values.filter(item => !item.done).length} 项待办 · ${values.filter(item => item.done).length} 项已完成`;
+    if (!visible.length && !assigned.length && (!heldLoaded || !projectedHeld.length)) list.append(make('li', loaded === project?.key ? (project?.general && !heldLoaded ? '正在加载会话待办…' : '还没有任务，先记下一件想做的事。') : '正在读取清单…'));
     for (const item of visible) {
       const row = make('li'), check = make('input'), text = make('input'), remove = make('button', '删除');
       row.dataset.done = String(item.done); check.type = 'checkbox'; check.checked = item.done; check.setAttribute('aria-label', '完成：' + item.text);
@@ -65,17 +80,12 @@ export function installNativeProjectChecklist(readHeldTodos = () => []) {
       check.addEventListener('change', () => act('upsert', { ...item, done: check.checked }));
       text.addEventListener('change', () => { if (text.value.trim()) act('upsert', { ...item, text: text.value.trim() }); else text.value = item.text; });
       remove.addEventListener('click', () => act('delete', item)); row.append(check, text);
-      if (project?.general) {
-        const assign = make('button', item.assignedThreadId ? '改派会话' : '指派会话');
-        assign.disabled = loaded !== project?.key;
-        assign.addEventListener('click', () => {
-          const rows = [...document.querySelectorAll('[data-app-action-sidebar-thread-id^="local:"]')];
-          const choices = rows.map(row => [String(row.getAttribute('data-app-action-sidebar-thread-id') || '').slice(6), String(row.getAttribute('data-app-action-sidebar-thread-title') || row.textContent || '').trim()]).filter(([id]) => /^[0-9a-f-]{36}$/i.test(id));
-          const choice = window.prompt('输入要指派的会话编号：\n' + choices.map(([id, title]) => id + '  ' + title).join('\n'), item.assignedThreadId || '');
-          if (choice !== null) act('upsert', { ...item, assignedThreadId: choice.trim() || null });
-        }); row.append(assign);
-      }
+      if (project?.general) appendAssignmentControl(row, item, '指派会话');
       row.append(remove); list.append(row);
+    }
+    for (const item of assigned) {
+      const row = make('li'), source = make('small', '会话待办'), text = make('input'); row.setAttribute('data-ccc-held-todo', '');
+      text.type = 'text'; text.value = item.text; text.disabled = true; row.append(source, text); appendAssignmentControl(row, item, '改派会话'); list.append(row);
     }
     for (const item of projectedHeld) {
       const row = make('li'), source = make('small', item.origin), text = make('input'), open = make('button', '打开会话');
@@ -96,13 +106,14 @@ export function installNativeProjectChecklist(readHeldTodos = () => []) {
     openGeneral() { this.open({ key: 'ccc:general-inbox:v1', general: true, name: '先记下想做的事，之后再确定归属。未指派任务可分给会话；会话待办也会显示在这里。' }); },
     openClaimableForCurrentThread(threadId) { this.open({ key: 'ccc:general-inbox:v1', general: true, claimThreadId: threadId, name: '选择一项未指派的综合任务领取到当前会话。领取不会发送消息。' }); },
     completeAssignedTask(id) { const item = view().find(value => value.id === id && !value.done && value.assignedThreadId); if (item) act('upsert', { ...item, done: true }); },
-    open(value) { title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; project = value; items = []; held = []; heldLoaded = !value.general; loaded = ''; error = ''; subtitle.textContent = value.name || value.id; input.value = ''; render(); if (!dialog.open) dialog.showModal(); if (value.general) scheduleHeldLoad(); },
+    open(value) { title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; project = value; items = value.general && generalLoaded ? generalItems : []; held = []; heldLoaded = !value.general; loaded = value.general && generalLoaded ? value.key : ''; error = ''; subtitle.textContent = value.name || value.id; input.value = ''; render(); if (!dialog.open) dialog.showModal(); if (value.general) scheduleHeldLoad(); },
+    cacheGeneral(nextItems) { if (!Array.isArray(nextItems)) return; generalItems = nextItems; generalLoaded = true; if (project?.key === 'ccc:general-inbox:v1' && loaded !== project.key) { items = generalItems; loaded = project.key; render(); } },
     packet() { return { projectKey: project?.key || '', actions: pending.slice(0, 20) }; },
     accept(result) {
       const before = JSON.stringify(view());
       pending = pending.filter(action => !result.acknowledged.includes(action.requestId)); persist(); error = result.error || '';
       const first = loaded !== project?.key;
-      if (result.projectKey === project?.key && Array.isArray(result.items)) { items = result.items; loaded = result.projectKey; }
+      if (result.projectKey === project?.key && Array.isArray(result.items)) { items = result.items; loaded = result.projectKey; if (result.projectKey === 'ccc:general-inbox:v1') { generalItems = result.items; generalLoaded = true; } }
       if (first || before !== JSON.stringify(view())) render(); else state();
     },
     dispose() { window.removeEventListener('codex-control-console-held-todos-changed', refreshHeldTodos); dialog.remove(); style.remove(); }
@@ -112,4 +123,4 @@ export function installNativeProjectChecklist(readHeldTodos = () => []) {
   function refreshHeldTodos() { if (project?.general) { heldLoaded = false; scheduleHeldLoad(); render(); } }
   window.addEventListener('codex-control-console-held-todos-changed', refreshHeldTodos);
 }
-export function buildNativeProjectChecklistScript() { return `(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()});`; }
+export function buildNativeProjectChecklistScript() { return `(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()},${readNativeChecklistConversationChoices.toString()});`; }
