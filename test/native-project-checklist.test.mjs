@@ -33,7 +33,7 @@ test('native checklist adds, edits, completes and deletes while acknowledging wi
   input.value = '做一件事'; form.listeners.submit({ preventDefault() {} });
   let packet = h.api.packet(); assert.equal(packet.actions.length, 1);
   const action = packet.actions[0], row = list.children[0]; row.children[1].value = '尚未失去焦点的编辑';
-  h.api.accept({ projectKey: 'p', items: [{ id: action.id, text: action.text, done: false, updatedAt: 'now' }], acknowledged: [action.requestId] });
+  h.api.accept({ projectKey: 'p', items: [{ id: action.id, text: action.text, done: false, createdAt: action.createdAt, updatedAt: 'now' }], acknowledged: [action.requestId] });
   assert.equal(list.children[0], row); assert.equal(row.children[1].value, '尚未失去焦点的编辑');
   row.children[1].listeners.change();
   assert.equal(h.api.packet().actions[0].text, '尚未失去焦点的编辑');
@@ -208,4 +208,46 @@ test('assigned completion rejects completed, removed, unassigned and changed tas
     assert.equal(h.api.completeAssignedTask(task.id, null, task.text), false);
     assert.equal(h.api.packet().actions.length, 0);
   }
+});
+
+test('project and claimable rows sort oldest first and show immutable added time across editing and acknowledgement', () => {
+  const h = harness(), early = '2026-09-20T01:02:03.000Z', late = '2026-09-21T01:02:03.000Z';
+  const items = [{ id: 'later', text: '较晚', done: false, createdAt: late }, { id: 'early', text: '最早', done: false, createdAt: early }];
+  h.api.open({ key: 'p' }); h.api.accept({ projectKey: 'p', items, acknowledged: [] });
+  const list = h.dialog.children[4], first = list.children[0];
+  assert.deepEqual(list.children.map(row => row.children[1].value), ['最早', '较晚']);
+  assert.equal(first.children.at(-1).attrs.datetime, early);
+  assert.match(first.children.at(-1).textContent, /加入 2026-09-20/);
+  first.children[1].value = '最早（编辑）'; first.children[1].listeners.change();
+  const [action] = h.api.packet().actions, editedRow = list.children[0];
+  assert.equal(action.createdAt, early);
+  h.api.accept({ projectKey: 'p', items: [items[0], { ...items[1], text: action.text, updatedAt: late }], acknowledged: [action.requestId] });
+  assert.equal(list.children[0], editedRow);
+  h.api.cacheGeneral(items); h.api.openClaimableForCurrentThread(threadA);
+  assert.deepEqual(list.children.map(row => row.children[0].value), ['最早', '较晚']);
+  assert.equal(list.children[0].children.at(-1).attrs.datetime, early);
+  assert.deepEqual(items.map(item => item.id), ['later', 'early']);
+});
+
+test('new task initial time survives pending storage reload and does not gain a new timestamp on edit', () => {
+  const h = harness(); h.api.open({ key: 'p' }); h.api.accept({ projectKey: 'p', items: [], acknowledged: [] });
+  const form = h.dialog.children[2]; form.children[0].value = '带时间的草稿'; form.listeners.submit({ preventDefault() {} });
+  const createdAt = h.api.packet().actions[0].createdAt;
+  assert.ok(Number.isFinite(Date.parse(createdAt)));
+  const restored = harness(h.storage()); restored.api.open({ key: 'p' }); restored.api.accept({ projectKey: 'p', items: [], acknowledged: [] });
+  const row = restored.dialog.children[4].children[0];
+  assert.equal(row.children.at(-1).attrs.datetime, createdAt);
+  row.children[1].value = '编辑后的草稿'; row.children[1].listeners.change();
+  assert.equal(restored.api.packet().actions.at(-1).createdAt, createdAt);
+});
+
+test('legacy estimated and unknown times are explicit and assigned tasks retain the same date label', () => {
+  const h = harness(), old = { id: 'old', text: '旧记录', done: false, updatedAt: '2026-09-20T01:02:03.000Z' };
+  h.api.cacheGeneral([{ id: 'unknown', text: '缺时间', done: false }, old, { ...old, id: 'assigned', assignedThreadId: threadA }]); h.api.openGeneral();
+  const rows = h.dialog.children[4].children;
+  assert.equal(rows[0].children[1].value, old.text);
+  assert.match(rows[0].children.at(-1).textContent, /加入约 2026-09-20/);
+  assert.match(rows[0].children.at(-1).title, /最后保存时间估算/);
+  assert.equal(rows[1].children.at(-1).textContent, '加入时间未记录');
+  assert.equal(rows[2].children.at(-1).textContent, rows[0].children.at(-1).textContent);
 });

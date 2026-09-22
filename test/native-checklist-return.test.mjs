@@ -149,13 +149,14 @@ test('persisted return becomes claimable and can be reclaimed using the same tas
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const store = new ProjectChecklistStore(directory);
   await store.apply({ ...task, projectKey: generalKey, type: 'upsert', requestId: 'seed' });
+  const original = (await store.read(generalKey)).items[0];
   const h = harness(); h.api.cacheGeneral((await store.read(generalKey)).items);
   const returning = h.api.returnAssignedTask(task.id, threadA, task.text);
   const [action] = h.api.packet().actions;
   const acknowledged = [await store.apply(action)];
   const returned = (await new ProjectChecklistStore(directory).read(generalKey)).items;
   assert.equal(returned.length, 1);
-  assert.deepEqual({ ...returned[0], updatedAt: undefined }, { ...task, assignedThreadId: null, updatedAt: undefined });
+  assert.deepEqual({ ...returned[0], updatedAt: undefined }, { ...original, assignedThreadId: null, updatedAt: undefined });
   assert.deepEqual(assignedChecklistTasksForThread(returned, threadA), []);
   h.api.cacheGeneral(returned); h.api.accept({ projectKey: '', acknowledged }); await returning;
   h.api.openClaimableForCurrentThread(threadB);
@@ -168,6 +169,7 @@ test('persisted return becomes claimable and can be reclaimed using the same tas
   await store.apply(claim);
   const reclaimed = (await new ProjectChecklistStore(directory).read(generalKey)).items;
   assert.equal(reclaimed.length, 1);
+  assert.equal(reclaimed[0].createdAt, original.createdAt);
   assert.deepEqual(assignedChecklistTasksForThread(reclaimed, threadB), [{ id: task.id, text: task.text }]);
   assert.deepEqual(assignedChecklistTasksForThread(reclaimed, threadA), []);
 });

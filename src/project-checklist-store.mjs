@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { normalizeChecklistAction } from './project-checklist-contract.mjs';
+import { checklistTimeMetadata } from './project-checklist-time.mjs';
 export class ProjectChecklistStore {
   constructor(directory) { this.directory = directory; this.chain = Promise.resolve(); }
   file(key) {
@@ -17,7 +18,7 @@ export class ProjectChecklistStore {
       if (data.version !== 1 || !Array.isArray(data.items) || !Array.isArray(data.receipts)) throw Error('清单损坏');
       if (data.items.length > 1000 || data.receipts.some(id => typeof id !== 'string')) throw Error('清单损坏');
       for (const item of data.items) normalizeChecklistAction({ ...item, projectKey: key, requestId: 'validate', type: 'upsert' });
-      return data;
+      return { ...data, items: data.items.map(item => ({ ...item, ...checklistTimeMetadata(item) })) };
     } catch (error) { if (error.code === 'ENOENT') return { version: 1, items: [], receipts: [] }; throw error; }
   }
   apply(value) {
@@ -28,7 +29,9 @@ export class ProjectChecklistStore {
       const index = data.items.findIndex(item => item.id === action.id);
       if (action.type === 'delete') data.items = data.items.filter(item => item.id !== action.id);
       else {
-        const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId, updatedAt: new Date().toISOString() };
+        const updatedAt = new Date().toISOString();
+        const time = index >= 0 ? checklistTimeMetadata(data.items[index]) : checklistTimeMetadata(Object.prototype.hasOwnProperty.call(action, 'createdAt') ? action : { ...action, createdAt: updatedAt });
+        const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId, updatedAt, ...time };
         if (index >= 0) data.items[index] = item; else data.items.push(item);
       }
       if (data.items.length > 1000) throw Error('清单最多保存 1000 项');
