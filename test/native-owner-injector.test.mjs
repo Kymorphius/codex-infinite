@@ -35,7 +35,7 @@ test("primary owner injector installs only native bridges and does not add the d
   assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleSetSidebarLabels") && source.includes("看板")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-remote-sidebar")));
   assert.ok(evaluated.some((source) => source.includes("__codexControlConsoleSetRemoteSidebar") && source.includes("Windows Desktop")));
-  assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-attention-sticky") && source.includes("position:sticky")));
+  assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-attention-sticky") && source.includes("AttentionStickyObserver = null")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-chat-title") && source.includes("聊天")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-open-local-project") && source.includes("打开本地项目")));
   assert.ok(evaluated.some((source) => source.includes("data-codex-control-console-turn-state-turn")));
