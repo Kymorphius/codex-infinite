@@ -21,8 +21,8 @@ export function createAssignedChecklistState(readThreadId) {
   };
 }
 
-export function appendAssignedChecklistTaskRows(list, items, createRow, makeButton, busy, resume) {
-  items.forEach((item) => list.append(createRow('待办·暂停', item.text, [makeButton('恢复', () => resume(item), busy), makeButton('管理', () => window.__cccProjectChecklist?.openGeneral?.(), busy)])));
+export function appendAssignedChecklistTaskRows(list, items, createRow, makeButton, busy, returnTask, resume) {
+  items.forEach((item) => list.append(createRow('待办·暂停', item.text, [makeButton('恢复', () => resume(item), busy), makeButton('退回', () => returnTask(item), busy)])));
 }
 
 export async function resumeAssignedTask(task, context) {

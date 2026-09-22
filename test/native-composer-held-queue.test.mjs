@@ -8,7 +8,7 @@ import { updateHeldQueueShell } from "../src/native-assigned-checklist-tasks.mjs
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-22\.10'/);
+  assert.match(source, /const VERSION = '2026-09-22\.11'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -26,7 +26,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /resumeAssignedTask/);
   assert.match(source, /completeAssignedTask/);
   assert.match(source, /makeButton\('恢复'/);
-  assert.match(source, /makeButton\('管理'/);
+  assert.match(source, /makeButton\('退回'/);
   assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
   assert.doesNotMatch(source, /updateShell\(id, toolbar, panel\); if \(!open\) return/);
   assert.match(source, /指派任务 '.*\+ count/);

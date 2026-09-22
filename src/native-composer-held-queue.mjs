@@ -9,10 +9,11 @@ import { reloadWithHeldDraft, restoreNativeHeldDraft } from "./native-held-draft
 import { summarizeNativeHeldMessage } from "./native-held-message-summary.mjs";
 import { createNativeHeldQueueRequest } from "./native-held-queue-bridge.mjs";
 import{noThread}from"./native-composer-availability.mjs";
+import { returnAssignedTodo } from './native-checklist-return.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.10', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-22.11', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-22.3', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -55,6 +56,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   ${restoreNativeHeldDraft.toString()}
   ${reloadWithHeldDraft.toString()}
   ${summarizeNativeHeldMessage.toString()}
+  ${returnAssignedTodo.toString()}
 
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
@@ -252,7 +254,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
         button('编辑', () => startHeldEdit(item), busy), button('上移', () => reorderHeld(id, index, -1), busy || heldView === 'time' || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || heldView === 'time' || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
       ], item.heldAt));
     });
-    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
+    const returnTask = (task) => returnAssignedTodo(task, { threadId: id, isCurrent: () => threadId() === id, busy: () => busy, setBusy, setWarning: (value) => { warning = value; } });
+    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, returnTask, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
     if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办'; list.append(empty); }
     panel.append(list);
   }

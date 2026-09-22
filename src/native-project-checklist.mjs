@@ -1,8 +1,10 @@
 import { readNativeChecklistHeldTodos } from './native-checklist-held-todos.mjs';
 import { readNativeChecklistConversationChoices } from './native-checklist-conversation-choices.mjs';
+import { readNativeComposerThreadId } from './native-composer-thread-id.mjs';
+import { createChecklistReturnBridge } from './native-checklist-return.mjs';
 
-export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => []) {
-  const VERSION = '2026-09-22.2', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns) {
+  const VERSION = '2026-09-22.3', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', storageError = '', renderVersion = 0;
@@ -62,6 +64,14 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       cancel.addEventListener('click', render); assign.replaceWith(select, confirm, cancel);
     }); row.append(assign);
   }
+  const returns = createReturns({
+    readItems: () => view(GENERAL_KEY, generalItems), readThreadId: () => readThreadId(document),
+    enqueue(action) {
+      pending.push(action); persist();
+      if (storageError) { pending = pending.filter(value => value.requestId !== action.requestId); throw new Error(storageError); }
+      render();
+    }
+  });
   function render() {
     const version = ++renderVersion;
     state(); list.replaceChildren(); const values = view(), projectedHeld = project?.general ? held : [];
@@ -109,6 +119,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   close.addEventListener('click', () => dialog.close());
   dialog.addEventListener('keydown', event => event.stopPropagation());
   window.__cccProjectChecklist = { version: VERSION,
+    returnAssignedTask: returns.returnAssignedTask,
     openGeneral() { this.open({ key: 'ccc:general-inbox:v1', general: true, name: '先记下想做的事，之后再确定归属。未指派任务可分给会话；会话待办也会显示在这里。' }); },
     openClaimableForCurrentThread(threadId) { this.open({ key: 'ccc:general-inbox:v1', general: true, claimThreadId: threadId, name: '选择一项未指派的综合任务领取到当前会话。领取不会发送消息。' }); },
     completeAssignedTask(id, threadId, text) {
@@ -126,12 +137,13 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       const first = loaded !== project?.key;
       if (result.projectKey === project?.key && Array.isArray(result.items)) { items = result.items; loaded = result.projectKey; if (result.projectKey === 'ccc:general-inbox:v1') { generalItems = result.items; generalLoaded = true; } }
       if (first || before !== JSON.stringify(view())) render(); else state();
+      returns.accept(result);
     },
-    dispose() { window.removeEventListener('codex-control-console-held-todos-changed', refreshHeldTodos); dialog.remove(); style.remove(); }
+    dispose() { returns.dispose(); window.removeEventListener('codex-control-console-held-todos-changed', refreshHeldTodos); dialog.remove(); style.remove(); }
   };
   function loadHeldTodos() { heldLoadScheduled = false; if (!project?.general) return; held = readHeldTodos(localStorage); heldLoaded = true; render(); }
   function scheduleHeldLoad() { if (heldLoadScheduled || heldLoaded || !project?.general) return; heldLoadScheduled = true; if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(loadHeldTodos, { timeout: 1000 }); else if (typeof setTimeout === 'function') setTimeout(loadHeldTodos, 0); else heldLoadScheduled = false; }
   function refreshHeldTodos() { if (project?.general) { heldLoaded = false; scheduleHeldLoad(); render(); } }
   window.addEventListener('codex-control-console-held-todos-changed', refreshHeldTodos);
 }
-export function buildNativeProjectChecklistScript() { return `(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()},${readNativeChecklistConversationChoices.toString()});`; }
+export function buildNativeProjectChecklistScript() { return `(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()},${readNativeChecklistConversationChoices.toString()},${readNativeComposerThreadId.toString()},${createChecklistReturnBridge.toString()});`; }
