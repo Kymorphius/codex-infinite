@@ -1,6 +1,10 @@
 import { highestModelEfforts, TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
 import { buildNativeTurboUiSource } from "./native-turbo-ui.mjs";
 import { buildNativeTurboEnforcementSource } from "./native-turbo-enforcement.mjs";
+import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
+import { formatNativeTurboTurnReceipt, normalizeNativeTurboTurnReceipt, readNativeTurboTurnRequest } from "./native-turbo-turn-contract.mjs";
+import { installNativeTurboTurnReceipts } from "./native-turbo-turn-receipts.mjs";
+import { installNativeTurboTurnRenderer } from "./native-turbo-turn-render.mjs";
 
 export const NATIVE_TURBO_BINDING = "__codexControlConsoleToggleTurbo";
 
@@ -52,7 +56,8 @@ export function buildNativeTurboInjectionScript() {
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
   const enforcementSource = buildNativeTurboEnforcementSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-22.controls2') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-22.turn-receipts1') return;
+  window.__codexControlConsoleTurboTurnCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
   try {
     const currentSend = window.electronBridge?.sendMessageFromView;
@@ -62,7 +67,7 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-22.controls2';
+  window.__codexControlConsoleTurboVersion = '2026-09-22.turn-receipts1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
@@ -160,6 +165,18 @@ export function buildNativeTurboInjectionScript() {
 
   ${uiSource}
   ${enforcementSource}
+  let turboTurnRenderer = null;
+  const readTurboTurnRequest = ${readNativeTurboTurnRequest.toString()};
+  const turboTurnReceipts = (${installNativeTurboTurnReceipts.toString()})({
+    hostWindow: window, storage: localStorage, normalizeReceipt: ${normalizeNativeTurboTurnReceipt.toString()},
+    readVerifiedSettings: verifiedTurboTurnSettings, onChange: () => turboTurnRenderer?.render()
+  });
+  turboTurnRenderer = (${installNativeTurboTurnRenderer.toString()})({
+    hostWindow: window, documentRef: document, readThreadId: ${readNativeComposerThreadId.toString()},
+    getReceipts: turboTurnReceipts.getReceipts, formatLabel: ${formatNativeTurboTurnReceipt.toString()}
+  });
+  window.__codexControlConsoleTurboTurnCleanup = () => { turboTurnReceipts.cleanup(); turboTurnRenderer.cleanup(); };
+  turboTurnRenderer.render();
 
   function install() {
     installButton();
@@ -177,7 +194,15 @@ export function buildNativeTurboInjectionScript() {
     const wrapped = function(message) {
       const preparation = prepareTurboContext(originalSend, message);
       const transformed = transform(message);
-      return preparation ? preparation.then(() => originalSend(transformed)) : originalSend(transformed);
+      const snapshot = transformed !== message ? readTurboTurnRequest(transformed, policy.millionContext ? 1000000 : Number(window.__codexControlConsoleGetContextWindow?.(transformed.request.params.threadId)) || null) : null;
+      const dispatch = () => {
+        const cancelReceipt = turboTurnReceipts.trackRequest(transformed?.request?.id, snapshot);
+        try {
+          const result = originalSend(transformed);
+          return result?.catch ? result.catch((error) => { cancelReceipt(); throw error; }) : result;
+        } catch (error) { cancelReceipt(); throw error; }
+      };
+      return preparation ? preparation.then(dispatch) : dispatch();
     };
     wrapped.__codexControlTurboWrapped = true;
     wrapped.__codexControlTurboOriginal = current;
@@ -208,6 +233,7 @@ export function buildNativeTurboInjectionScript() {
   installTimer = setInterval(install, 1000);
   window.__codexControlConsoleTurboInstallTimer = installTimer;
   window.addEventListener('beforeunload', () => {
+    window.__codexControlConsoleTurboTurnCleanup?.();
     clearInterval(installTimer);
     if (window.__codexControlConsoleTurboInstallTimer === installTimer) window.__codexControlConsoleTurboInstallTimer = null;
   }, { once: true });

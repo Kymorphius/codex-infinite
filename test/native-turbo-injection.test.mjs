@@ -25,13 +25,13 @@ function runtime({ respondToResume = true } = {}) {
     addEventListener(type, listener) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(listener); },
     removeEventListener(type, listener) { listeners.get(type)?.delete(listener); }
   };
-  const document = { querySelector() { return null; } };
+  const document = { querySelector() { return null; }, querySelectorAll() { return []; } };
   const storage = new Map();
   const localStorage = { getItem(key) { return storage.get(key) || null; }, setItem(key, value) { storage.set(key, String(value)); } };
   const context = { window, document, localStorage, setInterval() { return 1; }, clearInterval() {}, setTimeout, clearTimeout, queueMicrotask, Math, Date, Map, Set, JSON };
   vm.runInNewContext(buildNativeTurboInjectionScript(), context);
-  const respond = (id) => { for (const listener of listeners.get("message") || []) listener({ data: { type: "mcp-response", hostId: "local", message: { id, result: {} } } }); };
-  return { context, window, sent, respond };
+  const respond = (id, result = {}, error) => { for (const listener of listeners.get("message") || []) listener({ data: { type: "mcp-response", hostId: "local", message: { id, result, error } } }); };
+  return { context, window, sent, respond, storage };
 }
 
 test("Turbo clones turn/start and applies model maximum plus Fast without changing sticky settings", async () => {
@@ -128,6 +128,39 @@ test("Turbo leaves a node outside the configured device range untouched", async 
   assert.equal(sent[0], request);
 });
 
+test("Turbo annotation freezes dispatched settings and requires successful exact-turn acceptance", async () => {
+  const { context, window, respond, storage } = runtime();
+  const turnId = "01a04445-8d03-7243-a4d3-181180bb626e";
+  const policy = { enabled: true, model: "gpt-6-astra", reasoningEffort: "ultra", fast: true, millionContext: true };
+  vm.runInNewContext(buildNativeTurboSnapshotScript(policy), context);
+  await window.electronBridge.sendMessageFromView({ type: "mcp-request", hostId: "local", request: { id: "turn-receipt", method: "turn/start", params: { threadId, model: "gpt-5.6-sol", effort: "medium", input: [{ text: "never store this" }] } } });
+  assert.equal(storage.has("codex-control-console.turbo-turn-receipts.v1"), false);
+  vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: false }), context);
+  respond("unrelated", { turn: { id: turnId } });
+  assert.equal(storage.has("codex-control-console.turbo-turn-receipts.v1"), false);
+  respond("turn-receipt", { turn: { id: turnId } });
+  const receipts = JSON.parse(storage.get("codex-control-console.turbo-turn-receipts.v1"));
+  assert.equal(receipts.length, 1);
+  assert.equal(receipts[0].model, "gpt-6-astra");
+  assert.equal(receipts[0].effort, "ultra");
+  assert.equal(receipts[0].serviceTier, "priority");
+  assert.equal(receipts[0].contextWindow, 1000000);
+  assert.equal(receipts[0].turnId, turnId);
+  assert.equal(JSON.stringify(receipts).includes("never store this"), false);
+});
+
+test("failed Turbo context preparation produces neither a send nor a receipt", async () => {
+  const { context, window, sent, respond, storage } = runtime({ respondToResume: false });
+  vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: true, model: "gpt-6-astra", reasoningEffort: "ultra", millionContext: true }), context);
+  const sending = window.electronBridge.sendMessageFromView({ type: "mcp-request", hostId: "local", request: { id: "failed", method: "turn/start", params: { threadId, model: "gpt-5.6-sol", effort: "medium" } } });
+  const rejected = assert.rejects(sending, /context failed/);
+  respond(sent[0].request.id, {}, { message: "context failed" });
+  await rejected;
+  assert.equal(sent.length, 1);
+  respond("failed", { turn: { id: "01a04445-8d03-7243-a4d3-181180bb626e" } });
+  assert.equal(storage.has("codex-control-console.turbo-turn-receipts.v1"), false);
+});
+
 test("disabled Turbo leaves the exact native request untouched and sends no restore", async () => {
   const { context, window, sent } = runtime();
   vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: false, modelEfforts: [{ model: "gpt-5.6-sol", effort: "ultra" }] }), context);
@@ -156,7 +189,7 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   const source = buildNativeTurboInjectionScript();
   assert.match(source, /const TURBO_PREPARE_TIMEOUT_MS = 8000/);
   assert.match(source, /timeoutMs = TURBO_PREPARE_TIMEOUT_MS/);
-  assert.match(source, /preparation \? preparation\.then\(\(\) => originalSend\(transformed\)\) : originalSend\(transformed\)/);
+  assert.match(source, /preparation \? preparation\.then\(dispatch\) : dispatch\(\)/);
   assert.doesNotMatch(source, /await window\.__codexControlConsoleRouteNativeTurn/);
   assert.match(source, /data-codex-control-console-native-turbo/);
   assert.match(source, /data-codex-control-console-turbo-effective/);

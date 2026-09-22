@@ -3,6 +3,7 @@ export function buildNativeTurboEnforcementSource() {
   const turboLeaseStorageKey = 'codex-control-console.turbo-setting-leases.v1';
   const turboLeases = new Map();
   const turboAppliedSignatures = new Map();
+  const turboVerifiedSettings = new Map();
   let turboEnforcementBusy = false;
   try {
     const stored = JSON.parse(localStorage.getItem(turboLeaseStorageKey) || '[]');
@@ -72,10 +73,12 @@ export function buildNativeTurboEnforcementSource() {
       persistTurboLeases();
     }
     const changes = turboChanges(lease);
+    const appliedSignature = turboPolicySignature(threadId);
     await apply(threadId, changes);
     const verified = await readTurboThreadSettings(threadId);
     if (verified.model !== changes.model || verified.reasoningEffort !== changes.reasoningEffort || verified.serviceTier !== changes.serviceTier) throw new Error('Turbo 设置未通过原生回读');
-    turboAppliedSignatures.set(threadId, turboPolicySignature(threadId));
+    turboAppliedSignatures.set(threadId, appliedSignature);
+    turboVerifiedSettings.set(threadId, { model: verified.model, effort: verified.reasoningEffort, serviceTier: verified.serviceTier, contextWindow: verified.contextWindow });
     window.__codexControlConsoleLastTurboEnforcement = { ok: true, mode: 'native-settings-lease', threadId, model: verified.model, reasoningEffort: verified.reasoningEffort, serviceTier: verified.serviceTier, contextWindow: changes.contextWindow || lease.contextWindow, appliedAt: new Date().toISOString() };
   }
 
@@ -86,6 +89,7 @@ export function buildNativeTurboEnforcementSource() {
       await apply(threadId, restoreChanges(lease));
       turboLeases.delete(threadId);
       turboAppliedSignatures.delete(threadId);
+      turboVerifiedSettings.delete(threadId);
       persistTurboLeases();
     }
   }
@@ -94,6 +98,13 @@ export function buildNativeTurboEnforcementSource() {
     if (turboBridgeIsWrapped()) return true;
     const threadId = selectedTurboThreadId();
     return Boolean(threadId && turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId));
+  }
+
+  function verifiedTurboTurnSettings(threadId) {
+    if (!policy.enabled || !policy.active || turboBridgeIsWrapped()) return null;
+    const settings = turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId) ? turboVerifiedSettings.get(threadId) || null : null;
+    if (settings) settings.contextWindow = Number(window.__codexControlConsoleGetContextWindow?.(threadId)) || null;
+    return settings;
   }
 
   async function syncTurboEnforcement() {
