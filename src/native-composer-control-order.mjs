@@ -1,6 +1,6 @@
 export const NATIVE_COMPOSER_CONTROL_ORDER_KEY = "codex-control-console.composer-control-order.v1";
 export const NATIVE_COMPOSER_CONTROL_IDS = ["state", "queue", "save", "claim", "context", "routing"];
-export const NATIVE_COMPOSER_CONTROL_ORDER_VERSION = "2026-09-22.5";
+export const NATIVE_COMPOSER_CONTROL_ORDER_VERSION = "2026-09-22.6";
 
 export function normalizeNativeComposerControlOrder(value) {
   const seen = new Set(), ordered = [];
@@ -34,7 +34,7 @@ export function buildNativeComposerControlOrderSource() {
     const controlFor = (node) => node?.closest?.(selector) || null;
     const persist = () => { try { localStorage.setItem(NATIVE_COMPOSER_CONTROL_ORDER_KEY, JSON.stringify(order)); } catch {} };
     const clearMarkers = () => document.querySelectorAll(selector).forEach((node) => { node.removeAttribute('data-ccc-control-drag-armed'); node.removeAttribute('data-ccc-control-dragging'); node.removeAttribute('data-ccc-control-drop-position'); });
-    const apply = () => controls.forEach(([id, value]) => { const node = document.querySelector(value), expected = String(order.indexOf(id) + 1); if (!node) return; node.draggable = false; if (node.style.order !== expected) node.style.order = expected; });
+    const apply = () => controls.forEach(([id, value]) => { const node = document.querySelector(value), expected = String(order.indexOf(id) + 1); if (!node) return; if (node.getAttribute('draggable') !== 'false') node.draggable = false; if (node.style.order !== expected) node.style.order = expected; });
     const scheduleApply = () => { if (scheduled) return; scheduled = true; queueMicrotask(() => { scheduled = false; apply(); }); };
     const reorder = (sourceId, targetId, after = false) => { const next = reorderNativeComposerControlOrder(order, sourceId, targetId, after); if (next.join('|') === order.join('|')) return order; order = next; persist(); apply(); return order; };
     const onPointerDown = (event) => { const control = controlFor(event.target), id = idFor(control); if (!control || !id || event.button !== 0 || (!event.metaKey && !event.ctrlKey)) return; event.preventDefault(); event.stopImmediatePropagation(); suppressClickUntil = Date.now() + 1500; gesture = { control, id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, initialOrder: [...order], moved: false }; control.setAttribute('data-ccc-control-drag-armed', ''); try { control.setPointerCapture(event.pointerId); } catch {} };
@@ -44,7 +44,7 @@ export function buildNativeComposerControlOrderSource() {
     const onPointerCancel = (event) => finishGesture(event, true);
     const onClick = (event) => { if (Date.now() > suppressClickUntil || !controlFor(event.target)) return; suppressClickUntil = 0; event.preventDefault(); event.stopImmediatePropagation(); };
     document.addEventListener('pointerdown', onPointerDown, true); document.addEventListener('pointermove', onPointerMove, true); document.addEventListener('pointerup', onPointerUp, true); document.addEventListener('pointercancel', onPointerCancel, true); document.addEventListener('click', onClick, true);
-    const observer = new MutationObserver((records) => { if (records.some((record) => record.type === 'attributes' || [...record.addedNodes].some((node) => node.nodeType === 1 && (node.matches?.(selector) || node.querySelector?.(selector))))) scheduleApply(); });
+    const observer = new MutationObserver((records) => { if (records.some((record) => record.type === 'attributes' ? record.target?.matches?.(selector) : [...record.addedNodes].some((node) => node.nodeType === 1 && (node.matches?.(selector) || node.querySelector?.(selector))))) scheduleApply(); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] }); apply();
     return { apply, order: () => [...order], reorder, reset: () => { order = normalizeNativeComposerControlOrder([]); try { localStorage.removeItem(NATIVE_COMPOSER_CONTROL_ORDER_KEY); } catch {} apply(); return order; }, dispose: () => { observer.disconnect(); document.removeEventListener('pointerdown', onPointerDown, true); document.removeEventListener('pointermove', onPointerMove, true); document.removeEventListener('pointerup', onPointerUp, true); document.removeEventListener('pointercancel', onPointerCancel, true); document.removeEventListener('click', onClick, true); clearMarkers(); style.remove(); } };
   };

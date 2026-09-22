@@ -8,7 +8,7 @@ import { updateHeldQueueShell } from "../src/native-assigned-checklist-tasks.mjs
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-22\.8'/);
+  assert.match(source, /const VERSION = '2026-09-22\.9'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -100,13 +100,12 @@ test("save-as-todo survives composer remounts independently of legacy queue rein
   assert.match(source, /__codexControlConsoleSaveDraftTodoInstalledVersion/);
   assert.match(source, /LEGACY_SAVE = '2026-09-18\.1'/);
   assert.match(source, /__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE/);
-  assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoObserver = new MutationObserver/);
+  assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoObserver = window\.__codexControlConsoleHeldQueueObserver/);
   assert.match(lifecycle, /scheduleSaveDraftTodo/);
   assert.match(lifecycle, /__codexControlConsoleSaveDraftTodoInputCleanup/);
   assert.match(lifecycle, /removeDraftInputListener/);
   assert.match(lifecycle, /!document\.querySelector\('\[data-ccc-save-draft-todo\]'\) \|\| !document\.querySelector\('\[data-ccc-claim-task\]'\)/);
-  const saveObserver = lifecycle.slice(lifecycle.indexOf('__codexControlConsoleSaveDraftTodoObserver ='), lifecycle.indexOf('__codexControlConsoleSaveDraftTodoObserver.observe') + 180);
-  assert.doesNotMatch(saveObserver, /attributeFilter: \['aria-current'\]/);
+  assert.equal((source.match(/new MutationObserver/g) || []).length, 1);
   assert.match(lifecycle, /data-ccc-save-draft-todo/);
   assert.match(lifecycle, /draftTodoButton\(\)/);
   assert.match(lifecycle, /manager\?\.parentElement === host \? manager : null/);

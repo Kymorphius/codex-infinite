@@ -32,7 +32,9 @@ test("composer control order source uses modifier pointer movement without nativ
   assert.match(source, /cursor:grabbing/);
   assert.match(source, /__codexControlConsoleComposerControlOrderVersion/);
   assert.match(source, /else window\.__codexControlConsoleComposerControlOrder\.apply\(\)/);
-  assert.match(source, /node\.draggable = false/);
+  assert.match(source, /node\.getAttribute\('draggable'\) !== 'false'/);
+  assert.match(source, /record\.target\?\.matches\?\.\(selector\)/);
+  assert.doesNotMatch(source, /record\.type === 'attributes' \|\|/);
   assert.match(source, /suppressClickUntil/);
   assert.doesNotMatch(source, /addEventListener\('dragstart'/);
 });

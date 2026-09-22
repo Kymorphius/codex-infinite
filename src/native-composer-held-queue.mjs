@@ -11,7 +11,7 @@ import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.8', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-22.9', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-22.3', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -316,16 +316,14 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (records.some((record) => [...record.addedNodes].some(containsStaleQueueAlert))) { const id = threadId(); if (id) staleThreads.add(id); open = true; render(); }
     const id = threadId();
     if (id && (id !== activeThreadId || !document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) schedule();
+    if (!document.querySelector('[data-ccc-save-draft-todo]') || !document.querySelector('[data-ccc-claim-task]')) scheduleSaveDraftTodo();
   });
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
   document.addEventListener('input', updateDraftButton, true);
   const removeDraftInputListener = () => document.removeEventListener('input', updateDraftButton, true);
   window.__codexControlConsoleHeldQueueInputCleanup = removeDraftInputListener;
   window.__codexControlConsoleSaveDraftTodoInputCleanup = removeDraftInputListener;
-  window.__codexControlConsoleSaveDraftTodoObserver = new MutationObserver(() => {
-    if (!document.querySelector('[data-ccc-save-draft-todo]') || !document.querySelector('[data-ccc-claim-task]')) scheduleSaveDraftTodo();
-  });
-  window.__codexControlConsoleSaveDraftTodoObserver.observe(document.documentElement, { childList: true, subtree: true });
+  window.__codexControlConsoleSaveDraftTodoObserver = window.__codexControlConsoleHeldQueueObserver;
   window.__codexControlConsoleHeldQueueTimer = setInterval(() => { const id = threadId();
     if (id && (id !== activeThreadId || !document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) install(); }, 1000);
   window.__codexControlConsoleHeldQueueRefreshTimer = setInterval(() => { if (open && !busy && !editing) void refresh(); }, 4000);
