@@ -1,6 +1,14 @@
 # 综合任务清单
 
-Add an independent sidebar entry 综合任务清单 at the top of the sidebar sections. It opens the existing checklist dialog with a reserved global inbox key, without requiring a project or assignee. The dialog explains that this list collects tasks whose ownership is undecided. Add, edit, complete and delete reuse the durable checklist store and pending-action recovery. Project lists remain isolated. Storage stays local to each device; this change does not introduce assignment, execution or synchronization.
+Add an independent sidebar entry 任务清单 in the persistent top action group,
+immediately after 新对话 and 打开本地项目. It inherits the native new-chat
+button classes and remains visible while the section list scrolls; it is not a
+sticky child of the Projects list. The entry opens the existing 综合任务清单
+dialog with a reserved global inbox key, without requiring a project or assignee.
+The dialog explains that this list collects tasks whose ownership is undecided.
+Add, edit, complete and delete reuse the durable checklist store and pending-action
+recovery. Project lists remain isolated. Storage stays local to each device; this
+change does not introduce assignment, execution or synchronization.
 
 The same dialog also projects every native composer held todo from the local held-message store. These are not copied into the generic checklist: their original conversation, complete send input, ordering, and explicit-resume safety contract remain authoritative in the held-message store. The checklist itself opens before this cross-conversation projection is read; that potentially large local read is scheduled for idle time and cached for the open dialog, so it cannot delay task entry or editing. A held row shows its origin and offers `打开会话`; it does not offer completion or automatic sending. When a composer held todo changes while the dialog is open, it refreshes the projection in the next idle slice.
 

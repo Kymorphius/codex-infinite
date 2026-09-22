@@ -7,7 +7,7 @@ export function nativeOpenProjectCopy(platform = "") {
 
 export function buildNativeOpenLocalProjectInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-04.2';
+  const VERSION = '2026-09-22.top-action1';
   const ENTRY = 'data-codex-control-console-open-local-project';
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
   const copy = ${nativeOpenProjectCopy.toString()}(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
@@ -19,7 +19,7 @@ export function buildNativeOpenLocalProjectInjectionScript() {
   };
   const buttonBy = (root, labels) => Array.from(root.querySelectorAll('button,[role="button"]')).find((button) => {
     const value = normalize(button.getAttribute('aria-label') || button.innerText || button.textContent);
-    return labels.some((label) => value === label || value.startsWith(label + ' '));
+    return isVisible(button) && labels.some((label) => value === label || value.startsWith(label + ' '));
   });
   const nativeAddProject = () => buttonBy(document, ['添加新项目', 'Add project', 'Create new project']);
   const waitFor = (read, timeout = 1200) => new Promise((resolve) => {
@@ -57,7 +57,7 @@ export function buildNativeOpenLocalProjectInjectionScript() {
   function install() {
     if (!document.body || document.querySelector('[' + ENTRY + ']')) return;
     const trigger = nativeAddProject();
-    const newChat = buttonBy(document, ['新对话', 'New chat']);
+    const newChat = buttonBy(document, ['新聊天', '新对话', '新建任务', 'New chat', 'New task']);
     if (!trigger || !newChat?.parentElement) return;
     const entry = document.createElement('button');
     entry.type = 'button'; entry.className = newChat.className;
