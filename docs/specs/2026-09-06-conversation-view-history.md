@@ -11,6 +11,12 @@ Add 查看历史 after codex委派 (order 8), with identical native-style headin
 collapse behavior and task opening. Sort unique local tasks by last viewed time,
 newest first. Reopening an existing tab moves it to the front; background snapshot
 refresh, title changes and tab restoration do not fabricate viewing activity.
+When a toggle rerenders the automatic sections, retain that heading's viewport
+position by temporarily disabling browser anchoring on its nearest scroll
+container and correcting that container synchronously before the next paint.
+This prevents a long history list from being inserted visually above its heading;
+rows expand downward without a corrective flash, a global scroll rule, or moving
+native nodes.
 History survives window/service restarts in window-local localStorage, retaining
 up to 200 most recently viewed tasks. It starts collecting after installation;
 existing tab state does not supply historical viewing timestamps. Original

@@ -86,6 +86,15 @@ test('read completion removes the alias, active update moves it, collapse and dr
   h.set({ items: [], stale: false }); assert.equal(h.find('data-attention-thread-id'), undefined);
   assert.equal(h.wrapper.children[0].children[0], h.nativeRow);
 });
+test('automatic section toggles restore their heading after the native list rerenders', () => {
+  const source = buildNativeAttentionConversationsInjectionScript();
+  assert.match(source, /downward-expand2/);
+  assert.match(source, /scroller\.style\.overflowAnchor = 'none'/);
+  assert.match(source, /anchor\.scroller\.scrollTop \+= button\.getBoundingClientRect\(\)\.top - anchor\.top/);
+  assert.match(source, /restoreHeadingPosition\(key, anchor\)/);
+  assert.doesNotMatch(source, /requestAnimationFrame\(\(\) => requestAnimationFrame/);
+  assert.doesNotMatch(source, /scrollIntoView/);
+});
 test('unavailable status is explicit and is not rendered as a known-empty list', () => {
   const h = harness(); h.run();
   assert.ok(all(h.parent).some(x => x.textContent === '状态暂未更新'));

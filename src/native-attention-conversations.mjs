@@ -1,7 +1,7 @@
 import { createConversationViewHistory } from './conversation-view-history.mjs';
 
 export function installNativeAttentionConversations(createHistory = createConversationViewHistory) {
-  const VERSION = '2026-09-21.idle-observer1';
+  const VERSION = '2026-09-22.downward-expand2';
   if (window.__codexControlConsoleAttentionConversations?.version === VERSION) return;
   window.__codexControlConsoleAttentionConversations?.dispose();
   const ROOT = 'data-codex-control-console-attention-conversations';
@@ -23,7 +23,7 @@ export function installNativeAttentionConversations(createHistory = createConver
   document.querySelectorAll('[' + ROOT + ']').forEach(node => node.remove());
   let expanded = {};
   try { expanded = JSON.parse(localStorage.getItem(STORAGE) || '{}') || {}; } catch { /* optional presentation state */ }
-  let snapshot = { items: [], stale: true }; let roots = []; let signature = ''; let pending = false; let disposed = false;
+  let snapshot = { items: [], stale: true }; let roots = []; let headingButtons = new Map(); let signature = ''; let pending = false; let disposed = false;
   function stableSnapshot(value) {
     const incoming = value && Array.isArray(value.items) ? value : { items: [], stale: true };
     let changed = false;
@@ -57,6 +57,27 @@ export function installNativeAttentionConversations(createHistory = createConver
     path.setAttribute('d', source?.querySelector('path')?.getAttribute('d') || 'M4 7.7 10 13.7 16 7.7 15 6.7 10 11.7 5 6.7Z');
     path.setAttribute('fill', 'currentColor'); svg.append(path); return svg;
   }
+  function headingAnchor(button) {
+    if (typeof button?.getBoundingClientRect !== 'function') return null;
+    let scroller = button.parentElement;
+    while (scroller && scroller !== document.documentElement) {
+      const overflow = getComputedStyle(scroller).overflowY;
+      if (/(auto|scroll)/.test(overflow) && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    scroller = scroller && scroller !== document.documentElement ? scroller : document.scrollingElement;
+    const anchor = { top: button.getBoundingClientRect().top, scroller, overflowAnchor: scroller?.style.overflowAnchor || '' };
+    if (scroller) scroller.style.overflowAnchor = 'none';
+    return anchor;
+  }
+  function restoreHeadingPosition(key, anchor) {
+    if (!anchor) return;
+    const button = headingButtons.get(key);
+    if (button?.isConnected && anchor.scroller) anchor.scroller.scrollTop += button.getBoundingClientRect().top - anchor.top;
+    requestAnimationFrame(() => {
+      if (anchor.scroller?.style.overflowAnchor === 'none') anchor.scroller.style.overflowAnchor = anchor.overflowAnchor;
+    });
+  }
   function render() {
     if (disposed) return;
     const native = document.querySelector('section[data-app-action-sidebar-section-heading="Projects"]');
@@ -69,7 +90,7 @@ export function installNativeAttentionConversations(createHistory = createConver
     const nextSignature = JSON.stringify([snapshot, expanded, classes, history.list()]);
     if (roots.length === 4 && roots.every(root => root.parentElement === parent) && signature === nextSignature) return;
     signature = nextSignature;
-    const next = [];
+    const next = [], nextHeadingButtons = new Map();
     for (const [key, title, order] of [['review', '等待查看', 5], ['active', '进行中', 6], ['codex', 'codex委派', 7], ['history', '查看历史', 8]]) {
       const items = key === 'history' ? history.list() : snapshot.items.filter(item => item.section === key && (key !== 'review' || !history.hasViewed(item)));
       const open = expanded[key] !== false;
@@ -88,10 +109,13 @@ export function installNativeAttentionConversations(createHistory = createConver
       button.setAttribute('data-attention-toggle', key); button.title = '自动分类，不支持拖入或拖出';
       button.append(node('span', 'min-w-0 truncate', title), arrow(toggle?.querySelector('svg'), open));
       button.addEventListener('click', () => {
+        const anchor = headingAnchor(button);
         expanded[key] = !open;
         try { localStorage.setItem(STORAGE, JSON.stringify(expanded)); } catch { /* optional */ }
         render();
+        restoreHeadingPosition(key, anchor);
       });
+      nextHeadingButtons.set(key, button);
       inner.append(button); text.append(inner); header.append(text, node('span', 'me-2 shrink-0 text-sm text-tertiary', String(items.length)));
       section.append(header);
       if (open) {
@@ -123,7 +147,7 @@ export function installNativeAttentionConversations(createHistory = createConver
       }
       root.append(section); next.push(root);
     }
-    roots.forEach(root => root.remove()); roots = next;
+    roots.forEach(root => root.remove()); roots = next; headingButtons = nextHeadingButtons;
     for (const root of roots) parent.insertBefore(root, native.parentElement);
   }
   function recordView(task) {
