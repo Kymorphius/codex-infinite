@@ -46,6 +46,10 @@ function nativeOwnerInjectionScripts() {
   ];
 }
 
+function nativeOwnerDocumentStartScripts() {
+  return nativeOwnerInjectionScripts().filter((source) => !source.includes("__codexControlConsoleHeldQueueInstalledVersion"));
+}
+
 export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
   const base = Math.max(100, Number(pollMs) || 1200);
   const failures = Math.max(0, Math.floor(Number(failureCount) || 0));
@@ -93,7 +97,7 @@ export class NativeOwnerInjector {
       await connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
-      for (const source of nativeOwnerInjectionScripts()) {
+      for (const source of nativeOwnerDocumentStartScripts()) {
         await connection.send("Page.addScriptToEvaluateOnNewDocument", { source });
       }
     } catch (error) {

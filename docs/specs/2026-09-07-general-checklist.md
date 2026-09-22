@@ -16,4 +16,6 @@ Regular inbox tasks may be assigned to one local conversation. Task and todo are
 
 The console owns the added sidebar root. Native React rows are neither moved nor modified. Repeated installation and native sidebar remounts keep one entry. The general snapshot is proactively published only when it changes, so opening the dialog does not wait for the 1.2-second injector poll. Assignment uses an in-dialog native conversation selector with explicit confirm/cancel controls; it never depends on browser `prompt`. The reserved key `ccc:general-inbox:v1` cannot collide with native project UUIDs or remote catalog keys.
 
+The conversation to-do panel is a live, version-guarded injection rather than a document-start script. It must not accumulate historical renderers across service reconnects. A claimed or assigned general task is presented as the same paused to-do entity as a composer-saved item, with one combined to-do count and no legacy task-only row or count.
+
 Verify scope isolation, dialog labels, add/save acknowledgements and sidebar remount/disposal. Run npm run check and npm test, then inspect both deployed native interfaces.

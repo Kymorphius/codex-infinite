@@ -151,7 +151,6 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeOpenLocalProjectInjectionScript()
     });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeComposerHeldQueueInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { ${buildNativeComposerControlOrderSource()} })()` });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeLongConversationInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeTurnStateInjectionScript() });

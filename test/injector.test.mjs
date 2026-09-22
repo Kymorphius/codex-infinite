@@ -102,9 +102,11 @@ test("injector reasserts target-scoped CSP bypass after a renderer changes behin
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
   assert.equal(calls.filter((call) => call.method === "Page.setBypassCSP").length, 2);
-  assert.equal(calls.filter((call) => call.method === "Page.addScriptToEvaluateOnNewDocument").length, 20);
+  assert.equal(calls.filter((call) => call.method === "Page.addScriptToEvaluateOnNewDocument").length, 19);
   assert.equal(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params?.source?.includes("__codexControlConsoleLongConversation")), true);
   assert.equal(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params?.source?.includes("__codexControlConsoleTurnStateVersion")), true);
+  assert.equal(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params?.source?.includes("__codexControlConsoleHeldQueueInstalledVersion")), false);
+  assert.equal(calls.some((call) => call.method === "evaluate" && call.source?.includes("__codexControlConsoleHeldQueueInstalledVersion")), true);
   assert.equal(calls.some((call) => call.method === "Page.reload"), false);
 });
 

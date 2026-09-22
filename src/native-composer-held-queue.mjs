@@ -11,7 +11,7 @@ import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.7', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-22.8', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-22.3', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -250,7 +250,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     updateShell(id, toolbar, panel);
     panel.replaceChildren();
     const head = document.createElement('div'); head.dataset.cccHeldHead = '';
-    const title = document.createElement('strong'); title.textContent = '待发消息';
+    const title = document.createElement('strong'); title.textContent = '待办';
     const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + (held.length + assignedTasks.length) + ' 待办';
     const views = document.createElement('span'); views.dataset.cccHeldViews = '';
     views.append(button('手动视图', () => setHeldView(id, 'manual'), heldView === 'manual'), button('时间视图', () => setHeldView(id, 'time'), heldView === 'time'));
@@ -268,7 +268,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       ], item.heldAt));
     });
     appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, (task) => resumeAssignedTask(task, { threadId: id, busy: () => busy, setBusy, request, removeAssigned: (taskId) => { assignedTasks = assignedTasks.filter((item) => item.id !== taskId); }, setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
-    if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队、待办消息或已领取任务'; list.append(empty); }
+    if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办'; list.append(empty); }
     panel.append(list);
   }
   const restoreDraft = () => restoreNativeHeldDraft(threadId, DRAFT_KEY);
