@@ -26,6 +26,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /makeButton\('恢复'/);
   assert.match(source, /makeButton\('管理'/);
   assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
+  assert.doesNotMatch(source, /updateShell\(id, toolbar, panel\); if \(!open\) return/);
   assert.match(source, /领任务 ' \+ count/);
   assert.match(source, /新建聊天后即可领取/);
   assert.match(source, /if \(!id\) \{.*claimTasks\.ensure/);

@@ -11,7 +11,7 @@ import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.6', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-22.7', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-22.3', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -247,7 +247,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (!id || !toolbar || !panel) return;
     const held = orderHeldForView(heldFor(id), heldView);
     const stale = staleThreads.has(id);
-    updateShell(id, toolbar, panel); if (!open) return;
+    updateShell(id, toolbar, panel);
     panel.replaceChildren();
     const head = document.createElement('div'); head.dataset.cccHeldHead = '';
     const title = document.createElement('strong'); title.textContent = '待发消息';
