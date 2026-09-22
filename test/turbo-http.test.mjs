@@ -23,15 +23,18 @@ test("Turbo browser and signed owner APIs keep distinct trust boundaries", async
   await fs.writeFile(keyPath, key.toString("base64"), { mode: 0o600 });
   let enabled = false;
   let millionContext = false;
+  let autoDisableGlobalRouting = false;
+  const routingChanges = [];
   const turboPolicyService = {
-    snapshot() { return { enabled, millionContext, updatedAt: "2026-08-31T12:00:00Z" }; },
-    async update(change) { if (Object.hasOwn(change, "enabled")) enabled = change.enabled; if (Object.hasOwn(change, "millionContext")) millionContext = change.millionContext; return this.snapshot(); }
+    snapshot() { return { enabled, millionContext, autoDisableGlobalRouting, updatedAt: "2026-08-31T12:00:00Z" }; },
+    async update(change) { if (Object.hasOwn(change, "enabled")) enabled = change.enabled; if (Object.hasOwn(change, "millionContext")) millionContext = change.millionContext; if (Object.hasOwn(change, "autoDisableGlobalRouting")) autoDisableGlobalRouting = change.autoDisableGlobalRouting; return this.snapshot(); }
   };
   const turboCoordinator = {
     read() { return { enabled, millionContext, updatedAt: null, nodes: [] }; },
     async update(change) { if (Object.hasOwn(change, "enabled")) enabled = change.enabled; if (Object.hasOwn(change, "millionContext")) millionContext = change.millionContext; return { enabled, millionContext, updatedAt: "now", converged: true, nodes: [{ id: "local", status: "applied", enabled, millionContext }] }; }
   };
-  const dashboard = createDashboardServer({ config: config(keyPath), adapter: {}, turboCoordinator, turboPolicyService });
+  const jevRoutingService = { async setEnabled(value) { routingChanges.push(value); } };
+  const dashboard = createDashboardServer({ config: config(keyPath), adapter: {}, turboCoordinator, turboPolicyService, jevRoutingService });
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
@@ -49,7 +52,7 @@ test("Turbo browser and signed owner APIs keep distinct trust boundaries", async
   const ownerPath = "/api/node/actions/turbo";
   const timestamp = String(Date.now());
   const nonce = crypto.randomUUID();
-  const body = Buffer.from(JSON.stringify({ enabled: false, millionContext: false, requestId: nonce }));
+  const body = Buffer.from(JSON.stringify({ enabled: true, millionContext: false, autoDisableGlobalRouting: true, requestId: nonce }));
   const signature = signPeerAction(key, { method: "POST", path: ownerPath, timestamp, nonce, body });
   const owner = await fetch(`${origin}${ownerPath}`, {
     method: "POST",
@@ -57,5 +60,8 @@ test("Turbo browser and signed owner APIs keep distinct trust boundaries", async
     body
   });
   assert.equal(owner.status, 202);
-  assert.equal((await owner.json()).enabled, false);
+  const ownerPolicy = await owner.json();
+  assert.equal(ownerPolicy.enabled, true);
+  assert.equal(ownerPolicy.autoDisableGlobalRouting, true);
+  assert.deepEqual(routingChanges, [false]);
 });

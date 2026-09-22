@@ -91,15 +91,19 @@ export function buildNativeTurboUiSource(bindingName) {
   }
 
   function addSwitch(form, title, detail, name, checked) {
-    const label = document.createElement('label'); label.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px;border-radius:9px;background:rgba(255,255,255,.05);cursor:pointer;';
+    const label = document.createElement('label'); label.style.cssText = 'position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px;border-radius:9px;background:rgba(255,255,255,.05);cursor:pointer;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;user-select:none;';
     const copy = document.createElement('span'); const strong = document.createElement('strong'); strong.textContent = title; strong.style.cssText = 'display:block;font-size:12px'; const small = document.createElement('small'); small.textContent = detail; small.style.cssText = 'display:block;margin-top:2px;color:#9f9fa5;font-size:10px'; copy.append(strong, small);
-    const input = document.createElement('input'); input.type = 'checkbox'; input.name = name; input.checked = checked; input.style.accentColor = '#d99a22'; label.append(copy, input); form.append(label); return input;
+    const track = document.createElement('span'); track.setAttribute('data-codex-control-console-turbo-switch-track', name); track.style.cssText = 'position:relative;flex:0 0 auto;width:34px;height:20px;border:1px solid rgba(255,255,255,.24);border-radius:999px;transition:background .14s ease,border-color .14s ease;pointer-events:none;';
+    const thumb = document.createElement('span'); thumb.style.cssText = 'position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#d7d7dc;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:transform .14s ease,background .14s ease;'; track.append(thumb);
+    const input = document.createElement('input'); input.type = 'checkbox'; input.name = name; input.checked = checked; input.setAttribute('aria-label', title); input.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;pointer-events:auto;-webkit-app-region:no-drag;app-region:no-drag;';
+    const render = () => { track.style.background = input.checked ? 'rgba(217,154,34,.9)' : 'rgba(255,255,255,.08)'; track.style.borderColor = input.checked ? 'rgba(237,184,64,.8)' : 'rgba(255,255,255,.24)'; thumb.style.transform = input.checked ? 'translateX(14px)' : 'translateX(0)'; thumb.style.background = input.checked ? '#fff4d0' : '#d7d7dc'; label.setAttribute('data-checked', input.checked ? 'true' : 'false'); };
+    input.addEventListener('change', render); label.append(copy, track, input); form.append(label); render(); return input;
   }
 
   function openSettings(settingsButton) {
     const existing = document.querySelector('[data-codex-control-console-turbo-popover]'); if (existing) { existing.remove(); return; }
     const panel = document.createElement('div'); panel.setAttribute('data-codex-control-console-turbo-popover', ''); panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Turbo 设置');
-    panel.style.cssText = 'position:fixed;z-index:2147483646;width:330px;max-height:min(640px,calc(100vh - 30px));overflow:auto;padding:15px;border:1px solid rgba(128,128,128,.28);border-radius:14px;background:rgb(35,35,37);color:#f2f2f2;box-shadow:0 16px 46px rgba(0,0,0,.38);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-app-region:no-drag;app-region:no-drag;';
+    panel.style.cssText = 'position:fixed;z-index:2147483646;width:330px;max-height:min(640px,calc(100vh - 30px));overflow:auto;padding:15px;border:1px solid rgba(128,128,128,.28);border-radius:14px;background:rgb(35,35,37);color:#f2f2f2;box-shadow:0 16px 46px rgba(0,0,0,.38);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
     const title = document.createElement('strong'); title.textContent = 'Turbo 策略'; title.style.cssText = 'display:block;margin-bottom:12px;font-size:14px';
     const form = document.createElement('form'); form.style.cssText = 'display:grid;gap:10px';
     const models = [{ value:'', label:'保持各会话原模型' }, ...policy.modelOptions.map((item) => ({ value:item.id, label:turboLabel(item.id) }))];
@@ -115,13 +119,14 @@ export function buildNativeTurboUiSource(bindingName) {
     const fast = addSwitch(form, 'Fast 推理速度', '关闭后保持会话原速度', 'fast', policy.fast);
     const million = addSwitch(form, '百万上下文', '新一轮请求 1M', 'millionContext', policy.millionContext);
     const allDevices = addSwitch(form, '全部设备', '关闭后可单独选择节点', 'allDevices', !policy.deviceIds.length);
+    const autoDisableGlobalRouting = addSwitch(form, '自动关闭全局路由', 'Turbo 开启时关闭 Jev 全局路由', 'autoDisableGlobalRouting', policy.autoDisableGlobalRouting);
     const deviceBox = document.createElement('div'); deviceBox.style.cssText = 'display:grid;gap:6px;padding:8px;border:1px solid #45454a;border-radius:9px';
     const deviceInputs = policy.devices.map((device) => { const label = document.createElement('label'); label.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:11px'; const input = document.createElement('input'); input.type='checkbox'; input.value=device.id; input.checked=!policy.deviceIds.length || policy.deviceIds.includes(device.id); input.disabled=allDevices.checked; input.style.accentColor='#d99a22'; const text=document.createElement('span'); text.textContent=device.name; label.append(input,text); deviceBox.append(label); return input; });
     allDevices.addEventListener('change', () => { for (const input of deviceInputs) input.disabled = allDevices.checked; }); form.append(deviceBox);
     const save = document.createElement('button'); save.type='submit'; save.textContent='保存并同步'; save.style.cssText='height:36px;margin-top:2px;border:0;border-radius:9px;background:#d99a22;color:#1d1608;font-weight:700;cursor:pointer'; form.append(save);
     form.addEventListener('submit', (event) => {
       event.preventDefault(); const targetIds = allDevices.checked ? [] : deviceInputs.filter((input) => input.checked).map((input) => input.value); if (!allDevices.checked && !targetIds.length) return;
-      const action = { model:modelSelect.value || null, reasoningEffort:reasoningSelect.value, fast:fast.checked, millionContext:million.checked, deviceIds:targetIds };
+      const action = { model:modelSelect.value || null, reasoningEffort:reasoningSelect.value, fast:fast.checked, millionContext:million.checked, autoDisableGlobalRouting:autoDisableGlobalRouting.checked, deviceIds:targetIds };
       const bindingFn = window[${binding}]; if (pending || typeof bindingFn !== 'function') return; pending=true; closeSettings(); const turbo=document.querySelector('[data-codex-control-console-native-turbo]'); if (turbo) renderButton(turbo);
       try { bindingFn(JSON.stringify(action)); } catch { pending=false; if (turbo) renderButton(turbo); }
     });

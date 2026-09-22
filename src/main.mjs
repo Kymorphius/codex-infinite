@@ -152,7 +152,6 @@ export async function run() {
     devices: [config.nodeDevice, ...peers]
   });
   await turboPolicyService.refreshCatalog();
-  const turboCoordinator = new TurboCoordinator({ localService: turboPolicyService, peerAdapters, localNode: config.nodeDevice });
   const zoteroAdapter = new ZoteroAdapter({ databasePath: config.zoteroPath });
   const zoteroCredentials = new ZoteroCredentialStore({ filePath: config.zoteroCredentialPath });
   const zoteroLocalApi = new ZoteroLocalApi({
@@ -176,6 +175,7 @@ export async function run() {
     taskDispatcher: jevTaskDispatcher
   });
   await jevRoutingService.initialize();
+  const turboCoordinator = new TurboCoordinator({ localService: turboPolicyService, peerAdapters, localNode: config.nodeDevice, routingService: jevRoutingService });
   const dispatcher = new CodexCliDispatcher({
     codexPath: config.codexPath,
     codexHome: config.nativeCodexHome,

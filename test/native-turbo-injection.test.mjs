@@ -201,6 +201,10 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   assert.match(source, /百万上下文/);
   assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /Fast/);
+  assert.match(source, /自动关闭全局路由/);
+  assert.match(source, /data-codex-control-console-turbo-switch-track/);
+  assert.match(source, /translateX\(14px\)/);
+  assert.match(source, /autoDisableGlobalRouting:autoDisableGlobalRouting\.checked/);
   assert.doesNotMatch(source, /const badge = document\.createElement\('small'\).*textContent = '1M'/);
   assert.match(source, /button\[aria-label="搜索"\]/);
   assert.match(source, /data-codex-control-console-interactive-header/);
@@ -209,6 +213,8 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   assert.match(source, new RegExp(NATIVE_TURBO_BINDING));
   assert.deepEqual(parseNativeTurboAction('{"enabled":true}'), { enabled: true });
   assert.deepEqual(parseNativeTurboAction('{"millionContext":true}'), { millionContext: true });
+  assert.deepEqual(parseNativeTurboAction('{"autoDisableGlobalRouting":true}'), { autoDisableGlobalRouting: true });
+  assert.equal(parseNativeTurboAction('{"autoDisableGlobalRouting":"yes"}'), null);
   assert.deepEqual(parseNativeTurboAction('{"model":"gpt-5.6-luna","reasoningEffort":"max","fast":false,"accessMode":"workspace","deviceIds":["mac-air"]}'), { model: "gpt-5.6-luna", reasoningEffort: "max", fast: false, accessMode: "workspace", deviceIds: ["mac-air"] });
   assert.equal(parseNativeTurboAction('{"enabled":true,"extra":1}'), null);
   let received = null;

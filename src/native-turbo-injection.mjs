@@ -13,13 +13,14 @@ export function parseNativeTurboAction(payload) {
   try { value = JSON.parse(String(payload || "")); } catch { return null; }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const keys = Object.keys(value);
-  const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "accessMode", "deviceIds"];
+  const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "accessMode", "deviceIds"];
   if (!keys.length || keys.some((key) => !allowed.includes(key))) return null;
   if (Object.hasOwn(value, "enabled") && typeof value.enabled !== "boolean") return null;
   if (Object.hasOwn(value, "model") && value.model !== null && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(String(value.model))) return null;
   if (Object.hasOwn(value, "reasoningEffort") && !TURBO_REASONING_MODES.includes(value.reasoningEffort)) return null;
   if (Object.hasOwn(value, "fast") && typeof value.fast !== "boolean") return null;
   if (Object.hasOwn(value, "millionContext") && typeof value.millionContext !== "boolean") return null;
+  if (Object.hasOwn(value, "autoDisableGlobalRouting") && typeof value.autoDisableGlobalRouting !== "boolean") return null;
   if (Object.hasOwn(value, "accessMode") && !TURBO_ACCESS_MODES.includes(value.accessMode)) return null;
   if (Object.hasOwn(value, "deviceIds") && (!Array.isArray(value.deviceIds) || value.deviceIds.length > 32 || value.deviceIds.some((id) => !/^[A-Za-z0-9_.:-]{1,80}$/.test(String(id))))) return null;
   const action = {};
@@ -45,7 +46,7 @@ export function normalizeTurboPolicy(policy = {}) {
   return {
     enabled: policy.enabled === true, active: policy.active !== false, model: typeof policy.model === "string" ? policy.model : null,
     reasoningEffort: TURBO_REASONING_MODES.includes(policy.reasoningEffort) ? policy.reasoningEffort : "maximum",
-    fast: policy.fast !== false, millionContext: policy.millionContext === true,
+    fast: policy.fast !== false, millionContext: policy.millionContext === true, autoDisableGlobalRouting: policy.autoDisableGlobalRouting === true,
     accessMode: TURBO_ACCESS_MODES.includes(policy.accessMode) ? policy.accessMode : "preserve",
     deviceIds: Array.isArray(policy.deviceIds) ? policy.deviceIds.slice(0, 32).map(String) : [], modelEfforts, modelOptions, devices
   };
@@ -56,7 +57,7 @@ export function buildNativeTurboInjectionScript() {
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
   const enforcementSource = buildNativeTurboEnforcementSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-22.turn-receipts1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-22.panel-switches1') return;
   window.__codexControlConsoleTurboTurnCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
   try {
@@ -67,9 +68,9 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-22.turn-receipts1';
+  window.__codexControlConsoleTurboVersion = '2026-09-22.panel-switches1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
-  let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
+  let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
   let requestSequence = 0;
@@ -219,6 +220,7 @@ export function buildNativeTurboInjectionScript() {
       reasoningEffort: typeof value?.reasoningEffort === 'string' ? value.reasoningEffort : 'maximum',
       fast: value?.fast !== false,
       millionContext: value?.millionContext === true,
+      autoDisableGlobalRouting: value?.autoDisableGlobalRouting === true,
       accessMode: typeof value?.accessMode === 'string' ? value.accessMode : 'preserve',
       deviceIds: Array.isArray(value?.deviceIds) ? value.deviceIds.map(String) : [],
       efforts: new Map((Array.isArray(value?.modelEfforts) ? value.modelEfforts : []).map((item) => [String(item.model), String(item.effort)])),
@@ -227,7 +229,7 @@ export function buildNativeTurboInjectionScript() {
     };
     pending = false;
     install();
-    return { enabled: policy.enabled, active: policy.active, model: policy.model, reasoningEffort: policy.reasoningEffort, fast: policy.fast, millionContext: policy.millionContext, accessMode: policy.accessMode, deviceCount: policy.deviceIds.length, modelCount: policy.efforts.size };
+    return { enabled: policy.enabled, active: policy.active, model: policy.model, reasoningEffort: policy.reasoningEffort, fast: policy.fast, millionContext: policy.millionContext, autoDisableGlobalRouting: policy.autoDisableGlobalRouting, accessMode: policy.accessMode, deviceCount: policy.deviceIds.length, modelCount: policy.efforts.size };
   };
   install();
   installTimer = setInterval(install, 1000);

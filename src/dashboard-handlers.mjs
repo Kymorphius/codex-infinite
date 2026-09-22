@@ -27,7 +27,7 @@ export function createDashboardHandlers({ config, experimentService, adapter, lo
     createDiagnosticsHttpHandler({ diagnosticsService }),
     createSkillsHttpHandler({ skillSyncService, localSkillAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
-    createTurboHttpHandler({ turboCoordinator, turboPolicyService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
+    createTurboHttpHandler({ turboCoordinator, turboPolicyService, jevRoutingService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createJevRoutingHttpHandler({ service: jevRoutingService, dashboardOrigin: config.dashboardOrigin }),
     createProjectCopyHttpHandler({ service: projectCopyService, dashboardOrigin: config.dashboardOrigin }),
     createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService, remoteThreadSettingsService }),

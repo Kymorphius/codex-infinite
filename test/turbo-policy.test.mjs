@@ -27,15 +27,17 @@ test("Turbo persists its switch and bounded model maximum map", async (t) => {
   const enabled = await service.setEnabled(true);
   assert.equal(enabled.enabled, true);
   assert.equal(enabled.millionContext, false);
+  assert.equal(enabled.autoDisableGlobalRouting, false);
   assert.deepEqual(enabled.modelEfforts, [{ model: "gpt-5.6-luna", effort: "max" }]);
   const configured = await service.update({ millionContext: true });
   assert.equal(configured.enabled, true);
   assert.equal(configured.millionContext, true);
-  await service.update({ model: "gpt-5.6-luna", reasoningEffort: "high", fast: false, accessMode: "workspace", deviceIds: ["forest-mac"] });
+  await service.update({ model: "gpt-5.6-luna", reasoningEffort: "high", fast: false, autoDisableGlobalRouting: true, accessMode: "workspace", deviceIds: ["forest-mac"] });
   assert.equal(service.snapshot().active, false);
   assert.equal(service.snapshot().model, "gpt-5.6-luna");
   assert.equal(service.snapshot().reasoningEffort, "high");
   assert.equal(service.snapshot().fast, false);
+  assert.equal(service.snapshot().autoDisableGlobalRouting, true);
   assert.equal(service.snapshot().accessMode, "workspace");
   assert.deepEqual(service.snapshot().deviceIds, ["forest-mac"]);
   assert.deepEqual(service.snapshot().devices.map((item) => item.id), ["mac-air", "forest-mac"]);
@@ -44,6 +46,7 @@ test("Turbo persists its switch and bounded model maximum map", async (t) => {
   assert.equal(restored.snapshot().enabled, true);
   assert.equal(restored.snapshot().millionContext, true);
   assert.equal(restored.snapshot().model, "gpt-5.6-luna");
+  assert.equal(restored.snapshot().autoDisableGlobalRouting, true);
   const disabled = await new TurboPolicyService({ store: restored, modelCatalog: { async listOptions() { return []; } } }).setEnabled(false);
   assert.equal(disabled.enabled, false);
 });

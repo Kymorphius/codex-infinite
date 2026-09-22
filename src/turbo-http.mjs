@@ -11,6 +11,7 @@ function policyResponse(policy = {}) {
     reasoningEffort: typeof policy.reasoningEffort === "string" ? policy.reasoningEffort : "maximum",
     fast: policy.fast !== false,
     millionContext: policy.millionContext === true,
+    autoDisableGlobalRouting: policy.autoDisableGlobalRouting === true,
     accessMode: typeof policy.accessMode === "string" ? policy.accessMode : "preserve",
     deviceIds: Array.isArray(policy.deviceIds) ? policy.deviceIds : [],
     updatedAt: policy.updatedAt || null
@@ -22,7 +23,7 @@ function parseBody(body) {
   catch { throw httpError(400, "请求 JSON 无效"); }
 }
 
-export function createTurboHttpHandler({ turboCoordinator, turboPolicyService, dashboardOrigin, nodeActionKeyPath, replayWindow = new NonceReplayWindow() } = {}) {
+export function createTurboHttpHandler({ turboCoordinator, turboPolicyService, jevRoutingService, dashboardOrigin, nodeActionKeyPath, replayWindow = new NonceReplayWindow() } = {}) {
   return async function handleTurboRequest(request, response, requestUrl) {
     const browser = requestUrl.pathname === "/api/turbo";
     const owner = requestUrl.pathname === OWNER_PATH;
@@ -52,6 +53,7 @@ export function createTurboHttpHandler({ turboCoordinator, turboPolicyService, d
       }
       const change = validateTurboChange(parseBody(body));
       const policy = await turboPolicyService.update(change);
+      if (policy.enabled && policy.autoDisableGlobalRouting) await jevRoutingService?.setEnabled?.(false);
       sendJson(response, 202, { status: "ok", accepted: true, ...policyResponse(policy) });
       return true;
     }

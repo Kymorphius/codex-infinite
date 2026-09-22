@@ -1,7 +1,7 @@
 import { httpError } from "./http-utils.mjs";
 import { TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
 
-const POLICY_FIELDS = Object.freeze(["enabled", "model", "reasoningEffort", "fast", "millionContext", "accessMode", "deviceIds"]);
+const POLICY_FIELDS = Object.freeze(["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "accessMode", "deviceIds"]);
 
 function projectPolicy(policy = {}) {
   return Object.freeze({
@@ -10,6 +10,7 @@ function projectPolicy(policy = {}) {
     reasoningEffort: TURBO_REASONING_MODES.includes(policy.reasoningEffort) ? policy.reasoningEffort : "maximum",
     fast: policy.fast !== false,
     millionContext: policy.millionContext === true,
+    autoDisableGlobalRouting: policy.autoDisableGlobalRouting === true,
     accessMode: TURBO_ACCESS_MODES.includes(policy.accessMode) ? policy.accessMode : "preserve",
     deviceIds: Object.freeze(Array.isArray(policy.deviceIds) ? [...policy.deviceIds] : [])
   });
@@ -25,6 +26,7 @@ export function validateTurboChange(input = {}) {
   if (Object.hasOwn(input, "reasoningEffort") && !TURBO_REASONING_MODES.includes(input.reasoningEffort)) throw httpError(400, "Turbo 推理强度无效");
   if (Object.hasOwn(input, "fast") && typeof input.fast !== "boolean") throw httpError(400, "Turbo 推理速度设置必须是布尔值");
   if (Object.hasOwn(input, "millionContext") && typeof input.millionContext !== "boolean") throw httpError(400, "Turbo 百万上下文设置必须是布尔值");
+  if (Object.hasOwn(input, "autoDisableGlobalRouting") && typeof input.autoDisableGlobalRouting !== "boolean") throw httpError(400, "Turbo 自动关闭全局路由设置必须是布尔值");
   if (Object.hasOwn(input, "accessMode") && !TURBO_ACCESS_MODES.includes(input.accessMode)) throw httpError(400, "Turbo 访问权限无效");
   if (Object.hasOwn(input, "deviceIds") && (!Array.isArray(input.deviceIds) || input.deviceIds.length > 32 || input.deviceIds.some((id) => !/^[A-Za-z0-9_.:-]{1,80}$/.test(String(id))))) throw httpError(400, "Turbo 设备范围无效");
   if (Object.hasOwn(input, "requestId") && !/^[A-Za-z0-9_-]{16,128}$/.test(String(input.requestId))) throw httpError(400, "Turbo 请求标识无效");
@@ -34,10 +36,11 @@ export function validateTurboChange(input = {}) {
 }
 
 export class TurboCoordinator {
-  constructor({ localService, peerAdapters = [], localNode } = {}) {
+  constructor({ localService, peerAdapters = [], localNode, routingService = null } = {}) {
     this.localService = localService;
     this.peerAdapters = peerAdapters;
     this.localNode = localNode;
+    this.routingService = routingService;
     this.lastNodes = [];
   }
 
@@ -63,6 +66,7 @@ export class TurboCoordinator {
       }))
     ]);
     const effectivePolicy = projectPolicy(local);
+    if (effectivePolicy.enabled && effectivePolicy.autoDisableGlobalRouting) await this.routingService?.setEnabled?.(false);
     const localResult = { id: this.localNode?.id || "local", name: this.localNode?.name || "本机", status: "applied", policy: effectivePolicy };
     this.lastNodes = Object.freeze([localResult, ...remoteResults].map(Object.freeze));
     return Object.freeze({
