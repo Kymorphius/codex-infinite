@@ -100,6 +100,10 @@ export function parseSessionJsonl(content, filePath = "") {
     sourceFile: filePath || null,
     recordCount,
     latestInputSource,
+    isSubagent: Boolean(
+      (meta.source && typeof meta.source === "object" && !Array.isArray(meta.source) && Object.hasOwn(meta.source, "subagent")) ||
+      (typeof meta.parent_thread_id === "string" && meta.parent_thread_id.trim())
+    ),
     model: threadSettings?.model || meta.base_instructions?.provenance?.model || null,
     reasoningEffort: threadSettings?.reasoningEffort || null,
     serviceTier: threadSettings?.serviceTier || null,

@@ -106,6 +106,9 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   native-style sidebar view that preserves original membership.
 - `src/native-attention-sticky.mjs` — scoped sticky positioning for the four
   native attention-layer headings without changing section ownership.
+- `src/native-thread-read-state.mjs` — read-only access to the native renderer's
+  current identity and local-host unread projection for attention sections;
+  native read-state ownership and acknowledgements remain unchanged.
 - `src/native-open-local-project.mjs` — bounded native-sidebar affordance that
   delegates local directory selection to the desktop's existing project flow.
 - `src/native-writer-locator.mjs`, `src/windows-writer-inspection.mjs` —

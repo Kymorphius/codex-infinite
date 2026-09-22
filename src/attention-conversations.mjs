@@ -4,7 +4,7 @@ export function projectAttentionConversations(tasks = [], unreadIds = []) {
   const unique = new Map();
   for (const task of tasks) {
     const id = String(task?.id || '').toLowerCase();
-    if (!ID.test(id) || task.archived || unique.has(id)) continue;
+    if (!ID.test(id) || task.archived || task.isSubagent || unique.has(id)) continue;
     const section = task.latestInputSource === 'codex' ? 'codex' : task.status === 'active' ? 'active' : task.status === 'completed' && unread.has(id) ? 'review' : null;
     if (!section) continue;
     unique.set(id, { id, section, title: String(task.title || '未命名会话').slice(0, 160),

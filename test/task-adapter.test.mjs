@@ -31,6 +31,28 @@ test("session adapter derives titles from current response items", () => {
   assert.equal(parseSessionJsonl(content).title, "修复远端任务的标题 并保持稳定");
 });
 
+test("session adapter distinguishes native subagents from top-level, delegated and forked tasks", () => {
+  const parent = "01a04cd6-8d30-78f1-b2a7-f760d148f744";
+  const delegated = `<codex_delegation><source_thread_id>${parent}</source_thread_id><input>检查项目</input></codex_delegation>`;
+  for (const [meta, isSubagent, text = "检查项目"] of [
+    [{ source: { subagent: { thread_spawn: { parent_thread_id: parent, depth: 1 } } } }, true],
+    [{ source: "vscode", parent_thread_id: parent }, true],
+    [{ source: "vscode" }, false],
+    [{ source: "vscode", parent_thread_id: "   " }, false],
+    [{ source: "vscode", parent_thread_id: null }, false],
+    [{ source: "vscode", forked_from_id: parent }, false],
+    [{ source: "vscode" }, false, delegated],
+    [{ source: "vscode" }, false, "# AGENTS.md instructions for /project"]
+  ]) {
+    const task = parseSessionJsonl([
+      JSON.stringify({ type: "session_meta", payload: { id: "metadata-test", ...meta } }),
+      JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text }] } })
+    ].join("\n"));
+    assert.equal(task.isSubagent, isSubagent, JSON.stringify(meta));
+    if (text === delegated) assert.equal(task.latestInputSource, "codex");
+  }
+});
+
 test("session adapter adds a current display name without changing the dispatch project key", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-project-name-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));

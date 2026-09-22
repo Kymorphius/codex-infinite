@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { projectAttentionConversations } from '../src/attention-conversations.mjs';
 import { AttentionConversationService } from '../src/attention-conversation-service.mjs';
@@ -15,6 +13,10 @@ test('review requires completed and unread; active takes precedence, read and ar
   assert.equal(projectAttentionConversations([{ ...task, status: 'active' }], [id])[0].section, 'active');
   for (const status of ['pending', 'error', 'interrupted']) assert.deepEqual(projectAttentionConversations([{ ...task, status }], [id]), []);
   assert.deepEqual(projectAttentionConversations([{ ...task, archived: true }], [id]), []);
+  for (const status of ['completed', 'active']) {
+    assert.deepEqual(projectAttentionConversations([{ ...task, status, isSubagent: true }], [id]), []);
+  }
+  assert.equal(projectAttentionConversations([{ ...task, isSubagent: false }], [id])[0].section, 'review');
 });
 test('normalizes safe display fields, deduplicates and orders most recent first without mutating membership', () => {
   const original = { ...task, cwd: '/private/path', projectId: 'original', section: '本周' };
@@ -23,39 +25,44 @@ test('normalizes safe display fields, deduplicates and orders most recent first 
   assert.equal(original.section, '本周'); assert.equal(result[1].projectLabel, '项目甲');
   assert.equal(JSON.stringify(result).includes('/private'), false);
 });
-test('service coalesces reads, follows native read state, excludes archived paths and marks failed refresh stale', async t => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'attention-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
-  const statePath = path.join(dir, 'state.json'); let now = 100; let reads = 0;
-  const write = unread => fs.writeFile(statePath, JSON.stringify({ 'electron-persisted-atom-state': { 'unread-thread-ids-by-host-v1': { local: unread } } }));
-  await write([id, second]);
-  const service = new AttentionConversationService({ statePath, archivedSessionRoot: path.join(dir, 'archive'), clock: () => now, taskAdapter: { listTasks: async () => {
-    reads += 1; return { status: 'connected', tasks: [task, { ...task, id: second, sourceFile: path.join(dir, 'archive', 'old.jsonl') }] };
-  } } });
+test('service coalesces and caches native reads, excludes archived paths and removes newly read tasks', async () => {
+  const archivedSessionRoot = path.resolve('archive'); let now = 100; let reads = 0; let unreadReads = 0;
+  let unread = [id, second];
+  const service = new AttentionConversationService({ archivedSessionRoot, clock: () => now,
+    unreadStateProvider: { readUnreadIds: async () => { unreadReads += 1; return unread; } },
+    taskAdapter: { listTasks: async () => {
+      reads += 1; return { status: 'connected', tasks: [task, { ...task, id: second, sourceFile: path.join(archivedSessionRoot, 'old.jsonl') }] };
+    } }
+  });
   const snapshots = await Promise.all([service.read(), service.read()]);
-  assert.equal(reads, 1); assert.deepEqual(snapshots[0].items.map(x => x.id), [id]);
+  assert.equal(reads, 1); assert.equal(unreadReads, 1);
+  assert.deepEqual(snapshots[0].items.map(x => x.id), [id]);
+  assert.equal(snapshots[0], snapshots[1]);
   assert.equal(snapshots[0].stale, false);
-  await fs.writeFile(statePath, 'bad'); now += 5001;
-  assert.equal((await service.read()).stale, true); assert.equal((await service.read()).items.length, 1);
-  await write([]); now += 5001;
+  unread = [];
+  assert.equal((await service.read()).items.length, 1); assert.equal(unreadReads, 1);
+  now += 5001;
+  assert.deepEqual(await service.read(), { items: [], stale: false });
+  assert.equal(reads, 2); assert.equal(unreadReads, 2);
+});
+test('historical active markers require live confirmation and live completion can enter review', async () => {
+  let status = 'active'; let unread = [second];
+  const service = new AttentionConversationService({ cacheMs: 0,
+    unreadStateProvider: { readUnreadIds: async () => unread },
+    taskAdapter: { listTasks: async () => ({ tasks: [{ ...task, status: 'active' }, { ...task, id: second, status: 'active' }] }) },
+    runtimeStatusProvider: { readThreadStatuses: async () => new Map([[second, status]]) }
+  });
+  assert.deepEqual((await service.read()).items.map(x => [x.id, x.section]), [[second, 'active']]);
+  status = 'completed';
+  const result = await service.read(); assert.deepEqual(result.items.map(x => [x.id, x.section]), [[second, 'review']]);
+  unread = [];
   assert.deepEqual(await service.read(), { items: [], stale: false });
 });
-test('historical active markers require live confirmation and live completion can enter review', async t => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'attention-runtime-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
-  const statePath = path.join(dir, 'state.json');
-  await fs.writeFile(statePath, JSON.stringify({ 'electron-persisted-atom-state': { 'unread-thread-ids-by-host-v1': { local: [second] } } }));
-  const service = new AttentionConversationService({ statePath,
-    taskAdapter: { listTasks: async () => ({ tasks: [{ ...task, status: 'active' }, { ...task, id: second, status: 'active' }] }) },
-    runtimeStatusProvider: { readThreadStatuses: async () => new Map([[second, 'completed']]) }
-  });
-  const result = await service.read(); assert.deepEqual(result.items.map(x => [x.id, x.section]), [[second, 'review']]);
-});
 
-test('empty confirmed runtime is valid while a runtime failure preserves the last snapshot as stale', async t => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'attention-empty-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
-  const statePath = path.join(dir, 'state.json');
-  await fs.writeFile(statePath, JSON.stringify({ 'electron-persisted-atom-state': { 'unread-thread-ids-by-host-v1': { local: [id] } } }));
+test('empty confirmed runtime is valid while a runtime failure preserves the last snapshot as stale', async () => {
   let failed = false;
-  const service = new AttentionConversationService({ statePath, cacheMs: 0,
+  const service = new AttentionConversationService({ cacheMs: 0,
+    unreadStateProvider: { readUnreadIds: async () => [id] },
     taskAdapter: { listTasks: async () => ({ tasks: [task, { ...task, id: second, status: 'active' }] }) },
     runtimeStatusProvider: { readThreadStatuses: async options => {
       assert.equal(options.strict, true);
@@ -80,23 +87,39 @@ test('native runtime strict reads distinguish an unloaded window from failed sta
   assert.equal(closed, 3);
 });
 
-test('primary native blue dots join wrapper unread state and disappear when their native source clears', async t => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'attention-profiles-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
-  const wrapper = path.join(dir, 'wrapper.json'), primary = path.join(dir, 'primary.json');
-  const write = (file, local) => fs.writeFile(file, JSON.stringify({ 'electron-persisted-atom-state': { 'unread-thread-ids-by-host-v1': { local, remote: [second] } } }));
-  await write(wrapper, []); await write(primary, [id, id, second]);
-  const service = new AttentionConversationService({ statePath: wrapper, additionalStatePaths: [primary, wrapper], cacheMs: 0,
+test('unread provider failures and malformed state preserve the last snapshot as stale', async () => {
+  let unread = [id]; let failed = false;
+  const service = new AttentionConversationService({ cacheMs: 0,
+    unreadStateProvider: { readUnreadIds: async () => {
+      if (failed) throw Error('native read state unavailable');
+      return unread;
+    } },
     taskAdapter: { listTasks: async () => ({ tasks: [task, { ...task, id: second, latestInputSource: 'codex' }] }) }
   });
-  assert.equal(service.statePaths.length, 2);
-  assert.deepEqual((await service.read()).items.map(x => [x.id, x.section]), [[id, 'review'], [second, 'codex']]);
-  await write(primary, []);
-  assert.deepEqual((await service.read()).items.map(x => x.section), ['codex']);
-  await write(wrapper, [id]); await write(primary, [id]);
-  assert.equal((await service.read()).items.length, 2);
-  await write(wrapper, []);
-  assert.equal((await service.read()).items.length, 2);
-  await fs.writeFile(primary, 'invalid'); assert.equal((await service.read()).stale, true);
-  await fs.rm(primary); assert.equal((await service.read()).stale, false);
-  assert.deepEqual((await service.read()).items.map(x => x.section), ['codex']);
+  const initial = await service.read();
+  assert.deepEqual(initial.items.map(x => [x.id, x.section]), [[id, 'review'], [second, 'codex']]);
+  failed = true;
+  assert.deepEqual(await service.read(), { ...initial, stale: true });
+  failed = false;
+  for (unread of [undefined, null, {}, 'invalid', [null], [id, 'invalid']]) {
+    assert.deepEqual(await service.read(), { ...initial, stale: true });
+  }
+  unread = [];
+  const cleared = await service.read();
+  assert.equal(cleared.stale, false);
+  assert.deepEqual(cleared.items.map(x => x.section), ['codex']);
+});
+
+test('missing native unread provider cannot masquerade as confirmed empty state', async () => {
+  for (const unreadStateProvider of [undefined, {}, { readUnreadIds: 'invalid' }]) {
+    const service = new AttentionConversationService({ unreadStateProvider,
+      taskAdapter: { listTasks: async () => ({ tasks: [task] }) }
+    });
+    assert.deepEqual(await service.read(), { items: [], stale: true });
+  }
+  const service = new AttentionConversationService({
+    unreadStateProvider: { readUnreadIds: async () => [] },
+    taskAdapter: { listTasks: async () => ({ tasks: [task] }) }
+  });
+  assert.deepEqual(await service.read(), { items: [], stale: false });
 });

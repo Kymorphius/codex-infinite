@@ -1,5 +1,10 @@
 # Automatic review and running conversation sections
 
+The unread-provider details below are superseded by
+`2026-09-22-attention-native-read-state.md`: current native renderer state replaces
+legacy persisted-atom reads and cross-profile disk unions. No legacy support is
+retained; the remaining section and acknowledgement behavior still applies.
+
 Add 等待查看 and 进行中 above existing native sections (order 5 and 6). They
 are additive aliases of local native tasks: no project/section ownership writes,
 no duplicate conversations, no drag/drop registration. Titles, disclosure icons,
