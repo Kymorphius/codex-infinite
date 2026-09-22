@@ -226,7 +226,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
   assert.match(source, /data-window-opening/);
   assert.match(source, /data-window-error/);
-  assert.match(source, /2026-09-20\.recent-menu1/);
+  assert.match(source, /2026-09-21\.switch-layout1/);
   assert.match(source, /openNativeConversationPages/);
   assert.match(source, /installNativeRecentConversationMenu/);
   assert.match(source, /recentMenu\?\.render/);
@@ -255,7 +255,11 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /\[project, title, chatAction\]\.filter\(Boolean\)/);
   assert.match(source, /stableLeft = Math\.max\(76, Math\.round\(rect\.left \+ 8\)\)/);
   assert.match(source, /const left = stableLeft \?\?/);
-  assert.match(source, /render\(\); scheduleSync\(true\)/);
+  assert.match(source, /function scheduleSync\(urgent = false, forceTitleScan = false\)/);
+  assert.match(source, /position\(forceTitleScan\)/);
+  assert.match(source, /const onResize = \(\) => scheduleSync\(true, true\)/);
+  assert.doesNotMatch(source, /position\(urgent\)/);
+  assert.match(source, /render\(\); scheduleSync\(true, true\)/);
   assert.match(source, /background:var\(--color-background-primary,#202022\)/);
   assert.doesNotMatch(source, /const takeoverActive =/);
   assert.doesNotMatch(source, /installNativeConversationTabWheelPreferences/);

@@ -36,7 +36,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeRecentConversationMenuInjectionSource()}
   ${buildNativeConversationTabTransitionSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-20.recent-menu1';
+    const VERSION = '2026-09-21.switch-layout1';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -264,7 +264,7 @@ export function buildNativeConversationTabsInjectionSource() {
       return { kind: 'chatgpt', id: match[1], title: clean(title, 160) || 'ChatGPT 会话' };
     }
 
-    function scheduleSync(urgent = false) {
+    function scheduleSync(urgent = false, forceTitleScan = false) {
       if (renderPending) {
         if (!urgent || !renderTimer) return;
         clearTimeout(renderTimer); renderTimer = null; renderPending = false;
@@ -272,7 +272,7 @@ export function buildNativeConversationTabsInjectionSource() {
       renderPending = true;
       const interval = urgent ? 0 : 320;
       const delay = Math.max(0, interval - (performance.now() - lastSyncAt));
-      const queue = () => requestAnimationFrame(() => { renderPending = false; renderTimer = null; lastSyncAt = performance.now(); syncLocal(); position(urgent); });
+      const queue = () => requestAnimationFrame(() => { renderPending = false; renderTimer = null; lastSyncAt = performance.now(); syncLocal(); position(forceTitleScan); });
       if (delay > 0) renderTimer = setTimeout(queue, delay); else queue();
     }
 
@@ -311,10 +311,10 @@ export function buildNativeConversationTabsInjectionSource() {
     observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; scheduleSync(routeChanged(records)); });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-title', 'data-above-composer-conversation-id'] });
 
-    const onResize = () => scheduleSync(true);
+    const onResize = () => scheduleSync(true, true);
     window.addEventListener('resize', onResize);
     const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, destroy() { pageInset.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
-    render(); scheduleSync(true); return controller;
+    render(); scheduleSync(true, true); return controller;
   }
   `;
 }

@@ -45,6 +45,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   const staleThreads = new Set();
   let activeThreadId = null;
 
+
   ${readHeldEditableText.toString()}
   ${replaceHeldEditableText.toString()} ${formatHeldInitialTime.toString()} ${orderHeldForView.toString()}
   ${createHeldDisplayRow.toString()} ${createHeldEditRow.toString()}
@@ -196,7 +197,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   function draftText(editor) {
     const markdown = editor?.getAttribute?.('data-composer-markdown');
     if (typeof markdown === 'string' && markdown.trim()) return markdown.trim();
-    return (editor?.innerText || editor?.textContent || '').trim();
+    return (editor?.textContent || '').trim();
   }
   function updateDraftButton() {
     const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');

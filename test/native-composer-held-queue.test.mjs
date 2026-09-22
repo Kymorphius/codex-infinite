@@ -59,7 +59,8 @@ test("native held queue saves the current text draft before clearing it", () => 
   assert.match(clear, /editor\.contains\(selection\.focusNode\)/);
   assert.ok(clear.indexOf("selectionIsInsideEditor") < clear.indexOf("execCommand('delete'"));
   assert.match(read, /data-composer-markdown/);
-  assert.ok(read.indexOf("data-composer-markdown") < read.indexOf("innerText"));
+  assert.match(read, /editor\?\.textContent/);
+  assert.doesNotMatch(read, /innerText/);
 });
 
 test("save-as-todo isolates pointer activation from native composer submission", () => {
