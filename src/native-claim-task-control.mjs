@@ -1,6 +1,7 @@
 export function createNativeClaimTaskButton(getThreadId) {
   return () => {
-    const node = document.createElement('button'); node.type = 'button'; node.textContent = '领任务'; node.title = '从综合任务清单领取一项未指派任务到当前会话';
+    const threadId = getThreadId();
+    const node = document.createElement('button'); node.type = 'button'; node.textContent = threadId ? '领任务' : '指派任务'; node.title = threadId ? '从综合任务清单领取一项未指派任务到当前会话' : '把综合任务指派给已有会话';
     node.addEventListener('click', (event) => { event.preventDefault(); event.stopImmediatePropagation(); const id = getThreadId(); if (id) window.__cccProjectChecklist?.openClaimableForCurrentThread?.(id); else window.__cccProjectChecklist?.openGeneral?.(); }, true);
     return node;
   };
@@ -16,10 +17,10 @@ export function ensureNativeClaimTaskButton(host, before, createButton) {
   return claim;
 }
 
-export function renderNativeClaimTaskButton(button, count) {
+export function renderNativeClaimTaskButton(button, count, threadId = true) {
   const value = Math.max(0, Math.floor(Number(count) || 0));
-  const text = '领任务 ' + value;
-  const title = value ? '从综合任务清单领取 ' + value + ' 项未指派任务到当前会话' : '综合任务清单当前没有未指派任务';
+  const text = (threadId ? '领任务 ' : '指派任务 ') + value;
+  const title = value ? (threadId ? '从综合任务清单领取 ' + value + ' 项未指派任务到当前会话' : '把 ' + value + ' 项未指派任务指派给已有会话') : '综合任务清单当前没有未指派任务';
   if (button.textContent !== text) button.textContent = text;
   if (button.title !== title) button.title = title;
 }
@@ -27,8 +28,9 @@ export function renderNativeClaimTaskButton(button, count) {
 export function createNativeClaimTaskBridge(getThreadId) {
   let count = 0;
   const render = (button) => {
-    const text = '领任务 ' + count;
-    const title = count ? (getThreadId() ? '从综合任务清单领取 ' + count + ' 项未指派任务到当前会话' : '有 ' + count + ' 项未指派任务；新建聊天后即可领取') : '综合任务清单当前没有未指派任务';
+    const threadId = getThreadId();
+    const text = (threadId ? '领任务 ' : '指派任务 ') + count;
+    const title = count ? (threadId ? '从综合任务清单领取 ' + count + ' 项未指派任务到当前会话' : '把 ' + count + ' 项未指派任务指派给已有会话') : '综合任务清单当前没有未指派任务';
     if (button.textContent !== text) button.textContent = text;
     if (button.title !== title) button.title = title;
   };

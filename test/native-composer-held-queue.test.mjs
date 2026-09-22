@@ -18,6 +18,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /data-app-action-sidebar-thread-selected/);
   assert.match(source, /codex-control-console-held-todos-changed/);
   assert.match(source, /领任务/);
+  assert.match(source, /指派任务/);
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
   assert.match(source, /__codexControlConsoleSetAssignedChecklistTasks/);
@@ -28,8 +29,8 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /makeButton\('管理'/);
   assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
   assert.doesNotMatch(source, /updateShell\(id, toolbar, panel\); if \(!open\) return/);
-  assert.match(source, /领任务 ' \+ count/);
-  assert.match(source, /新建聊天后即可领取/);
+  assert.match(source, /指派任务 '.*\+ count/);
+  assert.match(source, /指派给已有会话/);
   assert.match(source, /if \(!id\) \{.*claimTasks\.ensure/);
 });
 
@@ -213,4 +214,9 @@ test("held shell and claim controls skip identical DOM writes", () => {
   assert.equal(buttonWrites, 0);
   renderNativeClaimTaskButton(button, 8);
   assert.equal(buttonWrites, 2);
+
+  renderNativeClaimTaskButton(button, 8, false);
+  assert.equal(buttonText, "指派任务 8");
+  assert.equal(buttonTitle, "把 8 项未指派任务指派给已有会话");
+  assert.equal(buttonWrites, 4);
 });

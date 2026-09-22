@@ -8,10 +8,12 @@ pill opens settings and no separate settings button is rendered. The composer us
 hides the native access-permission control, and keeps the existing access policy
 unchanged. Turbo settings no longer expose an access-mode selector.
 
-Composer actions use the compact labels `存待办` and `领任务`. The per-conversation
+Composer actions use the compact labels `存待办` and `领任务`; before a new chat has
+a conversation ID, the latter reads `指派任务` because its panel assigns tasks to
+existing conversations rather than claiming into the not-yet-created chat. The per-conversation
 Jev control uses `路由` or `直连` without repeating the `Jev` prefix; routing and
 direct-send behavior remain unchanged. The composer keeps these controls in the
-fixed visual order `存待办 → 领任务 → 百万 → 路由/直连`, independently of module
+fixed visual order `存待办 → 指派任务/领任务 → 百万 → 路由/直连`, independently of module
 injection order. Holding Command on macOS or Ctrl on other platforms while
 dragging one of these controls, including the queue-management `待办` control
 and the current-conversation State indicator,
