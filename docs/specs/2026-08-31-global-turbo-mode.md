@@ -83,6 +83,14 @@ For an outgoing `turn/start` request while Turbo is enabled it:
 5. applies a named permission profile only when access is configured;
 6. sends the modified `turn/start` through the same native App Server writer.
 
+On a brand-new conversation the frozen production bridge has no `threadId` to
+lease before the first send. The native integration therefore prepares the
+new-chat composer itself: it selects the configured model and reasoning effort,
+enables Fast when requested, and blocks/replays an immediate send until those
+native controls confirm the requested values. Once the conversation receives a
+`threadId`, the normal reversible settings lease remains authoritative. This
+prevents the first turn from racing ahead with the native Sol/medium defaults.
+
 These are turn-scoped overrides. The bridge never writes thread settings, so
 disabling Turbo restores the next turn to the native UI's unchanged model,
 effort, and service-tier choices without a restoration request or writer lock.
@@ -173,6 +181,8 @@ does not restart either desktop.
 - [x] Full tests, structure checks, and diff checks pass.
 - [x] A frozen `electronBridge` uses a reversible writer-owned settings lease,
   and the UI reports Turbo effective only after authoritative readback.
+- [x] A new conversation applies the Turbo model, effort, and Fast preset before
+  its first send, including the immediate-send path before a `threadId` exists.
 - [ ] The sidebar header buttons remain hoverable and clickable while the gaps
   remain draggable through the real macOS title-bar hit-test path. Initial DOM
   input evidence did not cover the conversation-page native header overlap;

@@ -1,6 +1,7 @@
 import { highestModelEfforts, TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
 import { buildNativeTurboUiSource } from "./native-turbo-ui.mjs";
 import { buildNativeTurboEnforcementSource } from "./native-turbo-enforcement.mjs";
+import { buildNativeTurboNewChatSource } from "./native-turbo-new-chat.mjs";
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { formatNativeTurboTurnReceipt, normalizeNativeTurboTurnReceipt, readNativeTurboTurnRequest } from "./native-turbo-turn-contract.mjs";
 import { installNativeTurboTurnReceipts } from "./native-turbo-turn-receipts.mjs";
@@ -56,9 +57,11 @@ export function buildNativeTurboInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_TURBO_BINDING);
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
   const enforcementSource = buildNativeTurboEnforcementSource();
+  const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-22.panel-switches1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-22.new-chat-preset3') return;
   window.__codexControlConsoleTurboTurnCleanup?.();
+  window.__codexControlConsoleTurboNewChatCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
   try {
     const currentSend = window.electronBridge?.sendMessageFromView;
@@ -68,7 +71,7 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-22.panel-switches1';
+  window.__codexControlConsoleTurboVersion = '2026-09-22.new-chat-preset3';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
@@ -165,6 +168,7 @@ export function buildNativeTurboInjectionScript() {
   }
 
   ${uiSource}
+  ${newChatSource}
   ${enforcementSource}
   let turboTurnRenderer = null;
   const readTurboTurnRequest = ${readNativeTurboTurnRequest.toString()};
@@ -181,6 +185,7 @@ export function buildNativeTurboInjectionScript() {
 
   function install() {
     installButton();
+    void syncTurboNewChatPreset();
     decorateReasoningControl();
     const bridge = window.electronBridge;
     const current = bridge?.sendMessageFromView;
@@ -236,6 +241,7 @@ export function buildNativeTurboInjectionScript() {
   window.__codexControlConsoleTurboInstallTimer = installTimer;
   window.addEventListener('beforeunload', () => {
     window.__codexControlConsoleTurboTurnCleanup?.();
+    window.__codexControlConsoleTurboNewChatCleanup?.();
     clearInterval(installTimer);
     if (window.__codexControlConsoleTurboInstallTimer === installTimer) window.__codexControlConsoleTurboInstallTimer = null;
   }, { once: true });

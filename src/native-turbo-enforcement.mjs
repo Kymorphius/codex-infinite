@@ -97,7 +97,7 @@ export function buildNativeTurboEnforcementSource() {
   function turboIsEnforcedForCurrentThread() {
     if (turboBridgeIsWrapped()) return true;
     const threadId = selectedTurboThreadId();
-    return Boolean(threadId && turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId));
+    return threadId ? turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId) : turboNewChatIsReady();
   }
 
   function verifiedTurboTurnSettings(threadId) {
@@ -113,7 +113,7 @@ export function buildNativeTurboEnforcementSource() {
     if (policy.enabled && policy.active && threadId && turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId)) return;
     if (!policy.enabled || !policy.active) {
       if (!turboLeases.size) return;
-    } else if (!threadId) return;
+    } else if (!threadId) { await syncTurboNewChatPreset(); return; }
     turboEnforcementBusy = true;
     try {
       if (policy.enabled && policy.active) await applyTurboLease(threadId);
