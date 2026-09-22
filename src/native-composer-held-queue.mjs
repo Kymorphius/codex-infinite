@@ -11,7 +11,7 @@ import{noThread}from"./native-composer-availability.mjs";
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.3', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-22.4', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-22.3', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -251,7 +251,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     panel.replaceChildren();
     const head = document.createElement('div'); head.dataset.cccHeldHead = '';
     const title = document.createElement('strong'); title.textContent = '待发消息';
-    const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + held.length + ' 待办 · ' + assignedTasks.length + ' 任务';
+    const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + (held.length + assignedTasks.length) + ' 待办';
     const views = document.createElement('span'); views.dataset.cccHeldViews = '';
     views.append(button('手动视图', () => setHeldView(id, 'manual'), heldView === 'manual'), button('时间视图', () => setHeldView(id, 'time'), heldView === 'time'));
     head.append(title, views, state); panel.append(head);

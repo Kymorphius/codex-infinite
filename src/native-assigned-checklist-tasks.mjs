@@ -3,7 +3,7 @@ export function normalizeAssignedChecklistTasks(items) {
 }
 
 export function appendAssignedChecklistTaskRows(list, items, createRow, makeButton, busy, resume) {
-  items.forEach((item) => list.append(createRow('任务·已领取·暂停', item.text, [makeButton('恢复发送', () => resume(item), busy), makeButton('查看综合清单', () => window.__cccProjectChecklist?.openGeneral?.(), busy)])));
+  items.forEach((item) => list.append(createRow('待办·暂停', item.text, [makeButton('恢复', () => resume(item), busy), makeButton('管理', () => window.__cccProjectChecklist?.openGeneral?.(), busy)])));
 }
 
 export async function resumeAssignedTask(task, context) {

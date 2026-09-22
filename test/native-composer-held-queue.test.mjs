@@ -20,11 +20,12 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
   assert.match(source, /__codexControlConsoleSetAssignedChecklistTasks/);
-  assert.match(source, /任务·已领取·暂停/);
+  assert.match(source, /待办·暂停/);
   assert.match(source, /resumeAssignedTask/);
   assert.match(source, /completeAssignedTask/);
-  assert.match(source, /恢复发送/);
-  assert.match(source, /查看综合清单/);
+  assert.match(source, /makeButton\('恢复'/);
+  assert.match(source, /makeButton\('管理'/);
+  assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
   assert.match(source, /领任务 ' \+ count/);
   assert.match(source, /新建聊天后即可领取/);
   assert.match(source, /if \(!id\) \{.*claimTasks\.ensure/);
