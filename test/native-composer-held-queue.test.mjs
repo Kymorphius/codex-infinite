@@ -8,7 +8,7 @@ import { updateHeldQueueShell } from "../src/native-assigned-checklist-tasks.mjs
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-22\.9'/);
+  assert.match(source, /const VERSION = '2026-09-22\.10'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -193,7 +193,7 @@ test("held manager avoids observer repaint loops and unchanged queue refreshes",
   assert.match(install, /const panelCreated = !panel/);
   assert.match(install, /if \(threadChanged \|\| panelCreated\) render\(\); else updateShell\(id, toolbar, panel\)/);
   assert.doesNotMatch(install, /restoreDraft\(\); render\(\)/);
-  assert.match(source, /JSON\.stringify\(next\) !== JSON\.stringify\(assignedTasks\)/);
+  assert.match(source, /JSON\.stringify\(next\) === JSON\.stringify\(snapshot\)/);
 });
 
 test("held shell and claim controls skip identical DOM writes", () => {

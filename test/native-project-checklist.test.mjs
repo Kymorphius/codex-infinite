@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { buildNativeProjectChecklistScript } from '../src/native-project-checklist.mjs';
 import { readNativeChecklistHeldTodos } from '../src/native-checklist-held-todos.mjs';
 import { readNativeChecklistConversationChoices } from '../src/native-checklist-conversation-choices.mjs';
+import { ProjectChecklistStore } from '../src/project-checklist-store.mjs';
+import { assignedChecklistTasksForThread } from '../src/project-checklist-assignment.mjs';
 function harness(saved = '[]', conversationRows = []) {
   class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.dataset = {}; this.listeners = {}; this.value = ''; }
@@ -109,4 +114,98 @@ test('general checklist can assign or claim an unassigned task without sending i
   assert.match(source, /确认/);
   assert.match(source, /取消/);
   assert.doesNotMatch(source, /window\.prompt/);
+});
+
+const generalKey = 'ccc:general-inbox:v1';
+const threadA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', threadB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+test('claim clicks keep task identity through reordered rows, persistence and the todo projection', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'checklist-claim-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new ProjectChecklistStore(directory);
+  const taskA = { id: 'task-a', text: '领取这一个任务', done: false, assignedThreadId: null };
+  const taskB = { id: 'task-b', text: '不要领取另一个任务', done: false, assignedThreadId: null };
+  for (const item of [taskA, taskB]) await store.apply({ ...item, projectKey: generalKey, type: 'upsert', requestId: 'seed-' + item.id });
+  const h = harness(); h.api.cacheGeneral([taskA, taskB]); h.api.openClaimableForCurrentThread(threadA);
+  const list = h.dialog.children[4], staleClaimA = list.children[0].children[1];
+  h.api.accept({ projectKey: generalKey, items: [taskB, taskA], acknowledged: [] });
+  staleClaimA.listeners.click();
+  assert.equal(h.api.packet().actions.length, 0);
+  assert.equal(list.children[1].children[0].value, taskA.text);
+  list.children[1].children[1].listeners.click();
+  const actions = h.api.packet().actions;
+  assert.equal(actions.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(actions[0])), { ...taskA, assignedThreadId: threadA, projectKey: generalKey, type: 'upsert', requestId: 'id-1' });
+  await store.apply(actions[0]);
+  const saved = (await new ProjectChecklistStore(directory).read(generalKey)).items;
+  assert.deepEqual(assignedChecklistTasksForThread(saved, threadA), [{ id: taskA.id, text: taskA.text }]);
+  assert.equal(saved.find(item => item.id === taskB.id).assignedThreadId, null);
+  assert.equal(saved.find(item => item.id === taskB.id).text, taskB.text);
+});
+
+test('a claim callback from an earlier dialog cannot use the newly selected claim target or project', () => {
+  const h = harness(), task = { id: 'task-a', text: '绑定领取目标', done: false };
+  h.api.cacheGeneral([task]); h.api.openClaimableForCurrentThread(threadA);
+  const list = h.dialog.children[4], staleClaimA = list.children[0].children[1];
+  h.api.open({ key: 'another-project' }); staleClaimA.listeners.click();
+  assert.equal(h.api.packet().actions.length, 0);
+  h.api.openClaimableForCurrentThread(threadB); staleClaimA.listeners.click();
+  assert.equal(h.api.packet().actions.length, 0);
+  list.children[0].children[1].listeners.click();
+  const [action] = h.api.packet().actions;
+  assert.equal(action.id, task.id); assert.equal(action.text, task.text);
+  assert.equal(action.projectKey, generalKey); assert.equal(action.assignedThreadId, threadB);
+});
+
+test('a newer general snapshot prevents a visible stale claim from overwriting reassignment or text', () => {
+  for (const update of [{ assignedThreadId: threadB }, { text: '已经修改的内容' }, { done: true }]) {
+    const h = harness(), task = { id: 'task-a', text: '旧的内容', done: false, assignedThreadId: null };
+    h.api.cacheGeneral([task]); h.api.openClaimableForCurrentThread(threadA);
+    const claim = h.dialog.children[4].children[0].children[1];
+    h.api.cacheGeneral([{ ...task, ...update }]); claim.listeners.click();
+    assert.equal(h.api.packet().actions.length, 0, JSON.stringify(update));
+  }
+});
+
+test('resuming an assigned general task completes its exact identity while another project is open', () => {
+  const h = harness(), generalTask = { id: 'shared-id', text: '综合清单中的任务', done: false, assignedThreadId: threadA };
+  h.api.cacheGeneral([generalTask]); h.api.open({ key: 'another-project' });
+  const projectTask = { id: 'shared-id', text: '另一个项目中同 ID 的任务', done: false, assignedThreadId: threadB };
+  h.api.accept({ projectKey: 'another-project', items: [projectTask], acknowledged: [] });
+  assert.equal(h.api.completeAssignedTask(generalTask.id, threadA, generalTask.text), true);
+  const [action] = h.api.packet().actions;
+  assert.equal(action.projectKey, generalKey); assert.equal(action.id, generalTask.id);
+  assert.equal(action.text, generalTask.text); assert.equal(action.assignedThreadId, threadA); assert.equal(action.done, true);
+  assert.equal(h.dialog.children[4].children[0].children[1].value, projectTask.text);
+  assert.equal(h.dialog.children[4].children[0].children[0].checked, false);
+  assert.equal(h.api.completeAssignedTask(generalTask.id, threadA, generalTask.text), false);
+  assert.equal(h.api.packet().actions.length, 1);
+});
+
+test('assigned completion resolves general pending changes without using same-ID project pending actions', () => {
+  const task = { id: 'shared-id', text: '原来的任务', done: false, assignedThreadId: threadA };
+  const changed = { ...task, text: '修改且改派后的任务', assignedThreadId: threadB };
+  const pending = [
+    { ...changed, projectKey: generalKey, type: 'upsert', requestId: 'general-edit' },
+    { ...task, projectKey: 'another-project', type: 'upsert', requestId: 'project-edit' }
+  ];
+  const h = harness(JSON.stringify(pending)); h.api.cacheGeneral([task]); h.api.open({ key: 'another-project' });
+  assert.equal(h.api.completeAssignedTask(task.id, threadA, task.text), false);
+  assert.equal(h.api.completeAssignedTask(task.id, threadB, task.text), false);
+  assert.equal(h.api.completeAssignedTask(task.id, threadA, changed.text), false);
+  assert.equal(h.api.packet().actions.length, 2);
+  assert.equal(h.api.completeAssignedTask(task.id, threadB, changed.text), true);
+  const action = h.api.packet().actions.at(-1);
+  assert.equal(action.projectKey, generalKey); assert.equal(action.assignedThreadId, threadB);
+  assert.equal(action.text, changed.text); assert.equal(action.done, true);
+});
+
+test('assigned completion rejects completed, removed, unassigned and changed tasks', () => {
+  const task = { id: 'task-a', text: '原来的任务', done: false, assignedThreadId: threadA };
+  for (const items of [[], [{ ...task, done: true }], [{ ...task, assignedThreadId: threadB }], [{ ...task, text: '新任务内容' }], [{ ...task, assignedThreadId: null }]]) {
+    const h = harness(); h.api.cacheGeneral(items);
+    assert.equal(h.api.completeAssignedTask(task.id, threadA, task.text), false);
+    assert.equal(h.api.completeAssignedTask(task.id, null, task.text), false);
+    assert.equal(h.api.packet().actions.length, 0);
+  }
 });

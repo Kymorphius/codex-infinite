@@ -62,7 +62,7 @@ test('checklist sync publishes only unfinished unassigned general tasks to the c
   await syncProjectChecklist({ evaluate: async code => { calls.push(code); if (code.includes("location.href")) return true; if (code.includes('window.__cccProjectChecklist?.packet()')) return {}; if (code.includes('data-above-composer-conversation-id')) return threadId; return false; } }, store);
   assert.ok(calls.some(code => code.includes('__codexControlConsoleSetClaimableTaskCount?.(1)')));
   assert.ok(calls.some(code => code.includes('__cccProjectChecklist?.cacheGeneral(')));
-  assert.ok(calls.some(code => code.includes('__codexControlConsoleSetAssignedChecklistTasks?.([{\"id\":\"claimed\",\"text\":\"已领取\"}])')));
+  assert.ok(calls.some(code => code.includes(`__codexControlConsoleSetAssignedChecklistTasks?.(${JSON.stringify({ threadId, items: [{ id: 'claimed', text: '已领取' }] })})`)));
 });
 
 test('catalog identity resolves to native sidebar ID and ignores remote host mappings', async t => {
