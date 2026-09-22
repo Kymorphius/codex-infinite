@@ -7,6 +7,7 @@ import { mergeProjectSearchCatalog } from "./federated-project-search.mjs";
 import { buildNativeProjectPathMenuScript } from "./native-project-path-menu.mjs";
 import { buildNativeProjectSearchInjectionScript, buildNativeProjectSearchSnapshotScript } from "./native-project-search.mjs";
 import { buildNativeAttentionConversationsInjectionScript, buildNativeAttentionConversationsSnapshotScript } from "./native-attention-conversations.mjs";
+import { buildNativeRecentSentSnapshotScript } from "./native-recent-sent-conversations.mjs";
 import { buildNativeNewProjectsInjectionScript, buildNativeNewProjectsSnapshotScript } from "./native-new-projects.mjs";
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
 import { buildInjectionScript } from "./injection.mjs";
@@ -52,7 +53,7 @@ export async function drainNativeContextActions(connection, contextWindowStore) 
   return actions;
 }
 
-async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot) {
+async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations) {
   await connection.evaluate(buildNativeApprovalInjectionScript());
   await connection.evaluate(buildNativeContextInjectionScript());
   await drainNativeContextActions(connection, contextWindowStore);
@@ -78,6 +79,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeNewProjectsSnapshotScript(newProjects));
   await connection.evaluate(buildNativeAttentionConversationsInjectionScript());
   await connection.evaluate(buildNativeAttentionConversationsSnapshotScript(attentionConversations));
+  await connection.evaluate(buildNativeRecentSentSnapshotScript(recentSentConversations));
   await connection.evaluate(buildNativePinnedEmptyInjectionScript());
   await connection.evaluate(buildNativeProjectSearchInjectionScript());
   const search = mergeProjectSearchCatalog(projectSearch, remoteSidebar);
@@ -119,7 +121,7 @@ async function prepareCspBypass(connection, { reloadAfterCspBypass = true } = {}
   return true;
 }
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, reloadAfterCspBypass = true } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -178,7 +180,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     }
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
-      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot);
+      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
       await connection.evaluate(buildInjectionScript(dashboardUrl));
       return { status: "already-installed" };
     }
@@ -187,14 +189,14 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       connection.__codexControlConsoleRecoveryAttempted = true;
     }
   }
-  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot);
+  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
   await connection.evaluate(buildInjectionScript(dashboardUrl));
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -209,6 +211,7 @@ export class CodexInjector {
     this.remoteSidebarProvider = remoteSidebarProvider;
     this.newProjectProvider = newProjectProvider;
     this.attentionConversationProvider = attentionConversationProvider;
+    this.recentSentConversationProvider = recentSentConversationProvider;
     this.turnStateProvider = turnStateProvider;
     this.recoverTarget = recoverTarget;
     this.reloadAfterCspBypass = reloadAfterCspBypass;
@@ -281,6 +284,7 @@ export class CodexInjector {
         projectSearch: await this.newProjectProvider?.readSearch?.(),
         newProjects: await this.newProjectProvider?.read?.() || [],
         attentionConversations: await this.attentionConversationProvider?.read?.(),
+        recentSentConversations: await this.recentSentConversationProvider?.read?.(),
         turnStateSnapshot: await this.turnStateProvider?.snapshot?.(),
         reloadAfterCspBypass: this.reloadAfterCspBypass
       });

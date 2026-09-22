@@ -226,7 +226,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
   assert.match(source, /data-window-opening/);
   assert.match(source, /data-window-error/);
-  assert.match(source, /2026-09-21\.switch-layout1/);
+  assert.match(source, /2026-09-22\.recent-sent1/);
   assert.match(source, /openNativeConversationPages/);
   assert.match(source, /installNativeRecentConversationMenu/);
   assert.match(source, /recentMenu\?\.render/);

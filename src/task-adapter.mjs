@@ -184,6 +184,7 @@ export class CodexTaskAdapter {
     this.fileCache = new Map();
     this.listing = null;
     this.taskIndex = new Map();
+    this.cachedTasksReady = false;
   }
 
   contextProjection(threadId) {
@@ -202,6 +203,10 @@ export class CodexTaskAdapter {
     if (this.listing) return this.listing;
     this.listing = this.listTasksFresh().finally(() => { this.listing = null; });
     return this.listing;
+  }
+
+  getCachedTasks() {
+    return this.cachedTasksReady ? [...this.taskIndex.values()].map(task => ({ ...task })) : null;
   }
 
   async listTasksFresh() {
@@ -265,6 +270,7 @@ export class CodexTaskAdapter {
       });
       currentTasks.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
       this.taskIndex = new Map(currentTasks.map((task) => [task.id, task]));
+      this.cachedTasksReady = true;
       if (currentTasks.length === 0) {
         return { status: "empty", source: "codex-session-metadata-read-only", readOnly: true, tasks: [], projects: [], devices: [this.device], message: "尚未发现可读取的 Codex 任务记录。" };
       }

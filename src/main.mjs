@@ -7,6 +7,7 @@ import { TurnAnnotationStore } from './turn-annotation-store.mjs';
 import { RuntimeRestartService } from "./runtime-restart.mjs";
 import { NativeAppLaunchService } from "./native-app-launch.mjs";
 import { AttentionConversationService } from "./attention-conversation-service.mjs";
+import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
 import { NativeThreadReadStateAdapter } from "./native-thread-read-state.mjs";
 import { NewProjectService } from "./new-project-service.mjs";
 import { getConfig } from "./config.mjs";
@@ -143,6 +144,7 @@ export async function run() {
   const remoteSidebarService = new NativeRemoteSidebarService({ adapter });
   const newProjectService = new NewProjectService({ codexPath: config.codexPath, codexHome: config.nativeCodexHome, taskAdapter: localAdapter, statePath: path.join(config.wrapperCodexHome, "new-project-lifecycle.json"), projectStatePaths: [config.sourceCodexHome, config.wrapperCodexHome].map(home => path.join(home, ".codex-global-state.json")) });
   const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
+  const recentSentConversations = new RecentSentConversationService({ taskAdapter: localAdapter, archivedSessionRoot: config.archivedSessionRoot });
   const primaryAttentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: new NativeConversationAdapter({ cdpOrigin: config.primaryCdpOrigin }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.primaryCdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
   const turboPolicyStore = new TurboPolicyStore({ filePath: path.join(config.wrapperCodexHome, "turbo-policy.json") });
   await turboPolicyStore.init();
@@ -216,6 +218,7 @@ export async function run() {
       remoteSidebarProvider: remoteSidebarService,
       newProjectProvider: newProjectService,
       attentionConversationProvider: attentionConversations,
+      recentSentConversationProvider: recentSentConversations,
       turnStateProvider: turnStateService,
       recoverTarget: () => ensureDedicatedCodex(config),
       reloadAfterCspBypass: config.cspReloadRequired
