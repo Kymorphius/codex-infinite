@@ -12,7 +12,7 @@ test('generated held image injection remains parseable', () => {
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-24\.todo-actions1'/);
+  assert.match(source, /const VERSION = '2026-09-24\.queue-label1'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -29,7 +29,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /appendNativeHeldTodoRows/);
   assert.match(source, /resumeAssignedTask/);
   assert.match(source, /completeAssignedTask/);
-  assert.match(source, /makeButton\('恢复'/);
+  assert.match(source, /makeButton\('加入发送队列'/);
   assert.match(source, /makeButton\('退回'/);
   assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
   assert.doesNotMatch(source, /updateShell\(id, toolbar, panel\); if \(!open\) return/);
@@ -90,7 +90,7 @@ test("native held queue exposes composer management and stale queue recovery", (
   assert.match(source, /const text = '待办 '/);
   assert.match(source, /button\('待办', \(\) =>/);
   assert.match(source, /暂停/);
-  assert.match(source, /恢复/);
+  assert.match(source, /加入发送队列/);
   assert.match(source, /同步原生队列/);
   assert.match(source, /App-server queued follow-up no longer exists/);
   assert.ok(source.includes('[role="alert"],[data-sonner-toast]'));

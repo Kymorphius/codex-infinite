@@ -16,7 +16,7 @@ test('all todo sources render through one row contract with one label and consis
     });
   assert.deepEqual(rows.map(row => row.kind), ['待办', '待办']);
   assert.deepEqual(rows.map(row => row.actions.map(action => action.label)), [
-    ['编辑', '恢复', '重派', '退回', '删除'], ['编辑', '恢复', '重派', '退回', '删除']
+    ['编辑', '加入发送队列', '重派', '退回', '删除'], ['编辑', '加入发送队列', '重派', '退回', '删除']
   ]);
   assert.equal(rows.find(row => row.text === held.summary).time, held.heldAt);
   assert.equal(rows.find(row => row.text === assigned.text).time, Date.parse(assigned.createdAt));

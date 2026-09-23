@@ -16,7 +16,7 @@ export function appendNativeHeldTodoRows(list, entries, createRow, createEditRow
       return;
     }
     actions.push(makeButton('编辑', () => context.edit(source, item), context.busy));
-    actions.push(makeButton('恢复', () => context.resume(source, item), context.busy));
+    actions.push(makeButton('加入发送队列', () => context.resume(source, item), context.busy));
     actions.push(makeButton('重派', () => context.reassign(source, item), context.busy));
     actions.push(makeButton('退回', () => context.returnTask(source, item), context.busy));
     actions.push(makeButton('删除', () => context.remove(source, item), context.busy));

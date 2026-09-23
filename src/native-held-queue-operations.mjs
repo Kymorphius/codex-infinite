@@ -31,11 +31,11 @@ export async function resumeNativeHeldItem(id, held, context) {
     const input = await context.imageTools.hydrate(held.input);
     await context.request('thread/queue/add', { threadId: id, input, clientUserMessageId: crypto.randomUUID() });
     context.writeHeld(id, context.heldFor(id).filter(item => item.id !== held.id));
-    const cleanupWarning = await context.imageTools.release(held.input).then(() => '', () => '待办已恢复，图片缓存稍后需要清理');
+    const cleanupWarning = await context.imageTools.release(held.input).then(() => '', () => '已加入发送队列，图片缓存稍后需要清理');
     const next = await context.listQueue(id);
     if (id !== context.threadId()) return;
     context.setServerItems(next); context.warn(cleanupWarning);
-  } catch (error) { if (id === context.threadId()) context.warn(error.message || '恢复失败'); }
+  } catch (error) { if (id === context.threadId()) context.warn(error.message || '加入发送队列失败'); }
   finally { context.setBusy(false); }
 }
 

@@ -33,7 +33,7 @@ export async function resumeAssignedTask(task, context) {
       const items = await context.listQueue(context.threadId);
       if (context.isCurrent()) { context.setServerItems(items); context.setWarning(''); }
     }
-  } catch (error) { if (context.isCurrent()) context.setWarning(error.message || '无法恢复已领取任务'); }
+  } catch (error) { if (context.isCurrent()) context.setWarning(error.message || '无法将任务加入发送队列'); }
   finally { context.setBusy(false); }
 }
 

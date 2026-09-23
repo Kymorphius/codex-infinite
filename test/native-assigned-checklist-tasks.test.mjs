@@ -13,7 +13,7 @@ test('assigned todo row exposes reassign between resume and return without sendi
   appendNativeHeldTodoRows({ append: row => rows.push(row) }, orderNativeHeldTodoEntries([], [a], 'manual'),
     (status, text, buttons) => ({ status, text, buttons }), null, (label, action) => ({ label, action }),
     { busy: false, resume: () => called.push('resume'), reassign: (_, task) => called.push(['reassign', task.id]), returnTask: () => called.push('return') });
-  assert.deepEqual(rows[0].buttons.map(button => button.label), ['编辑', '恢复', '重派', '退回', '删除']);
+  assert.deepEqual(rows[0].buttons.map(button => button.label), ['编辑', '加入发送队列', '重派', '退回', '删除']);
   rows[0].buttons[2].action();
   assert.deepEqual(called, [['reassign', a.id]]);
 });

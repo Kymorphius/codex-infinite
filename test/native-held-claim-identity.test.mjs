@@ -32,7 +32,7 @@ test('a hot upgrade replaces the old claim button and its first-composer closure
 test('navigation removes old assigned rows immediately and a detached resume callback cannot send', () => {
   const h = heldRuntimeHarness([A]);
   h.publish({ threadId: A, items: [a] });
-  const oldResume = Array.from(h.find('[data-ccc-held-actions]').children).find(button => button.textContent === '恢复');
+  const oldResume = Array.from(h.find('[data-ccc-held-actions]').children).find(button => button.textContent === '加入发送队列');
   h.navigate(B);
   oldResume.click(); // before the mutation observer has run
   assert.equal(h.requests.length, 0);
@@ -71,7 +71,7 @@ test('a late native queue response cannot replace the new conversation todo pane
 test('current assigned resume sends the displayed task to its owner, then completes that exact identity', async () => {
   const h = heldRuntimeHarness([A, B]);
   h.publish({ threadId: B, items: [b] });
-  Array.from(h.find('[data-ccc-held-actions]').children).find(button => button.textContent === '恢复').click();
+  Array.from(h.find('[data-ccc-held-actions]').children).find(button => button.textContent === '加入发送队列').click();
   const add = h.requests[0];
   assert.equal(add.method, 'thread/queue/add'); assert.equal(add.params.threadId, B);
   assert.equal(add.params.input[0].text, b.text);
