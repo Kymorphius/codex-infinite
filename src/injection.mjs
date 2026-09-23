@@ -5,6 +5,7 @@ import { installNativeProjectManagementEntry } from "./native-project-management
 import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "./native-entry-probe.mjs";
 import { openNativeChecklistTask } from './native-checklist-board-jump.mjs';
+import { placeNativeBoardBelowChecklist } from './native-board-below-checklist.mjs';
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -12,11 +13,7 @@ export const SESSION_ENTRY_ATTRIBUTE = "data-codex-control-console-session-entry
 export const PRIORITY_ENTRY_ATTRIBUTE = "data-codex-control-console-priority-entry";
 export const CONTROL_WORKSPACE_ATTRIBUTE = "data-codex-control-console-workspace";
 
-export function injectionDecision({ hasEntry, hasAnchor }) {
-  if (hasEntry) return "already-installed";
-  if (hasAnchor) return "install-native-entry";
-  return "wait-for-native-entry";
-}
+export { injectionDecision } from './native-entry-probe.mjs';
 
 export function buildInjectionScript(dashboardUrl) {
   const dashboardLiteral = JSON.stringify(dashboardUrl);
@@ -37,7 +34,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-23.board-task-jump1.tabs-${digest}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-24.board-below-checklist1.tabs-${digest}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -51,6 +48,7 @@ ${embeddedFrameRecoverySource}
 ${findNativeEntryAnchor.toString()}
 ${nativeEntryMutationNeedsInstall.toString()}
 ${openNativeChecklistTask.toString()}
+${placeNativeBoardBelowChecklist.toString()}
   if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
@@ -283,6 +281,7 @@ ${openNativeChecklistTask.toString()}
       entry.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace(definition.module); });
       anchor.parentElement?.insertBefore(entry, insertionPoint);
     }
+    placeNativeBoardBelowChecklist(document.querySelector(KANBAN_ENTRY_SELECTOR), document.querySelector('[data-ccc-general-checklist-entry]'));
     scheduleEmbeddedFrameRecovery(
       () => !document.querySelector(WORKSPACE_SELECTOR) && Boolean(nativeAnchor()),
       (recovery) => openWorkspace(recovery.module, '正在恢复控制台…')

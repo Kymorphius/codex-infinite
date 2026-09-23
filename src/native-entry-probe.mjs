@@ -8,3 +8,9 @@ export function findNativeEntryAnchor(documentRef, normalize) {
 export function nativeEntryMutationNeedsInstall(records) {
   return !records?.length || records.some((record) => !record.target?.closest?.('[data-thread-user-message-navigation-content]'));
 }
+
+export function injectionDecision({ hasEntry, hasAnchor }) {
+  if (hasEntry) return 'already-installed';
+  if (hasAnchor) return 'install-native-entry';
+  return 'wait-for-native-entry';
+}
