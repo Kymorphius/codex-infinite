@@ -1,6 +1,6 @@
 // Adapter for owned project aliases; native Codex owns drafts and file opening.
-export function installNativeProjectSearchActions() {
-  const VERSION = '2026-09-08.1';
+export function installNativeProjectSearchActions(resolveServices) {
+  const VERSION = '2026-09-23.2';
   if (window.__cccProjectSearchActions?.version === VERSION) return;
   let servicePromise;
   const local = project => project?.device?.kind !== 'remote-codex';
@@ -11,6 +11,7 @@ export function installNativeProjectSearchActions() {
     document.body.append(node); setTimeout(() => node.remove(), 3000);
   }
   async function services() {
+    if (resolveServices) return resolveServices();
     if (!servicePromise) servicePromise = (async () => {
       const urls = [...new Set(performance.getEntriesByType('resource').map(entry => entry.name))]
         .filter(value => { const url = new URL(value); return url.protocol === 'app:' && url.host === '-' && /^\/assets\/app-(initial|primary)-[\w-]+\.js$/.test(url.pathname); });
@@ -43,8 +44,8 @@ export function installNativeProjectSearchActions() {
     const roots = project?.sourceDirectories || [];
     if (!local(project) || !roots.includes(path)) { notice('请在项目所属设备上打开文件夹'); return false; }
     try {
-      const result = await (await services()).openIn.open({ hostId: 'local', cwd: null, path, target: 'fileManager' });
-      if (result?.error || result?.ok === false) throw new Error('文件夹无法打开');
+      const result = await (await services()).openIn.open({ cwd: null, path, target: 'fileManager' });
+      if (result?.success !== true) throw new Error('文件夹无法打开');
       return true;
     } catch { notice('无法打开项目文件夹，请检查路径或重试'); return false; }
   }

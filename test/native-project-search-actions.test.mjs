@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { installNativeProjectSearchActions } from '../src/native-project-search-actions.mjs';
 
-function harness(rows = []) {
+function harness(rows = [], resolveServices) {
   const messages = [], notices = [];
-  const context = vm.createContext({ window: { postMessage(value) { messages.push(value); } },
+  const context = vm.createContext({ resolveServices, window: { postMessage(value) { messages.push(value); } },
     document: { querySelectorAll() { return rows; }, body: { append(node) { notices.push(node.textContent); } },
       createElement() { return { style: {}, setAttribute() {}, remove() {} }; } }, setTimeout(fn) { fn(); } });
-  vm.runInContext(`(${installNativeProjectSearchActions.toString()})()`, context);
+  vm.runInContext(`(${installNativeProjectSearchActions.toString()})(resolveServices)`, context);
   return { window: context.window, actions: context.window.__cccProjectSearchActions, messages, notices };
 }
 test('unmounted project uses full native initialization and never a raw route', async () => {
@@ -29,6 +29,17 @@ test('remote projects and unlisted paths never dispatch local actions', async ()
   assert.equal(await h.actions.openFolder(remote, 'D:\\Project'), false);
   assert.equal(await h.actions.openFolder({ id: 'local', sourceDirectories: ['/project'] }, '/elsewhere'), false);
   assert.equal(h.messages.length, 0); assert.equal(h.notices.length, 4);
+});
+test('local project opens its exact root in the native file manager and requires positive success', async () => {
+  const calls = [], root = '/Users/dev/项目 name';
+  let success = true;
+  const h = harness([], async () => ({ openIn: { async open(params) { calls.push(params); return { success }; } } }));
+  const project = { id: 'local', sourceDirectories: [root] };
+  assert.equal(await h.actions.openFolder(project, root), true);
+  assert.deepEqual({ ...calls[0] }, { cwd: null, path: root, target: 'fileManager' });
+  success = false;
+  assert.equal(await h.actions.openFolder(project, root), false);
+  assert.match(h.notices.at(-1), /无法打开项目文件夹/);
 });
 test('open in project expands, centers and opens the indexed first conversation', () => {
   let expanded = 0, opened = 0, projectCentered = 0, threadCentered = 0;
