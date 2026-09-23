@@ -1,4 +1,4 @@
-import { buildNativeConversationTabsInjectionSource } from "./native-conversation-tabs.mjs";
+import { buildVersionedNativeTabsSource } from "./native-tabs-injection-version.mjs";
 import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
 import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-recovery.mjs";
 import { installNativeProjectManagementEntry } from "./native-project-management-entry.mjs";
@@ -20,7 +20,7 @@ export function buildInjectionScript(dashboardUrl) {
   const dashboardLiteral = JSON.stringify(dashboardUrl);
   const entryAttribute = JSON.stringify(CONTROL_ENTRY_ATTRIBUTE);
   const workspaceAttribute = JSON.stringify(CONTROL_WORKSPACE_ATTRIBUTE);
-  const nativeConversationTabsSource = buildNativeConversationTabsInjectionSource();
+  const { nativeConversationTabsSource, digest } = buildVersionedNativeTabsSource();
   const embeddedFrameRecoverySource = buildEmbeddedFrameRecoveryInjectionSource();
 
   return `(() => {
@@ -35,7 +35,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-09-23.csp-preflight1';
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-23.csp-preflight1.tabs-${digest}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';

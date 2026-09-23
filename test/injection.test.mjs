@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
 import {
   buildInjectionScript,
   injectionDecision,
@@ -13,6 +15,13 @@ test("injection decision is idempotent once the marker exists", () => {
   assert.equal(injectionDecision({ hasEntry: true, hasAnchor: true }), "already-installed");
   assert.equal(injectionDecision({ hasEntry: false, hasAnchor: true }), "install-native-entry");
   assert.equal(injectionDecision({ hasEntry: false, hasAnchor: false }), "wait-for-native-entry");
+});
+
+test("outer injection version tracks native tabs source so recent menu changes replace an old installation", () => {
+  const source = buildInjectionScript("http://127.0.0.1:47831");
+  const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-23\\.csp-preflight1\\.tabs-${digest}"`));
+  assert.doesNotMatch(source, /发送于 /);
 });
 
 test("injection source includes a duplicate guard and dashboard origin", () => {
