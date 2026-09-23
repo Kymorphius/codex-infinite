@@ -47,7 +47,7 @@ test('checklist numbers have a separate small card beside the task card', () => 
   assert.match(source, /ul\{list-style:none;padding:0;padding-inline-start:48px/);
   assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
-  assert.match(source, /2026-09-24\.queue-label1/);
+  assert.match(source, /2026-09-24\.queue-sync2/);
   assert.match(source, /checklistTaskId/);
 });
 test('project switching isolates visible items and restores pending drafts after reload', () => {
@@ -78,6 +78,14 @@ test('general inbox opens from the proactively published snapshot without waitin
   const h = harness(); h.api.cacheGeneral([{ id: 'cached', text: '立即显示', done: false, assignedThreadId: null }]); h.api.openGeneral();
   assert.equal(h.dialog.children[2].children[0].disabled, false);
   assert.equal(h.dialog.children[4].children[0].children[1].value, '立即显示');
+});
+
+test('completed assigned task persists a pending completion and wakes checklist sync', () => {
+  const task = { id: 'assigned', text: '入队后不再是待办', done: false, assignedThreadId: 'thread-a' };
+  const h = harness(); h.api.cacheGeneral([task]);
+  assert.equal(h.api.completeAssignedTask(task.id, task.assignedThreadId, task.text), true);
+  assert.equal(h.api.packet().actions.at(-1).done, true);
+  assert.equal(h.api.completeAssignedTask(task.id, task.assignedThreadId, task.text), false);
 });
 
 test('assigned general tasks leave the main list and expose reassignment in the lower todo projection', () => {

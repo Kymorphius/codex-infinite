@@ -60,14 +60,14 @@ test('sync carries the read-time thread through navigation before the renderer r
   assert.deepEqual(state.forThread(B), [b]);
 });
 
-function resumeHarness() {
+function resumeHarness(completionResult = true) {
   let current = A, busy = false, finishRequest, finishList;
   let markListStarted; const listStarted = new Promise(resolve => { markListStarted = resolve; });
   const state = createAssignedChecklistState(() => current), calls = [], complete = [], writes = [];
   state.publish({ threadId: A, items: [a] });
   const run = vm.runInNewContext(`(${resumeAssignedTask.toString()})`, {
     crypto: { randomUUID: () => 'request-id' },
-    window: { __cccProjectChecklist: { completeAssignedTask: (...args) => complete.push(args) } }
+    window: { __cccProjectChecklist: { completeAssignedTask: (...args) => { complete.push(args); return completionResult; } } }
   });
   const context = {
     threadId: A, isCurrent: () => current === A, ownsTask: task => state.owns(A, task),
@@ -116,4 +116,12 @@ test('a current resume completes and removes exactly its task and refreshes its 
   assert.deepEqual(h.state.forThread(A), []);
   assert.deepEqual(h.writes, [[{ id: 'queue-a' }], '']);
   assert.equal(h.busy(), false);
+});
+
+test('a queue receipt with an unpersisted completion is reported, not treated as a successful todo transition', async () => {
+  const h = resumeHarness(false), pending = h.run(a);
+  h.resolveRequest(); await pending;
+  assert.deepEqual(h.state.forThread(A), [a]);
+  assert.equal(h.calls.length, 1);
+  assert.match(h.writes[0], /已加入发送队列，但任务状态未保存/);
 });

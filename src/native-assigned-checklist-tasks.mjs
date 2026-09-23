@@ -27,7 +27,9 @@ export async function resumeAssignedTask(task, context) {
   try {
     const input = task.input ? await context.hydrateInput(task) : [{ type: 'text', text: task.text }];
     await context.request('thread/queue/add', { threadId: context.threadId, input, clientUserMessageId: crypto.randomUUID() });
-    window.__cccProjectChecklist?.completeAssignedTask?.(task.id, context.threadId, task.text);
+    if (window.__cccProjectChecklist?.completeAssignedTask?.(task.id, context.threadId, task.text) !== true) {
+      throw new Error('已加入发送队列，但任务状态未保存；请勿再次入队，稍后刷新任务清单');
+    }
     context.removeAssigned(task.id);
     if (context.isCurrent()) {
       const items = await context.listQueue(context.threadId);

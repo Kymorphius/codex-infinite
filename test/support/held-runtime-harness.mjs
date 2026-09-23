@@ -39,7 +39,7 @@ export function heldRuntimeHarness(ids) {
   const window = new Node('window'), stored = new Map(), timers = new Map(), intervals = new Map(), requests = [], claims = [], completions = [];
   let counter = 0;
   const schedule = (fn, delay) => { const id = ++counter; timers.set(id, { fn, delay }); return id; };
-  window.__cccProjectChecklist = { openClaimableForCurrentThread: id => claims.push(id), completeAssignedTask: (...args) => completions.push(args) };
+  window.__cccProjectChecklist = { openClaimableForCurrentThread: id => claims.push(id), completeAssignedTask: (...args) => { completions.push(args); return true; } };
   window.electronBridge = { sendMessageFromView: message => requests.push(message.request) };
   const context = vm.createContext({ document, window, HTMLElement: Node, crypto: webcrypto, queueMicrotask, Event,
     localStorage: { getItem: key => stored.get(key) || null, setItem: (key, value) => stored.set(key, value), removeItem: key => stored.delete(key) },

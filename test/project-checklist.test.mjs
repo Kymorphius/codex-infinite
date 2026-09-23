@@ -138,6 +138,23 @@ test('checklist sync publishes only unfinished unassigned general tasks to the c
   assert.ok(calls.some(code => code.includes(`__codexControlConsoleSetAssignedChecklistTasks?.(${JSON.stringify({ threadId, items: [{ id: 'claimed', text: '已领取' }] })})`)));
 });
 
+test('sync republishes an unchanged general snapshot after renderer replacement', async () => {
+  const calls = []; let instanceId = 'first';
+  const connection = { async evaluate(code) {
+    calls.push(code);
+    if (code.includes('location.href')) return true;
+    if (code === 'window.__cccProjectChecklist?.packet()') return { instanceId, actions: [] };
+    return null;
+  } };
+  const store = { async read() { return { items: [{ id: 'task', text: '任务', done: false }] }; } };
+  await syncProjectChecklist(connection, store);
+  await syncProjectChecklist(connection, store);
+  assert.equal(calls.filter(code => code.includes('__cccProjectChecklist?.cacheGeneral(')).length, 1);
+  instanceId = 'second';
+  await syncProjectChecklist(connection, store);
+  assert.equal(calls.filter(code => code.includes('__cccProjectChecklist?.cacheGeneral(')).length, 2);
+});
+
 test('catalog identity resolves to native sidebar ID and ignores remote host mappings', async t => {
   const { readChecklistProjectIds, readProjectStateIdentities } = await import('../src/project-checklist-identity.mjs');
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'checklist-')); t.after(() => fs.rm(directory, { recursive: true, force: true }));

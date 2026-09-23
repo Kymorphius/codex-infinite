@@ -36,9 +36,10 @@ export async function syncProjectChecklist(connection, store) {
   const result = JSON.stringify({ projectKey: packet.projectKey, items, acknowledged, error }).replaceAll('<', '\\u003c');
   await connection.evaluate(`window.__cccProjectChecklist?.accept(${result})`);
   const generalSnapshot = JSON.stringify(generalItems).replaceAll('<', '\\u003c');
-  if (generalRead && publishedGeneralSnapshots.get(connection) !== generalSnapshot) {
+  const publishedKey = JSON.stringify([packet.instanceId || null, generalSnapshot]);
+  if (generalRead && publishedGeneralSnapshots.get(connection) !== publishedKey) {
     await connection.evaluate(`window.__cccProjectChecklist?.cacheGeneral(${generalSnapshot},true)`);
-    publishedGeneralSnapshots.set(connection, generalSnapshot);
+    publishedGeneralSnapshots.set(connection, publishedKey);
   }
   await connection.evaluate(`window.__codexControlConsoleSetClaimableTaskCount?.(${claimableCount})`);
   const assignedPayload = JSON.stringify(assignedSnapshot).replaceAll('<', '\\u003c');

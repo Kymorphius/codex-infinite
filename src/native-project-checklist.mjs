@@ -3,10 +3,11 @@ import { focusNativeChecklistTask, createNativeChecklistReassignController } fro
 import { createNativeChecklistAssignmentControl } from './native-checklist-assignment-control.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim, syncBinding, normalizeInput, makeImageTools, assignedChecklistTasksForThread, makePasteImages, makeTaskModel) {
-  const VERSION = '2026-09-24.queue-label1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-24.queue-sync2', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
+  const instanceId = `${Date.now()}-${Math.random()}`;
   const taskImages = makeImageTools();
   const taskEditors = new Map();
   try { const saved = JSON.parse(localStorage.getItem(KEY) || '[]'); if (Array.isArray(saved)) pending = saved; }
@@ -180,11 +181,14 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       if (!threadId || typeof text !== 'string') return false;
       const item = view(GENERAL_KEY, generalItems).find(value => value.id === id && !value.done && value.assignedThreadId === threadId && value.text === text);
       if (!item) return false;
-      act('upsert', { ...item, done: true }, GENERAL_KEY); return true;
+      const requestId = act('upsert', { ...item, done: true }, GENERAL_KEY);
+      if (storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; }
+      try { window[syncBinding]?.('complete'); } catch { /* periodic sync remains the recovery path */ }
+      return true;
     },
     open(value) { if (taskPaste.images().length) void taskPaste.discard(); title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; taskEditors.clear(); search.reset(); project = value; items = value.general && generalLoaded ? generalItems : []; held = []; heldLoaded = !value.general || !!value.claimThreadId || !!value.claimNewThread; form.hidden = Boolean(value.claimThreadId || value.claimNewThread); dialog.dataset.claim = String(form.hidden); loaded = value.general && generalLoaded ? value.key : ''; error = ''; claimWarning = ''; description.textContent = value.name || value.id; input.value = ''; showPastedImages(); render(); if (!dialog.open) dialog.showModal(); if (value.general) scheduleHeldLoad(); },
     cacheGeneral(nextItems, signalMigration = true) { if (!Array.isArray(nextItems)) return; generalItems = nextItems; generalLoaded = true; const migrationError = taskModel.migrateLegacyDrafts(signalMigration); if (migrationError) error = migrationError; if (project?.key === 'ccc:general-inbox:v1' && loaded !== project.key) { items = generalItems; loaded = project.key; render(); } },
-    packet() { return { projectKey: project?.key || '', actions: pending.slice(0, 20) }; },
+    packet() { return { instanceId, projectKey: project?.key || '', actions: pending.slice(0, 20) }; },
     accept(result) {
       const before = JSON.stringify(view());
       const acknowledged = new Set(result.acknowledged || []), completed = pending.filter(action => acknowledged.has(action.requestId));
