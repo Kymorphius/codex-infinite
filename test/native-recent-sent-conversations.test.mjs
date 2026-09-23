@@ -237,6 +237,22 @@ test("unchanged snapshots preserve open rows and closed updates do no DOM rebuil
   assert.equal(f.updates(), 1);
 });
 
+test("active state and refreshed sent metadata update visible rows without replacing the open menu", () => {
+  const f = fixture({ items: [record(2), record(1)] });
+  f.trigger.dispatch("click");
+  const row = f.menu.children[0], replacements = f.menu.replaceCalls;
+  f.state.activeKey = `local:${id(2)}`;
+  f.sent.render();
+  assert.equal(f.menu.children[0], row);
+  assert.equal(row.dataset.active, "true");
+  f.update({ items: [{ ...record(2), title: "新标题", status: "completed", lastUserMessageAt: "2026-09-22T10:03:00.000Z" }, record(1)] });
+  assert.equal(f.menu.replaceCalls, replacements);
+  assert.equal(f.menu.children[0], row);
+  assert.match(row.textContent, /新标题/);
+  assert.match(row.textContent, /:03:00/);
+  assert.equal(row.statusDot.dataset.status, "completed");
+});
+
 test("recent sent dismisses with Escape or outside pointer and removes global listeners on destroy", () => {
   const f = fixture({ items: [record(2)] });
   assert.equal(f.document.listenerCount("pointerdown"), 2);

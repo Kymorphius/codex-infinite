@@ -76,7 +76,7 @@ export function installNativeRecentConversationMenu({
     if (focus) trigger.focus();
   };
 
-  let renderedSignature = "", renderedCount = 0, currentRecords = [], visibleRows = [];
+  let renderedSignature = "", renderedStatus = "", renderedCount = 0, currentRecords = [], visibleRows = [];
   const updateStatusIcon = (row, tab) => {
     const dot = row.statusDot;
     if (tab.kind !== "local" || !/^[0-9a-f-]{36}$/i.test(tab.id || "")) return;
@@ -124,6 +124,8 @@ export function installNativeRecentConversationMenu({
     detail.className = "ccc-native-recent-detail";
     detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : "本地会话";
     copy.append(title, detail);
+    row.titleNode = title;
+    row.detailNode = detail;
     select.append(dot, copy);
     select.addEventListener("click", () => {
       close();
@@ -162,8 +164,22 @@ export function installNativeRecentConversationMenu({
     const status = readStatus();
     const signature = JSON.stringify([records, state.activeKey, status]);
     if (signature === renderedSignature) return;
+    if (status === renderedStatus && records.length === currentRecords.length
+      && records.every((tab, index) => tab.key === currentRecords[index].key)) {
+      renderedSignature = signature;
+      currentRecords = records;
+      visibleRows.forEach((row, index) => {
+        const tab = records[index];
+        row.dataset.active = String(tab.key === state.activeKey);
+        if (row.titleNode.textContent !== tab.title) row.titleNode.textContent = tab.title;
+        const detail = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : "本地会话";
+        if (row.detailNode.textContent !== detail) row.detailNode.textContent = detail;
+        updateStatusIcon(row, tab);
+      });
+      return;
+    }
     const targetCount = Math.min(records.length, Math.max(12, renderedCount));
-    renderedSignature = signature; currentRecords = records; renderedCount = 0; visibleRows = [];
+    renderedSignature = signature; renderedStatus = status; currentRecords = records; renderedCount = 0; visibleRows = [];
     if (!records.length) {
       const empty = documentRef.createElement("p");
       empty.className = "ccc-native-recent-empty";
