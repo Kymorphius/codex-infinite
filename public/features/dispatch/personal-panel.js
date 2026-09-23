@@ -9,6 +9,7 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
   let snapshot = null;
   let linkSchema = null;
   let activeLinkTask = null;
+  let pendingLinkAction = null;
   let lastRead = 0, inFlight = null, signature = '';
 
   function render() {
@@ -25,7 +26,14 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
         const meta = document.createElement('div'); meta.className = 'dispatch-meta';
         meta.textContent = [task.status, task.category, task.planDate ? formatDate(task.planDate) : ''].filter(Boolean).join(' · ');
         card.append(title, meta);
-        if (activeLinkTask?.id === task.id) {
+        if (activeLinkTask?.id === task.id && activeLinkTask.needsInitialize) {
+          const setup = document.createElement('div'); setup.className = 'dispatch-actions';
+          const explanation = document.createElement('span'); explanation.textContent = '需先在当前 Anytype 任务类型中建立专用关联属性；不会发送消息或完成任务。';
+          const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'task-open'; confirm.textContent = '初始化关联属性'; confirm.dataset.personalPanelInitialize = task.id;
+          const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'task-open'; cancel.textContent = '取消'; cancel.dataset.personalPanelCancel = task.id;
+          setup.append(explanation, confirm, cancel); card.append(setup);
+        }
+        if (activeLinkTask?.id === task.id && !activeLinkTask.needsInitialize) {
           const panel = document.createElement('div'); panel.className = 'dispatch-actions';
           const select = document.createElement('select'); select.dataset.personalPanelTarget = task.id;
           select.setAttribute('aria-label', `选择${task.name}要关联的 Codex 会话`);
@@ -48,6 +56,13 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
             row.append(unlink); links.append(row);
           }
           card.append(links);
+        }
+        if (pendingLinkAction?.taskId === task.id) {
+          const confirmation = document.createElement('div'); confirmation.className = 'dispatch-actions';
+          const explanation = document.createElement('span'); explanation.textContent = `${pendingLinkAction.action === 'link' ? '建立' : '解除'}与「${pendingLinkAction.label}」的会话关联？不会发送消息，也不会改变任务状态。`;
+          const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'task-open'; confirm.textContent = pendingLinkAction.action === 'link' ? '确认关联' : '确认解除'; confirm.dataset.personalPanelConfirm = task.id;
+          const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'task-open'; cancel.textContent = '取消'; cancel.dataset.personalPanelCancel = task.id;
+          confirmation.append(explanation, confirm, cancel); card.append(confirmation);
         }
         if (!task.readOnly && task.revision) {
           const actions = document.createElement('div'); actions.className = 'dispatch-actions';
@@ -83,6 +98,15 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
     try { await inFlight; } finally { inFlight = null; }
   }
 
+  async function loadLinksForTask(task) {
+    try {
+      const query = new URLSearchParams({ id: task.id, accountId: snapshot.owner.accountId, spaceId: snapshot.owner.spaceId });
+      const data = await requestJson(`/api/personal-panel/links?${query}`, { cache: 'no-store' });
+      if (data.status !== 'ok' || !data.task) throw new Error(data.message || '原生关联暂不可读');
+      activeLinkTask = { id: task.id, ...data.task }; pendingLinkAction = null; signature = ''; render();
+    } catch (error) { activeLinkTask = null; pendingLinkAction = null; signature = ''; render(); showToast(`${error.message}；请刷新后核对。`); }
+  }
+
   async function handleClick(event) {
     const open = event.target.closest('[data-personal-panel-open]');
     if (open && root.contains(open)) {
@@ -101,23 +125,24 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
           linkSchema = data.schema;
         } catch (error) { showToast(error.message); return; }
       }
-      if (!linkSchema?.ready) {
-        if (!window.confirm('需要在当前 Anytype 任务类型中新建专用的「任务｜Codex 会话关联」原生属性。只建立关联能力，不发送消息、不完成任务。现在初始化吗？')) return;
-        try {
-          const data = await requestJson('/api/personal-panel/links', { method: 'POST', body: { action: 'initialize', owner: snapshot.owner, confirmed: true } });
-          linkSchema = data.schema;
-        } catch (error) { showToast(`${error.message}；请在 Personal Panel 核对属性，勿直接重试。`); return; }
-      }
+      if (!linkSchema?.ready) { activeLinkTask = { id: task.id, needsInitialize: true }; pendingLinkAction = null; signature = ''; render(); return; }
+      await loadLinksForTask(task);
+      return;
+    }
+    const initialize = event.target.closest('[data-personal-panel-initialize]');
+    if (initialize && root.contains(initialize)) {
+      const task = snapshot?.tasks.find(item => item.id === initialize.dataset.personalPanelInitialize);
+      if (!task || !activeLinkTask?.needsInitialize) return;
+      initialize.disabled = true;
       try {
-        const query = new URLSearchParams({ id: task.id, accountId: snapshot.owner.accountId, spaceId: snapshot.owner.spaceId });
-        const data = await requestJson(`/api/personal-panel/links?${query}`, { cache: 'no-store' });
-        if (data.status !== 'ok' || !data.task) throw new Error(data.message || '原生关联暂不可读');
-        activeLinkTask = { id: task.id, ...data.task }; signature = ''; render();
-      } catch (error) { showToast(error.message); }
+        const data = await requestJson('/api/personal-panel/links', { method: 'POST', body: { action: 'initialize', owner: snapshot.owner, confirmed: true } });
+        linkSchema = data.schema;
+        await loadLinksForTask(task);
+      } catch (error) { showToast(`${error.message}；请在 Personal Panel 核对属性，勿直接重试。`); initialize.disabled = false; }
       return;
     }
     const cancel = event.target.closest('[data-personal-panel-cancel]');
-    if (cancel && root.contains(cancel)) { activeLinkTask = null; signature = ''; render(); return; }
+    if (cancel && root.contains(cancel)) { if (pendingLinkAction) pendingLinkAction = null; else activeLinkTask = null; signature = ''; render(); return; }
     const link = event.target.closest('[data-personal-panel-link], [data-personal-panel-unlink]');
     if (link && root.contains(link)) {
       const action = link.hasAttribute('data-personal-panel-unlink') ? 'unlink' : 'link';
@@ -127,14 +152,19 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
       const deviceId = action === 'link' ? thread?.device?.id : link.dataset.deviceId;
       const sessionId = action === 'link' ? thread?.id : link.dataset.sessionId;
       if (!task || !deviceId || !sessionId) return showToast('请先选择本机 Codex 会话。');
-      const sentence = action === 'link' ? '关联' : '解除关联';
-      if (!window.confirm(`${sentence}「${task.name}」与「${thread?.title || sessionId}」？这不会发送消息，也不会改变任务状态。`)) return;
-      link.disabled = true;
+      pendingLinkAction = { taskId: task.id, action, deviceId, sessionId, label: thread?.title || sessionId }; signature = ''; render();
+      return;
+    }
+    const confirm = event.target.closest('[data-personal-panel-confirm]');
+    if (confirm && root.contains(confirm)) {
+      const pending = pendingLinkAction, task = snapshot?.tasks.find(item => item.id === pending?.taskId);
+      if (!task || !activeLinkTask?.revision || pending.taskId !== confirm.dataset.personalPanelConfirm) return;
+      confirm.disabled = true;
       try {
-        const data = await requestJson('/api/personal-panel/links', { method: 'POST', body: { action, owner: snapshot.owner, id: task.id, revision: activeLinkTask.revision, confirmed: true, deviceId, sessionId } });
-        activeLinkTask = { id: task.id, ...data.task }; signature = ''; render();
-        showToast(`已从 Anytype 读回${sentence}结果。`);
-      } catch (error) { showToast(`${error.message}；请刷新核对，勿直接重试。`); link.disabled = false; }
+        const data = await requestJson('/api/personal-panel/links', { method: 'POST', body: { action: pending.action, owner: snapshot.owner, id: task.id, revision: activeLinkTask.revision, confirmed: true, deviceId: pending.deviceId, sessionId: pending.sessionId } });
+        activeLinkTask = { id: task.id, ...data.task }; pendingLinkAction = null; signature = ''; render();
+        showToast(`已从 Anytype 读回${pending.action === 'link' ? '关联' : '解除'}结果。`);
+      } catch (error) { showToast(`${error.message}；请刷新核对，勿直接重试。`); confirm.disabled = false; }
       return;
     }
     const button = event.target.closest('[data-personal-panel-action]');
