@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout4', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout5', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -23,7 +23,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   const addIcon = icon('<path d="M12 5v14M5 12h14"/>');
   const searchIcon = icon('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>');
   const style = make('style'); style.textContent = `
-    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(640px,calc(100vw - 40px));max-height:82vh;padding:22px;border:1px solid #8885;border-radius:18px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 24px 80px #0008;font:14px/1.5 system-ui}
+    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(760px,calc(100vw - 40px));max-height:82vh;padding:22px;border:1px solid #8885;border-radius:18px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 24px 80px #0008;font:14px/1.5 system-ui}
     [data-ccc-checklist]::backdrop{background:#0006}
     [data-ccc-checklist][open]{display:flex;flex-direction:column;gap:10px}
     [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;order:0}
@@ -48,7 +48,8 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     [data-ccc-checklist] textarea:focus-visible{outline:1px solid #aaa8;background:#8881}
     [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px}
     [data-ccc-checklist] li{display:flex;align-items:center;gap:4px 10px;padding:7px 9px;flex-wrap:wrap;border:0;border-radius:10px;background:#8881}
-    [data-ccc-checklist] [data-checklist-added]{flex-basis:100%;font-size:11px;color:#999;text-align:right;line-height:1.2}
+    [data-ccc-checklist] li textarea{min-width:min(220px,100%)}
+    [data-ccc-checklist] [data-checklist-added]{flex:none;margin-inline-start:auto;white-space:nowrap;font-size:11px;color:#999;line-height:1.2}
     [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
     [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;background:#8882}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}
     [data-ccc-checklist] [data-checklist-count]{padding-top:5px;font-size:12px}
