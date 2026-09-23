@@ -1,5 +1,13 @@
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 
+export function nativeTurnStateTone(entry) {
+  if (!entry?.turnState?.present) return "#a7a7ad";
+  if (entry.turnState.length === 780) return "#62bd84";
+  if (entry.turnState.length === 292) return "#a7a7ad";
+  if (entry.turnState.length === 312) return "#d39a19";
+  return "#8ab4f8";
+}
+
 export function normalizeNativeTurnStateSnapshot(value) {
   const entries = (Array.isArray(value?.entries) ? value.entries : []).slice(-256).flatMap((entry) => {
     const threadId = typeof entry?.threadId === "string" ? entry.threadId.toLowerCase() : "";
@@ -52,22 +60,22 @@ export function buildNativeTurnStateSnapshotScript(snapshot) {
 
 export function buildNativeTurnStateInjectionScript() {
   return `(() => {
-  if (window.__codexControlConsoleTurnStateVersion === '2026-09-21.6') return;
+  if (window.__codexControlConsoleTurnStateVersion === '2026-09-23.1') return;
   if (window.__codexControlConsoleTurnStateTimer) clearInterval(window.__codexControlConsoleTurnStateTimer);
   document.querySelector('[data-codex-control-console-turn-state]')?.remove();
   document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove();
   document.querySelector('[data-codex-control-console-global-turn-state]')?.remove();
   document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((node)=>node.remove());
-  window.__codexControlConsoleTurnStateVersion = '2026-09-21.6';
+  window.__codexControlConsoleTurnStateVersion = '2026-09-23.1';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const summarize = ${summarizeNativeTurnStates.toString()};
   const summarizeNativeTurnStates = summarize;
   const summarizeTurn = ${summarizeNativeTurnState.toString()};
   const summarizeGlobal = ${summarizeGlobalNativeTurnStates.toString()};
+  const toneFor = ${nativeTurnStateTone.toString()};
   let snapshot = { available:false, observedAt:Date.now(), entries:[] };
 
   function closePopover() { document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove(); }
-  function toneFor(entry) { if (!entry?.turnState?.present) return '#a7a7ad'; if (entry.turnState.length === 292) return '#62bd84'; if (entry.turnState.length === 312) return '#d39a19'; return '#8ab4f8'; }
   function labelFor(entry) { return entry?.turnState?.present ? String(entry.turnState.length) : '—'; }
   function formatTime(value) { if (!value) return '进行中'; try { return new Date(value).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}); } catch { return '未知时间'; } }
 
@@ -76,7 +84,7 @@ export function buildNativeTurnStateInjectionScript() {
     const panel = document.createElement('div'); panel.setAttribute('data-codex-control-console-turn-state-popover',''); panel.setAttribute('role','dialog'); panel.setAttribute('aria-label','Turn State 观测');
     panel.style.cssText='position:fixed;z-index:2147483646;width:340px;max-height:min(520px,calc(100vh - 28px));overflow:auto;padding:14px;border:1px solid rgba(128,128,128,.3);border-radius:14px;background:rgb(35,35,37);color:#f2f2f2;box-shadow:0 16px 46px rgba(0,0,0,.4);font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-app-region:no-drag;app-region:no-drag;';
     const title=document.createElement('strong');title.textContent=titleText;title.style.cssText='display:block;font-size:14px;margin-bottom:5px';
-    const note=document.createElement('p');note.textContent='仅观察响应头长度，不保存 state；长度本身不代表模型质量。';note.style.cssText='margin:0 0 12px;color:#a7a7ad;line-height:1.45';panel.append(title,note);
+    const note=document.createElement('p');note.textContent='仅观察响应头长度，不保存 state；780 是当前正常长度，292 是历史长度。长度本身不代表模型质量。';note.style.cssText='margin:0 0 12px;color:#a7a7ad;line-height:1.45';panel.append(title,note);
     const counts=document.createElement('div');counts.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px';
     const labels=Object.entries(summary.counts).sort(([a],[b])=>a.localeCompare(b,undefined,{numeric:true}));
     for(const [key,count] of labels){const chip=document.createElement('span');chip.textContent=(key==='none'?'无 State':key)+' × '+count;chip.style.cssText='padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.07);color:#d7d7dc';counts.append(chip);} if(!labels.length){const empty=document.createElement('span');empty.textContent='当前会话还没有观测记录';empty.style.color='#a7a7ad';counts.append(empty);} panel.append(counts);
