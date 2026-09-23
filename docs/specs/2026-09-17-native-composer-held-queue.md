@@ -67,7 +67,9 @@ It reads the composer's Markdown representation before falling back to rendered
 plain text, preserving ordered-list markers that are not part of `innerText`.
 Its pointer and click activation are isolated from native composer submission,
 so saving a todo cannot also enqueue the draft.
-Composer attachments remain in the composer and are not represented as saved.
+Image attachment persistence and recovery are specified separately in
+`2026-09-23-held-draft-images.md`; this supersedes the original text-only draft
+limitation. Other attachment kinds remain outside this workflow.
 Its panel lists app-server queued follow-ups first and locally held items second.
 Queued items support `暂停`, `上移`, and `下移`; held items support `恢复`,
 `上移`, `下移`, and `删除`. Every row also exposes `编辑`. Held rows edit

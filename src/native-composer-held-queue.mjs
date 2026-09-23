@@ -10,11 +10,13 @@ import { summarizeNativeHeldMessage } from "./native-held-message-summary.mjs";
 import { createNativeHeldQueueRequest } from "./native-held-queue-bridge.mjs";
 import{noThread}from"./native-composer-availability.mjs";
 import { returnAssignedTodo } from './native-checklist-return.mjs';
+import { createNativeHeldImageTools } from './native-held-image-tools.mjs';
+import { saveNativeHeldDraft } from './native-held-draft-save.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-23.new-task-claim1', LEGACY = '2026-09-18.3';
-  const SAVE_DRAFT_VERSION = '2026-09-22.3', LEGACY_SAVE = '2026-09-18.1';
+  const VERSION = '2026-09-23.held-images1', LEGACY = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-23.held-images1', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -29,14 +31,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   document.querySelector('[data-ccc-held-queue-style]')?.remove();
   window.__codexControlConsoleHeldQueueInstalledVersion = VERSION;
   window.__codexControlConsoleSaveDraftTodoInstalledVersion = SAVE_DRAFT_VERSION;
-  window.__codexControlConsoleHeldQueueVersion = LEGACY;
-  window.__codexControlConsoleSaveDraftTodoVersion = LEGACY_SAVE;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const STORE_KEY = 'codex-control-console.native-held-queue.v1';
   const VIEW_KEY = STORE_KEY + '.view';
   const DRAFT_KEY = STORE_KEY + '.recovery-draft';
   const MAX_HELD = 100;
+  const SAVE_STYLE = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid #8884;border-radius:999px;background:none;color:inherit;font-size:12px;font-weight:600;white-space:nowrap';
   const HELD_ORIGINS = new Set(['draft', 'paused-queue']);
   let open = false;
   let busy = false;
@@ -56,6 +57,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   ${restoreNativeHeldDraft.toString()}
   ${reloadWithHeldDraft.toString()}
   ${summarizeNativeHeldMessage.toString()}
+  ${createNativeHeldImageTools.toString()}
+  ${saveNativeHeldDraft.toString()}
   ${returnAssignedTodo.toString()}
 
   const style = document.createElement('style');
@@ -88,9 +91,10 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const store = readStore();
     store[id] = items.filter(validHeld);
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
-    window.dispatchEvent(new Event('codex-control-console-held-todos-changed'));
+    try { window.dispatchEvent(new Event('codex-control-console-held-todos-changed')); } catch {}
   }
   const summarize = summarizeNativeHeldMessage;
+  const imageTools = createNativeHeldImageTools();
   const request = (${createNativeHeldQueueRequest.toString()})();
   async function listQueue(id) {
     const items = [];
@@ -139,10 +143,12 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (busy || id !== threadId()) return;
     setBusy(true);
     try {
-      await request('thread/queue/add', { threadId: id, input: held.input, clientUserMessageId: crypto.randomUUID() });
+      const input = await imageTools.hydrate(held.input);
+      await request('thread/queue/add', { threadId: id, input, clientUserMessageId: crypto.randomUUID() });
       writeHeld(id, heldFor(id).filter((item) => item.id !== held.id));
+      const cleanupWarning = await imageTools.release(held.input).then(() => '', () => '待办已恢复，图片缓存稍后需要清理');
       const next = await listQueue(id); if (id !== threadId()) return; serverItems = next;
-      warning = '';
+      warning = cleanupWarning;
     } catch (error) { if (id === threadId()) warning = error.message || '恢复失败'; }
     finally { setBusy(false); }
   }
@@ -162,7 +168,11 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (next < 0 || next >= items.length) return;
     [items[index], items[next]] = [items[next], items[index]]; writeHeld(id, items); render();
   }
-  function removeHeld(id, held) { writeHeld(id, heldFor(id).filter((item) => item.id !== held.id)); render(); }
+  async function removeHeld(id, held) {
+    try { writeHeld(id, heldFor(id).filter((item) => item.id !== held.id)); await imageTools.release(held.input); warning = ''; }
+    catch (error) { warning = error.message || '无法删除待办'; }
+    render();
+  }
   function startHeldEdit(held) {
     const value = readHeldEditableText(held.input);
     if (value == null) { warning = '这条待办没有可安全编辑的单一文字内容'; render(); return; }
@@ -188,7 +198,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     const save = document.querySelector('[data-ccc-save-draft-todo]');
     if (save) {
-      const disabled = busy || !draftText(editor), opacity = disabled ? '.35' : '1', cursor = disabled ? 'default' : 'pointer';
+      const disabled = busy || (!draftText(editor) && !imageTools.images(editor).length), opacity = disabled ? '.35' : '1', cursor = disabled ? 'default' : 'pointer';
       if (save.disabled !== disabled) save.disabled = disabled;
       if (save.style.opacity !== opacity) save.style.opacity = opacity;
       if (save.style.cursor !== cursor) save.style.cursor = cursor;
@@ -212,19 +222,15 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     selection.removeAllRanges();
     return !draftText(editor);
   }
-  function saveDraftTodo() {
+  async function saveDraftTodo() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
-    const text = draftText(editor);
-    if (!id || !editor || !text || busy) return;
-    const before = heldFor(id), input = [{ type: 'text', text }];
-    try {
-      writeHeld(id, [...before, { id: crypto.randomUUID(), input, summary: summarize(input), heldAt: Date.now(), origin: 'draft' }]);
-      warning = clearDraftText(editor) ? '' : '待办已保存，但输入框未能自动清空；请手动清空以免重复发送。';
-      open = true;
-    } catch (error) { warning = error.message || '无法保存待办消息'; }
-    render(); updateDraftButton();
+    if (busy || !id || !editor) return;
+    await saveNativeHeldDraft({ threadId, editor, readText: draftText, imageTools, heldFor, writeHeld, summarize,
+      clearText: clearDraftText, setBusy: (value) => { busy = value; }, setOpen: (value) => { open = value; },
+      setWarning: (value) => { warning = value; }, render, updateButton: updateDraftButton });
   }
   const draftTodoButton = ${createNativeSaveDraftTodoButton.toString()}(saveDraftTodo);
+  function makeSaveButton() { const save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字和图片保存为待办，不加入发送队列'; save.style.cssText = SAVE_STYLE; return save; }
   function syncNative() { reloadWithHeldDraft(threadId, draftText, DRAFT_KEY); }
   const updateShell = (id, toolbar, panel) => updateHeldQueueShell(toolbar, panel, serverItems, heldFor(id), assignedState.forThread(id), warning || staleThreads.has(id), open);
   function render() {
@@ -270,7 +276,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     let toolbar = document.querySelector('[data-ccc-held-queue-button]');
     if (!toolbar) { toolbar = button('待办', () => { open = !open; render(); if (open) void refresh(); }); toolbar.dataset.cccHeldQueueButton = ''; host.append(toolbar); }
     let save = document.querySelector('[data-ccc-save-draft-todo]');
-    if (!save) { save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列'; save.style.cssText = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap'; host.insertBefore(save, toolbar); }
+    if (!save) { save = makeSaveButton(); host.insertBefore(save, toolbar); }
     claimTasks.ensure(host, toolbar);
     let panel = document.querySelector('[data-ccc-held-queue-panel]'); const panelCreated = !panel;
     if (panelCreated) { panel = document.createElement('section'); panel.dataset.cccHeldQueuePanel = ''; panel.hidden = true; root.prepend(panel); }
@@ -285,8 +291,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     ${noThread('draft')}
     let save = document.querySelector('[data-ccc-save-draft-todo]');
     if (!save) {
-      save = draftTodoButton(); save.dataset.cccSaveDraftTodo = ''; save.title = '把当前文字保存为待办，不加入发送队列';
-      save.style.cssText = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid rgba(128,128,128,.25);border-radius:999px;background:transparent;color:currentColor;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap';
+      save = makeSaveButton();
       const manager = document.querySelector('[data-ccc-held-queue-button]'); host.insertBefore(save, manager?.parentElement === host ? manager : null);
     }
     claimTasks.ensure(host, document.querySelector('[data-ccc-held-queue-button]'));
@@ -302,6 +307,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   }
   window.__codexControlConsoleHeldQueueObserver = new MutationObserver((records) => {
     if (records.some((record) => [...record.addedNodes].some(containsStaleQueueAlert))) { const id = threadId(); if (id) staleThreads.add(id); open = true; render(); }
+    if (records.some((record) => [...record.addedNodes, ...(record.removedNodes || [])].some((node) => node.nodeType === 1 && (node.matches?.('img') || node.querySelector?.('img'))))) updateDraftButton();
     const id = threadId();
     if (id !== activeThreadId) install();
     else if (id && (!document.querySelector('[data-ccc-held-queue-button]') || !document.querySelector('[data-ccc-held-queue-panel]'))) schedule();
@@ -309,7 +315,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   });
   window.__codexControlConsoleHeldQueueObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-id', 'data-above-composer-conversation-id'] });
   document.addEventListener('input', updateDraftButton, true);
-  const removeDraftInputListener = () => document.removeEventListener('input', updateDraftButton, true);
+  document.addEventListener('change', updateDraftButton, true);
+  const removeDraftInputListener = () => { document.removeEventListener('input', updateDraftButton, true); document.removeEventListener('change', updateDraftButton, true); };
   window.__codexControlConsoleHeldQueueInputCleanup = removeDraftInputListener;
   window.__codexControlConsoleSaveDraftTodoInputCleanup = removeDraftInputListener;
   window.__codexControlConsoleSaveDraftTodoObserver = window.__codexControlConsoleHeldQueueObserver;

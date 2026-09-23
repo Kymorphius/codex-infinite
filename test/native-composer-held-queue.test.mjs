@@ -6,9 +6,13 @@ import { formatHeldInitialTime, orderHeldForView } from "../src/held-queue-prese
 import { renderNativeClaimTaskButton } from "../src/native-claim-task-control.mjs";
 import { updateHeldQueueShell } from "../src/native-assigned-checklist-tasks.mjs";
 
+test('generated held image injection remains parseable', () => {
+  assert.doesNotThrow(() => new Function(buildNativeComposerHeldQueueInjectionScript()));
+});
+
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-23\.new-task-claim1'/);
+  assert.match(source, /const VERSION = '2026-09-23\.held-images1'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -44,7 +48,7 @@ test("native held queue saves before delete and adds before removing held copy",
   assert.ok(resume.indexOf("thread/queue/add") < resume.indexOf("writeHeld"));
 });
 
-test("native held queue saves the current text draft before clearing it", () => {
+test("native held queue saves image and text draft before clearing text", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
   const read = source.slice(source.indexOf("function draftText"), source.indexOf("function updateDraftButton"));
   const clear = source.slice(source.indexOf("function clearDraftText"), source.indexOf("function saveDraftTodo"));
@@ -52,9 +56,12 @@ test("native held queue saves the current text draft before clearing it", () => 
   assert.match(source, /存待办/);
   assert.match(source, /order:1/);
   assert.match(source, /data-ccc-save-draft-todo/);
-  assert.ok(save.indexOf("writeHeld") < save.indexOf("clearDraftText"));
-  assert.match(save, /\[{ type: 'text', text }\]/);
-  assert.match(save, /origin: 'draft'/);
+  assert.match(save, /saveNativeHeldDraft/);
+  const flow = source.slice(source.indexOf('async function saveNativeHeldDraft'), source.indexOf('function returnAssignedTodo'));
+  assert.ok(flow.indexOf('imageTools.capture') < flow.indexOf('writeHeld(id,'));
+  assert.ok(flow.indexOf('writeHeld(id,') < flow.indexOf('clearText(editor)'));
+  assert.match(flow, /origin: 'draft'/);
+  assert.match(flow, /imageTools.release/);
   assert.doesNotMatch(save, /thread\/queue\/add/);
   assert.match(source, /items\.length > MAX_HELD/);
   assert.doesNotMatch(clear, /selectAll/);
@@ -108,7 +115,8 @@ test("save-as-todo survives composer remounts independently of legacy queue rein
   assert.match(lifecycle, /!document\.querySelector\('\[data-ccc-save-draft-todo\]'\) \|\| !document\.querySelector\('\[data-ccc-claim-task\]'\)/);
   assert.equal((source.match(/new MutationObserver/g) || []).length, 1);
   assert.match(lifecycle, /data-ccc-save-draft-todo/);
-  assert.match(lifecycle, /draftTodoButton\(\)/);
+  assert.match(lifecycle, /makeSaveButton\(\)/);
+  assert.match(source, /function makeSaveButton\(\).*draftTodoButton\(\)/);
   assert.match(lifecycle, /manager\?\.parentElement === host \? manager : null/);
 });
 
