@@ -96,6 +96,15 @@ test('task cards start at one text line while multiline content and initial time
   assert.equal(row.children.at(-1).attrs.datetime, multiline.createdAt);
 });
 
+test('task rows use soft surfaces without stacked resting borders and retain keyboard focus cues', () => {
+  const h = harness({ mode: 'claim' }), style = h.document.head.children[0].textContent;
+  assert.match(style, /form,\[data-ccc-checklist\] \[data-checklist-search\]\{[^}]*border:0/);
+  assert.match(style, /textarea\{[^}]*background:transparent/);
+  assert.match(style, /textarea:focus-visible\{outline:1px solid/);
+  assert.match(style, /li\{[^}]*border:0;border-radius/);
+  assert.match(style, /button\{cursor:pointer;border:0/);
+});
+
 test('search matches trimmed case-insensitive content without replacing rows, saving or changing time order', () => {
   for (const mode of ['project', 'general', 'claim']) {
     const h = harness({ mode }), rows = h.rows(), text = editor(rows[0]);
