@@ -42,6 +42,12 @@ test('native checklist adds, edits, completes and deletes while acknowledging wi
   list.children[0].children[2].listeners.click(); assert.equal(h.api.packet().actions.at(-1).type, 'delete');
   assert.equal(JSON.parse(h.storage()).length, 3);
 });
+test('checklist numbers occupy a separate gutter before the date and task content', () => {
+  const source = buildNativeProjectChecklistScript();
+  assert.match(source, /li\[data-checklist-row\]\{counter-increment:task;position:relative;padding-inline-start:48px\}/);
+  assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\) '\.';position:absolute;inset-inline-start:10px/);
+  assert.match(source, /2026-09-23\.claim-layout8/);
+});
 test('project switching isolates visible items and restores pending drafts after reload', () => {
   const pending = [{ projectKey: 'a', type: 'upsert', id: 'item', requestId: 'req', text: '保留草稿', done: false }];
   const h = harness(JSON.stringify(pending)); h.api.open({ key: 'b' });

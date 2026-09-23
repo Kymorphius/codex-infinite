@@ -102,8 +102,8 @@ test('task cards start at one text line while multiline content and initial time
 test('visible task rows are numbered before the date without changing task identity', () => {
   const source = buildNativeProjectChecklistScript();
   assert.match(source, /gap:5px;counter-reset:task/);
-  assert.match(source, /li\[data-checklist-row\]\{counter-increment:task\}/);
-  assert.match(source, /content:counter\(task\) '\.';order:-2/);
+  assert.match(source, /li\[data-checklist-row\]\{counter-increment:task;position:relative;padding-inline-start:48px\}/);
+  assert.match(source, /content:counter\(task\) '\.';position:absolute;inset-inline-start:10px/);
   assert.match(source, /\[data-checklist-added\]\{order:-1/);
   const h = harness({ mode: 'claim' });
   assert.equal(h.rows().length, 2);
