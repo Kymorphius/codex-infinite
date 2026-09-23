@@ -21,8 +21,10 @@ test("native conversation tabs coalesce broad mutation layout work", () => {
   assert.doesNotMatch(source, /position\(\); scheduleSync\(\)/);
   assert.match(source, /function syncNativeTitleTakeover\(workspace, workspaceRect, force = false\)/);
   assert.match(source, /now - topControlsScannedAt < 1000/);
+  assert.match(source, /workspaceRect\?\.width > 260 && !hasVisibleNativeTitleAction\(document\)/);
+  assert.match(source, /topControls\.filter\(x => x\.button\.isConnected\)/);
   assert.match(source, /position\(forceTitleScan\)/);
-  assert.match(source, /filter\(\(\{ bounds \}\) => bounds\.width > 0 && bounds\.height > 0 && bounds\.top < 42\)\s*\.map\(\(record\) => \(\{ \.\.\.record, style: getComputedStyle\(record\.button\) \}\)\)/);
+  assert.match(source, /filter\(\(\{ bounds \}\) => bounds\.width > 0 && bounds\.height > 0 && bounds\.top < 42 && bounds\.bottom > 0\)\s*\.map\(\(record\) => \(\{ \.\.\.record, style: getComputedStyle\(record\.button\) \}\)\)/);
 });
 
 test("turn annotations skip repeated bridge snapshots and coalesce layout reads", () => {

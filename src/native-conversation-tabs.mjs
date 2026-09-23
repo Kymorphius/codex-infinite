@@ -5,6 +5,7 @@ import { buildNativeConversationTabTransitionSource } from './native-conversatio
 import { buildNativeConversationWindowInjectionSource, NATIVE_CONVERSATION_WINDOW_STYLE } from "./native-conversation-window.mjs";
 import { buildNativeRecentConversationMenuInjectionSource, NATIVE_RECENT_CONVERSATION_STYLE } from "./native-recent-conversations.mjs";
 import { buildNativeRecentSentMenuInjectionSource } from "./native-recent-sent-conversations.mjs";
+import { hasVisibleNativeTitleAction } from './native-title-action-scan.mjs';
 import { normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
   advanceNativeTabClickSequence,
@@ -37,8 +38,9 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeRecentConversationMenuInjectionSource()}
   ${buildNativeRecentSentMenuInjectionSource()}
   ${buildNativeConversationTabTransitionSource()}
+  ${hasVisibleNativeTitleAction.toString()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-23.recent-native-status1';
+    const VERSION = '2026-09-23.title-s1';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -116,8 +118,11 @@ export function buildNativeConversationTabsInjectionSource() {
       const actionLabels = ['聊天操作', 'Chat actions'];
       const projectPrefixes = ['项目：', 'Project:'];
       const retained = new Set(Array.from(titleTakeoverNodes).filter((node) => node.isConnected));
+      if (workspaceRect?.width > 260 && !hasVisibleNativeTitleAction(document)) {
+        titleTakeoverNodes = retained; return topControls = topControls.filter(x => x.button.isConnected);
+      }
       const buttonRecords = Array.from(document.querySelectorAll('button')).filter((button) => !root?.contains(button)).map((button) => ({ button, bounds: button.getBoundingClientRect() }))
-        .filter(({ bounds }) => bounds.width > 0 && bounds.height > 0 && bounds.top < 42)
+        .filter(({ bounds }) => bounds.width > 0 && bounds.height > 0 && bounds.top < 42 && bounds.bottom > 0)
         .map((record) => ({ ...record, style: getComputedStyle(record.button) }))
         .filter(({ style }) => style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none');
       const chatAction = buttonRecords.find(({ button }) => actionLabels.includes(clean(button.getAttribute('aria-label'), 80)));
