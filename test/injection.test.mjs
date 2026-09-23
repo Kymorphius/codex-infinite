@@ -39,6 +39,7 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /currentFrame\.dispatchEvent\(new Event\(FRAME_READY_TYPE\)\)/);
   assert.match(source, /sessionStorage\.setItem\(FRAME_RECOVERY_KEY/);
   assert.match(source, /data-codex-control-console-frame-recovery-request/);
+  assert.match(source, /requestEmbeddedFramePreparation\(module\)/);
   assert.doesNotMatch(source, /location\.reload\(\)/);
   assert.match(source, /if \(pendingFrameRecovery\)/);
   assert.match(source, /currentFrame\(\) !== openingFrame/);

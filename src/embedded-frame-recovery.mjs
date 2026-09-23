@@ -13,6 +13,17 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
     return null;
   })();
 
+  function requestEmbeddedFramePreparation(module) {
+    if (window.__codexControlConsoleCspDocumentPrepared) return false;
+    const recovery = { module: ['board', 'console', 'sessions', 'priority', 'projects'].includes(module) ? module : 'board', at: Date.now() };
+    try {
+      sessionStorage.setItem(FRAME_RECOVERY_KEY, JSON.stringify(recovery));
+      pendingFrameRecovery = recovery;
+      document.body.setAttribute('data-codex-control-console-frame-recovery-request', String(recovery.at));
+    } catch {}
+    return true;
+  }
+
   function monitorEmbeddedFrame(openingFrame, currentFrame, loading, module) {
     openingFrame.addEventListener('load', () => {
       if (loading.isConnected) loading.textContent = '正在连接控制台…';

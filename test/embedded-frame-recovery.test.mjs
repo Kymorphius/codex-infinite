@@ -10,6 +10,8 @@ test("embedded frame recovery requires a handshake and schedules one stable remo
   assert.match(source, /function cancelEmbeddedFrameRecovery\(\)/);
   assert.match(source, /sessionStorage\.removeItem\(FRAME_RECOVERY_KEY\)/);
   assert.match(source, /frameRecoverySchedulePending/);
+  assert.match(source, /if \(window\.__codexControlConsoleCspDocumentPrepared\) return false/);
+  assert.match(source, /document\.body\.setAttribute\('data-codex-control-console-frame-recovery-request'/);
   assert.match(source, /pendingFrameRecovery && canRestore\(\)/);
   assert.doesNotMatch(source, /location\.reload/);
 });

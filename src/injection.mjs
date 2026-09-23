@@ -35,7 +35,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = '2026-09-22.recent-sent1';
+  const INJECTION_VERSION = '2026-09-23.csp-preflight1';
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -117,7 +117,6 @@ ${embeddedFrameRecoverySource}
     url.searchParams.set('embedded', 'native');
     return url.toString();
   }
-
   function nativeTheme() {
     const scheme = getComputedStyle(document.documentElement).colorScheme;
     if (scheme === 'dark') return 'dark';
@@ -133,6 +132,7 @@ ${embeddedFrameRecoverySource}
   }
 
   function openWorkspace(module = 'board', loadingLabel = '', activateConsole = true) {
+    if (requestEmbeddedFramePreparation(module)) return;
     if (activateConsole) window.__codexControlConsoleConversationTabs?.showConsole?.(module);
     let existing = document.querySelector(WORKSPACE_SELECTOR);
     const candidate = workspaceCandidate();

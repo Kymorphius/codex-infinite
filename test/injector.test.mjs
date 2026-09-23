@@ -150,6 +150,22 @@ test("injector reloads once for one handshake recovery request", async () => {
   assert.equal(connection.__codexControlConsoleFrameRecoveryRequest, "request-1");
 });
 
+test("injector reloads an unprepared parent before embedded navigation", async () => {
+  const calls = [];
+  const connection = {
+    __codexControlConsoleInstalled: true,
+    async send(method, params) { calls.push({ method, params }); return {}; },
+    async evaluate(source) {
+      if (source.includes("frameRecoveryManaged")) return { hasEntry: true, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: "preflight-1" };
+      if (source.includes("document.readyState")) return true;
+      return false;
+    }
+  };
+  await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
+  assert.ok(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source.startsWith("window.__codexControlConsoleCspDocumentPrepared = true;")));
+  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 1);
+});
+
 test("injector relaunches a missing dedicated Codex target before the next sync", async () => {
   let recoveries = 0;
   const injector = new CodexInjector({

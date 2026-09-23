@@ -2,8 +2,8 @@
 
 ## Status
 
-Implemented on 2026-08-30 and extended for Chromium 152 on 2026-09-03 and
-2026-09-10.
+Implemented on 2026-08-30 and extended for Chromium 152 on 2026-09-03,
+2026-09-10, and 2026-09-23.
 
 ## Problem
 
@@ -97,6 +97,12 @@ request token, and a second failure does not loop: it leaves an actionable error
 in the workspace and
 requires a dedicated-shell restart. This conditional recovery preserves macOS
 native startup navigation because healthy startup does not reload the parent.
+On macOS, an already loaded parent can retain its parsed CSP when the injector
+first attaches. The first console click now records the requested module and
+asks the injector to reload the parent before creating an iframe. A marker
+installed only on new documents proves that the parent was created after CSP
+bypass was enabled. The existing restoration then mounts the dashboard in the
+prepared document, preventing the blocked-content page on first open.
 While the bounded handshake timer is present, the injector leaves the
 not-yet-ready frame mounted so its older eager-close fallback cannot preempt
 recovery; unmanaged legacy frames retain that fallback.
@@ -125,6 +131,8 @@ bodies, credential isolation, and the dedicated Chromium profile.
   that the parent requires the exact dashboard origin and current frame, and
   that one failed handshake triggers one bounded parent reload rather than a
   reload loop.
+- Unit-test that an unprepared parent requests one reload before creating an
+  iframe and restores the requested module in the new document.
 - Run `npm run check` and `npm test`.
 - Restart only the dedicated wrapper application.
 - Observe a child frame for `http://127.0.0.1:47831/?module=sessions` in the live

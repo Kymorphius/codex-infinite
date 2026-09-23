@@ -127,7 +127,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeUnifiedSidebarInjectionScript(dashboardUrl) + ";" + buildInjectionScript(dashboardUrl)
+      source: "window.__codexControlConsoleCspDocumentPrepared = true;" + buildNativeUnifiedSidebarInjectionScript(dashboardUrl) + ";" + buildInjectionScript(dashboardUrl)
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: buildNativeContextInjectionScript()
@@ -173,7 +173,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       const entry = document.querySelector('[data-codex-control-console-entry]');
       const frame = document.querySelector('[data-codex-control-console-frame]');
       const frameRecoveryManaged = Boolean(frame && document.querySelector('[data-codex-control-console-frame-loading]'));
-      const frameRecoveryRequest = frame?.getAttribute('data-codex-control-console-frame-recovery-request') || '';
+      const frameRecoveryRequest = frame?.getAttribute('data-codex-control-console-frame-recovery-request') || document.body?.getAttribute('data-codex-control-console-frame-recovery-request') || '';
       return { hasEntry: Boolean(entry), hasFrame: Boolean(frame), frameReady: Boolean(frame?.hasAttribute('data-codex-control-console-frame-ready')), frameRecoveryManaged, frameRecoveryRequest };
     })()`).catch(() => ({ hasEntry: false, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: '' }));
     if (state.frameRecoveryRequest && state.frameRecoveryRequest !== connection.__codexControlConsoleFrameRecoveryRequest) {
