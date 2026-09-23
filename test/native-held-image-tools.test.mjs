@@ -30,6 +30,15 @@ test('held image capture survives hydration and cleans up only after release', a
   await assert.rejects(() => tools.hydrate(input), /已丢失或损坏/);
 });
 
+test('queued data image is captured into a durable task reference before pausing', async () => {
+  const { blobs, tools } = fixture();
+  const input = [{ type: 'text', text: '带图消息' }, { type: 'image', url: 'data:image/png;base64,abc' }];
+  const stored = await tools.captureQueueInput(input, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  assert.deepEqual(stored, [{ type: 'text', text: '带图消息' }, { type: 'heldImage', id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:0' }]);
+  assert.equal(blobs.size, 1);
+  await assert.rejects(() => tools.captureQueueInput([{ type: 'image', url: 'https://example.com/image.png' }], 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'), /无法安全保存/);
+});
+
 test('image-only draft is saved before text clearing; failure keeps composer untouched', async () => {
   const { editor, tools, blobs } = fixture();
   let created = [], cleared = 0, warning = '', busy = false;

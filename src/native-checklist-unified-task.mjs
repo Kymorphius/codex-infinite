@@ -9,7 +9,7 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
   function removeLegacyDraft(source, expectedInput) {
     try {
       const value = JSON.parse(localStorageRef.getItem(heldKey) || '{}'), records = Array.isArray(value?.[source.threadId]) ? value[source.threadId] : [];
-      const next = records.filter(item => !(item?.id === source.id && item.origin === 'draft' && item.heldAt === source.heldAt && JSON.stringify(item.input) === JSON.stringify(expectedInput)));
+      const next = records.filter(item => !(item?.id === source.id && item.origin === (source.origin || 'draft') && item.heldAt === source.heldAt && JSON.stringify(item.input) === JSON.stringify(expectedInput)));
       if (next.length === records.length) return false;
       value[source.threadId] = next; localStorageRef.setItem(heldKey, JSON.stringify(value));
       windowRef.dispatchEvent(new windowRef.Event('codex-control-console-held-todos-changed')); return true;
@@ -18,7 +18,7 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
   function hasLegacyDrafts() {
     try {
       const stored = JSON.parse(localStorageRef.getItem(heldKey) || '{}'), pending = readPending();
-      return Object.entries(stored || {}).some(([threadId, records]) => Array.isArray(records) && records.some(item => item?.origin === 'draft' && !pending.some(action => action.legacyHeldSource?.id === item.id && action.legacyHeldSource?.threadId === threadId)));
+      return Object.entries(stored || {}).some(([threadId, records]) => Array.isArray(records) && records.some(item => ['draft', 'paused-queue'].includes(item?.origin) && !pending.some(action => action.legacyHeldSource?.id === item.id && action.legacyHeldSource?.threadId === threadId)));
     } catch { return false; }
   }
   function migrateLegacyDrafts(signal = false) {
@@ -30,8 +30,8 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
     for (const [threadId, records] of Object.entries(stored)) {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(threadId) || !Array.isArray(records)) continue;
       for (const legacy of records) {
-        if (legacy?.origin !== 'draft' || !Number.isFinite(legacy.heldAt) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(legacy.id || '')) continue;
-        const source = { id: legacy.id, threadId, heldAt: legacy.heldAt }, pending = readPending();
+        if (!['draft', 'paused-queue'].includes(legacy?.origin) || !Number.isFinite(legacy.heldAt) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(legacy.id || '')) continue;
+        const source = { id: legacy.id, threadId, heldAt: legacy.heldAt, origin: legacy.origin }, pending = readPending();
         if (pending.some(action => action.legacyHeldSource?.id === source.id && action.legacyHeldSource?.threadId === threadId)) continue;
         const existing = readGeneralItems().find(item => item.id === legacy.id);
         if (existing) {
@@ -67,12 +67,13 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
       else items.set(action.id, { ...items.get(action.id), ...action });
     }
     return [...items.values()].filter(item => !item.done && String(item.assignedThreadId || '').toLowerCase() === normalized)
-      .map(item => ({ id: item.id, text: item.text, ...(Array.isArray(item.input) ? { input: item.input } : {}) }));
+      .map(item => ({ id: item.id, text: item.text, ...(typeof item.createdAt === 'string' ? { createdAt: item.createdAt } : {}), ...(Array.isArray(item.input) ? { input: item.input } : {}) }));
   }
   function completeLegacySources(actions) {
     for (const action of actions) if (action.legacyHeldSource) removeLegacyDraft(action.legacyHeldSource, action.input);
   }
-  return { enqueueTask, removeLegacyDraft, hasLegacyDrafts, migrateLegacyDrafts, createAssignedTask, tasksForThread, completeLegacySources };
+  const legacyTaskPending = (id, threadId) => readPending().some(action => action.legacyHeldSource?.id === id && action.legacyHeldSource?.threadId === threadId);
+  return { enqueueTask, removeLegacyDraft, hasLegacyDrafts, migrateLegacyDrafts, createAssignedTask, tasksForThread, completeLegacySources, legacyTaskPending };
 }
 
 export function createNativeChecklistPasteImages({ taskImages, cryptoRef, onError, onChange }) {

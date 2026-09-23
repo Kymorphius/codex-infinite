@@ -12,7 +12,7 @@ test('generated held image injection remains parseable', () => {
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-24\.unified-todo1'/);
+  assert.match(source, /const VERSION = '2026-09-24\.todo-actions1'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -40,11 +40,11 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
 
 test("native held queue saves before delete and adds before removing held copy", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  const pause = source.slice(source.indexOf("async function pauseItem"), source.indexOf("async function resumeItem"));
+  const pause = source.slice(source.indexOf("async function pauseNativeQueuedItem"), source.indexOf("async function resumeNativeHeldItem"));
   assert.ok(pause.indexOf("writeHeld") < pause.indexOf("thread/queue/delete"));
   assert.match(pause, /writeHeld\(id, before\)/);
   assert.match(pause, /origin: 'paused-queue'/);
-  const resume = source.slice(source.indexOf("async function resumeItem"), source.indexOf("async function reorderServer"));
+  const resume = source.slice(source.indexOf("async function resumeNativeHeldItem"), source.indexOf("async function reorderNativeQueuedItems"));
   assert.ok(resume.indexOf("thread/queue/add") < resume.indexOf("writeHeld"));
 });
 
@@ -156,23 +156,26 @@ test("manual and time views preserve distinct held ordering contracts", () => {
   assert.deepEqual(orderHeldForView(stored, "time").map((item) => item.id), ["earlier", "later"]);
   assert.deepEqual(stored.map((item) => item.id), ["later", "earlier"]);
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /手动视图/);
-  assert.match(source, /时间视图/);
+  assert.match(source, /button\('管理'/);
+  assert.match(source, /button\('排序'/);
+  assert.match(source, /button\('时间'/);
+  assert.match(source, /heldView === 'sort'\s*\? \[button\('上移'/);
+  assert.match(source, /sorting: heldView === 'sort'/);
   assert.match(source, /VIEW_KEY/);
   assert.match(source, /heldView = readHeldView\(id\)/);
-  assert.match(source, /heldView === 'time'/);
+  assert.match(source, /heldView === 'sort'/);
 });
 
 test("every pending row exposes edit and queued editing pauses before opening", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  const pause = source.slice(source.indexOf("async function pauseItem"), source.indexOf("async function resumeItem"));
+  const pause = source.slice(source.indexOf("async function pauseNativeQueuedItem"), source.indexOf("async function resumeNativeHeldItem"));
   const rows = source.slice(source.indexOf("serverItems.forEach"), source.indexOf("if (!serverItems.length"));
   assert.match(pause, /editAfterPause/);
-  assert.ok(pause.indexOf("thread/queue/delete") < pause.indexOf("editing ="));
+  assert.ok(pause.indexOf("thread/queue/delete") < pause.indexOf("setEditing"));
   assert.match(rows, /button\('编辑', \(\) => pauseItem\(id, item, true\)/);
   assert.match(rows, /appendNativeHeldTodoRows/);
-  assert.match(source, /makeButton\('编辑', \(\) => context\.edit\(item\)/);
-  assert.match(source, /save: item => saveHeldEdit/);
+  assert.match(source, /makeButton\('编辑', \(\) => context\.edit\(source, item\)/);
+  assert.match(source, /save: item => editing\?\.source === 'assigned'/);
   assert.match(source, /cancel: cancelHeldEdit/);
   assert.match(source, /editor\.dataset\.cccHeldEditor/);
 });

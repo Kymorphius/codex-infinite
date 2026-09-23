@@ -85,6 +85,21 @@ export function createNativeHeldImageTools({ store = null, fetchImage = globalTh
       return saved;
     } catch (error) { await release(saved).catch(() => {}); throw error; }
   };
+  const captureQueueInput = async (input, heldId) => {
+    if (!Array.isArray(input) || !input.length || input.length > 9) throw new Error('队列消息载荷无效，未暂停');
+    const imagesToCapture = input.filter(part => part?.type === 'image');
+    if (!imagesToCapture.length) return input;
+    const blobs = [];
+    for (const part of imagesToCapture) {
+      if (typeof part.url !== 'string' || !/^(data:image\/|blob:)/i.test(part.url)) throw new Error('队列图片无法安全保存，未暂停');
+      const response = await fetchImage(part.url);
+      if (!response?.ok) throw new Error('队列图片读取失败，未暂停');
+      blobs.push(await response.blob());
+    }
+    const refs = await captureBlobs(blobs, heldId);
+    let index = 0;
+    return input.map(part => part?.type === 'image' ? refs[index++] : part);
+  };
   const hydrate = async (input) => {
     const output = [];
     for (const part of input) {
@@ -98,5 +113,5 @@ export function createNativeHeldImageTools({ store = null, fetchImage = globalTh
     }
     return output;
   };
-  return { images, capture, captureBlobs, hydrate, release, count: (input) => refs(input).length };
+  return { images, capture, captureBlobs, captureQueueInput, hydrate, release, count: (input) => refs(input).length };
 }

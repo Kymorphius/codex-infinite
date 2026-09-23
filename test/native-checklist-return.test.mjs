@@ -64,11 +64,11 @@ test('assigned todo exposes reassign and return actions with the original task',
   appendNativeHeldTodoRows({ append: row => rows.push(row) }, orderNativeHeldTodoEntries([], [task], 'manual'),
     (label, text, buttons) => ({ label, text, buttons }), null,
     (label, click, disabled) => ({ label, click, disabled }),
-    { busy: false, returnTask: item => returned.push(item), resume: (_, item) => resumed.push(item), reassign: item => reassigned.push(item) });
-  assert.deepEqual(rows[0].buttons.map(button => button.label), ['恢复', '重派', '退回']);
-  rows[0].buttons[1].click();
-  assert.equal(reassigned[0], task);
+    { busy: false, returnTask: (_, item) => returned.push(item), resume: (_, item) => resumed.push(item), reassign: (_, item) => reassigned.push(item) });
+  assert.deepEqual(rows[0].buttons.map(button => button.label), ['编辑', '恢复', '重派', '退回', '删除']);
   rows[0].buttons[2].click();
+  assert.equal(reassigned[0], task);
+  rows[0].buttons[3].click();
   assert.equal(returned[0], task);
   assert.equal(resumed.length, 0);
 });

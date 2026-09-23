@@ -40,6 +40,22 @@ test('legacy direct-saved todo is copied before acknowledgement and removed only
   assert.equal(h.events.length, 1);
 });
 
+test('paused native queue todo migrates with its identity and image, then clears only after acknowledgement', () => {
+  const old = { id: thread, origin: 'paused-queue', heldAt: 1790000000000, input: [{ type: 'text', text: '暂停消息' }, image] };
+  const h = modelFixture({ held: { [thread]: [old] } });
+  assert.equal(h.model.hasLegacyDrafts(), true);
+  assert.equal(h.model.migrateLegacyDrafts(), '');
+  assert.equal(h.model.legacyTaskPending(old.id, thread), true);
+  assert.equal(h.held[thread].length, 1);
+  assert.equal(h.pending[0].id, old.id);
+  assert.equal(h.pending[0].legacyHeldSource.origin, 'paused-queue');
+  assert.deepEqual(h.pending[0].input, old.input);
+  assert.equal(h.model.migrateLegacyDrafts(), '', 'retry does not duplicate the action');
+  assert.equal(h.pending.length, 1);
+  h.model.completeLegacySources([h.pending[0]]);
+  assert.deepEqual(h.held[thread], []);
+});
+
 test('pasted image files enter the common held-image payload and remain until the task is consumed', async () => {
   let pasteHandler, stored = 0, changed = 0;
   const tools = { captureBlobs: async (files, id) => { stored++; return [{ type: 'heldImage', id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb:0' }]; }, release: async () => {} };

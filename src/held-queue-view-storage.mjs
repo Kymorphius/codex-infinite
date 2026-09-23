@@ -5,4 +5,4 @@ export function readHeldViews() {
   } catch { return {}; }
 }
 
-export function readHeldView(id) { return readHeldViews()[id] === 'time' ? 'time' : 'manual'; }
+export function readHeldView(id) { return ['manage', 'sort', 'time'].includes(readHeldViews()[id]) ? readHeldViews()[id] : 'manage'; }

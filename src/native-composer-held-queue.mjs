@@ -1,5 +1,5 @@
 import { readHeldEditableText, replaceHeldEditableText } from "./held-queue-edit.mjs";
-import { createHeldDisplayRow, createHeldEditRow, formatHeldInitialTime, orderHeldForView } from "./held-queue-presentation.mjs";
+import { createHeldDisplayRow, createHeldEditRow, formatHeldInitialTime } from "./held-queue-presentation.mjs";
 import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { createNativeClaimTaskBridge } from "./native-claim-task-control.mjs";
@@ -14,10 +14,13 @@ import { returnAssignedTodo } from './native-checklist-return.mjs';
 import { createNativeHeldImageTools } from './native-held-image-tools.mjs';
 import { saveNativeHeldDraft } from './native-held-draft-save.mjs';
 import { readHeldViews, readHeldView } from './held-queue-view-storage.mjs';
+import { readNativeTodoOrder, writeNativeTodoOrder, moveNativeTodoEntry, bootstrapNativeTodoOrder } from './native-held-todo-order.mjs';
+import { pauseNativeQueuedItem, resumeNativeHeldItem, reorderNativeQueuedItems } from './native-held-queue-operations.mjs';
+import { clearDraftText } from './native-held-draft-clear.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-24.unified-todo1', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-24.todo-actions1', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-23.reassign1', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -35,19 +38,19 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   window.__codexControlConsoleSaveDraftTodoInstalledVersion = SAVE_DRAFT_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const readThreadId = ${readNativeComposerThreadId.toString()};
-  const STORE_KEY = 'codex-control-console.native-held-queue.v1', VIEW_KEY = STORE_KEY + '.view', DRAFT_KEY = STORE_KEY + '.recovery-draft';
+  const STORE_KEY = 'codex-control-console.native-held-queue.v1', VIEW_KEY = STORE_KEY + '.view', ORDER_KEY = STORE_KEY + '.order', DRAFT_KEY = STORE_KEY + '.recovery-draft';
   const MAX_HELD = 100;
   const SAVE_STYLE = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid #8884;border-radius:999px;background:none;color:inherit;font-size:12px';
   const HELD_ORIGINS = new Set(['draft', 'paused-queue']);
   let open = false;
   let busy = false;
-  let serverItems = [], warning = '', editing = null, heldView = 'manual';
+  let serverItems = [], warning = '', editing = null, heldView = 'manage';
   const staleThreads = new Set();
   let activeThreadId = null;
 
 
   ${readHeldEditableText.toString()}
-  ${replaceHeldEditableText.toString()} ${formatHeldInitialTime.toString()} ${orderHeldForView.toString()}
+  ${replaceHeldEditableText.toString()} ${formatHeldInitialTime.toString()}
   ${createHeldDisplayRow.toString()} ${createHeldEditRow.toString()}
   ${appendNativeHeldTodoRows.toString()} ${orderNativeHeldTodoEntries.toString()}
   ${normalizeAssignedChecklistTasks.toString()} ${createAssignedChecklistState.toString()}
@@ -59,6 +62,9 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   ${saveNativeHeldDraft.toString()}
   ${returnAssignedTodo.toString()}
   ${readHeldViews.toString()} ${readHeldView.toString()}
+  ${readNativeTodoOrder.toString()} ${writeNativeTodoOrder.toString()} ${moveNativeTodoEntry.toString()} ${bootstrapNativeTodoOrder.toString()}
+  ${pauseNativeQueuedItem.toString()} ${resumeNativeHeldItem.toString()} ${reorderNativeQueuedItems.toString()}
+  ${clearDraftText.toString()}
 
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
@@ -83,6 +89,17 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   }
   function heldFor(id) { return (readStore()[id] || []).filter(validHeld).slice(0, MAX_HELD); }
   function setHeldView(id, view) { const values = readHeldViews(); values[id] = view; localStorage.setItem(VIEW_KEY, JSON.stringify(values)); heldView = view; render(); }
+  function todoEntries(id) {
+    const assigned = assignedState.forThread(id), held = heldFor(id).filter(item => !assigned.some(task => task.id === item.id));
+    return orderNativeHeldTodoEntries(held, assigned, heldView, bootstrapNativeTodoOrder(localStorage, ORDER_KEY, id, held, assigned));
+  }
+  function moveTodo(id, taskId, offset) {
+    if (busy || id !== threadId()) return;
+    const order = moveNativeTodoEntry(todoEntries(id), taskId, offset);
+    if (!order) return;
+    try { writeNativeTodoOrder(localStorage, ORDER_KEY, id, order); warning = ''; } catch { warning = '无法保存待办顺序'; }
+    render();
+  }
   function writeHeld(id, items) {
     if (items.length > MAX_HELD) throw new Error('待办消息已达 100 条，请先整理后再保存');
     const store = readStore();
@@ -119,53 +136,30 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     if (changed) render();
   }
   async function pauseItem(id, item, editAfterPause = false) {
-    if (busy || id !== threadId() || !item?.id || item.input == null) return;
-    const editableText = editAfterPause ? readHeldEditableText(item.input) : null;
-    if (editAfterPause && editableText == null) { warning = '这条消息没有可安全编辑的单一文字内容'; render(); return; }
-    setBusy(true);
-    const before = heldFor(id);
-    const held = { id: crypto.randomUUID(), input: item.input, summary: summarize(item.input), heldAt: Date.now(), origin: 'paused-queue' };
-    try {
-      writeHeld(id, [...before, held]);
-      const result = await request('thread/queue/delete', { threadId: id, queuedSubmissionId: item.id });
-      if (!result?.deleted) throw new Error('原生队列项已经变化，请先同步');
-      const next = await listQueue(id); if (id !== threadId()) return; serverItems = next;
-      if (editAfterPause) editing = { id: held.id, value: editableText };
-    } catch (error) {
-      try { writeHeld(id, before); } catch {}
-      if (id === threadId()) warning = error.message || '暂停失败';
-    } finally { setBusy(false); }
+    return pauseNativeQueuedItem(id, item, editAfterPause, queueActions);
   }
   async function resumeItem(id, held) {
-    if (busy || id !== threadId()) return;
-    setBusy(true);
-    try {
-      const input = await imageTools.hydrate(held.input);
-      await request('thread/queue/add', { threadId: id, input, clientUserMessageId: crypto.randomUUID() });
-      writeHeld(id, heldFor(id).filter((item) => item.id !== held.id));
-      const cleanupWarning = await imageTools.release(held.input).then(() => '', () => '待办已恢复，图片缓存稍后需要清理');
-      const next = await listQueue(id); if (id !== threadId()) return; serverItems = next;
-      warning = cleanupWarning;
-    } catch (error) { if (id === threadId()) warning = error.message || '恢复失败'; }
-    finally { setBusy(false); }
+    if (legacyIsSynchronizing(id, held)) { legacyPendingWarning(); return; }
+    return resumeNativeHeldItem(id, held, queueActions);
   }
   async function reorderServer(id, index, offset) {
-    const next = index + offset;
-    if (busy || id !== threadId() || next < 0 || next >= serverItems.length) return;
-    setBusy(true);
-    const reordered = [...serverItems]; [reordered[index], reordered[next]] = [reordered[next], reordered[index]];
-    try {
-      await request('thread/queue/reorder', { threadId: id, queuedSubmissionIds: reordered.map((item) => item.id) });
-      if (id === threadId()) { serverItems = reordered; warning = ''; }
-    } catch (error) { if (id === threadId()) warning = error.message || '排序失败'; }
-    finally { setBusy(false); }
+    return reorderNativeQueuedItems(id, index, offset, queueActions);
   }
-  function reorderHeld(id, index, offset) {
-    const items = heldFor(id), next = index + offset;
-    if (next < 0 || next >= items.length) return;
-    [items[index], items[next]] = [items[next], items[index]]; writeHeld(id, items); render();
+  const queueActions = { busy: () => busy, threadId, setBusy, heldFor, writeHeld, request, listQueue, imageTools, summarize,
+    readEditableText: readHeldEditableText, serverItems: () => serverItems, setServerItems: value => { serverItems = value; },
+    setEditing: value => { editing = value; }, migrateLegacyTodos: () => window.__cccProjectChecklist?.migrateLegacyTodos?.(), warn: value => { warning = value; render(); } };
+  function legacyPendingWarning() { warning = '旧待办正在同步到任务中心，请稍后重试'; render(); }
+  function legacyIsSynchronizing(id, held) { const bridge = window.__cccProjectChecklist; return bridge?.legacyTaskPending?.(held.id, id) || bridge?.assignedTasksForThread?.(id)?.some(task => task.id === held.id); }
+  function refreshAssignedSnapshot(id) { const items = window.__cccProjectChecklist?.assignedTasksForThread?.(id); if (Array.isArray(items)) assignedState.publish({ threadId: id, items }); }
+  function deleteAssigned(task) {
+    const id = threadId();
+    if (busy || !assignedState.owns(id, task)) return;
+    if (!window.__cccProjectChecklist?.deleteAssignedTask?.(task.id, id, task.text)) warning = '无法删除任务，请同步后重试';
+    else { warning = ''; refreshAssignedSnapshot(id); }
+    render();
   }
   async function removeHeld(id, held) {
+    if (legacyIsSynchronizing(id, held)) { legacyPendingWarning(); return; }
     try { writeHeld(id, heldFor(id).filter((item) => item.id !== held.id)); await imageTools.release(held.input); warning = ''; }
     catch (error) { warning = error.message || '无法删除待办'; }
     render();
@@ -186,6 +180,14 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     catch (error) { warning = error.message || '无法保存待办修改'; }
     render();
   }
+  function startAssignedEdit(task) { if (busy || !assignedState.owns(threadId(), task)) return; editing = { id: task.id, value: task.text, source: 'assigned' }; render(); }
+  function saveAssignedEdit(id, task) {
+    if (busy || id !== threadId() || !assignedState.owns(id, task)) return;
+    const value = String(editing?.value || '').trim();
+    if (!window.__cccProjectChecklist?.editAssignedTask?.(task.id, id, task.text, value)) warning = '无法保存任务修改，请同步后重试';
+    else { editing = null; warning = ''; refreshAssignedSnapshot(id); }
+    render();
+  }
   function draftText(editor) {
     const markdown = editor?.getAttribute?.('data-composer-markdown');
     if (typeof markdown === 'string' && markdown.trim()) return markdown.trim();
@@ -200,24 +202,6 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       if (save.style.opacity !== opacity) save.style.opacity = opacity;
       if (save.style.cursor !== cursor) save.style.cursor = cursor;
     }
-  }
-  function clearDraftText(editor) {
-    if (!(editor instanceof HTMLElement) || !editor.isContentEditable) return false;
-    const selection = window.getSelection();
-    if (!selection) return false;
-    editor.focus({ preventScroll: true });
-    const range = document.createRange();
-    range.selectNodeContents(editor);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    const selectionIsInsideEditor = selection.rangeCount === 1
-      && editor.contains(selection.anchorNode)
-      && editor.contains(selection.focusNode)
-      && editor.contains(selection.getRangeAt(0).commonAncestorContainer);
-    if (!selectionIsInsideEditor) { selection.removeAllRanges(); return false; }
-    document.execCommand('delete', false, null);
-    selection.removeAllRanges();
-    return !draftText(editor);
   }
   async function saveDraftTodo() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
@@ -235,7 +219,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     syncThreadState(id);
     if (!id || !toolbar || !panel) return;
     const assignedTasks = assignedState.forThread(id);
-    const held = orderHeldForView(heldFor(id), heldView);
+    const entries = todoEntries(id), held = heldFor(id).filter(item => !assignedTasks.some(task => task.id === item.id));
     const stale = staleThreads.has(id);
     updateShell(id, toolbar, panel);
     panel.replaceChildren();
@@ -243,20 +227,23 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const title = document.createElement('strong'); title.textContent = '待办';
     const state = document.createElement('span'); state.textContent = serverItems.length + ' 排队 · ' + (held.length + assignedTasks.length) + ' 待办';
     const views = document.createElement('span'); views.dataset.cccHeldViews = '';
-    views.append(button('手动视图', () => setHeldView(id, 'manual'), heldView === 'manual'), button('时间视图', () => setHeldView(id, 'time'), heldView === 'time'));
+    views.append(button('管理', () => setHeldView(id, 'manage'), heldView === 'manage'), button('排序', () => setHeldView(id, 'sort'), heldView === 'sort'), button('时间', () => setHeldView(id, 'time'), heldView === 'time'));
     head.append(title, views, state); panel.append(head);
     if (warning || stale) { const note = document.createElement('p'); note.dataset.cccHeldWarning = ''; note.textContent = warning || '原生队列状态已经过期，当前输入仍保留；请同步后重试。'; note.append(' ', button('同步原生队列', syncNative)); panel.append(note); }
     const list = document.createElement('div'); list.dataset.cccHeldList = '';
-    serverItems.forEach((item, index) => list.append(createHeldDisplayRow('排队', summarize(item.input), [
-      button('编辑', () => pauseItem(id, item, true), busy), button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1), button('暂停', () => pauseItem(id, item), busy)
-    ])));
+    serverItems.forEach((item, index) => list.append(createHeldDisplayRow('排队', summarize(item.input), heldView === 'sort'
+      ? [button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1)]
+      : [button('编辑', () => pauseItem(id, item, true), busy), button('暂停', () => pauseItem(id, item), busy)])));
     const returnTask = (task) => returnAssignedTodo(task, { threadId: id, isCurrent: () => threadId() === id, busy: () => busy, setBusy, setWarning: (value) => { warning = value; } });
-    appendNativeHeldTodoRows(list, orderNativeHeldTodoEntries(held, assignedTasks, heldView), createHeldDisplayRow, createHeldEditRow, button, {
-      editing, busy, timeView: heldView === 'time', heldCount: held.length, summarize,
-      save: item => saveHeldEdit(id, item), cancel: cancelHeldEdit, edit: startHeldEdit,
-      move: (index, offset) => reorderHeld(id, index, offset), remove: item => removeHeld(id, item), returnTask,
+    appendNativeHeldTodoRows(list, entries, createHeldDisplayRow, createHeldEditRow, button, {
+      editing, busy, sorting: heldView === 'sort', summarize,
+      save: item => editing?.source === 'assigned' ? saveAssignedEdit(id, item) : saveHeldEdit(id, item), cancel: cancelHeldEdit,
+      edit: (source, item) => source === 'assigned' ? startAssignedEdit(item) : startHeldEdit(item),
+      move: (taskId, offset) => moveTodo(id, taskId, offset),
+      remove: (source, item) => source === 'assigned' ? deleteAssigned(item) : removeHeld(id, item),
+      returnTask: (source, item) => source === 'assigned' ? returnTask(item) : legacyPendingWarning(),
       resume: (source, item) => source === 'held' ? resumeItem(id, item) : resumeAssignedTask(item, { threadId: id, isCurrent: () => threadId() === id, ownsTask: value => assignedState.owns(id, value), busy: () => busy, setBusy, request, hydrateInput: value => value.input ? imageTools.hydrate(value.input) : [{ type: 'text', text: value.text }], removeAssigned: taskId => assignedState.remove(id, taskId), setServerItems: items => { serverItems = items; }, listQueue, setWarning: value => { warning = value; } }),
-      reassign: task => { if (busy || threadId() !== id || !assignedState.owns(id, task)) return; if (!window.__cccProjectChecklist?.openReassignTask?.(task.id, id, task.text)) { warning = '任务状态已变化，请同步后重试'; render(); } }
+      reassign: (source, task) => { if (source !== 'assigned') return legacyPendingWarning(); if (busy || threadId() !== id || !assignedState.owns(id, task)) return; if (!window.__cccProjectChecklist?.openReassignTask?.(task.id, id, task.text)) { warning = '任务状态已变化，请同步后重试'; render(); } }
     });
     if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办'; list.append(empty); }
     panel.append(list);

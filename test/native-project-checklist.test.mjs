@@ -47,7 +47,7 @@ test('checklist numbers have a separate small card beside the task card', () => 
   assert.match(source, /ul\{list-style:none;padding:0;padding-inline-start:48px/);
   assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
-  assert.match(source, /2026-09-23\.reassign1/);
+  assert.match(source, /2026-09-24\.todo-actions1/);
   assert.match(source, /checklistTaskId/);
 });
 test('project switching isolates visible items and restores pending drafts after reload', () => {

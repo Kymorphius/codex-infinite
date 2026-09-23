@@ -1,23 +1,9 @@
-import { readNativeChecklistHeldTodos } from './native-checklist-held-todos.mjs';
-import { readNativeChecklistConversationChoices } from './native-checklist-conversation-choices.mjs';
-import { readNativeComposerThreadId } from './native-composer-thread-id.mjs';
-import { createChecklistReturnBridge } from './native-checklist-return.mjs';
-import { checklistTimeMetadata } from './project-checklist-time.mjs';
-import { createChecklistTimePresentation } from './checklist-time-presentation.mjs';
-import { createChecklistTaskEditor } from './native-checklist-task-editor.mjs';
-import { createChecklistSearch } from './native-checklist-search.mjs';
-import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
-import { PROJECT_CHECKLIST_SYNC_BINDING } from './project-checklist-sync-wake.mjs';
-import { createNativeHeldImageTools } from './native-held-image-tools.mjs';
-import { normalizeChecklistInput } from './project-checklist-input.mjs';
-import { assignedChecklistTasksForThread } from './project-checklist-assignment.mjs';
-import { createNativeChecklistPasteImages, createNativeChecklistTaskModel } from './native-checklist-unified-task.mjs';
 import { createNativeChecklistTaskRow } from './native-checklist-task-row.mjs';
-import { focusNativeChecklistTask, openNativeChecklistReassignPicker, createNativeChecklistReassignController } from './native-checklist-board-jump.mjs';
+import { focusNativeChecklistTask, createNativeChecklistReassignController } from './native-checklist-board-jump.mjs';
 import { createNativeChecklistAssignmentControl } from './native-checklist-assignment-control.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim, syncBinding, normalizeInput, makeImageTools, assignedChecklistTasksForThread, makePasteImages, makeTaskModel) {
-  const VERSION = '2026-09-23.reassign1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-24.todo-actions1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -116,6 +102,11 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       try { window[syncBinding]?.('return'); } catch { /* periodic sync remains the recovery path */ }
     }
   });
+  const todoMutations = createNativeChecklistTodoMutations({
+    readThreadId: () => readThreadId(document), readItems: () => view(GENERAL_KEY, generalItems),
+    enqueue: (type, item) => { const requestId = act(type, item, GENERAL_KEY); if (storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; } try { window[syncBinding]?.('todo'); } catch {} return true; },
+    replaceText: (input, value) => replaceHeldEditableText(input, value) || (!input.some(part => part.type === 'text') ? [{ type: 'text', text: value }, ...input] : null)
+  });
   const reassign = createNativeChecklistReassignController({ readThreadId: () => readThreadId(document), readItems: () => view(GENERAL_KEY, generalItems), openGeneral: () => window.__cccProjectChecklist.openGeneral(), getLoaded: () => loaded === GENERAL_KEY, isOpen: () => dialog.open, list, warn: message => { claimWarning = message; state(); }, render: () => render() });
   const newThreadClaim = createNewThreadClaim({
     start: createThreadStarter(),
@@ -132,7 +123,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   function render() {
     const drafts = new Map([...taskEditors].map(([id, editor]) => [id, editor.snapshot()])); taskEditors.clear(); search.resetRows();
     const version = ++renderVersion;
-    state(); list.replaceChildren(); const values = time.order(view()), claiming = Boolean(project?.claimThreadId || project?.claimNewThread), projectedHeld = project?.general && !claiming ? held : [];
+    state(); list.replaceChildren(); const values = time.order(view()), claiming = Boolean(project?.claimThreadId || project?.claimNewThread), projectedHeld = project?.general && !claiming ? held.filter(item => !values.some(task => task.id === item.id)) : [];
     const assigned = project?.general && !claiming ? values.filter(item => !item.done && item.assignedThreadId) : [];
     const visible = claiming ? values.filter(item => !item.done && !item.assignedThreadId) : project?.general ? values.filter(item => !item.assignedThreadId) : values;
     count.textContent = project?.general ? `${visible.filter(item => !item.done).length} 项未指派 · ${values.filter(item => item.done).length} 项已完成 · ${heldLoaded ? assigned.length + projectedHeld.length + ' 项会话待办' : '正在加载会话待办…'}` : `${values.filter(item => !item.done).length} 项待办 · ${values.filter(item => item.done).length} 项已完成`;
@@ -177,8 +168,12 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     createAssignedTask: taskModel.createAssignedTask,
     assignedTasksForThread: taskModel.tasksForThread,
     hasLegacyDrafts: taskModel.hasLegacyDrafts,
+    legacyTaskPending: taskModel.legacyTaskPending,
+    migrateLegacyTodos() { return taskModel.migrateLegacyDrafts(true); },
     openGeneral(taskId = null) { focusTaskId = typeof taskId === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(taskId) ? taskId : null; this.open({ key: GENERAL_KEY, general: true, name: '记下任务，再领取或指派给会话。' }); if (focusTaskId && loaded === project?.key) render(); },
     openReassignTask(id, threadId, text) { return reassign.open(id, threadId, text); },
+    editAssignedTask: todoMutations.edit,
+    deleteAssignedTask: todoMutations.delete,
     openClaimableForCurrentThread(threadId) { this.open({ key: 'ccc:general-inbox:v1', general: true, claimThreadId: threadId, name: '直接编辑任务内容；领取时使用框内最新内容，放入当前会话待办并保持暂停。领取不会发送消息。' }); },
     openClaimableForNewThread() { this.open({ key: GENERAL_KEY, general: true, claimNewThread: true, name: '直接编辑任务内容；点击领取会填入新任务输入框并发送，创建新会话。' }); },
     completeAssignedTask(id, threadId, text) {
