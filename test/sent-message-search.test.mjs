@@ -101,7 +101,7 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
   const routes = [], calls = [], saved = new Map();
   const localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
   const window = { __codexControlConsoleSearchSentMessages: value => calls.push(JSON.parse(value)), postMessage: value => routes.push(value.path) };
-  const context = vm.createContext({ document, window, localStorage, MutationObserver: class { observe() {} disconnect() {} }, setTimeout: fn => { fn(); return 1; }, clearTimeout() {} });
+  const context = vm.createContext({ document, window, localStorage, setTimeout: fn => { fn(); return 1; }, clearTimeout() {} });
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
   const launch = parent.children[1].children[0];
   assert.equal(launch.textContent, '搜索发送内容');
@@ -169,7 +169,7 @@ test('top search launcher mounts before project search becomes available', () =>
     if (selector === '[data-codex-control-console-project-search]') return projectSearch.parentElement ? projectSearch : null;
     return null;
   } };
-  const context = vm.createContext({ document, window: {}, localStorage: { getItem: () => null }, MutationObserver: class { observe() {} disconnect() {} } });
+  const context = vm.createContext({ document, window: {}, localStorage: { getItem: () => null } });
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
   assert.equal(tabBar.children[0].attrs['data-codex-control-console-tab-message-search'], '');
   assert.equal(parent.children.length, 0);

@@ -16,14 +16,14 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.6';
+  const VERSION = '2026-09-23.7';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
     window.__codexControlConsoleSentMessageSearch.ensure?.();
     return;
   }
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
   const HISTORY_KEY = 'codex-control-console.sent-message-search.history.v1';
-  let root, topLaunch, panel, input, results, historyPanel, timer, observer, observedRoot, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
+  let root, topLaunch, panel, input, results, historyPanel, timer, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
   let history = [];
   try {
     const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -222,18 +222,10 @@ export function installNativeSentMessageSearch() {
     ensure() {
       if (!active) return;
       install();
-      if (observer && observedRoot !== document.documentElement) {
-        observer.disconnect();
-        observedRoot = document.documentElement;
-        observer.observe(observedRoot, { childList: true, subtree: true });
-      }
     },
     receive(value) { if (value?.id === requestId && input?.value.trim()) show(value); },
-    dispose() { active = false; clearTimeout(timer); observer?.disconnect(); root?.remove(); topLaunch?.remove(); panel?.remove(); }
+    dispose() { active = false; clearTimeout(timer); root?.remove(); topLaunch?.remove(); panel?.remove(); }
   };
   active = true;
   install();
-  observer = new MutationObserver(() => { if (active) install(); });
-  observedRoot = document.documentElement;
-  observer.observe(observedRoot, { childList: true, subtree: true });
 }
