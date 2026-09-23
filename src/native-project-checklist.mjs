@@ -7,9 +7,10 @@ import { createChecklistTimePresentation } from './checklist-time-presentation.m
 import { createChecklistTaskEditor } from './native-checklist-task-editor.mjs';
 import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
+import { PROJECT_CHECKLIST_SYNC_BINDING } from './project-checklist-sync-wake.mjs';
 
-export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout12', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim, syncBinding) {
+  const VERSION = '2026-09-23.return-wake1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -114,6 +115,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       pending.push(action); persist();
       if (storageError) { pending = pending.filter(value => value.requestId !== action.requestId); throw new Error(storageError); }
       render();
+      try { window[syncBinding]?.('return'); } catch { /* periodic sync remains the recovery path */ }
     }
   });
   const newThreadClaim = createNewThreadClaim({
@@ -218,4 +220,4 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   function refreshHeldTodos() { if (project?.general && !project.claimThreadId && !project.claimNewThread) { heldLoaded = false; scheduleHeldLoad(); render(); } }
   window.addEventListener('codex-control-console-held-todos-changed', refreshHeldTodos);
 }
-export function buildNativeProjectChecklistScript() { return `${createNativeChecklistThreadStarter.toString()}\n${createNativeChecklistNewThreadClaim.toString()}\n(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()},${readNativeChecklistConversationChoices.toString()},${readNativeComposerThreadId.toString()},${createChecklistReturnBridge.toString()},${checklistTimeMetadata.toString()},${createChecklistTimePresentation.toString()},${createChecklistTaskEditor.toString()},${createChecklistSearch.toString()},createNativeChecklistThreadStarter,createNativeChecklistNewThreadClaim);`; }
+export function buildNativeProjectChecklistScript() { return `${createNativeChecklistThreadStarter.toString()}\n${createNativeChecklistNewThreadClaim.toString()}\n(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()},${readNativeChecklistConversationChoices.toString()},${readNativeComposerThreadId.toString()},${createChecklistReturnBridge.toString()},${checklistTimeMetadata.toString()},${createChecklistTimePresentation.toString()},${createChecklistTaskEditor.toString()},${createChecklistSearch.toString()},createNativeChecklistThreadStarter,createNativeChecklistNewThreadClaim,${JSON.stringify(PROJECT_CHECKLIST_SYNC_BINDING)});`; }

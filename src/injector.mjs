@@ -1,5 +1,6 @@
 import { buildNativeUnifiedSidebarInjectionScript } from './native-unified-sidebar.mjs';
 import { syncProjectChecklist } from './project-checklist-sync.mjs';
+import { createProjectChecklistSyncWake, PROJECT_CHECKLIST_SYNC_BINDING } from './project-checklist-sync-wake.mjs';
 import { syncTurnAnnotations } from './turn-annotation-sync.mjs';
 import { buildNativeSidebarRestartInjectionScript } from "./native-sidebar-restart.mjs";
 import { buildNativePinnedEmptyInjectionScript } from "./native-pinned-empty.mjs";
@@ -228,10 +229,15 @@ export class CodexInjector {
     this.contextActionChain = Promise.resolve();
     this.turboActionChain = Promise.resolve();
     this.jevActionChain = Promise.resolve();
+    this.checklistWake = createProjectChecklistSyncWake({
+      canRun: () => this.running && !this.syncing && Boolean(this.connection && this.checklistStore),
+      run: () => syncProjectChecklist(this.connection, this.checklistStore),
+      onError: (error) => this.logger.warn(`[codex-control-console] checklist wake failed: ${error.message}`)
+    });
   }
 
   async sync() {
-    if (this.syncing) return;
+    if (this.syncing || this.checklistWake.busy()) return;
     this.syncing = true;
     try {
       let targets;
@@ -272,6 +278,8 @@ export class CodexInjector {
           } else if (event.params?.name === SENT_MESSAGE_SEARCH_BINDING && this.sentMessageSearchService) {
             void respondToSentMessageSearch(event.params.payload, this.connection, this.sentMessageSearchService)
               .catch((error) => this.logger.warn(`[codex-control-console] sent message search failed: ${error.message}`));
+          } else if (event.params?.name === PROJECT_CHECKLIST_SYNC_BINDING && event.params.payload === 'return') {
+            this.checklistWake.request();
           }
         });
         this.targetId = target.id;
@@ -280,6 +288,7 @@ export class CodexInjector {
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
+      await this.connection.send("Runtime.addBinding", { name: PROJECT_CHECKLIST_SYNC_BINDING });
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];
       await installIntoTarget(this.connection, this.dashboardUrl, {
@@ -297,6 +306,7 @@ export class CodexInjector {
         reloadAfterCspBypass: this.reloadAfterCspBypass
       });
       await syncTurnAnnotations(this.connection, this.annotationStore, { targets, dashboardUrl: this.dashboardUrl });
+      this.checklistWake.clear(); // The imminent periodic read includes earlier return signals.
       await syncProjectChecklist(this.connection, this.checklistStore);
     } catch (error) {
       if (/CDP (command timed out|websocket closed|connection closed)/.test(error.message || '')) {
@@ -307,6 +317,7 @@ export class CodexInjector {
       this.logger.warn(`[codex-control-console] injector waiting: ${error.message}`);
     } finally {
       this.syncing = false;
+      this.checklistWake.resume();
     }
   }
 
@@ -319,6 +330,7 @@ export class CodexInjector {
 
   async stop() {
     this.running = false;
+    this.checklistWake.clear();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.removeContextBindingListener?.();
@@ -326,6 +338,7 @@ export class CodexInjector {
     await this.contextActionChain;
     await this.turboActionChain;
     await this.jevActionChain;
+    await this.checklistWake.settle();
     await this.connection?.close();
     this.connection = null;
     this.targetId = null;

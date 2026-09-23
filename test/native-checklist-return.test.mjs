@@ -25,14 +25,14 @@ function harness({ saved = [], storageFails = false } = {}) {
     addEventListener(key, fn) { this.listeners[key] = fn; }
     focus() {} remove() {} showModal() { this.open = true; } close() { this.open = false; }
   }
-  let storage = JSON.stringify(saved), sequence = 0, currentThread = threadA;
+  let storage = JSON.stringify(saved), sequence = 0, currentThread = threadA, wakeCount = 0;
   const document = {
     body: new Node('body'), head: new Node('head'), createElement: tag => new Node(tag),
     querySelectorAll: selector => selector === '[data-above-composer-conversation-id]' ? [{ getAttribute: () => currentThread }] : [],
     querySelector: () => null
   };
   const context = vm.createContext({
-    document, window: { addEventListener() {}, removeEventListener() {} },
+    document, window: { addEventListener() {}, removeEventListener() {}, codexControlConsoleChecklistSync: () => { wakeCount++; } },
     crypto: { randomUUID: () => 'request-' + ++sequence },
     setTimeout: () => 1, clearTimeout() {},
     localStorage: {
@@ -44,7 +44,7 @@ function harness({ saved = [], storageFails = false } = {}) {
   const runReturn = vm.runInContext(`(${returnAssignedTodo.toString()})`, context);
   return {
     api: context.window.__cccProjectChecklist, dialog: document.body.children[0], runReturn,
-    storage: () => JSON.parse(storage), switchThread: id => { currentThread = id; },
+    storage: () => JSON.parse(storage), wakeCount: () => wakeCount, switchThread: id => { currentThread = id; },
     unsetBridge: () => { delete context.window.__cccProjectChecklist; }
   };
 }
@@ -79,6 +79,7 @@ test('return preserves original identity and waits for persistence acknowledgeme
   const [action] = plain(h.api.packet().actions);
   assert.deepEqual(action, { ...task, projectKey: generalKey, type: 'upsert', assignedThreadId: null, requestId: 'request-1' });
   assert.deepEqual(h.storage(), [action]);
+  assert.equal(h.wakeCount(), 1, 'a persisted return requests immediate checklist sync');
   assert.equal(settled, false); assert.equal(ui.state.busy, true);
   assert.equal(ui.state.items.length, 1); assert.equal(ui.state.removed, 0);
   assert.equal(ui.state.queueCalls, 0);
@@ -127,6 +128,7 @@ test('failed store persistence retains return for retry, keeps the todo and repo
   assert.equal(ui.state.busy, false); assert.equal(ui.state.items.length, 1);
   assert.equal(ui.state.removed, 0); assert.equal(ui.state.queueCalls, 0);
   assert.equal(h.api.packet().actions.length, 1); assert.equal(h.storage().length, 1);
+  assert.equal(h.wakeCount(), 1);
 });
 
 test('missing checklist bridge keeps the todo and reports that return is unavailable', async () => {
@@ -142,6 +144,7 @@ test('failed local draft save rejects return without adding an in-memory or pers
   const h = harness({ storageFails: true }); h.api.cacheGeneral([task]);
   await assert.rejects(h.api.returnAssignedTask(task.id, threadA, task.text), /任务尚未保存到草稿/);
   assert.equal(h.api.packet().actions.length, 0); assert.deepEqual(h.storage(), []);
+  assert.equal(h.wakeCount(), 0);
 });
 
 test('persisted return becomes claimable and can be reclaimed using the same task ID', async t => {
