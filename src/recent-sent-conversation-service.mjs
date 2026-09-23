@@ -54,7 +54,7 @@ export class RecentSentConversationService {
           if (!result.lastUserMessageAt) continue;
           const timestamp = Date.parse(result.lastUserMessageAt);
           if (!Number.isFinite(timestamp)) throw new Error('Invalid message timestamp');
-          const item = { kind: 'local', id, title: String(task.title || `会话 ${id.slice(0, 8)}`).slice(0, 160), lastUserMessageAt: new Date(timestamp).toISOString() };
+          const item = { kind: 'local', id, title: String(task.title || `会话 ${id.slice(0, 8)}`).slice(0, 160), lastUserMessageAt: new Date(timestamp).toISOString(), status: task.status || 'unknown' };
           if (!items.has(id) || item.lastUserMessageAt > items.get(id).lastUserMessageAt) items.set(id, item);
         } catch {
           stale = true;

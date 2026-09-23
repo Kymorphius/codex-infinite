@@ -37,7 +37,8 @@ test('read is nonblocking, does not scan tasks, and caps index concurrency at tw
   assert.equal(maxActive, 2);
   assert.equal(calls, 8);
   assert.deepEqual(result.items.map(item => item.id), tasks.map(item => item.id).reverse());
-  assert.ok(result.items.every(item => Object.keys(item).sort().join(',') === 'id,kind,lastUserMessageAt,title'));
+  assert.ok(result.items.every(item => Object.keys(item).sort().join(',') === 'id,kind,lastUserMessageAt,status,title'));
+  assert.ok(result.items.every(item => item.status === 'unknown'));
 });
 
 test('filters archives, subagents and invalid IDs, deduplicates, limits and sorts actual message times', async () => {
@@ -58,6 +59,12 @@ test('filters archives, subagents and invalid IDs, deduplicates, limits and sort
   assert.equal(scanned.length, 46);
   result.items[0].title = 'mutated';
   assert.notEqual(service.read().items[0].title, 'mutated');
+});
+
+test('recent sent snapshot carries the cached native task status without inferring it from send time', async () => {
+  const service = new RecentSentConversationService({ taskAdapter: { getCachedTasks: () => [{ ...task(1), status: 'active' }] },
+    index: { read: async () => ({ lastUserMessageAt: date(1), complete: true }) } });
+  assert.equal((await settle(service)).items[0].status, 'active');
 });
 
 test('failures and uncertain records retain previous results with a visible stale flag', async () => {

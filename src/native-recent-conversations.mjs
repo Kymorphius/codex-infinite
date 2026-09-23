@@ -76,7 +76,28 @@ export function installNativeRecentConversationMenu({
     if (focus) trigger.focus();
   };
 
-  let renderedSignature = "", renderedCount = 0, currentRecords = [];
+  let renderedSignature = "", renderedCount = 0, currentRecords = [], visibleRows = [];
+  const updateStatusIcon = (row, tab) => {
+    const dot = row.statusDot;
+    if (tab.kind !== "local" || !/^[0-9a-f-]{36}$/i.test(tab.id || "")) return;
+    const nativeRow = documentRef.querySelector?.(`[data-app-action-sidebar-thread-id="${tab.id}"]`);
+    const rail = Array.from(nativeRow?.querySelectorAll?.("div") || []).find((node) => node.classList?.contains("absolute")
+      && node.classList.contains("end-0") && node.classList.contains("group-hover:hidden") && node.children.length > 0);
+    const svg = rail?.querySelector?.("svg");
+    const nativeRunning = Boolean(rail?.querySelector?.('[class~="motion-safe:animate-spin"]'));
+    const signature = svg?.outerHTML ? `${svg.outerHTML}:${nativeRunning}` : `fallback:${tab.status || "unknown"}`;
+    if (dot.statusSignature === signature) return;
+    dot.statusSignature = signature;
+    dot.replaceChildren();
+    dot.dataset.status = ["active", "completed", "pending", "interrupted", "error"].includes(tab.status) ? tab.status : "unknown";
+    dot.dataset.statusSource = svg?.cloneNode ? "native" : "fallback";
+    dot.dataset.nativeRunning = String(nativeRunning);
+    if (svg?.cloneNode) {
+      dot.append(svg.cloneNode(true));
+      if (typeof getComputedStyle === "function" && dot.style) dot.style.color = getComputedStyle(rail.firstElementChild || rail).color;
+    }
+    dot.setAttribute("aria-label", svg ? "原生状态" : (({ active: "进行中", completed: "已完成", pending: "待处理", interrupted: "已中断", error: "出错" })[dot.dataset.status] || "状态未知"));
+  };
   const createRow = (tab, records) => {
     const row = documentRef.createElement("div");
     row.className = "ccc-native-recent-row";
@@ -90,7 +111,10 @@ export function installNativeRecentConversationMenu({
     const dot = documentRef.createElement("span");
     dot.className = "ccc-native-tab-dot";
     dot.dataset.kind = tab.kind;
-    dot.setAttribute("aria-hidden", "true");
+    if (tab.kind === "local") dot.className += " ccc-native-recent-status";
+    else dot.setAttribute("aria-hidden", "true");
+    row.statusDot = dot;
+    updateStatusIcon(row, tab);
     const copy = documentRef.createElement("span");
     copy.className = "ccc-native-recent-copy";
     const title = documentRef.createElement("span");
@@ -120,7 +144,9 @@ export function installNativeRecentConversationMenu({
   const appendPage = () => {
     const next = currentRecords.slice(renderedCount, renderedCount + 12);
     if (!next.length) return;
-    menu.append(...next.map((tab) => createRow(tab, currentRecords)));
+    const rows = next.map((tab) => createRow(tab, currentRecords));
+    menu.append(...rows);
+    visibleRows.push(...rows);
     renderedCount += next.length;
   };
   const fillViewport = () => {
@@ -137,7 +163,7 @@ export function installNativeRecentConversationMenu({
     const signature = JSON.stringify([records, state.activeKey, status]);
     if (signature === renderedSignature) return;
     const targetCount = Math.min(records.length, Math.max(12, renderedCount));
-    renderedSignature = signature; currentRecords = records; renderedCount = 0;
+    renderedSignature = signature; currentRecords = records; renderedCount = 0; visibleRows = [];
     if (!records.length) {
       const empty = documentRef.createElement("p");
       empty.className = "ccc-native-recent-empty";
@@ -169,7 +195,11 @@ export function installNativeRecentConversationMenu({
     event.stopPropagation();
     const opening = menu.hidden;
     menu.hidden = !opening;
-    if (opening) render();
+    if (opening) {
+      const previousSignature = renderedSignature;
+      render();
+      if (previousSignature === renderedSignature) visibleRows.forEach((row, index) => updateStatusIcon(row, currentRecords[index]));
+    }
     trigger.setAttribute("aria-expanded", String(opening));
     if (opening) menu.querySelector('[role="menuitem"]')?.focus();
   });
@@ -203,6 +233,16 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-trigger{display:flex;height:26px;align-items:center;gap:5px;border:0;border-radius:7px;padding:0 8px;background:transparent;color:inherit;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}' +
   '.ccc-native-recent-trigger:hover,.ccc-native-recent-trigger[aria-expanded="true"]{background:color-mix(in srgb,currentColor 10%,transparent)}' +
   '.ccc-native-recent-icon{font-size:15px}.ccc-native-recent-chevron{font-size:11px;opacity:.65}' +
+  '@keyframes ccc-native-recent-status-spin{to{transform:rotate(360deg)}}' +
+  '.ccc-native-recent-status{width:14px;height:14px;flex:0 0 14px;display:inline-flex;align-items:center;justify-content:center}' +
+  '.ccc-native-recent-status svg{width:14px;height:14px;flex:none}' +
+  '.ccc-native-recent-status[data-status-source="native"][data-native-running="true"] svg{animation:ccc-native-recent-status-spin 2s linear infinite}' +
+  '.ccc-native-recent-status[data-status-source="native"],.ccc-native-recent-status[data-status]:not([data-status="unknown"]){background:none}' +
+  '.ccc-native-recent-status[data-status-source="fallback"][data-status="active"]::before{content:"";width:10px;height:10px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ccc-native-recent-status-spin 1s linear infinite}' +
+  '.ccc-native-recent-status[data-status-source="fallback"][data-status="completed"]::before{content:"";width:9px;height:5px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}' +
+  '.ccc-native-recent-status[data-status-source="fallback"][data-status="pending"]::before{content:"";width:10px;height:10px;border:1.5px solid currentColor;border-radius:50%}' +
+  '.ccc-native-recent-status[data-status-source="fallback"][data-status="interrupted"]::before{content:"Ⅱ";font-size:12px}' +
+  '.ccc-native-recent-status[data-status-source="fallback"][data-status="error"]::before{content:"!";font:bold 12px/14px sans-serif}' +
   '.ccc-native-recent-menu{position:absolute;top:34px;right:0;width:min(360px,calc(100vw - 32px));max-height:min(520px,calc(100vh - 70px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px)}' +
   '.ccc-native-recent-menu[hidden]{display:none}.ccc-native-recent-row{display:flex;align-items:center;gap:4px;border-radius:8px}' +
   '.ccc-native-recent-row[data-active="true"]{background:color-mix(in srgb,#6d8cff 14%,transparent)}' +

@@ -98,7 +98,9 @@ test("recent sent normalization sorts actual user time, deduplicates, bounds and
   ] });
   assert.deepEqual(normalized.items.map((item) => item.id), [upperId.toLowerCase(), id(2), id(1)]);
   assert.equal(normalized.items[0].title, "new title");
-  assert.deepEqual(Object.keys(normalized.items[2]).sort(), ["id", "kind", "lastUserMessageAt", "title"]);
+  assert.deepEqual(Object.keys(normalized.items[2]).sort(), ["id", "kind", "lastUserMessageAt", "status", "title"]);
+  assert.equal(normalized.items[2].status, "unknown");
+  assert.deepEqual(normalizeRecentSentSnapshot({ items: [{ ...record(1), status: "active" }, { ...record(2), status: "forged" }] }).items.map((item) => item.status), ["unknown", "active"]);
   assert.deepEqual(normalizeRecentSentSnapshot(null), { items: [], loading: false, stale: false });
   const bounded = normalizeRecentSentSnapshot({ items: Array.from({ length: 50 }, (_, index) => record(index + 1)) });
   assert.equal(bounded.items.length, 40);
@@ -155,12 +157,33 @@ test("recent sent is adjacent to recent opened and does not promote the active c
   assert.equal(f.trigger.getAttribute("aria-expanded"), "true");
   assert.deepEqual(f.menu.children.map((row) => row.children[0].dataset.recentKey), [`local:${id(2)}`, `local:${id(1)}`]);
   assert.equal(f.menu.children[1].dataset.active, "true");
-  assert.match(f.menu.children[0].textContent, /发送于/);
+  assert.doesNotMatch(f.menu.children[0].textContent, /发送于/);
+  assert.match(f.menu.children[0].textContent, /2026\/9\/22/);
   assert.equal(f.document.activeElement, f.menu.children[0].children[0]);
   const openedHost = f.root.children[0];
   openedHost.children[0].dispatch("click");
   openedHost.children[1].children[0].children[0].dispatch("click");
   assert.deepEqual(f.activated, [`local:${id(1)}`]);
+});
+
+test("recent sent rows reuse a rendered native status SVG and fall back only to known task status", () => {
+  const f = fixture({ items: [{ ...record(1), status: "active" }, { ...record(2), status: "completed" }] });
+  const svg = f.document.createElement("svg");
+  svg.outerHTML = '<svg data-native-status="running"></svg>';
+  svg.cloneNode = () => { const copy = f.document.createElement("svg"); copy.outerHTML = svg.outerHTML; return copy; };
+  const rail = { classList: { contains: (name) => ["absolute", "end-0", "group-hover:hidden"].includes(name) }, children: [svg], querySelector: (selector) => selector === "svg" ? svg : selector.includes("animate-spin") ? {} : null };
+  f.document.querySelector = (selector) => selector.includes(id(1)) ? { querySelectorAll: () => [rail] } : null;
+  f.trigger.dispatch("click");
+  const completed = f.menu.children[0].statusDot, active = f.menu.children[1].statusDot;
+  assert.equal(completed.dataset.status, "completed");
+  assert.equal(completed.dataset.statusSource, "fallback");
+  assert.equal(active.dataset.statusSource, "native");
+  assert.equal(active.dataset.nativeRunning, "true");
+  assert.equal(active.children[0].outerHTML, svg.outerHTML);
+  f.sent.close(); f.document.querySelector = () => null;
+  f.trigger.dispatch("click");
+  assert.equal(active.dataset.statusSource, "fallback");
+  assert.equal(active.dataset.status, "active");
 });
 
 test("select and new-window actions work for sent conversations absent from opened history", async () => {

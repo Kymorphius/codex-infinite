@@ -7,7 +7,8 @@ export function normalizeRecentSentSnapshot(input) {
     const id = item.id.toLowerCase();
     if (seen.has(id)) continue;
     seen.add(id);
-    items.push({ kind: "local", id, title: String(item.title || "Codex 会话").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 160), lastUserMessageAt: new Date(item.lastUserMessageAt).toISOString() });
+    const status = ["active", "completed", "pending", "interrupted", "error"].includes(item.status) ? item.status : "unknown";
+    items.push({ kind: "local", id, title: String(item.title || "Codex 会话").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 160), lastUserMessageAt: new Date(item.lastUserMessageAt).toISOString(), status });
     if (items.length === 40) break;
   }
   return { items, loading: input?.loading === true, stale: input?.stale === true };
@@ -24,7 +25,7 @@ export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, 
       return snapshot.stale ? "部分发送时间暂未刷新，保留已知记录" : "";
     },
     emptyText: "暂无发过消息的本机会话",
-    detailFor: (tab) => "发送于 " + new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }),
+    detailFor: (tab) => new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }),
     onSelect: (tab) => openLocal(tab)
   });
   return menu;
