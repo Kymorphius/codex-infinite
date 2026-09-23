@@ -1,6 +1,6 @@
 export function createChecklistTaskEditor({ text, item, draft, disabled, readCurrent, onSave, onError }) {
   let baseline = draft?.baseline ?? item.text;
-  text.value = draft?.value ?? item.text; text.disabled = disabled; text.rows = 2; text.maxLength = 5000;
+  text.value = draft?.value ?? item.text; text.disabled = disabled; text.rows = 1; text.maxLength = 5000;
   text.setAttribute('aria-label', '任务内容');
   text.title = '直接编辑，离开内容框时保存；操作以框内最新内容为准。Shift+Enter 换行。';
   function current() { return disabled ? null : readCurrent(baseline); }

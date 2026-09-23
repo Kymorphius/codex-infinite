@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout2', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout3', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -43,9 +43,9 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     [data-ccc-checklist] input[type=text],[data-ccc-checklist] input[type=search],[data-ccc-checklist] textarea{min-width:0;flex:1;border:1px solid #8885;border-radius:7px;background:transparent;color:inherit;padding:8px}
     [data-ccc-checklist] form input,[data-ccc-checklist] [data-checklist-search] input{border:0;background:transparent;outline:0;padding:4px 2px}
     [data-ccc-checklist] form button{background:#8882}
-    [data-ccc-checklist] textarea{font:inherit;resize:vertical}
-    [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:7px}
-    [data-ccc-checklist] li{display:flex;align-items:center;gap:8px 10px;padding:9px 10px;flex-wrap:wrap;border:1px solid #8883;border-radius:10px;background:#8881}
+    [data-ccc-checklist] textarea{font:inherit;line-height:1.4;field-sizing:content;min-height:34px;max-height:128px;overflow-y:auto;resize:vertical;padding:5px 8px}
+    [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px}
+    [data-ccc-checklist] li{display:flex;align-items:center;gap:4px 10px;padding:7px 9px;flex-wrap:wrap;border:1px solid #8883;border-radius:10px;background:#8881}
     [data-ccc-checklist] [data-checklist-added]{flex-basis:100%;font-size:11px;color:#999;text-align:right;line-height:1.2}
     [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
     [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;background:#8882}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}

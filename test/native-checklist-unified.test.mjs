@@ -56,7 +56,7 @@ test('all checklist entry points share search and multiline direct editing while
     const h = harness({ mode });
     assert.equal(h.search.type, 'search'); assert.equal(h.searchRoot.dataset.checklistSearch, '');
     const text = editor(h.rows()[0]);
-    assert.equal(text.tag, 'textarea'); assert.equal(text.disabled, false); assert.equal(text.maxLength, 5000);
+    assert.equal(text.tag, 'textarea'); assert.equal(text.disabled, false); assert.equal(text.rows, 1); assert.equal(text.maxLength, 5000);
     assert.deepEqual(h.rows()[0].children.filter(node => node.tag === 'button').map(node => node.textContent), mode === 'claim' || mode === 'new-claim' ? ['领取'] : mode === 'general' ? ['指派会话', '删除'] : ['删除']);
     assert.deepEqual(h.rows().map(row => editor(row).value), [early.text, later.text]);
   }
@@ -83,6 +83,17 @@ test('checklist controls use monochrome SVG icons and a clear hierarchy, while b
   h.api.openGeneral(); assert.equal(h.dialog.children[2].hidden, false);
   h.api.openClaimableForNewThread(); assert.equal(h.dialog.children[2].hidden, true);
   h.query('alpha'); assert.equal(h.visible().length, 1);
+});
+
+test('task cards start at one text line while multiline content and initial time stay intact', () => {
+  const source = buildNativeProjectChecklistScript();
+  assert.match(source, /field-sizing:content;min-height:34px;max-height:128px/);
+  assert.match(source, /gap:4px 10px;padding:7px 9px/);
+  const multiline = { ...early, text: '第一行\n第二行' };
+  const h = harness({ mode: 'claim', items: [multiline] }), row = h.rows()[0], text = editor(row);
+  assert.equal(text.rows, 1);
+  assert.equal(text.value, '第一行\n第二行');
+  assert.equal(row.children.at(-1).attrs.datetime, multiline.createdAt);
 });
 
 test('search matches trimmed case-insensitive content without replacing rows, saving or changing time order', () => {
