@@ -30,6 +30,14 @@
           </section>
 
           <section class="board-section">
+            <div class="section-heading"><div><p class="eyebrow">PERSONAL PANEL</p><h2>个人任务</h2><p class="muted" data-testid="personal-panel-status">正在读取 Anytype 原生任务…</p></div><button class="quiet-button" type="button" data-action="refresh-personal-panel">刷新</button></div>
+            <div class="dispatch-board" data-testid="personal-panel-board">
+              <section class="board-column"><header class="board-column-header"><h3>待办</h3><span class="column-count" data-personal-panel-count="todo">0</span></header><div class="board-column-list" data-personal-panel-list="todo"></div></section>
+              <section class="board-column"><header class="board-column-header"><h3>进行中</h3><span class="column-count" data-personal-panel-count="doing">0</span></header><div class="board-column-list" data-personal-panel-list="doing"></div></section>
+              <section class="board-column"><header class="board-column-header"><h3>暂停</h3><span class="column-count" data-personal-panel-count="paused">0</span></header><div class="board-column-list" data-personal-panel-list="paused"></div></section>
+              <section class="board-column"><header class="board-column-header"><h3>已完成</h3><span class="column-count" data-personal-panel-count="done">0</span></header><div class="board-column-list" data-personal-panel-list="done"></div></section>
+              <section class="board-column"><header class="board-column-header"><h3>待核对</h3><span class="column-count" data-personal-panel-count="review">0</span></header><div class="board-column-list" data-personal-panel-list="review"></div></section>
+            </div>
             <div class="section-heading"><div><p class="eyebrow">TASK LIST</p><h2>综合任务清单</h2><p class="muted">与原生任务清单同步；这里不会自动发送。</p></div></div>
             <p class="dispatch-error hidden" data-testid="checklist-board-error"></p>
             <div class="dispatch-board" data-testid="checklist-board">

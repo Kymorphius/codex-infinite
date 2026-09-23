@@ -59,6 +59,8 @@
 .dispatch-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; padding: 1px; }
 .dispatch-board .board-column { min-height: 390px; }
 .dispatch-board .board-column-list { max-height: min(52vh, 520px); }
+[data-testid="personal-panel-board"] { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+[data-testid="personal-panel-board"] .board-column { min-height: 220px; }
 .dispatch-results { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--native-ui-border); }
 .dispatch-results-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .dispatch-results-heading h3 { margin-bottom: 0; }

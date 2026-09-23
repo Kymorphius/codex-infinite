@@ -7,7 +7,7 @@ const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "project-priority", "refresh-policy", "state", "tasks", "transport"];
 const featureNames = ["runtime", "console", "context", "dispatch", "generators", "jev-routing", "priority", "sessions", "experiments", "skills", "turbo", "zotero"];
-const dispatchSupportFiles = ["details"];
+const dispatchSupportFiles = ["details", "personal-panel"];
 const skillSupportFiles = ["group-actions"];
 const sessionSupportFiles = ["approval-model", "conversation-model", "conversation-tabs", "disclosure", "draft-sync", "execution-view", "markdown-view", "model", "model-bulk", "project-copy", "remote-approvals", "remote-conversation", "settings-controller"];
 const zoteroSupportFiles = ["browser", "editor", "format"];

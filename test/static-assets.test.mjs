@@ -37,6 +37,7 @@ test("static assets resolve only exact registered request targets", () => {
   assert.equal(resolveStaticAsset("/features/generators/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/jev-routing/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/dispatch/details.js").type, "text/javascript; charset=utf-8");
+  assert.equal(resolveStaticAsset("/features/dispatch/personal-panel.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/skills/group-actions.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/sessions/index.js").type, "text/javascript; charset=utf-8");
   assert.equal(resolveStaticAsset("/features/sessions/remote-conversation.js").type, "text/javascript; charset=utf-8");

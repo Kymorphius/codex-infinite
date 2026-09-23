@@ -1,6 +1,7 @@
 import { requestJson } from "../../core/transport.js";
 import { isLocalTask } from "../../core/tasks.js";
 import { createDispatchDetails, scheduleRelativeLabel } from "./details.js";
+import { createPersonalPanelBoard } from './personal-panel.js';
 
 export const DISPATCH_COLUMNS = ["backlog", "scheduled", "queued", "sending", "sent", "failed"];
 
@@ -53,6 +54,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   const filter = { query: "", project: "" };
   let checklistSignature = '';
   const details = createDispatchDetails({ state, $, formatDate, showToast, onSaved: () => load({ quiet: true }) });
+  const personalPanel = createPersonalPanelBoard({ $, showToast, formatDate });
 
   function updateThreadSelector() {
     const tasks = state.tasks.filter((task) => isLocalTask(task) && task.project === projectSelect.value);
@@ -219,6 +221,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   }
 
   async function load({ quiet = false } = {}) {
+    if (state.module === 'board') void personalPanel.load();
     if (!quiet) setState("loading");
     try {
       const data = await requestJson("/api/dispatches", { cache: "no-store" });

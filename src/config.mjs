@@ -62,6 +62,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
         : "codex"
   );
   const zoteroPath = env.CODEX_CONTROL_ZOTERO_PATH || env.CODEX_CONTROL_ZOTERO_DB_PATH || hostPath.join(homeDirectory, "Zotero", "zotero.sqlite");
+  const personalPanelTaskBridgePath = env.CODEX_CONTROL_PERSONAL_PANEL_TASK_BRIDGE || hostPath.join(homeDirectory, '333.dev', 'personal-panel', 'scripts', 'multica-task-bridge.cjs');
   const zoteroLocalApiOrigin = env.CODEX_CONTROL_ZOTERO_LOCAL_API_ORIGIN || env.CODEX_CONTROL_ZOTERO_API_ORIGIN || "http://127.0.0.1:23119/api/";
   const zoteroCredentialPath = hostPath.join(profileDirectory, "zotero-local-api-keys.json");
   const modelCatalogPath = env.CODEX_CONTROL_MODEL_CATALOG_PATH || hostPath.join(sourceCodexHome, "models_cache.json");
@@ -98,6 +99,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     dashboardHost,
     dashboardPort,
     dashboardOrigin: `http://${dashboardHost}:${dashboardPort}`,
+    personalPanelTaskBridgePath,
     cdpHost,
     cdpPort,
     cdpOrigin: `http://${cdpHost}:${cdpPort}`,
