@@ -100,10 +100,49 @@ test("recent sent normalization sorts actual user time, deduplicates, bounds and
   assert.equal(normalized.items[0].title, "new title");
   assert.deepEqual(Object.keys(normalized.items[2]).sort(), ["id", "kind", "lastUserMessageAt", "title"]);
   assert.deepEqual(normalizeRecentSentSnapshot(null), { items: [], loading: false, stale: false });
-  const bounded = normalizeRecentSentSnapshot({ items: Array.from({ length: 30 }, (_, index) => record(index + 1)) });
-  assert.equal(bounded.items.length, 12);
-  assert.equal(bounded.items[0].id, id(30));
-  assert.equal(bounded.items.at(-1).id, id(19));
+  const bounded = normalizeRecentSentSnapshot({ items: Array.from({ length: 50 }, (_, index) => record(index + 1)) });
+  assert.equal(bounded.items.length, 40);
+  assert.equal(bounded.items[0].id, id(50));
+  assert.equal(bounded.items.at(-1).id, id(11));
+});
+
+test("both recent menus append forty entries in pages only while opened", () => {
+  const items = Array.from({ length: 40 }, (_, index) => record(index + 1));
+  const f = fixture({ items });
+  f.state.tabs = items;
+  assert.equal(f.menu.replaceCalls, 0);
+  const openedMenu = f.root.children[0].children[1];
+  openedMenu.clientHeight = 500; openedMenu.scrollHeight = 900;
+  f.root.children[0].children[0].dispatch("click");
+  assert.equal(openedMenu.children.length, 12);
+  openedMenu.scrollTop = 500; openedMenu.dispatch("scroll");
+  assert.equal(openedMenu.children.length, 24);
+  openedMenu.scrollTop = 1000; openedMenu.scrollHeight = 1400; openedMenu.dispatch("scroll");
+  assert.equal(openedMenu.children.length, 36);
+  openedMenu.scrollTop = 1500; openedMenu.scrollHeight = 1900; openedMenu.dispatch("scroll");
+  assert.equal(openedMenu.children.length, 40);
+  f.menu.clientHeight = 500; f.menu.scrollHeight = 900;
+  f.trigger.dispatch("click");
+  assert.equal(f.menu.children.length, 12);
+  const firstRow = f.menu.children[0];
+  f.menu.scrollTop = 500; f.menu.dispatch("scroll");
+  assert.equal(f.menu.children.length, 24);
+  assert.equal(f.menu.children[0], firstRow);
+  assert.equal(f.menu.replaceCalls, 1);
+  f.menu.scrollTop = 1000; f.menu.scrollHeight = 1400; f.menu.dispatch("scroll");
+  f.menu.scrollTop = 1500; f.menu.scrollHeight = 1900; f.menu.dispatch("scroll");
+  assert.equal(f.menu.children.length, 40);
+  assert.equal(f.menu.children[0].children[0].dataset.recentKey, `local:${id(40)}`);
+  f.sent.render();
+  assert.equal(f.menu.children.length, 40);
+  assert.equal(f.menu.replaceCalls, 1);
+});
+
+test("recent menu fills a tall viewport without requiring an impossible scroll", () => {
+  const f = fixture({ items: Array.from({ length: 30 }, (_, index) => record(index + 1)) });
+  f.menu.clientHeight = 500; f.menu.scrollHeight = 300;
+  f.trigger.dispatch("click");
+  assert.equal(f.menu.children.length, 30);
 });
 
 test("recent sent is adjacent to recent opened and does not promote the active conversation", () => {
@@ -191,6 +230,7 @@ test("recent sent dismisses with Escape or outside pointer and removes global li
   assert.equal(f.menu.hidden, true);
   f.sent.destroy(); f.recent.destroy();
   assert.equal(f.root.children.length, 0);
+  assert.equal(f.menu.listenerCount("scroll"), 0);
   assert.equal(f.document.listenerCount("pointerdown"), 0);
   assert.equal(f.document.listenerCount("keydown"), 0);
 });

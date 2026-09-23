@@ -20,7 +20,9 @@ test("top page strip exposes only the active conversation", () => {
 test("recent conversations are newest-first, bounded, and active-first", () => {
   assert.deepEqual(recentNativeConversationRecords([first, second, remote], second.key, 2), [second, remote]);
   assert.deepEqual(recentNativeConversationRecords([first, first, second], "", 10), [second, first]);
-  assert.equal(recentNativeConversationRecords(Array.from({ length: 50 }, (_, index) => ({ key: `local:${index}` })), "", 100).length, 40);
+  const many = Array.from({ length: 50 }, (_, index) => ({ key: `local:${index}` }));
+  assert.equal(recentNativeConversationRecords(many).length, 40);
+  assert.equal(recentNativeConversationRecords(many, "", 100).length, 40);
 });
 
 test("recent menu injection is bounded, dismissable, and route-oriented", () => {

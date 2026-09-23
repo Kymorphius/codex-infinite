@@ -11,9 +11,9 @@ function archived(sourceFile, root) {
 
 /** Projects the existing task cache without directory scans or blocking injection. */
 export class RecentSentConversationService {
-  constructor({ taskAdapter, archivedSessionRoot = null, index = new SessionUserMessageIndex(), clock = Date.now, cacheMs = 5000, limit = 12 } = {}) {
+  constructor({ taskAdapter, archivedSessionRoot = null, index = new SessionUserMessageIndex(), clock = Date.now, cacheMs = 5000, limit = 40 } = {}) {
     Object.assign(this, { taskAdapter, archivedSessionRoot, index, clock, cacheMs });
-    this.limit = Math.max(1, Math.min(12, Number(limit) || 12));
+    this.limit = Math.max(1, Math.min(40, Number(limit) || 40));
     this.snapshot = { items: [], loading: true, stale: false };
     this.nextRefresh = 0;
     this.pending = null;

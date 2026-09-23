@@ -41,8 +41,8 @@ test('read is nonblocking, does not scan tasks, and caps index concurrency at tw
 });
 
 test('filters archives, subagents and invalid IDs, deduplicates, limits and sorts actual message times', async () => {
-  const tasks = Array.from({ length: 15 }, (_, i) => task(i));
-  tasks.push({ ...task(14), title: '重复任务' }, { ...task(90), sourceFile: '/archive/90.jsonl' },
+  const tasks = Array.from({ length: 45 }, (_, i) => task(i));
+  tasks.push({ ...task(44), title: '重复任务' }, { ...task(90), sourceFile: '/archive/90.jsonl' },
     { ...task(91), isSubagent: true }, { ...task(92), archived: true }, { ...task(93), id: 'invalid' });
   const scanned = [];
   const service = new RecentSentConversationService({
@@ -53,9 +53,9 @@ test('filters archives, subagents and invalid IDs, deduplicates, limits and sort
     } }
   });
   const result = await settle(service);
-  assert.equal(result.items.length, 12);
-  assert.deepEqual(result.items.map(item => item.id), Array.from({ length: 12 }, (_, i) => id(14 - i)));
-  assert.equal(scanned.length, 16);
+  assert.equal(result.items.length, 40);
+  assert.deepEqual(result.items.map(item => item.id), Array.from({ length: 40 }, (_, i) => id(44 - i)));
+  assert.equal(scanned.length, 46);
   result.items[0].title = 'mutated';
   assert.notEqual(service.read().items[0].title, 'mutated');
 });

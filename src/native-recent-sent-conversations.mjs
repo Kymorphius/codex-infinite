@@ -8,7 +8,7 @@ export function normalizeRecentSentSnapshot(input) {
     if (seen.has(id)) continue;
     seen.add(id);
     items.push({ kind: "local", id, title: String(item.title || "Codex 会话").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 160), lastUserMessageAt: new Date(item.lastUserMessageAt).toISOString() });
-    if (items.length === 12) break;
+    if (items.length === 40) break;
   }
   return { items, loading: input?.loading === true, stale: input?.stale === true };
 }

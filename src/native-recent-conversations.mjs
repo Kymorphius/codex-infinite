@@ -1,5 +1,5 @@
-export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 12) {
-  const boundedLimit = Math.max(1, Math.min(40, Number(limit) || 12));
+export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 40) {
+  const boundedLimit = Math.max(1, Math.min(40, Number(limit) || 40));
   const records = [];
   const seen = new Set();
   const active = activeKey ? [...tabs].reverse().find((tab) => tab?.key === activeKey) : null;
@@ -30,7 +30,7 @@ export function installNativeRecentConversationMenu({
   keyFor,
   activate,
   openWindow,
-  limit = 12,
+  limit = 40,
   label = "最近会话",
   icon = "↶",
   hint = "最近打开过的会话",
@@ -76,7 +76,56 @@ export function installNativeRecentConversationMenu({
     if (focus) trigger.focus();
   };
 
-  let renderedSignature = "";
+  let renderedSignature = "", renderedCount = 0, currentRecords = [];
+  const createRow = (tab, records) => {
+    const row = documentRef.createElement("div");
+    row.className = "ccc-native-recent-row";
+    row.setAttribute("role", "none");
+    row.dataset.active = String(tab.key === state.activeKey);
+    const select = documentRef.createElement("button");
+    select.type = "button";
+    select.className = "ccc-native-recent-select";
+    select.setAttribute("role", "menuitem");
+    select.dataset.recentKey = tab.key;
+    const dot = documentRef.createElement("span");
+    dot.className = "ccc-native-tab-dot";
+    dot.dataset.kind = tab.kind;
+    dot.setAttribute("aria-hidden", "true");
+    const copy = documentRef.createElement("span");
+    copy.className = "ccc-native-recent-copy";
+    const title = documentRef.createElement("span");
+    title.className = "ccc-native-recent-title";
+    title.textContent = tab.title;
+    const detail = documentRef.createElement("span");
+    detail.className = "ccc-native-recent-detail";
+    detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : "本地会话";
+    copy.append(title, detail);
+    select.append(dot, copy);
+    select.addEventListener("click", () => {
+      close();
+      if (onSelect) onSelect(tab); else activate(tab.key);
+    });
+    row.append(select);
+    const windowButton = createNativeConversationWindowButton(documentRef, tab, tab.key);
+    if (windowButton) {
+      windowButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void openNativeConversationWindow({ state: { tabs: records }, keyFor, key: tab.key, button: windowButton, openWindow });
+      });
+      row.append(windowButton);
+    }
+    return row;
+  };
+  const appendPage = () => {
+    const next = currentRecords.slice(renderedCount, renderedCount + 12);
+    if (!next.length) return;
+    menu.append(...next.map((tab) => createRow(tab, currentRecords)));
+    renderedCount += next.length;
+  };
+  const fillViewport = () => {
+    while (renderedCount < currentRecords.length && menu.clientHeight > 0 && menu.scrollHeight <= menu.clientHeight + 1) appendPage();
+  };
   const render = () => {
     if (menu.hidden) return;
     const records = readRecords ? readRecords().slice(0, limit).map((tab) => ({ ...tab, key: keyFor(tab) })) : recentNativeConversationRecords(
@@ -87,7 +136,8 @@ export function installNativeRecentConversationMenu({
     const status = readStatus();
     const signature = JSON.stringify([records, state.activeKey, status]);
     if (signature === renderedSignature) return;
-    renderedSignature = signature;
+    const targetCount = Math.min(records.length, Math.max(12, renderedCount));
+    renderedSignature = signature; currentRecords = records; renderedCount = 0;
     if (!records.length) {
       const empty = documentRef.createElement("p");
       empty.className = "ccc-native-recent-empty";
@@ -95,46 +145,7 @@ export function installNativeRecentConversationMenu({
       menu.replaceChildren(empty);
       return;
     }
-    const rows = records.map((tab) => {
-      const row = documentRef.createElement("div");
-      row.className = "ccc-native-recent-row";
-      row.setAttribute("role", "none");
-      row.dataset.active = String(tab.key === state.activeKey);
-      const select = documentRef.createElement("button");
-      select.type = "button";
-      select.className = "ccc-native-recent-select";
-      select.setAttribute("role", "menuitem");
-      select.dataset.recentKey = tab.key;
-      const dot = documentRef.createElement("span");
-      dot.className = "ccc-native-tab-dot";
-      dot.dataset.kind = tab.kind;
-      dot.setAttribute("aria-hidden", "true");
-      const copy = documentRef.createElement("span");
-      copy.className = "ccc-native-recent-copy";
-      const title = documentRef.createElement("span");
-      title.className = "ccc-native-recent-title";
-      title.textContent = tab.title;
-      const detail = documentRef.createElement("span");
-      detail.className = "ccc-native-recent-detail";
-      detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : "本地会话";
-      copy.append(title, detail);
-      select.append(dot, copy);
-      select.addEventListener("click", () => {
-        close();
-        if (onSelect) onSelect(tab); else activate(tab.key);
-      });
-      row.append(select);
-      const windowButton = createNativeConversationWindowButton(documentRef, tab, tab.key);
-      if (windowButton) {
-        windowButton.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          void openNativeConversationWindow({ state: { tabs: records }, keyFor, key: tab.key, button: windowButton, openWindow });
-        });
-        row.append(windowButton);
-      }
-      return row;
-    });
+    const rows = [];
     if (status) {
       const notice = documentRef.createElement("p");
       notice.className = "ccc-native-recent-empty";
@@ -143,7 +154,15 @@ export function installNativeRecentConversationMenu({
       rows.unshift(notice);
     }
     menu.replaceChildren(...rows);
+    while (renderedCount < targetCount) appendPage();
+    fillViewport();
   };
+
+  const onScroll = () => {
+    if (menu.hidden || renderedCount >= currentRecords.length) return;
+    if (menu.scrollTop + menu.clientHeight >= menu.scrollHeight - 48) { appendPage(); fillViewport(); }
+  };
+  menu.addEventListener("scroll", onScroll);
 
   trigger.addEventListener("click", (event) => {
     event.preventDefault();
@@ -170,6 +189,7 @@ export function installNativeRecentConversationMenu({
     render,
     close,
     destroy() {
+      menu.removeEventListener("scroll", onScroll);
       documentRef.removeEventListener("pointerdown", outside, true);
       documentRef.removeEventListener("keydown", keyboard, true);
       host.remove();
