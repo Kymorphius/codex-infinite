@@ -12,6 +12,9 @@ test("native open-project injection delegates to the native local-project flow",
   const source = buildNativeOpenLocalProjectInjectionScript();
   assert.match(source, /新聊天.*新对话.*新建任务.*New chat.*New task/);
   assert.match(source, /isVisible\(button\)/);
+  assert.match(source, /button\.getAttribute\('aria-label'\) \|\| button\.textContent/);
+  assert.match(source, /labels\.some\([^\n]+\) && isVisible\(button\)/);
+  assert.doesNotMatch(source, /button\.innerText/);
   assert.match(source, /data-codex-control-console-open-local-project/);
   assert.match(source, /\['添加新项目', 'Add project', 'Create new project'\]/);
   assert.match(source, /\['本地', 'Local'\]/);

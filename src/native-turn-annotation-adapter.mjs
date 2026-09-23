@@ -1,4 +1,13 @@
 // Native DOM/React read adapter: never infer conversation identity from tab titles.
+export function nativeAnnotationMutationNeedsRefresh(records) {
+  const selector = '[data-thread-user-message-navigation-content],[data-thread-user-message-navigation-item-id],[data-above-composer-conversation-id],[class*="rounded-3xl"][class*="bg-surface-elevated-secondary"]';
+  const relevant = node => node?.nodeType === 1 && Boolean(node.matches?.(selector) || node.closest?.(selector));
+  const mounted = node => relevant(node) || (node?.nodeType === 1 && Boolean(node.querySelector?.(selector)));
+  return Array.from(records || []).some(record => record?.type === 'childList' && (
+    relevant(record.target) || Array.from(record.addedNodes || []).some(mounted) || Array.from(record.removedNodes || []).some(mounted)
+  ));
+}
+
 export function readNativeAnnotationContext(document) {
   if (document.querySelector('[data-codex-control-console-workspace]')) return null;
   const content = document.querySelector('[data-thread-user-message-navigation-content]');

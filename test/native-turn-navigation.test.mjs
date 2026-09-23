@@ -72,6 +72,7 @@ test('overview rail keeps a fixed large window, slides only near its edge and pr
   h.context.turns = Array.from({ length: 200 }, (_, i) => ({ id: 'turn-' + i, markers: i === 199 ? [marker] : [] }));
   h.controller.update(h.context, h.output);
   assert.equal(h.rail.style.height, '600px');
+  assert.equal(h.rail.children.filter(button => button.hasAttribute('aria-current')).length, 1, 'inactive turns need no current-state attributes');
   assert.equal(h.rail.scrollTop, 1400);
   assert.equal(h.rail.style.getPropertyValue('--ccc-rail-fade-top'), 'transparent');
   assert.equal(h.rail.style.getPropertyValue('--ccc-rail-fade-bottom'), 'black');

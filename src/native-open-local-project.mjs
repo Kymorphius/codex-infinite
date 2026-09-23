@@ -7,7 +7,7 @@ export function nativeOpenProjectCopy(platform = "") {
 
 export function buildNativeOpenLocalProjectInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-22.top-action1';
+  const VERSION = '2026-09-23.top-action-layout1';
   const ENTRY = 'data-codex-control-console-open-local-project';
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
   const copy = ${nativeOpenProjectCopy.toString()}(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
@@ -18,8 +18,8 @@ export function buildNativeOpenLocalProjectInjectionScript() {
     return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
   };
   const buttonBy = (root, labels) => Array.from(root.querySelectorAll('button,[role="button"]')).find((button) => {
-    const value = normalize(button.getAttribute('aria-label') || button.innerText || button.textContent);
-    return isVisible(button) && labels.some((label) => value === label || value.startsWith(label + ' '));
+    const value = normalize(button.getAttribute('aria-label') || button.textContent);
+    return labels.some((label) => value === label || value.startsWith(label + ' ')) && isVisible(button);
   });
   const nativeAddProject = () => buttonBy(document, ['添加新项目', 'Add project', 'Create new project']);
   const waitFor = (read, timeout = 1200) => new Promise((resolve) => {

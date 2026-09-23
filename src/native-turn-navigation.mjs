@@ -56,15 +56,16 @@ export function createNativeTurnNavigation({ document, window, getNote, selectTu
       if (nav.style.getPropertyValue('--ccc-message-rail-inset') !== inset + 'px') nav.style.setProperty('--ccc-message-rail-inset', inset + 'px');
     }
     const currentTurn = getReadingTurn(context);
-    for (const button of rail.children) {
-      const turn = context.turns.find(turn => turn.id === button.getAttribute('data-ccc-turn-marker'));
+    for (let index = 0; index < rail.children.length; index++) {
+      const button = rail.children[index], turn = context.turns[index];
       if (!turn) continue;
       const annotated = !!getNote(turn.id).trim();
       if (annotated !== button.hasAttribute('data-annotated')) {
         if (annotated) button.setAttribute('data-annotated', ''); else button.removeAttribute('data-annotated');
       }
-      const current = String(turn.id === currentTurn);
-      if (button.getAttribute('aria-current') !== current) button.setAttribute('aria-current', current);
+      if (turn.id === currentTurn) {
+        if (button.getAttribute('aria-current') !== 'true') button.setAttribute('aria-current', 'true');
+      } else if (button.hasAttribute('aria-current')) button.removeAttribute('aria-current');
     }
     const nextReveal = JSON.stringify([context.threadId, currentTurn, context.turns.length, available]);
     if (revealSignature !== nextReveal) {

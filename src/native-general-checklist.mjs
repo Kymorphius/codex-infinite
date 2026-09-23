@@ -1,14 +1,15 @@
 // Own an additive top-action entry; native controls and sections remain React-owned.
 export function installNativeGeneralChecklist() {
-  const VERSION = '2026-09-22.top-action1';
+  const VERSION = '2026-09-23.top-action-layout1';
   if (window.__cccGeneralChecklist?.version === VERSION) return;
   window.__cccGeneralChecklist?.dispose();
   const ENTRY = 'data-ccc-general-checklist-entry';
   const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
   const buttonBy = labels => Array.from(document.querySelectorAll('button,[role="button"]')).find(button => {
-    const value = normalize(button.getAttribute('aria-label') || button.innerText || button.textContent);
+    const value = normalize(button.getAttribute('aria-label') || button.textContent);
+    if (!labels.some(label => value === label || value.startsWith(label + ' '))) return false;
     const rect = button.getBoundingClientRect?.();
-    return (!rect || rect.width > 0 && rect.height > 0) && labels.some(label => value === label || value.startsWith(label + ' '));
+    return !rect || rect.width > 0 && rect.height > 0;
   });
   const button = document.createElement('button'); button.type = 'button'; button.setAttribute(ENTRY, '');
   button.setAttribute('aria-label', '综合任务清单');

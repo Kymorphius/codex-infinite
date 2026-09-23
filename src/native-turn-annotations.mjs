@@ -2,10 +2,10 @@ import { createNativeRailGutter, nativeRailContentLimit } from './native-rail-la
 import { selectAnnotationReadingTurn, readAnnotationReadingTurn } from './annotation-reading-turn.mjs';
 import { createNativeTurnNavigation } from './native-turn-navigation.mjs';
 import { readNativeTurnPreview } from './native-turn-rail-preview.mjs';
-import { readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
+import { nativeAnnotationMutationNeedsRefresh, readNativeAnnotationContext } from './native-turn-annotation-adapter.mjs';
 import { TURN_ANNOTATION_STYLE } from './native-turn-annotation-style.mjs';
-export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null) {
-  const VERSION = '2026-09-21.switch-settle1', KEY = 'codex-control-console.annotation-drafts.v1';
+export function installNativeTurnAnnotations(readContext, css, createNavigation = () => ({ update() {}, dispose() {}, contains() { return false; } }), readPreview, readingTurn = () => null, mutationNeedsRefresh = () => true) {
+  const VERSION = '2026-09-23.linear-rail1', KEY = 'codex-control-console.annotation-drafts.v1';
   if (window.__codexControlConsoleAnnotations?.version === VERSION) return;
   window.__codexControlConsoleAnnotations?.dispose();
   let pending = [], storageError = '', context = null, selected = '', notes = {}, loadedThread = '', error = '', signature = '', acceptedSignature = '', disposed = false, scheduled = false, refreshTimer = null, lastRefreshAt = 0, lastCardScanAt = 0, layout = null, hover = null;
@@ -172,7 +172,10 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
     const queue = () => requestAnimationFrame(() => { scheduled = false; refreshTimer = null; refresh(); });
     if (wait > 0) refreshTimer = setTimeout(queue, wait); else queue();
   }
-  const observer = new MutationObserver(records => { if (records.some(r => !panel.contains(r.target) && !preview.contains(r.target) && !navigation.contains(r.target))) schedule(200); });
+  const observer = new MutationObserver(records => {
+    const external = records.filter(r => !panel.contains(r.target) && !preview.contains(r.target) && !navigation.contains(r.target));
+    if (mutationNeedsRefresh(external)) schedule(200);
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
   function onTimelineScroll(event) {
     const scroll = context?.content?.closest('[data-app-action-timeline-scroll]');
@@ -211,5 +214,5 @@ export function installNativeTurnAnnotations(readContext, css, createNavigation 
   refresh();
 }
 export function buildNativeTurnAnnotationsScript() {
-  return `(${installNativeTurnAnnotations.toString()})(${readNativeAnnotationContext.toString()},${JSON.stringify(TURN_ANNOTATION_STYLE)},options => (${createNativeTurnNavigation.toString()})(options, () => (${createNativeRailGutter.toString()})(${nativeRailContentLimit.toString()})),${readNativeTurnPreview.toString()},context => (${readAnnotationReadingTurn.toString()})(context,${selectAnnotationReadingTurn.toString()}))`;
+  return `(${installNativeTurnAnnotations.toString()})(${readNativeAnnotationContext.toString()},${JSON.stringify(TURN_ANNOTATION_STYLE)},options => (${createNativeTurnNavigation.toString()})(options, () => (${createNativeRailGutter.toString()})(${nativeRailContentLimit.toString()})),${readNativeTurnPreview.toString()},context => (${readAnnotationReadingTurn.toString()})(context,${selectAnnotationReadingTurn.toString()}),${nativeAnnotationMutationNeedsRefresh.toString()})`;
 }

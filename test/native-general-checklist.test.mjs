@@ -26,3 +26,27 @@ test('general entry is unique, opens inbox, remounts and disposes without touchi
   const old = parent; mount(); callback(); assert.equal(old.children.length, 2); assert.equal(parent.children[2], entry);
   context.window.__cccGeneralChecklist.dispose(); assert.equal(parent.children.length, 2); assert.equal(disconnected, true);
 });
+
+test('general entry measures only matching buttons during a sidebar remount', () => {
+  let measurements = 0;
+  const parent = { insertBefore() {} };
+  const unrelated = Array.from({ length: 500 }, () => ({
+    textContent: '其他操作',
+    getAttribute: () => null,
+    getBoundingClientRect: () => { measurements++; return { width: 24, height: 24 }; }
+  }));
+  const newChat = {
+    textContent: '新对话', className: 'native-top-action', parentElement: parent,
+    getAttribute: () => null,
+    getBoundingClientRect: () => { measurements++; return { width: 24, height: 24 }; }
+  };
+  const entry = { setAttribute() {}, addEventListener() {}, remove() {}, parentElement: null, previousElementSibling: null };
+  const document = {
+    createElement: () => entry, documentElement: {},
+    querySelector: () => null,
+    querySelectorAll: () => [...unrelated, newChat]
+  };
+  const context = vm.createContext({ window: {}, document, requestAnimationFrame: () => {}, MutationObserver: class { observe() {} disconnect() {} } });
+  vm.runInContext(buildNativeGeneralChecklistScript(), context);
+  assert.equal(measurements, 1);
+});
