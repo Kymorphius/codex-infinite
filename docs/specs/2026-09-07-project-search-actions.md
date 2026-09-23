@@ -11,6 +11,12 @@ actions. Use current catalog roots, with a per-root submenu for multi-root proje
 Delegate opening to the native desktop file-manager service. Never interpolate
 paths into shell commands. The DOM adapter owns native integration and discovers
 the native service by capability, without fixed minified export names.
+For a native sidebar project with one root, the custom menu item may invoke the
+same native reveal callback as the built-in icon item; retain both entries.
+For multiple roots or search results, select the exact root and use the native
+file-manager service. Discover its module from current resource entries or the
+app's module bootstrap when resource timings are unavailable. A failed native
+open result must remain visible rather than being reported as success.
 
 Add “在项目中打开” only to actual project-search result menus. It resolves the
 catalog identity to the native sidebar project, restores the native workspace,

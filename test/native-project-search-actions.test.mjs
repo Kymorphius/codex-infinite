@@ -41,6 +41,12 @@ test('local project opens its exact root in the native file manager and requires
   assert.equal(await h.actions.openFolder(project, root), false);
   assert.match(h.notices.at(-1), /无法打开项目文件夹/);
 });
+test('native file manager discovery includes module bootstrap fallback', () => {
+  const source = installNativeProjectSearchActions.toString();
+  assert.match(source, /index\|app-main/);
+  assert.match(source, /app-initial-\[\\w-\]/);
+  assert.match(source, /document\.querySelectorAll\('script\[src\],link/);
+});
 test('open in project expands, centers and opens the indexed first conversation', () => {
   let expanded = 0, opened = 0, projectCentered = 0, threadCentered = 0;
   const project = { getAttribute(key) { return key === 'data-app-action-sidebar-project-id' ? 'native' : 'true'; },

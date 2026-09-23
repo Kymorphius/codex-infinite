@@ -1,6 +1,6 @@
 // Adapter for owned project aliases; native Codex owns drafts and file opening.
 export function installNativeProjectSearchActions(resolveServices) {
-  const VERSION = '2026-09-23.2';
+  const VERSION = '2026-09-23.3';
   if (window.__cccProjectSearchActions?.version === VERSION) return;
   let servicePromise;
   const local = project => project?.device?.kind !== 'remote-codex';
@@ -13,12 +13,24 @@ export function installNativeProjectSearchActions(resolveServices) {
   async function services() {
     if (resolveServices) return resolveServices();
     if (!servicePromise) servicePromise = (async () => {
-      const urls = [...new Set(performance.getEntriesByType('resource').map(entry => entry.name))]
-        .filter(value => { const url = new URL(value); return url.protocol === 'app:' && url.host === '-' && /^\/assets\/app-(initial|primary)-[\w-]+\.js$/.test(url.pathname); });
+      const resources = performance.getEntriesByType('resource').map(entry => entry.name);
+      const elements = [...document.querySelectorAll('script[src],link[rel="modulepreload"][href]')].map(node => node.src || node.href);
+      const urls = [...new Set([...resources, ...elements])]
+        .filter(value => { try { const url = new URL(value); return url.protocol === 'app:' && url.host === '-' && /^\/assets\/app-(initial|primary)-[\w-]+\.js$/.test(url.pathname); } catch { return false; } });
+      if (!urls.some(url => /\/app-initial-/.test(url))) {
+        const boot = elements.find(value => /^app:\/\/-\/assets\/(?:index|app-main)-[\w-]+\.js$/.test(value));
+        if (boot) {
+          const source = await (await fetch(boot)).text();
+          const entry = source.match(/app-initial-[\w-]+\.js/);
+          if (entry) urls.push(new URL(entry[0], boot).href);
+        }
+      }
       for (const url of urls) {
-        const module = await import(url);
-        const service = Object.values(module).find(value => value && typeof value === 'object' && typeof value.openIn?.open === 'function');
-        if (service) return service;
+        try {
+          const module = await import(url);
+          const service = Object.values(module).find(value => value && typeof value === 'object' && typeof value.openIn?.open === 'function');
+          if (service) return service;
+        } catch { /* Another app chunk may not be importable in this renderer. */ }
       }
       throw new Error('原生文件管理器接口尚未就绪');
     })().catch(error => { servicePromise = null; throw error; });

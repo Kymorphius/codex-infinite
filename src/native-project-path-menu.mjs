@@ -1,6 +1,6 @@
 // Native menu integration owns no React nodes and never changes native menu actions.
 export function installNativeProjectPathMenu() {
-  const VERSION = '2026-09-07.2';
+  const VERSION = '2026-09-23.3';
   const KEY = '__codexControlConsoleProjectPathMenu';
   if (window[KEY]?.version === VERSION && window[KEY]?.ready) return;
   window[KEY]?.dispose();
@@ -109,7 +109,12 @@ export function installNativeProjectPathMenu() {
     if (token !== generation) return;
     if (selection?.id === 'ccc-open-in-project') { window.__cccProjectSearchActions?.openInProject(project); return; }
     const folderIndex = (project.sourceDirectories || []).findIndex((_, index) => selection?.id === 'ccc-open-project-folder:' + index);
-    if (folderIndex >= 0) { await window.__cccProjectSearchActions?.openFolder(project, project.sourceDirectories[folderIndex]); return; }
+    if (folderIndex >= 0) {
+      const nativeReveal = project.sourceDirectories.length === 1 && findAction(items, 'reveal-project-folder');
+      if (typeof nativeReveal?.onSelect === 'function') await nativeReveal.onSelect();
+      else await window.__cccProjectSearchActions?.openFolder(project, project.sourceDirectories[folderIndex]);
+      return;
+    }
     if (selection?.id === 'ccc-project-checklist') { window.__cccProjectChecklist?.open({ id: project.id, key: project.key || project.id, name: project.name || project.id }); return; }
     if (selection?.id === COPY_ID) { await copy(project.id, '项目 ID 已复制'); return; }
     if (selection?.id === COPY_LINK) { await copy(project.link, '项目链接已复制'); return; }

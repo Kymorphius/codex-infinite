@@ -184,6 +184,17 @@ test('search folder menus select exact roots on Mac and Windows and reject remot
   assert.match(h.calls[0][0].label, /Windows/);
 });
 
+test('single-root custom folder action reuses the working native reveal callback', async () => {
+  const h = harness({ selection: 'ccc-open-project-folder:0' });
+  let revealed = 0, custom = 0;
+  h.items.push({ id: 'reveal-project-folder', icon: 'folder', onSelect() { revealed++; } });
+  h.context.window.__cccProjectSearchActions = { openFolder() { custom++; } };
+  h.capture(); await flush();
+  assert.equal(h.calls[0][0].label, '在文件管理器中打开');
+  assert.equal(revealed, 1);
+  assert.equal(custom, 0);
+});
+
 test('search and native menus share native project checklist identity', async () => {
   const h = harness({ selection: 'ccc-project-checklist' }), opened = [];
   h.context.window.__cccProjectChecklist = { open(project) { opened.push(project); } };
