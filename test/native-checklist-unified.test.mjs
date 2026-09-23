@@ -103,7 +103,7 @@ test('visible task rows are numbered before the date without changing task ident
   const source = buildNativeProjectChecklistScript();
   assert.match(source, /padding-inline-start:48px;[^}]*gap:5px;counter-reset:task/);
   assert.match(source, /li\[data-checklist-row\]\{counter-increment:task;position:relative\}/);
-  assert.match(source, /content:counter\(task\) '\.';position:absolute;inset-inline-start:-44px/);
+  assert.match(source, /content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
   assert.match(source, /\[data-checklist-added\]\{order:-1/);
   const h = harness({ mode: 'claim' });

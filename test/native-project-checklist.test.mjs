@@ -45,9 +45,9 @@ test('native checklist adds, edits, completes and deletes while acknowledging wi
 test('checklist numbers have a separate small card beside the task card', () => {
   const source = buildNativeProjectChecklistScript();
   assert.match(source, /ul\{list-style:none;padding:0;padding-inline-start:48px/);
-  assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\) '\.';position:absolute;inset-inline-start:-44px/);
+  assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
-  assert.match(source, /2026-09-23\.claim-layout10/);
+  assert.match(source, /2026-09-23\.claim-layout11/);
 });
 test('project switching isolates visible items and restores pending drafts after reload', () => {
   const pending = [{ projectKey: 'a', type: 'upsert', id: 'item', requestId: 'req', text: '保留草稿', done: false }];
