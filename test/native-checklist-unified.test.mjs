@@ -62,6 +62,25 @@ test('all checklist entry points share search and multiline direct editing while
   }
 });
 
+test('ordinary checklists show add above search with icons, while both claim views hide add', () => {
+  const source = buildNativeProjectChecklistScript();
+  assert.match(source, /form::before\{content:'＋'/);
+  assert.match(source, /\[data-checklist-search\]::before\{content:'🔍'/);
+  assert.match(source, /form\{order:1\}/);
+  assert.match(source, /\[data-checklist-controls\]\{display:flex;flex-direction:column;order:2\}/);
+  for (const mode of ['project', 'general', 'claim', 'new-claim']) {
+    const h = harness({ mode }), form = h.dialog.children[2], controls = h.dialog.children[1];
+    assert.equal(controls.children[1], h.searchRoot);
+    assert.equal(h.dialog.children[0].children.length, 2);
+    assert.equal(form.hidden, mode === 'claim' || mode === 'new-claim');
+    assert.equal(h.dialog.dataset.claim, String(form.hidden));
+  }
+  const h = harness({ mode: 'claim' });
+  h.api.openGeneral(); assert.equal(h.dialog.children[2].hidden, false);
+  h.api.openClaimableForNewThread(); assert.equal(h.dialog.children[2].hidden, true);
+  h.query('alpha'); assert.equal(h.visible().length, 1);
+});
+
 test('search matches trimmed case-insensitive content without replacing rows, saving or changing time order', () => {
   for (const mode of ['project', 'general', 'claim']) {
     const h = harness({ mode }), rows = h.rows(), text = editor(rows[0]);

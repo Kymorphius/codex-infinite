@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.new-task-claim1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -22,13 +22,20 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   const style = make('style'); style.textContent = `
     [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(600px,calc(100vw - 48px));max-height:80vh;padding:24px;border:1px solid #8885;border-radius:16px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 20px 80px #0006;font:14px/1.5 system-ui}
     [data-ccc-checklist]::backdrop{background:#0006}
-    [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
-    [data-ccc-checklist] [data-checklist-search]{display:flex;align-items:center;gap:8px;flex-basis:100%}
+    [data-ccc-checklist][open]{display:flex;flex-direction:column}
+    [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;order:0}
+    [data-ccc-checklist] form{order:1}[data-ccc-checklist] [data-checklist-controls]{display:flex;flex-direction:column;order:2}
+    [data-ccc-checklist] > :not(header):not(form):not([data-checklist-controls]){order:3}
+    [data-ccc-checklist] [data-checklist-search]{display:flex;align-items:center;gap:8px}
+    [data-ccc-checklist] form::before,[data-ccc-checklist] [data-checklist-search]::before{align-self:center;flex:none;width:22px;text-align:center;color:var(--color-text-secondary,#aaa)}
+    [data-ccc-checklist] form::before{content:'＋';font-size:22px;line-height:1}
+    [data-ccc-checklist] [data-checklist-search]::before{content:'🔍';font-size:16px;line-height:1}
+    [data-ccc-checklist][data-claim=true] [data-checklist-search]{order:-1}
     [data-ccc-checklist] [data-checklist-search] small{white-space:nowrap}[data-ccc-checklist] [hidden]{display:none}
-    [data-ccc-checklist] h2{font-size:18px;margin:0}[data-ccc-checklist] p{color:#999;margin:6px 0 18px;overflow-wrap:anywhere}
+    [data-ccc-checklist] h2{font-size:18px;margin:0}[data-ccc-checklist] p{color:#999;margin:6px 0 12px;overflow-wrap:anywhere}
     [data-ccc-checklist] button{cursor:pointer;border:1px solid #8885;border-radius:7px;padding:5px 10px;background:transparent;color:inherit}
     [data-ccc-checklist] select{min-width:150px;max-width:240px;border:1px solid #8885;border-radius:7px;padding:5px 8px;background:var(--color-background-primary,#252525);color:inherit}
-    [data-ccc-checklist] form{display:flex;gap:8px;margin:16px 0}
+    [data-ccc-checklist] form{display:flex;gap:8px;margin:16px 0 12px}
     [data-ccc-checklist] input[type=text],[data-ccc-checklist] input[type=search],[data-ccc-checklist] textarea{min-width:0;flex:1;border:1px solid #8885;border-radius:7px;background:transparent;color:inherit;padding:8px}
     [data-ccc-checklist] textarea{font:inherit;resize:vertical}
     [data-ccc-checklist] ul{list-style:none;padding:0;margin:12px 0;max-height:45vh;overflow:auto}
@@ -39,8 +46,9 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     [data-ccc-checklist] small{display:block;color:#999}[data-ccc-checklist] button:disabled{opacity:.4;cursor:default}
   `;
   const dialog = make('dialog'); dialog.setAttribute('data-ccc-checklist', ''); dialog.setAttribute('aria-label', '项目任务清单');
-  const header = make('header'), title = make('h2', '任务清单'), close = make('button', '关闭'); header.append(title, close, search.root);
-  const subtitle = make('p'), form = make('form'), input = make('input'), add = make('button', '添加');
+  const header = make('header'), title = make('h2', '任务清单'), close = make('button', '关闭'); header.append(title, close);
+  const subtitle = make('div'), description = make('p'), form = make('form'), input = make('input'), add = make('button', '添加');
+  subtitle.setAttribute('data-checklist-controls', ''); subtitle.append(description, search.root);
   input.type = 'text'; input.maxLength = 5000; input.placeholder = '想在这个项目里做什么？'; input.setAttribute('aria-label', '新任务'); add.type = 'submit'; form.append(input, add);
   const count = make('small'), list = make('ul'), status = make('small'); status.setAttribute('role', 'status');
   dialog.append(header, subtitle, form, count, list, status, make('small', '保存在本机 · 按加入时间从早到晚 · 勾选记录完成状态'));
@@ -175,7 +183,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       if (!item) return false;
       act('upsert', { ...item, done: true }, GENERAL_KEY); return true;
     },
-    open(value) { title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; taskEditors.clear(); search.reset(); project = value; items = value.general && generalLoaded ? generalItems : []; held = []; heldLoaded = !value.general || !!value.claimThreadId || !!value.claimNewThread; loaded = value.general && generalLoaded ? value.key : ''; error = ''; claimWarning = ''; subtitle.textContent = value.name || value.id; input.value = ''; render(); if (!dialog.open) dialog.showModal(); if (value.general) scheduleHeldLoad(); },
+    open(value) { title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; taskEditors.clear(); search.reset(); project = value; items = value.general && generalLoaded ? generalItems : []; held = []; heldLoaded = !value.general || !!value.claimThreadId || !!value.claimNewThread; form.hidden = Boolean(value.claimThreadId || value.claimNewThread); dialog.dataset.claim = String(form.hidden); loaded = value.general && generalLoaded ? value.key : ''; error = ''; claimWarning = ''; description.textContent = value.name || value.id; input.value = ''; render(); if (!dialog.open) dialog.showModal(); if (value.general) scheduleHeldLoad(); },
     cacheGeneral(nextItems) { if (!Array.isArray(nextItems)) return; generalItems = nextItems; generalLoaded = true; if (project?.key === 'ccc:general-inbox:v1' && loaded !== project.key) { items = generalItems; loaded = project.key; render(); } },
     packet() { return { projectKey: project?.key || '', actions: pending.slice(0, 20) }; },
     accept(result) {
