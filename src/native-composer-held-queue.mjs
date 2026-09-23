@@ -15,8 +15,8 @@ import { saveNativeHeldDraft } from './native-held-draft-save.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-23.held-images1', LEGACY = '2026-09-18.3';
-  const SAVE_DRAFT_VERSION = '2026-09-23.held-images1', LEGACY_SAVE = '2026-09-18.1';
+  const VERSION = '2026-09-23.save-todo-closed1', LEGACY = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-23.save-todo-closed1', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -226,7 +226,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     if (busy || !id || !editor) return;
     await saveNativeHeldDraft({ threadId, editor, readText: draftText, imageTools, heldFor, writeHeld, summarize,
-      clearText: clearDraftText, setBusy: (value) => { busy = value; }, setOpen: (value) => { open = value; },
+      clearText: clearDraftText, setBusy: (value) => { busy = value; },
       setWarning: (value) => { warning = value; }, render, updateButton: updateDraftButton });
   }
   const draftTodoButton = ${createNativeSaveDraftTodoButton.toString()}(saveDraftTodo);

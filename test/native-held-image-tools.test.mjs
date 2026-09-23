@@ -32,18 +32,19 @@ test('held image capture survives hydration and cleans up only after release', a
 
 test('image-only draft is saved before text clearing; failure keeps composer untouched', async () => {
   const { editor, tools, blobs } = fixture();
-  let items = [], cleared = 0, warning = '', busy = false;
+  let items = [], cleared = 0, warning = '', busy = false, opened = false;
   const base = {
     threadId: () => 'thread-1', editor, readText: () => '', imageTools: tools,
     heldFor: () => items, writeHeld: (_, next) => { items = next; }, summarize: summarizeNativeHeldMessage,
     clearText: () => { cleared += 1; return true; }, setBusy: (value) => { busy = value; },
-    setOpen: () => {}, setWarning: (value) => { warning = value; }, render: () => {}, updateButton: () => {}
+    setOpen: () => { opened = true; }, setWarning: (value) => { warning = value; }, render: () => {}, updateButton: () => {}
   };
   await saveNativeHeldDraft(base);
   assert.equal(items.length, 1);
   assert.equal(items[0].summary, '图片 1 张');
   assert.equal(cleared, 0);
   assert.equal(busy, false);
+  assert.equal(opened, false);
   assert.match(warning, /原输入框图片仍在/);
   assert.equal(blobs.size, 1);
   await saveNativeHeldDraft({ ...base, writeHeld: () => { throw new Error('storage full'); } });

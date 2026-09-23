@@ -12,7 +12,7 @@ test('generated held image injection remains parseable', () => {
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-23\.held-images1'/);
+  assert.match(source, /const VERSION = '2026-09-23\.save-todo-closed1'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -57,6 +57,7 @@ test("native held queue saves image and text draft before clearing text", () => 
   assert.match(source, /order:1/);
   assert.match(source, /data-ccc-save-draft-todo/);
   assert.match(save, /saveNativeHeldDraft/);
+  assert.doesNotMatch(save, /setOpen/);
   const flow = source.slice(source.indexOf('async function saveNativeHeldDraft'), source.indexOf('function returnAssignedTodo'));
   assert.ok(flow.indexOf('imageTools.capture') < flow.indexOf('writeHeld(id,'));
   assert.ok(flow.indexOf('writeHeld(id,') < flow.indexOf('clearText(editor)'));
