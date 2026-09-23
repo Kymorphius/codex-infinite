@@ -16,10 +16,16 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.4';
+  const VERSION = '2026-09-23.5';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) return;
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
-  let root, topLaunch, panel, input, results, timer, observer, requestId = 0, active = false, lastLauncher = null;
+  const HISTORY_KEY = 'codex-control-console.sent-message-search.history.v1';
+  let root, topLaunch, panel, input, results, historyPanel, timer, observer, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
+  let history = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    if (Array.isArray(saved)) history = saved.filter(value => typeof value === 'string' && value.trim() && value.length <= 120).slice(0, 10);
+  } catch { /* Search remains available without stored history. */ }
   const make = (tag, cls, value) => {
     const node = document.createElement(tag); node.className = cls;
     if (value != null) node.textContent = value;
@@ -30,6 +36,37 @@ export function installNativeSentMessageSearch() {
     Object.assign(node.style, { padding: '7px 4px', color: '#aaa', fontSize: '13px' });
     return node;
   };
+  function saveHistory(query) {
+    const value = query.trim();
+    if (!value || value.length > 120) return;
+    history = [value, ...history.filter(item => item !== value)].slice(0, 10);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch { /* In-memory history still works. */ }
+  }
+  function renderHistory() {
+    if (!historyPanel) return;
+    historyPanel.replaceChildren();
+    historyPanel.hidden = Boolean(input?.value.trim()) || !history.length;
+    if (historyPanel.hidden) return;
+    const heading = make('div', '', null);
+    Object.assign(heading.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px', color: '#aaa', fontSize: '12px' });
+    heading.append(make('span', '', '搜索历史'));
+    const clear = make('button', '', '清空');
+    clear.type = 'button'; clear.setAttribute('aria-label', '清空消息搜索历史');
+    Object.assign(clear.style, { border: '0', background: 'transparent', color: '#aaa', cursor: 'pointer' });
+    clear.addEventListener('click', () => {
+      history = [];
+      try { localStorage.removeItem(HISTORY_KEY); } catch { /* In-memory history is cleared. */ }
+      renderHistory(); input.focus();
+    });
+    heading.append(clear); historyPanel.append(heading);
+    for (const query of history) {
+      const row = make('button', '', query);
+      row.type = 'button'; row.setAttribute('data-sent-message-search-history', query);
+      Object.assign(row.style, { display: 'block', boxSizing: 'border-box', width: '100%', padding: '7px 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left', border: '0', borderRadius: '5px', background: 'transparent', color: '#ddd', cursor: 'pointer' });
+      row.addEventListener('click', () => { input.value = query; search(); input.focus(); });
+      historyPanel.append(row);
+    }
+  }
   function show(value) {
     if (!results) return;
     results.replaceChildren();
@@ -53,6 +90,7 @@ export function installNativeSentMessageSearch() {
       Object.assign(excerpt.style, { marginTop: '4px', color: '#b5b5b5', fontSize: '12px', lineHeight: '1.5', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical' });
       row.append(title, excerpt);
       row.addEventListener('click', () => {
+        saveHistory(input.value);
         window.__codexControlConsoleClose?.();
         window.__codexControlConsoleConversationTabs?.openLocal?.({ id: item.id, title: item.title });
         close();
@@ -65,16 +103,19 @@ export function installNativeSentMessageSearch() {
     clearTimeout(timer);
     const query = input?.value.trim() || '';
     requestId++;
-    if (!query) { results?.replaceChildren(); return; }
+    if (!query) { searchedQuery = ''; results?.replaceChildren(); renderHistory(); return; }
+    renderHistory();
     show('搜索本机消息中…');
     const id = requestId;
     timer = setTimeout(() => {
       if (typeof window.__codexControlConsoleSearchSentMessages === 'function') {
+        searchedQuery = query;
         window.__codexControlConsoleSearchSentMessages(JSON.stringify({ id, query }));
       } else show('搜索暂时不可用');
     }, 350);
   }
   function close() {
+    if (searchedQuery && searchedQuery === input?.value.trim()) saveHistory(searchedQuery);
     panel.hidden = true;
     panel.style.display = 'none';
     requestId++;
@@ -83,10 +124,15 @@ export function installNativeSentMessageSearch() {
   }
   function open(event) {
     lastLauncher = event?.currentTarget || root?.querySelector?.('button');
+    requestId++;
+    clearTimeout(timer);
+    searchedQuery = '';
+    input.value = '';
+    results.replaceChildren();
+    renderHistory();
     panel.hidden = false;
     panel.style.display = 'flex';
     input.focus();
-    if (input.value.trim()) search();
   }
   function install() {
     const projectSearch = document.querySelector('[data-codex-control-console-project-search]');
@@ -143,14 +189,18 @@ export function installNativeSentMessageSearch() {
       input.addEventListener('input', search);
       input.addEventListener('keydown', event => {
         if (event.key === 'Escape') { event.stopPropagation(); close(); }
+        if (event.key === 'Enter' && input.value.trim()) { saveHistory(input.value); search(); }
       });
+      historyPanel = make('div', '', null);
+      historyPanel.setAttribute('aria-label', '消息搜索历史');
+      historyPanel.style.marginTop = '10px';
       results = make('div', 'flex flex-col', null);
       results.setAttribute('aria-label', '已发送消息搜索结果');
       results.style.maxHeight = '60vh'; results.style.overflowY = 'auto';
       results.style.marginTop = '10px';
       const scope = make('div', 'my-2 text-xs text-tertiary', '搜索范围：本机未归档会话中你发送的消息');
       Object.assign(scope.style, { margin: '10px 0', color: '#aaa', fontSize: '12px' });
-      bar.append(input); dialog.append(heading, bar, scope, results);
+      bar.append(input); dialog.append(heading, bar, scope, historyPanel, results);
       panel.append(dialog); document.body.append(panel);
       root.addEventListener('pointerdown', event => event.stopPropagation());
     }
