@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout11', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout12', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -47,9 +47,11 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     [data-ccc-checklist] textarea{font:inherit;line-height:1.4;field-sizing:content;min-height:34px;max-height:128px;overflow-y:auto;resize:vertical;padding:5px 8px;background:transparent}
     [data-ccc-checklist] textarea:focus-visible{outline:1px solid #aaa8;background:#8881}
     [data-ccc-checklist] ul{list-style:none;padding:0;padding-inline-start:48px;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px;counter-reset:task}
+    [data-ccc-checklist][data-claim=true] ul{padding-inline-end:88px}
     [data-ccc-checklist] li{display:flex;align-items:center;gap:4px 10px;padding:7px 9px;flex-wrap:wrap;border:0;border-radius:10px;background:#8881}
     [data-ccc-checklist] li[data-checklist-row]{counter-increment:task;position:relative}
     [data-ccc-checklist] li[data-checklist-row]::before{content:counter(task);position:absolute;inset-inline-start:-44px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:34px;border-radius:9px;background:#8882;font-size:11px;font-variant-numeric:tabular-nums;color:#aaa}
+    [data-ccc-checklist] li[data-checklist-claim-row]>button{position:absolute;inset-inline-end:-76px;top:50%;transform:translateY(-50%);box-sizing:border-box;width:64px;height:34px;display:flex;align-items:center;justify-content:center}
     [data-ccc-checklist] li textarea{min-width:min(220px,100%)}
     [data-ccc-checklist] [data-checklist-added]{order:-1;flex:none;margin-inline-end:8px;white-space:nowrap;font-size:11px;color:#999;line-height:1.2}
     [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
@@ -150,6 +152,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
         onError: message => { if (currentPanel()) { error = message; state(); } }
       }); taskEditors.set(taskId, editor);
       if (claiming) {
+        row.setAttribute('data-checklist-claim-row', '');
         const claim = make('button', '领取'); claim.type = 'button'; claim.disabled = loaded !== projectKey;
         claim.title = newThread ? '把当前框内的内容放入新任务输入框并发送，创建新会话' : '领取当前框内的内容到会话待办，保持暂停，不自动发送';
         claim.addEventListener('pointerdown', event => event.preventDefault());

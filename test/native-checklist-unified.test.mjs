@@ -115,6 +115,16 @@ test('visible task rows are numbered before the date without changing task ident
   assert.equal(empty.list.children[0].attrs['data-checklist-row'], undefined);
 });
 
+test('claim button occupies its own card outside the task row while keeping the same action node', () => {
+  const h = harness({ mode: 'claim' }), row = h.rows()[0], source = buildNativeProjectChecklistScript();
+  assert.equal(row.attrs['data-checklist-claim-row'], '');
+  assert.equal(button(row, '领取').parent, row);
+  assert.match(source, /\[data-claim=true\] ul\{padding-inline-end:88px\}/);
+  assert.match(source, /li\[data-checklist-claim-row\]>button\{position:absolute;inset-inline-end:-76px/);
+  assert.match(source, /width:64px;height:34px/);
+  assert.equal(harness({ mode: 'general' }).rows()[0].attrs['data-checklist-claim-row'], undefined);
+});
+
 test('task rows use soft surfaces without stacked resting borders and retain keyboard focus cues', () => {
   const h = harness({ mode: 'claim' }), style = h.document.head.children[0].textContent;
   assert.match(style, /form,\[data-ccc-checklist\] \[data-checklist-search\]\{[^}]*border:0/);
