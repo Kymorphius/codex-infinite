@@ -6,7 +6,7 @@ Find a local Codex conversation from words the user previously sent, even when i
 
 ## Contract
 
-- A separate button appears beside the existing project search in both enhanced and primary desktop sidebars. It opens a dedicated search panel with its own query field and results.
+- A separate button appears beside the existing project search in both enhanced and primary desktop sidebars. A fixed search action also appears in the enhanced desktop's top tab bar, before the recent-conversation menus. Both open the same dedicated search panel with its own query field and results; neither changes the active tab.
 - Search covers non-archived, non-internal local conversations with readable native transcripts. It matches only user-authored message text, case and width insensitively.
 - Results show the conversation title and a short excerpt around the latest matching user message. Selecting a result opens that conversation through the existing local navigation path.
 - Search is requested on demand. The native renderer receives only bounded matching excerpts, never a full transcript or a persistent content index. Empty, loading, failed, and incomplete-history states are distinguishable.

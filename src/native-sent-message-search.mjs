@@ -16,10 +16,10 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.3';
+  const VERSION = '2026-09-23.4';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) return;
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
-  let root, panel, input, results, timer, observer, requestId = 0, active = false;
+  let root, topLaunch, panel, input, results, timer, observer, requestId = 0, active = false, lastLauncher = null;
   const make = (tag, cls, value) => {
     const node = document.createElement(tag); node.className = cls;
     if (value != null) node.textContent = value;
@@ -79,9 +79,10 @@ export function installNativeSentMessageSearch() {
     panel.style.display = 'none';
     requestId++;
     clearTimeout(timer);
-    root?.querySelector?.('button')?.focus?.();
+    (lastLauncher?.isConnected ? lastLauncher : root?.querySelector?.('button'))?.focus?.();
   }
-  function open() {
+  function open(event) {
+    lastLauncher = event?.currentTarget || root?.querySelector?.('button');
     panel.hidden = false;
     panel.style.display = 'flex';
     input.focus();
@@ -96,6 +97,17 @@ export function installNativeSentMessageSearch() {
       const launch = make('button', 'sidebar-item w-full rounded-md px-2 py-1 text-start text-sm text-default hover:bg-primary-ghost-hover', '搜索发送内容');
       launch.type = 'button'; launch.setAttribute('aria-haspopup', 'dialog'); launch.addEventListener('click', open);
       root.append(launch);
+      topLaunch = make('button', 'ccc-native-recent-trigger', null);
+      topLaunch.type = 'button';
+      topLaunch.setAttribute('data-codex-control-console-tab-message-search', '');
+      topLaunch.setAttribute('aria-label', '搜索已发送消息');
+      topLaunch.setAttribute('aria-haspopup', 'dialog');
+      topLaunch.title = '搜索已发送消息';
+      Object.assign(topLaunch.style, { display: 'flex', flex: '0 0 auto', alignItems: 'center', gap: '5px', height: '26px', padding: '0 8px', border: '0', borderRadius: '7px', background: 'transparent', color: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' });
+      const icon = make('span', '', '⌕'); icon.setAttribute('aria-hidden', 'true');
+      Object.assign(icon.style, { fontSize: '19px', lineHeight: '1' });
+      topLaunch.append(icon, make('span', '', '消息搜索'));
+      topLaunch.addEventListener('click', open);
       panel = make('div', 'fixed inset-0 z-[9999] flex items-start justify-center bg-black/50 p-6 pt-[10vh]', null);
       Object.assign(panel.style, {
         position: 'fixed', inset: '0', zIndex: '2147483000', boxSizing: 'border-box',
@@ -145,11 +157,16 @@ export function installNativeSentMessageSearch() {
     if (root.parentElement !== projectSearch.parentElement || root.previousSibling !== projectSearch) {
       projectSearch.parentElement.insertBefore(root, projectSearch.nextSibling);
     }
+    const tabBar = document.querySelector('[data-codex-control-console-native-tabs]');
+    if (tabBar) {
+      const recent = tabBar.querySelector('[data-recent-menu]');
+      if (topLaunch.parentElement !== tabBar || topLaunch.nextSibling !== recent) tabBar.insertBefore(topLaunch, recent);
+    }
   }
   window.__codexControlConsoleSentMessageSearch = {
     version: VERSION,
     receive(value) { if (value?.id === requestId && input?.value.trim()) show(value); },
-    dispose() { active = false; clearTimeout(timer); observer?.disconnect(); root?.remove(); panel?.remove(); }
+    dispose() { active = false; clearTimeout(timer); observer?.disconnect(); root?.remove(); topLaunch?.remove(); panel?.remove(); }
   };
   active = true;
   install();

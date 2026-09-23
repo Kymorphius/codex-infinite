@@ -79,7 +79,7 @@ test('native injection compiles and binding returns bounded result to renderer',
   assert.equal(script.includes('<safe>'), false);
 });
 
-test('sidebar button opens a separate panel and a result navigates to its conversation', () => {
+test('sidebar and top tab buttons open one panel and a result navigates to its conversation', () => {
   class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.style = {}; this.attrs = {}; this.parentElement = null; if (tag === 'input') this.value = ''; }
     append(...nodes) { for (const node of nodes) { this.children.push(node); node.parentElement = this; } }
@@ -87,21 +87,29 @@ test('sidebar button opens a separate panel and a result navigates to its conver
     remove() { if (this.parentElement) this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1); this.parentElement = null; }
     get nextSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) + 1] || null; }
     get previousSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) - 1] || null; }
+    get isConnected() { return Boolean(this.parentElement); }
     setAttribute(key, value) { this.attrs[key] = value; }
     addEventListener(key, fn) { this.listeners[key] = fn; }
     replaceChildren() { for (const child of this.children) child.parentElement = null; this.children = []; }
-    querySelector(tag) { return this.children.find(child => child.tag === tag); }
+    querySelector(selector) { return this.children.find(child => child.tag === selector || (selector === '[data-recent-menu]' && child.attrs['data-recent-menu'] != null)); }
     focus() { this.focused = true; }
   }
-  const parent = new Node('div'), projectSearch = new Node('div'), body = new Node('body');
+  const parent = new Node('div'), projectSearch = new Node('div'), body = new Node('body'), tabBar = new Node('nav');
   projectSearch.className = 'sidebar'; parent.append(projectSearch);
-  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : null; }, createElement: tag => new Node(tag) };
+  const recent = new Node('div'); recent.setAttribute('data-recent-menu', 'opened'); tabBar.append(new Node('div'), recent);
+  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : selector === '[data-codex-control-console-native-tabs]' ? tabBar : null; }, createElement: tag => new Node(tag) };
   const routes = [], calls = [];
   const window = { __codexControlConsoleSearchSentMessages: value => calls.push(JSON.parse(value)), postMessage: value => routes.push(value.path) };
   const context = vm.createContext({ document, window, MutationObserver: class { observe() {} disconnect() {} }, setTimeout: fn => { fn(); return 1; }, clearTimeout() {} });
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
   const launch = parent.children[1].children[0];
   assert.equal(launch.textContent, '搜索发送内容');
+  const topLaunch = tabBar.children[1];
+  assert.equal(topLaunch.attrs['aria-label'], '搜索已发送消息');
+  assert.equal(tabBar.children[2], recent);
+  topLaunch.listeners.click({ currentTarget: topLaunch });
+  assert.equal(body.children[0].hidden, false);
+  body.children[0].children[0].children[0].children[1].listeners.click();
   launch.listeners.click();
   const panel = body.children[0];
   assert.equal(panel.hidden, false);
