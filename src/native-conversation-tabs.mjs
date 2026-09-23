@@ -2,6 +2,8 @@ import { buildInsetSource } from './native-composer-tab-layout.mjs';
 import { buildNativeLocalConversationSyncSource, resolveNativeLocalConversationId } from './native-conversation-route-sync.mjs';
 import { buildNativeConversationTabTitlePolicySource } from './native-conversation-tab-titles.mjs';
 import { buildNativeConversationTabTransitionSource } from './native-conversation-tab-transition.mjs';
+import { createNativeLatestNavigation } from './native-conversation-latest-navigation.mjs';
+import { buildNativeConversationTabStyle } from './native-conversation-tab-style.mjs';
 import { buildNativeConversationWindowInjectionSource, NATIVE_CONVERSATION_WINDOW_STYLE } from "./native-conversation-window.mjs";
 import { buildNativeRecentConversationMenuInjectionSource, NATIVE_RECENT_CONVERSATION_STYLE } from "./native-recent-conversations.mjs";
 import { buildNativeRecentSentMenuInjectionSource } from "./native-recent-sent-conversations.mjs";
@@ -38,9 +40,11 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeRecentConversationMenuInjectionSource()}
   ${buildNativeRecentSentMenuInjectionSource()}
   ${buildNativeConversationTabTransitionSource()}
+  ${createNativeLatestNavigation.toString()}
+  ${buildNativeConversationTabStyle.toString()}
   ${hasVisibleNativeTitleAction.toString()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-23.rs1';
+    const VERSION = '2026-09-23.latest2';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -58,7 +62,7 @@ export function buildNativeConversationTabsInjectionSource() {
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
     let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, stableLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set(), topControls = [], topControlsScannedAt = -Infinity;
-    let recentSentMenu = null;
+    let recentSentMenu = null, latestNavigation = createNativeLatestNavigation(document, window);
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : 'remote:' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
     const normalizeTab = createNativeConversationTabNormalizer(localStorage, clean, UUID);
@@ -221,6 +225,7 @@ export function buildNativeConversationTabsInjectionSource() {
       const key = keyFor(value);
       open(value, false, true);
       transition.request(key);
+      if (navigate) latestNavigation.request(value.id);
       if (navigate) options.openLocal?.(value);
       setTimeout(syncLocal, 0);
       return true;
@@ -230,6 +235,7 @@ export function buildNativeConversationTabsInjectionSource() {
       const tab = key === 'console' ? { kind: 'console', module: state.consoleModule } : state.tabs.find((item) => keyFor(item) === key);
       if (!tab) return;
       if (tab.kind === 'local') { request(tab, true); return; }
+      latestNavigation.cancel();
       transition.clear();
       state.activeKey = key; render();
       if (tab.kind === 'console') options.openConsole?.(tab.module);
@@ -286,13 +292,7 @@ export function buildNativeConversationTabsInjectionSource() {
     }
 
     const style = document.createElement('style'); style.setAttribute('data-codex-control-console-native-tab-style', '');
-    style.textContent = '[' + TITLE_HIDDEN_ATTRIBUTE + ']{display:none!important}' + ROOT_SELECTOR + '{position:fixed;top:5px;z-index:2147482999;display:flex;height:34px;min-width:0;align-items:center;gap:3px;overflow:visible;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:10px;padding:3px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 2px 12px rgba(0,0,0,.08);backdrop-filter:blur(18px);-webkit-app-region:no-drag;app-region:no-drag}' +
-      ROOT_SELECTOR + ' .ccc-native-tab-list{display:flex;min-width:0;flex:1;gap:2px;overflow-x:auto;scrollbar-width:none}' + ROOT_SELECTOR + ' .ccc-native-tab-list::-webkit-scrollbar{display:none}' +
-      ROOT_SELECTOR + ' .ccc-native-tab{display:flex;height:26px;min-width:112px;max-width:220px;flex:0 1 190px;align-items:center;gap:7px;border:0;border-radius:7px;padding:0 6px 0 9px;background:transparent;color:inherit;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}' +
-      ROOT_SELECTOR + ' .ccc-native-tab:hover{background:color-mix(in srgb,currentColor 8%,transparent)}' + nativeConversationTabTransitionStyle(ROOT_SELECTOR) +
-      ROOT_SELECTOR + ' .ccc-native-console{min-width:88px;max-width:110px;flex-basis:100px}' + ROOT_SELECTOR + ' .ccc-native-tab-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#7d8ca8}' + ROOT_SELECTOR + ' .ccc-native-tab-dot[data-kind="chatgpt"]{background:#8b74d6}' + ROOT_SELECTOR + ' .ccc-native-tab-dot[data-kind="remote"]{background:#42a575}' +
-      ROOT_SELECTOR + ' .ccc-native-tab-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' + ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE + NATIVE_RECENT_CONVERSATION_STYLE)} +
-      '@media(max-width:720px){' + ROOT_SELECTOR + ' .ccc-native-console{min-width:76px;flex-basis:82px}' + ROOT_SELECTOR + ' .ccc-native-tab{min-width:104px;flex-basis:150px}}';
+    style.textContent = buildNativeConversationTabStyle(ROOT_SELECTOR, TITLE_HIDDEN_ATTRIBUTE, nativeConversationTabTransitionStyle(ROOT_SELECTOR), ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE + NATIVE_RECENT_CONVERSATION_STYLE)});
     document.head.append(style);
 
     root = document.createElement('nav'); root.setAttribute('data-codex-control-console-native-tabs', ''); root.setAttribute('aria-label', '打开的页面');
@@ -311,11 +311,11 @@ export function buildNativeConversationTabsInjectionSource() {
       const localRow = event.target?.closest?.('[data-app-action-sidebar-thread-id^="local:"]');
       if (localRow) {
         const raw = localRow.getAttribute('data-app-action-sidebar-thread-id') || '', id = raw.startsWith('local:') ? raw.slice(6) : '';
-        if (UUID.test(id)) request({ id, title: nativeLocalTitle(localRow, clean) });
+        if (UUID.test(id)) { latestNavigation.request(id); request({ id, title: nativeLocalTitle(localRow, clean) }); }
       }
       const chatRow = event.target?.closest?.('[data-sidebar-chatgpt-conversation-key],[data-codex-control-console-ordinary-chat-row]');
       const chatTab = chatgptTab(chatRow);
-      if (chatTab) setTimeout(() => open(chatTab, true), 0);
+      if (chatTab) { latestNavigation.cancel(); setTimeout(() => open(chatTab, true), 0); }
     };
     document.addEventListener('click', nativeClick, true);
     observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; scheduleSync(routeChanged(records)); });
@@ -323,7 +323,7 @@ export function buildNativeConversationTabsInjectionSource() {
 
     const onResize = () => scheduleSync(true, true);
     window.addEventListener('resize', onResize);
-    const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, updateRecentSent: () => recentSentMenu?.render(), destroy() { pageInset.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
+    const controller = { version: VERSION, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => recentSentMenu?.render(), destroy() { latestNavigation.cancel(); pageInset.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); root?.remove(); style.remove(); } };
     render(); scheduleSync(true, true); return controller;
   }
   `;

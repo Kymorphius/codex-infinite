@@ -1,0 +1,9 @@
+export function buildNativeConversationTabStyle(root, titleHiddenAttribute, transitionStyle, extensionStyles) {
+  return '[' + titleHiddenAttribute + ']{display:none!important}' + root + '{position:fixed;top:5px;z-index:2147482999;display:flex;height:34px;min-width:0;align-items:center;gap:3px;overflow:visible;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:10px;padding:3px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 2px 12px rgba(0,0,0,.08);backdrop-filter:blur(18px);-webkit-app-region:no-drag;app-region:no-drag}' +
+    root + ' .ccc-native-tab-list{display:flex;min-width:0;flex:1;gap:2px;overflow-x:auto;scrollbar-width:none}' + root + ' .ccc-native-tab-list::-webkit-scrollbar{display:none}' +
+    root + ' .ccc-native-tab{display:flex;height:26px;min-width:112px;max-width:220px;flex:0 1 190px;align-items:center;gap:7px;border:0;border-radius:7px;padding:0 6px 0 9px;background:transparent;color:inherit;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}' +
+    root + ' .ccc-native-tab:hover{background:color-mix(in srgb,currentColor 8%,transparent)}' + transitionStyle +
+    root + ' .ccc-native-console{min-width:88px;max-width:110px;flex-basis:100px}' + root + ' .ccc-native-tab-dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#7d8ca8}' + root + ' .ccc-native-tab-dot[data-kind="chatgpt"]{background:#8b74d6}' + root + ' .ccc-native-tab-dot[data-kind="remote"]{background:#42a575}' +
+    root + ' .ccc-native-tab-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' + extensionStyles +
+    '@media(max-width:720px){' + root + ' .ccc-native-console{min-width:76px;flex-basis:82px}' + root + ' .ccc-native-tab{min-width:104px;flex-basis:150px}}';
+}
