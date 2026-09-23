@@ -217,7 +217,7 @@ test('project and claimable rows sort oldest first and show immutable added time
   const list = h.dialog.children[4], first = list.children[0];
   assert.deepEqual(list.children.map(row => row.children[1].value), ['最早', '较晚']);
   assert.equal(first.children.at(-1).attrs.datetime, early);
-  assert.match(first.children.at(-1).textContent, /加入 2026-09-20/);
+  assert.match(first.children.at(-1).textContent, /^2026-09-20/);
   first.children[1].value = '最早（编辑）'; first.children[1].listeners.change();
   const [action] = h.api.packet().actions, editedRow = list.children[0];
   assert.equal(action.createdAt, early);
@@ -246,8 +246,8 @@ test('legacy estimated and unknown times are explicit and assigned tasks retain 
   h.api.cacheGeneral([{ id: 'unknown', text: '缺时间', done: false }, old, { ...old, id: 'assigned', assignedThreadId: threadA }]); h.api.openGeneral();
   const rows = h.dialog.children[4].children;
   assert.equal(rows[0].children[1].value, old.text);
-  assert.match(rows[0].children.at(-1).textContent, /加入约 2026-09-20/);
+  assert.match(rows[0].children.at(-1).textContent, /^2026-09-20 .* · 估算$/);
   assert.match(rows[0].children.at(-1).title, /最后保存时间估算/);
-  assert.equal(rows[1].children.at(-1).textContent, '加入时间未记录');
+  assert.equal(rows[1].children.at(-1).textContent, '时间未记录');
   assert.equal(rows[2].children.at(-1).textContent, rows[0].children.at(-1).textContent);
 });

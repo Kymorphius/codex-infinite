@@ -21,10 +21,10 @@ test('added time order is a stable projection including mixed held and assigned 
 test('date labels are local absolute times with a full seconds tooltip, not live relative timers', () => {
   const instant = new Date(2026, 8, 22, 8, 9, 10).toISOString();
   assert.deepEqual(presentation.describe({ createdAt: instant }), {
-    dateTime: instant, label: '加入 2026-09-22 08:09', title: '最初加入时间：2026-09-22 08:09:10'
+    dateTime: instant, label: '2026-09-22 08:09', title: '最初加入时间：2026-09-22 08:09:10'
   });
   assert.deepEqual(presentation.describe({ heldAt: Date.parse(instant) }), presentation.describe({ createdAt: instant }));
-  assert.equal(presentation.describe({ updatedAt: instant }).label, '加入约 2026-09-22 08:09');
-  assert.equal(presentation.describe({ createdAt: null }).dateTime, '');
+  assert.equal(presentation.describe({ updatedAt: instant }).label, '2026-09-22 08:09 · 估算');
+  assert.deepEqual({ dateTime: presentation.describe({ createdAt: null }).dateTime, label: presentation.describe({ createdAt: null }).label }, { dateTime: '', label: '时间未记录' });
   assert.doesNotMatch(createChecklistTimePresentation.toString(), /setInterval|setTimeout|MutationObserver/);
 });

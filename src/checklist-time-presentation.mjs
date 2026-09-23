@@ -9,13 +9,13 @@ export function createChecklistTimePresentation(readMetadata) {
   }
   function describe(item) {
     const { createdAt, createdAtEstimated } = readMetadata(item);
-    if (createdAt === null) return { dateTime: '', label: '加入时间未记录', title: '旧版未记录可用的加入时间。' };
+    if (createdAt === null) return { dateTime: '', label: '时间未记录', title: '旧版未记录可用的加入时间。' };
     const date = new Date(createdAt), pad = value => String(value).padStart(2, '0');
     const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
     const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
     return {
       dateTime: createdAt,
-      label: `加入${createdAtEstimated ? '约' : ''} ${day} ${clock}`,
+      label: `${day} ${clock}${createdAtEstimated ? ' · 估算' : ''}`,
       title: createdAtEstimated ? `原始加入时间未记录；根据旧版最后保存时间估算：${day} ${clock}:${pad(date.getSeconds())}` : `最初加入时间：${day} ${clock}:${pad(date.getSeconds())}`
     };
   }

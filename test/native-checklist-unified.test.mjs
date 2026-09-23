@@ -90,7 +90,7 @@ test('task cards start at one text line while multiline content and initial time
   assert.match(source, /width:min\(760px,calc\(100vw - 40px\)\)/);
   assert.match(source, /field-sizing:content;min-height:34px;max-height:128px/);
   assert.match(source, /gap:4px 10px;padding:7px 9px/);
-  assert.match(source, /\[data-checklist-added\]\{flex:none;margin-inline-start:auto;white-space:nowrap/);
+  assert.match(source, /\[data-checklist-added\]\{order:-1;flex:none;margin-inline-end:8px;white-space:nowrap/);
   assert.doesNotMatch(source, /\[data-checklist-added\]\{flex-basis:100%/);
   const multiline = { ...early, text: '第一行\n第二行' };
   const h = harness({ mode: 'claim', items: [multiline] }), row = h.rows()[0], text = editor(row);

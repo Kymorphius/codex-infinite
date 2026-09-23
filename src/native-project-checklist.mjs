@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout5', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout6', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -49,7 +49,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px}
     [data-ccc-checklist] li{display:flex;align-items:center;gap:4px 10px;padding:7px 9px;flex-wrap:wrap;border:0;border-radius:10px;background:#8881}
     [data-ccc-checklist] li textarea{min-width:min(220px,100%)}
-    [data-ccc-checklist] [data-checklist-added]{flex:none;margin-inline-start:auto;white-space:nowrap;font-size:11px;color:#999;line-height:1.2}
+    [data-ccc-checklist] [data-checklist-added]{order:-1;flex:none;margin-inline-end:8px;white-space:nowrap;font-size:11px;color:#999;line-height:1.2}
     [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
     [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;background:#8882}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}
     [data-ccc-checklist] [data-checklist-count]{padding-top:5px;font-size:12px}
