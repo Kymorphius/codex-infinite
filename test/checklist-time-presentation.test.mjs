@@ -24,7 +24,8 @@ test('date labels are local absolute times with a full seconds tooltip, not live
     dateTime: instant, label: '2026-09-22 08:09', title: '最初加入时间：2026-09-22 08:09:10'
   });
   assert.deepEqual(presentation.describe({ heldAt: Date.parse(instant) }), presentation.describe({ createdAt: instant }));
-  assert.equal(presentation.describe({ updatedAt: instant }).label, '2026-09-22 08:09 · 估算');
+  assert.equal(presentation.describe({ updatedAt: instant }).label, '2026-09-22 08:09');
+  assert.match(presentation.describe({ updatedAt: instant }).title, /最后保存时间估算/);
   assert.deepEqual({ dateTime: presentation.describe({ createdAt: null }).dateTime, label: presentation.describe({ createdAt: null }).label }, { dateTime: '', label: '时间未记录' });
   assert.doesNotMatch(createChecklistTimePresentation.toString(), /setInterval|setTimeout|MutationObserver/);
 });

@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout6', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout7', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -46,8 +46,10 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     [data-ccc-checklist] form button{background:#8882}
     [data-ccc-checklist] textarea{font:inherit;line-height:1.4;field-sizing:content;min-height:34px;max-height:128px;overflow-y:auto;resize:vertical;padding:5px 8px;background:transparent}
     [data-ccc-checklist] textarea:focus-visible{outline:1px solid #aaa8;background:#8881}
-    [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px}
+    [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px;counter-reset:task}
     [data-ccc-checklist] li{display:flex;align-items:center;gap:4px 10px;padding:7px 9px;flex-wrap:wrap;border:0;border-radius:10px;background:#8881}
+    [data-ccc-checklist] li[data-checklist-row]{counter-increment:task}
+    [data-ccc-checklist] li[data-checklist-row]::before{content:counter(task) '.';order:-2;flex:none;min-width:2.5ch;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;color:#999}
     [data-ccc-checklist] li textarea{min-width:min(220px,100%)}
     [data-ccc-checklist] [data-checklist-added]{order:-1;flex:none;margin-inline-end:8px;white-space:nowrap;font-size:11px;color:#999;line-height:1.2}
     [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
@@ -134,6 +136,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     if (!visible.length && !assigned.length && (!heldLoaded || !projectedHeld.length)) list.append(make('li', loaded === project?.key ? (project?.general && !heldLoaded ? '正在加载会话待办…' : '还没有任务，先记下一件想做的事。') : '正在读取清单…'));
     for (const item of visible) {
       const row = make('li'), check = make('input'), text = make('textarea'), remove = make('button', '删除');
+      row.setAttribute('data-checklist-row', '');
       row.dataset.done = String(item.done); check.type = 'checkbox'; check.checked = item.done; check.setAttribute('aria-label', '完成：' + item.text);
       check.disabled = text.disabled = remove.disabled = loaded !== project?.key;
       const projectKey = project.key, targetThreadId = project.claimThreadId, newThread = Boolean(project.claimNewThread), taskId = item.id;
@@ -165,6 +168,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     }
     for (const item of time.order([...assigned.map(value => ({ ...value, assignedChecklist: true })), ...projectedHeld])) {
       const row = make('li'), source = make('small', item.assignedChecklist ? '会话待办' : item.origin), text = make('input'), open = make('button', '打开会话');
+      row.setAttribute('data-checklist-row', '');
       row.setAttribute('data-ccc-held-todo', ''); text.type = 'text'; text.value = item.text; text.disabled = true; text.title = '会话待办保存在原会话中；打开后可编辑、删除或手动恢复发送。';
       search.register(row, () => text.value);
       if (item.assignedChecklist) { row.append(source, text); appendAssignmentControl(row, item, '改派会话'); appendTime(row, item); list.append(row); continue; }

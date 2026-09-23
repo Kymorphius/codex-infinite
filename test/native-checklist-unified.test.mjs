@@ -99,6 +99,21 @@ test('task cards start at one text line while multiline content and initial time
   assert.equal(row.children.at(-1).attrs.datetime, multiline.createdAt);
 });
 
+test('visible task rows are numbered before the date without changing task identity', () => {
+  const source = buildNativeProjectChecklistScript();
+  assert.match(source, /gap:5px;counter-reset:task/);
+  assert.match(source, /li\[data-checklist-row\]\{counter-increment:task\}/);
+  assert.match(source, /content:counter\(task\) '\.';order:-2/);
+  assert.match(source, /\[data-checklist-added\]\{order:-1/);
+  const h = harness({ mode: 'claim' });
+  assert.equal(h.rows().length, 2);
+  assert.ok(h.rows().every(row => row.attrs['data-checklist-row'] === ''));
+  h.query('alpha'); assert.equal(h.visible().length, 1);
+  assert.equal(h.visible()[0].attrs['data-checklist-row'], '');
+  const empty = harness({ mode: 'claim', items: [] });
+  assert.equal(empty.list.children[0].attrs['data-checklist-row'], undefined);
+});
+
 test('task rows use soft surfaces without stacked resting borders and retain keyboard focus cues', () => {
   const h = harness({ mode: 'claim' }), style = h.document.head.children[0].textContent;
   assert.match(style, /form,\[data-ccc-checklist\] \[data-checklist-search\]\{[^}]*border:0/);

@@ -15,7 +15,7 @@ export function createChecklistTimePresentation(readMetadata) {
     const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
     return {
       dateTime: createdAt,
-      label: `${day} ${clock}${createdAtEstimated ? ' · 估算' : ''}`,
+      label: `${day} ${clock}`,
       title: createdAtEstimated ? `原始加入时间未记录；根据旧版最后保存时间估算：${day} ${clock}:${pad(date.getSeconds())}` : `最初加入时间：${day} ${clock}:${pad(date.getSeconds())}`
     };
   }

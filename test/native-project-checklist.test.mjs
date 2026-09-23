@@ -246,7 +246,8 @@ test('legacy estimated and unknown times are explicit and assigned tasks retain 
   h.api.cacheGeneral([{ id: 'unknown', text: '缺时间', done: false }, old, { ...old, id: 'assigned', assignedThreadId: threadA }]); h.api.openGeneral();
   const rows = h.dialog.children[4].children;
   assert.equal(rows[0].children[1].value, old.text);
-  assert.match(rows[0].children.at(-1).textContent, /^2026-09-20 .* · 估算$/);
+  assert.match(rows[0].children.at(-1).textContent, /^2026-09-20 /);
+  assert.doesNotMatch(rows[0].children.at(-1).textContent, /估算/);
   assert.match(rows[0].children.at(-1).title, /最后保存时间估算/);
   assert.equal(rows[1].children.at(-1).textContent, '时间未记录');
   assert.equal(rows[2].children.at(-1).textContent, rows[0].children.at(-1).textContent);
