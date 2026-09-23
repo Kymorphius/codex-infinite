@@ -6,6 +6,7 @@ import { buildNativePinnedEmptyInjectionScript } from "./native-pinned-empty.mjs
 import { mergeProjectSearchCatalog } from "./federated-project-search.mjs";
 import { buildNativeProjectPathMenuScript } from "./native-project-path-menu.mjs";
 import { buildNativeProjectSearchInjectionScript, buildNativeProjectSearchSnapshotScript } from "./native-project-search.mjs";
+import { buildNativeSentMessageSearchInjectionScript, respondToSentMessageSearch, SENT_MESSAGE_SEARCH_BINDING } from './native-sent-message-search.mjs';
 import { buildNativeAttentionConversationsInjectionScript, buildNativeAttentionConversationsSnapshotScript } from "./native-attention-conversations.mjs";
 import { buildNativeRecentSentSnapshotScript } from "./native-recent-sent-conversations.mjs";
 import { buildNativeNewProjectsInjectionScript, buildNativeNewProjectsSnapshotScript } from "./native-new-projects.mjs";
@@ -82,6 +83,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeRecentSentSnapshotScript(recentSentConversations));
   await connection.evaluate(buildNativePinnedEmptyInjectionScript());
   await connection.evaluate(buildNativeProjectSearchInjectionScript());
+  await connection.evaluate(buildNativeSentMessageSearchInjectionScript());
   const search = mergeProjectSearchCatalog(projectSearch, remoteSidebar);
   await connection.evaluate(buildNativeProjectSearchSnapshotScript(search));
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
@@ -159,6 +161,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeNewProjectsInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeAttentionConversationsInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeProjectSearchInjectionScript() });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeSentMessageSearchInjectionScript() });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativePinnedEmptyInjectionScript() });
     connection.__codexControlConsoleScriptsPrepared = true;
   }
@@ -196,7 +199,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -210,6 +213,7 @@ export class CodexInjector {
     this.sidebarLabelProvider = sidebarLabelProvider;
     this.remoteSidebarProvider = remoteSidebarProvider;
     this.newProjectProvider = newProjectProvider;
+    this.sentMessageSearchService = sentMessageSearchService;
     this.attentionConversationProvider = attentionConversationProvider;
     this.recentSentConversationProvider = recentSentConversationProvider;
     this.turnStateProvider = turnStateProvider;
@@ -265,6 +269,9 @@ export class CodexInjector {
             this.jevActionChain = this.jevActionChain
               .then(() => respondToNativeJevRoutingBinding(event.params.payload, connection, this.jevRoutingService))
               .catch((error) => this.logger.warn(`[codex-control-console] Jev native routing failed: ${error.message}`));
+          } else if (event.params?.name === SENT_MESSAGE_SEARCH_BINDING && this.sentMessageSearchService) {
+            void respondToSentMessageSearch(event.params.payload, this.connection, this.sentMessageSearchService)
+              .catch((error) => this.logger.warn(`[codex-control-console] sent message search failed: ${error.message}`));
           }
         });
         this.targetId = target.id;
@@ -272,6 +279,7 @@ export class CodexInjector {
       await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
+      await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];
       await installIntoTarget(this.connection, this.dashboardUrl, {

@@ -8,6 +8,8 @@ import { RuntimeRestartService } from "./runtime-restart.mjs";
 import { NativeAppLaunchService } from "./native-app-launch.mjs";
 import { AttentionConversationService } from "./attention-conversation-service.mjs";
 import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
+import { GptContextCatalog } from './gpt-context-catalog.mjs';
+import { SentMessageSearchService } from './sent-message-search-service.mjs';
 import { NativeThreadReadStateAdapter } from "./native-thread-read-state.mjs";
 import { NewProjectService } from "./new-project-service.mjs";
 import { getConfig } from "./config.mjs";
@@ -143,6 +145,7 @@ export async function run() {
   const sidebarLabelService = new NativeSidebarLabelService({ adapter, localAdapter, currentThreadProjectIndex });
   const remoteSidebarService = new NativeRemoteSidebarService({ adapter });
   const newProjectService = new NewProjectService({ codexPath: config.codexPath, codexHome: config.nativeCodexHome, taskAdapter: localAdapter, statePath: path.join(config.wrapperCodexHome, "new-project-lifecycle.json"), projectStatePaths: [config.sourceCodexHome, config.wrapperCodexHome].map(home => path.join(home, ".codex-global-state.json")) });
+  const sentMessageSearchService = new SentMessageSearchService({ catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }) });
   const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
   const recentSentConversations = new RecentSentConversationService({ taskAdapter: localAdapter, archivedSessionRoot: config.archivedSessionRoot });
   const primaryAttentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: new NativeConversationAdapter({ cdpOrigin: config.primaryCdpOrigin }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.primaryCdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
@@ -217,6 +220,7 @@ export async function run() {
       sidebarLabelProvider: sidebarLabelService,
       remoteSidebarProvider: remoteSidebarService,
       newProjectProvider: newProjectService,
+      sentMessageSearchService,
       attentionConversationProvider: attentionConversations,
       recentSentConversationProvider: recentSentConversations,
       turnStateProvider: turnStateService,
@@ -225,7 +229,7 @@ export async function run() {
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
-      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
+      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
       await nativeOwnerInjector.start();
     }
     scheduler.start();

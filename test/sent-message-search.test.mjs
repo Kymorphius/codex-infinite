@@ -1,0 +1,91 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import vm from 'node:vm';
+import { findLatestSentMatch, SentMessageSearchService } from '../src/sent-message-search-service.mjs';
+import { buildNativeSentMessageSearchInjectionScript, respondToSentMessageSearch } from '../src/native-sent-message-search.mjs';
+
+test('search reads only real sent messages and returns the latest matching excerpt', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sent-search-'));
+  const file = path.join(root, 'thread.jsonl');
+  const line = (type, payload) => JSON.stringify({ type, payload, timestamp: '2026-09-23T09:00:00Z' });
+  try {
+    await fs.writeFile(file, [
+      line('response_item', { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'secret needle' }] }),
+      line('event_msg', { type: 'user_message', message: '# AGENTS.md instructions\nneedle' }),
+      line('event_msg', { type: 'user_message', message: '<codex_delegation><source_thread_id>01a04cd6-8d30-78f1-b2a7-f760d148f744</source_thread_id><input>needle</input></codex_delegation>' }),
+      line('response_item', { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Find my ＮＥＥＤＬＥ project' }] }),
+      line('event_msg', { type: 'user_message', message: 'Later needle details' })
+    ].join('\n'));
+    assert.match((await findLatestSentMatch(file, 'needle')).excerpt, /Later needle details/);
+    assert.equal(await findLatestSentMatch(file, 'secret'), null);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('search skips archived and internal threads, caps results and reports missing history', async () => {
+  const read = [];
+  const service = new SentMessageSearchService({
+    catalog: { async snapshot() { return { truncated: false, conversations: [
+      { id: 'one', title: 'One', transcriptPath: '/one', updatedAt: '2026-09-23', archived: false },
+      { id: 'old', transcriptPath: '/old', archived: true },
+      { id: 'internal', transcriptPath: '/internal', internal: true },
+      { id: 'broken', transcriptPath: '/broken' }
+    ] }; }, async transcriptPath(item) { if (item.id === 'broken') throw Error('missing'); return item.transcriptPath; } },
+    async readMatch(file, query) { read.push([file, query]); return { excerpt: 'needle here', at: '2026-09-23' }; }
+  });
+  assert.deepEqual(await service.search(''), { items: [], incomplete: false });
+  const result = await service.search('ＮＥＥＤＬＥ');
+  assert.deepEqual(read, [['/one', 'needle']]);
+  assert.equal(result.items[0].id, 'one');
+  assert.equal(result.incomplete, true);
+});
+
+test('native injection compiles and binding returns bounded result to renderer', async () => {
+  new vm.Script(buildNativeSentMessageSearchInjectionScript());
+  let script;
+  await respondToSentMessageSearch(JSON.stringify({ id: 4, query: 'needle' }), { async evaluate(value) { script = value; } },
+    { async search() { return { items: [{ id: 'one', title: '<safe>', excerpt: 'needle' }], incomplete: false }; } });
+  let received;
+  vm.runInNewContext(script, { window: { __codexControlConsoleSentMessageSearch: { receive(value) { received = value; } } } });
+  assert.equal(received.id, 4);
+  assert.equal(received.items[0].title, '<safe>');
+  assert.equal(script.includes('<safe>'), false);
+});
+
+test('sidebar button opens a separate panel and a result navigates to its conversation', () => {
+  class Node {
+    constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.style = {}; this.attrs = {}; this.parentElement = null; if (tag === 'input') this.value = ''; }
+    append(...nodes) { for (const node of nodes) { this.children.push(node); node.parentElement = this; } }
+    insertBefore(node, before) { node.remove(); const at = before ? this.children.indexOf(before) : -1; this.children.splice(at < 0 ? this.children.length : at, 0, node); node.parentElement = this; }
+    remove() { if (this.parentElement) this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1); this.parentElement = null; }
+    get nextSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) + 1] || null; }
+    get previousSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) - 1] || null; }
+    setAttribute(key, value) { this.attrs[key] = value; }
+    addEventListener(key, fn) { this.listeners[key] = fn; }
+    replaceChildren() { for (const child of this.children) child.parentElement = null; this.children = []; }
+    querySelector(tag) { return this.children.find(child => child.tag === tag); }
+    focus() { this.focused = true; }
+  }
+  const parent = new Node('div'), projectSearch = new Node('div'), body = new Node('body');
+  projectSearch.className = 'sidebar'; parent.append(projectSearch);
+  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : null; }, createElement: tag => new Node(tag) };
+  const routes = [], calls = [];
+  const window = { __codexControlConsoleSearchSentMessages: value => calls.push(JSON.parse(value)), postMessage: value => routes.push(value.path) };
+  const context = vm.createContext({ document, window, MutationObserver: class { observe() {} disconnect() {} }, setTimeout: fn => { fn(); return 1; }, clearTimeout() {} });
+  vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
+  const launch = parent.children[1].children[0];
+  assert.equal(launch.textContent, '搜索发送内容');
+  launch.listeners.click();
+  const panel = body.children[0];
+  assert.equal(panel.hidden, false);
+  const dialog = panel.children[0], input = dialog.children[1].children[0], results = dialog.children[3];
+  input.value = 'needle'; input.listeners.input();
+  assert.equal(calls[0].query, 'needle');
+  window.__codexControlConsoleSentMessageSearch.receive({ id: calls[0].id, items: [{ id: 'one', title: 'Found', excerpt: 'the needle' }], incomplete: false });
+  assert.equal(results.children[1].children[1].textContent, 'the needle');
+  results.children[1].listeners.click();
+  assert.equal(panel.hidden, true);
+  assert.deepEqual(routes, ['/local/one']);
+});

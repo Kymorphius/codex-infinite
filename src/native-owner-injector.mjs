@@ -1,5 +1,6 @@
 import { buildNativePinnedEmptyInjectionScript } from "./native-pinned-empty.mjs";
 import { buildNativeProjectSearchInjectionScript, buildNativeProjectSearchSnapshotScript } from "./native-project-search.mjs";
+import { buildNativeSentMessageSearchInjectionScript, respondToSentMessageSearch, SENT_MESSAGE_SEARCH_BINDING } from './native-sent-message-search.mjs';
 import { buildNativeAttentionConversationsInjectionScript, buildNativeAttentionConversationsSnapshotScript } from "./native-attention-conversations.mjs";
 import { buildNativeNewProjectsInjectionScript, buildNativeNewProjectsSnapshotScript } from "./native-new-projects.mjs";
 import { CdpConnection, chooseMainTarget, discoverTargets } from "./cdp-client.mjs";
@@ -27,6 +28,7 @@ function nativeOwnerInjectionScripts() {
   return [
     buildNativePinnedEmptyInjectionScript(),
     buildNativeProjectSearchInjectionScript(),
+    buildNativeSentMessageSearchInjectionScript(),
     buildNativeContextInjectionScript(),
     buildNativeApprovalInjectionScript(),
     buildNativeJevRoutingInjectionScript(),
@@ -57,7 +59,7 @@ export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
 }
 
 export class NativeOwnerInjector {
-  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, attentionConversationProvider = null, turnStateProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, turnStateProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
     this.contextWindowStore = contextWindowStore;
     this.turboPolicyProvider = turboPolicyProvider;
@@ -66,6 +68,7 @@ export class NativeOwnerInjector {
     this.sidebarLabelProvider = sidebarLabelProvider;
     this.remoteSidebarProvider = remoteSidebarProvider;
     this.newProjectProvider = newProjectProvider;
+    this.sentMessageSearchService = sentMessageSearchService;
     this.attentionConversationProvider = attentionConversationProvider;
     this.turnStateProvider = turnStateProvider;
     this.pollMs = pollMs;
@@ -97,6 +100,7 @@ export class NativeOwnerInjector {
       await connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
+      await connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       for (const source of nativeOwnerDocumentStartScripts()) {
         await connection.send("Page.addScriptToEvaluateOnNewDocument", { source });
       }
@@ -118,6 +122,9 @@ export class NativeOwnerInjector {
         this.jevActionChain = this.jevActionChain
           .then(() => respondToNativeJevRoutingBinding(event.params.payload, connection, this.jevRoutingService))
           .catch((error) => this.logger.warn(`[codex-control-console] primary Jev native routing failed: ${error.message}`));
+      } else if (event.params?.name === SENT_MESSAGE_SEARCH_BINDING && this.sentMessageSearchService) {
+        void respondToSentMessageSearch(event.params.payload, connection, this.sentMessageSearchService)
+          .catch((error) => this.logger.warn(`[codex-control-console] primary sent message search failed: ${error.message}`));
       }
     }) || null;
     this.connection = connection;
@@ -133,6 +140,7 @@ export class NativeOwnerInjector {
       await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
+      await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       for (const source of nativeOwnerInjectionScripts()) await this.connection.evaluate(source);
       await this.connection.evaluate(buildNativeContextSnapshotScript(this.contextWindowStore?.list?.() || []));
       await this.connection.evaluate(buildNativeTurboSnapshotScript(this.turboPolicyProvider?.snapshot?.() || null));
