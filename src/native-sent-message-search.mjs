@@ -16,7 +16,7 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.1';
+  const VERSION = '2026-09-23.2';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) return;
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
   let root, panel, input, results, timer, observer, requestId = 0, active = false;
@@ -25,22 +25,31 @@ export function installNativeSentMessageSearch() {
     if (value != null) node.textContent = value;
     return node;
   };
+  const status = value => {
+    const node = make('div', 'px-1 py-1 text-sm text-tertiary', value);
+    Object.assign(node.style, { padding: '7px 4px', color: '#aaa', fontSize: '13px' });
+    return node;
+  };
   function show(value) {
     if (!results) return;
     results.replaceChildren();
     if (!input?.value.trim()) return;
     if (typeof value === 'string') {
-      results.append(make('div', 'px-1 py-1 text-sm text-tertiary', value));
+      results.append(status(value));
       return;
     }
-    results.append(make('div', 'px-1 py-1 text-sm text-tertiary', value.error ||
+    results.append(status(value.error ||
       (value.items.length ? `${value.items.length} 个会话${value.incomplete ? ' · 结果可能不完整' : ''}` :
         value.incomplete ? '没有匹配结果 · 部分历史暂不可读取' : '没有匹配的已发送消息')));
     for (const item of value.items) {
       const row = make('button', 'sidebar-item w-full px-2 py-1 text-start hover:bg-primary-ghost-hover');
+      Object.assign(row.style, { display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'transparent', color: 'inherit', border: '0', borderBottom: '1px solid #383838', cursor: 'pointer' });
       row.type = 'button'; row.setAttribute('data-sent-message-search-thread-id', item.id);
-      row.append(make('div', 'truncate text-sm text-default', item.title));
-      row.append(make('div', 'line-clamp-2 text-xs text-tertiary', item.excerpt));
+      const title = make('div', 'truncate text-sm text-default', item.title);
+      Object.assign(title.style, { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px', fontWeight: '600' });
+      const excerpt = make('div', 'line-clamp-2 text-xs text-tertiary', item.excerpt);
+      Object.assign(excerpt.style, { marginTop: '4px', color: '#b5b5b5', fontSize: '12px', lineHeight: '1.5', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical' });
+      row.append(title, excerpt);
       row.addEventListener('click', () => {
         window.__codexControlConsoleClose?.();
         window.__codexControlConsoleConversationTabs?.openLocal?.({ id: item.id, title: item.title });
@@ -86,20 +95,35 @@ export function installNativeSentMessageSearch() {
       launch.type = 'button'; launch.setAttribute('aria-haspopup', 'dialog'); launch.addEventListener('click', open);
       root.append(launch);
       panel = make('div', 'fixed inset-0 z-[9999] flex items-start justify-center bg-black/50 p-6 pt-[10vh]', null);
+      Object.assign(panel.style, {
+        position: 'fixed', inset: '0', zIndex: '2147483000', boxSizing: 'border-box',
+        alignItems: 'flex-start', justifyContent: 'center', padding: 'min(10vh, 90px) 20px 20px',
+        background: 'rgba(0, 0, 0, 0.72)'
+      });
       panel.hidden = true;
       panel.style.display = 'none';
       panel.setAttribute('data-codex-control-console-sent-message-panel', '');
       panel.addEventListener('click', event => { if (event.target === panel) close(); });
       panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } });
       const dialog = make('div', 'w-full max-w-2xl rounded-xl border border-token-border-default bg-primary p-4 shadow-xl', null);
+      Object.assign(dialog.style, {
+        boxSizing: 'border-box', width: '100%', maxWidth: '720px', maxHeight: '80vh',
+        overflow: 'hidden', border: '1px solid #505050', borderRadius: '14px',
+        background: '#202020', color: '#f5f5f5', padding: '20px',
+        boxShadow: '0 20px 65px rgba(0, 0, 0, 0.55)'
+      });
       dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true');
       dialog.setAttribute('aria-label', '搜索已发送消息');
       const heading = make('div', 'mb-3 flex items-center justify-between text-base text-default', null);
+      Object.assign(heading.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', fontSize: '17px' });
       heading.append(make('span', '', '搜索已发送消息'));
       const dismiss = make('button', 'rounded px-2 py-1 text-sm text-tertiary', '关闭');
+      Object.assign(dismiss.style, { padding: '4px 8px', background: 'transparent', color: '#ccc', border: '0', cursor: 'pointer' });
       dismiss.type = 'button'; dismiss.addEventListener('click', close); heading.append(dismiss);
       const bar = make('div', 'flex items-center rounded-md border border-token-border-default px-2');
+      Object.assign(bar.style, { display: 'flex', alignItems: 'center', padding: '0 10px', border: '1px solid #606060', borderRadius: '8px' });
       input = make('input', 'min-w-0 flex-1 bg-transparent py-1 text-base text-default outline-none');
+      Object.assign(input.style, { flex: '1', minWidth: '0', background: 'transparent', color: '#f5f5f5', border: '0', outline: '0', padding: '10px 0', fontSize: '15px' });
       input.type = 'search'; input.placeholder = '输入你发送过的文字';
       input.setAttribute('aria-label', '搜索本机已发送消息');
       input.addEventListener('input', search);
@@ -109,7 +133,10 @@ export function installNativeSentMessageSearch() {
       results = make('div', 'flex flex-col', null);
       results.setAttribute('aria-label', '已发送消息搜索结果');
       results.style.maxHeight = '60vh'; results.style.overflowY = 'auto';
-      bar.append(input); dialog.append(heading, bar, make('div', 'my-2 text-xs text-tertiary', '搜索范围：本机未归档会话中你发送的消息'), results);
+      results.style.marginTop = '10px';
+      const scope = make('div', 'my-2 text-xs text-tertiary', '搜索范围：本机未归档会话中你发送的消息');
+      Object.assign(scope.style, { margin: '10px 0', color: '#aaa', fontSize: '12px' });
+      bar.append(input); dialog.append(heading, bar, scope, results);
       panel.append(dialog); document.body.append(panel);
       root.addEventListener('pointerdown', event => event.stopPropagation());
     }

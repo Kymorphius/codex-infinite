@@ -42,6 +42,20 @@ test('search skips archived and internal threads, caps results and reports missi
   assert.equal(result.incomplete, true);
 });
 
+test('root search finds user text with full-width letters without matching assistant text', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sent-search-roots-'));
+  const file = path.join(root, 'thread.jsonl');
+  try {
+    await fs.writeFile(file, [
+      JSON.stringify({ timestamp: '2026-09-22T01:00:00Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'exclusive assistant' }] } }),
+      JSON.stringify({ timestamp: '2026-09-23T01:00:00Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Find ＮＥＥＤＬＥ here' }] } })
+    ].join('\n'));
+    const service = new SentMessageSearchService({ catalog: { sessionRoots: [root], async snapshot() { return { truncated: false, conversations: [{ id: 'one', title: 'One', transcriptPath: file }] }; }, async transcriptPath() { return file; } } });
+    assert.equal((await service.search('needle')).items[0].id, 'one');
+    assert.deepEqual((await service.search('exclusive')).items, []);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
 test('native injection compiles and binding returns bounded result to renderer', async () => {
   new vm.Script(buildNativeSentMessageSearchInjectionScript());
   let script;
