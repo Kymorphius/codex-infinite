@@ -3,6 +3,7 @@ import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
 import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-recovery.mjs";
 import { installNativeProjectManagementEntry } from "./native-project-management-entry.mjs";
 import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
+import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "./native-entry-probe.mjs";
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -35,7 +36,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-23.csp-preflight1.tabs-${digest}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-23.content-mutation1.tabs-${digest}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -47,6 +48,8 @@ export function buildInjectionScript(dashboardUrl) {
 
 ${nativeConversationTabsSource}
 ${embeddedFrameRecoverySource}
+${findNativeEntryAnchor.toString()}
+${nativeEntryMutationNeedsInstall.toString()}
 
   if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
@@ -65,12 +68,7 @@ ${embeddedFrameRecoverySource}
   let frame = null;
   const entryIcons = ${JSON.stringify(NATIVE_ENTRY_ICONS)};
 
-  function nativeAnchor() {
-    return Array.from(document.querySelectorAll('button.sidebar-item, button')).find((element) => {
-      const text = normalize(element.innerText || element.textContent);
-      return ['插件', 'Apps', '站点', 'Sites', '已安排', 'Scheduled'].includes(text);
-    }) || null;
-  }
+  const nativeAnchor = () => findNativeEntryAnchor(document, normalize);
 
   function workspaceCandidate() {
     const isVisibleCandidate = (element) => {
@@ -305,7 +303,9 @@ ${embeddedFrameRecoverySource}
   });
 
   function scheduleInstall(records = []) {
-    for (const subscriber of window.__codexControlConsoleMutationSubscribers || []) { try { subscriber(records); } catch {} } if (observerTimer) clearTimeout(observerTimer);
+    for (const subscriber of window.__codexControlConsoleMutationSubscribers || []) { try { subscriber(records); } catch {} }
+    if (!nativeEntryMutationNeedsInstall(records)) return;
+    if (observerTimer) clearTimeout(observerTimer);
     observerTimer = setTimeout(installEntry, 30);
   }
 

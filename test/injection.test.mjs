@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
+import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "../src/native-entry-probe.mjs";
 import {
   buildInjectionScript,
   injectionDecision,
@@ -17,10 +18,27 @@ test("injection decision is idempotent once the marker exists", () => {
   assert.equal(injectionDecision({ hasEntry: false, hasAnchor: false }), "wait-for-native-entry");
 });
 
+test("content-only mutations do not rescan native entries, but host remounts still do", () => {
+  const content = { closest: () => ({}) };
+  const host = { closest: () => null };
+  assert.equal(nativeEntryMutationNeedsInstall([{ target: content }, { target: content }]), false);
+  assert.equal(nativeEntryMutationNeedsInstall([{ target: content }, { target: host }]), true);
+  assert.equal(nativeEntryMutationNeedsInstall([{ target: host }]), true);
+  assert.equal(nativeEntryMutationNeedsInstall([]), true);
+  const source = buildInjectionScript("http://127.0.0.1:47831");
+  assert.match(source, /if \(!nativeEntryMutationNeedsInstall\(records\)\) return/);
+  assert.match(source, /subscriber\(records\); \} catch \{\} \}\s+if \(!nativeEntryMutationNeedsInstall/);
+});
+
+test("native entry anchor lookup retains its original label selection", () => {
+  const unrelated = { innerText: '设置' }, anchor = { innerText: '插件' };
+  assert.equal(findNativeEntryAnchor({ querySelectorAll: () => [unrelated, anchor] }, value => value.trim()), anchor);
+});
+
 test("outer injection version tracks native tabs source so recent menu changes replace an old installation", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831");
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
-  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-23\\.csp-preflight1\\.tabs-${digest}"`));
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-23\\.content-mutation1\\.tabs-${digest}"`));
   assert.doesNotMatch(source, /发送于 /);
 });
 
