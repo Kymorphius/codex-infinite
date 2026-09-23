@@ -87,6 +87,10 @@
 :root[data-theme="dark"] .session-device-role[data-role="local"] { background: #35284d; color: #c3a7ff !important; }
 :root[data-theme="dark"] .task-open,
 :root[data-theme="dark"] .session-view-actions { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface-raised); color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .session-model-bulk { border-color: var(--native-ui-border); background: var(--native-ui-surface-raised); color: var(--native-ui-text-primary); }
+:root[data-theme="dark"] .session-model-bulk-body label,
+:root[data-theme="dark"] .session-model-bulk-body p { color: var(--native-ui-text-secondary); }
+:root[data-theme="dark"] .session-model-bulk-body select { border-color: var(--native-ui-border-strong); background: var(--native-ui-surface); color: var(--native-ui-text-primary); }
 :root[data-theme="dark"] .task-open:hover,
 :root[data-theme="dark"] .session-view-actions button:hover:not(:disabled),
 :root[data-theme="dark"] .session-clear-filter:hover { background: var(--native-ui-surface-hover); color: #fff; }

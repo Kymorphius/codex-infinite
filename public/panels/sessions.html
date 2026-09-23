@@ -19,6 +19,16 @@
               </div>
               <span class="session-result-count" data-testid="session-result-count">—</span>
             </div>
+            <details class="session-model-bulk" data-testid="session-model-bulk">
+              <summary>统一更换会话模型</summary>
+              <div class="session-model-bulk-body">
+                <label>当前模型<select data-testid="session-bulk-source"></select></label>
+                <label>更换为<select data-testid="session-bulk-target"></select></label>
+                <p data-testid="session-bulk-preview" aria-live="polite">正在读取可用模型…</p>
+                <button class="primary-button" type="button" data-testid="session-bulk-apply" disabled>应用到匹配会话</button>
+                <p data-testid="session-bulk-result" aria-live="polite"></p>
+              </div>
+            </details>
             <div class="sessions-state state-card" data-sessions-state="loading">
               <div class="spinner" aria-hidden="true"></div><h3>正在读取原生会话</h3><p>从包装版共享的 Codex 会话目录建立只读索引。</p>
             </div>

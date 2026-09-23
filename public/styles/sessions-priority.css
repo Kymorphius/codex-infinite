@@ -2,6 +2,12 @@
 .sessions-heading { margin-bottom: 10px; }
 .sessions-heading h2 { margin-bottom: 0; font-size: var(--native-ui-page-title-size); line-height: var(--native-ui-page-title-line); }
 .session-controls { position: sticky; top: 8px; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px; border: 1px solid #e1e1e4; border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: 0 8px 24px rgba(0,0,0,.035); backdrop-filter: blur(16px); }
+.session-model-bulk { margin: 0 0 12px; padding: 10px 14px; border: 1px solid #e1e1e4; border-radius: 12px; background: #fff; }
+.session-model-bulk summary { cursor: pointer; font-weight: 650; }
+.session-model-bulk-body { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; padding-top: 12px; }
+.session-model-bulk-body label { display: grid; gap: 5px; min-width: 190px; font-size: 12px; color: #68686e; }
+.session-model-bulk-body select { padding: 8px; border: 1px solid #dedee2; border-radius: 8px; background: #fff; color: #29292d; }
+.session-model-bulk-body p { flex-basis: 100%; margin: 0; color: #68686e; font-size: 12px; }
 .session-search { flex: 1 1 280px; }
 .session-status-filter { flex: 0 0 132px; }
 .session-search input, .session-status-filter select { width: 100%; height: 36px; border: 1px solid #dedee2; border-radius: 8px; outline: 0; background: #fafafa; color: #353539; font: 500 var(--native-ui-meta-size)/var(--native-ui-meta-line) var(--native-ui-font); }

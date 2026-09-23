@@ -102,3 +102,15 @@ test("failed native acknowledgement leaves the context store untouched", async (
   await assert.rejects(() => service.update({ threadId, changes: { contextOverrideState: "extended" } }), /native rejected/);
   assert.equal(writes, 0);
 });
+
+test("bulk replacement rejects a changed source model before native application", async () => {
+  let applied = 0;
+  const service = new RemoteThreadSettingsService({
+    localAdapter: { async getTask() { return { ...task, model: "gpt-5.6-terra" }; } },
+    nativeAdapter: { async apply() { applied += 1; } },
+    modelCatalog: { async listOptions() { return models; } }
+  });
+  await assert.rejects(() => service.update({ threadId, changes: { model: "gpt-5.6-sol" }, expectedModel: "gpt-5.6-sol" }), /模型已变化/);
+  assert.equal(applied, 0);
+  assert.equal(validateThreadSettingsTransport({ threadId, changes: { model: "gpt-5.6-terra" }, expectedModel: "gpt-5.6-sol" }).expectedModel, "gpt-5.6-sol");
+});

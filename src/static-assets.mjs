@@ -9,7 +9,7 @@ const coreNames = ["dom", "format", "navigation", "project-priority", "refresh-p
 const featureNames = ["runtime", "console", "context", "dispatch", "generators", "jev-routing", "priority", "sessions", "experiments", "skills", "turbo", "zotero"];
 const dispatchSupportFiles = ["details"];
 const skillSupportFiles = ["group-actions"];
-const sessionSupportFiles = ["approval-model", "conversation-model", "conversation-tabs", "disclosure", "draft-sync", "execution-view", "markdown-view", "model", "project-copy", "remote-approvals", "remote-conversation", "settings-controller"];
+const sessionSupportFiles = ["approval-model", "conversation-model", "conversation-tabs", "disclosure", "draft-sync", "execution-view", "markdown-view", "model", "model-bulk", "project-copy", "remote-approvals", "remote-conversation", "settings-controller"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
 const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "jev-routing", "responsive"];
 const panelFiles = ["board", "generators", "jev-routing", "context", "console", "sessions", "priority", "experiments", "skills", "zotero"].map((name) => `panels/${name}.html`);

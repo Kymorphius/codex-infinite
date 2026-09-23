@@ -82,7 +82,8 @@ export function validateThreadSettingsTransport(input = {}) {
     if (!["extended", "default"].includes(changes.contextOverrideState)) throw httpError(400, "上下文状态无效");
     normalized.contextOverrideState = changes.contextOverrideState;
   }
-  return Object.freeze({ threadId, changes: Object.freeze(normalized) });
+  const expectedModel = input.expectedModel === undefined ? undefined : boundedText(input.expectedModel, 120, "预期模型无效");
+  return Object.freeze({ threadId, changes: Object.freeze(normalized), ...(expectedModel === undefined ? {} : { expectedModel }) });
 }
 
 export function validateThreadSettingsChange(input = {}, { current = {}, options = normalizeSettingsOptions() } = {}) {
@@ -211,6 +212,7 @@ export class RemoteThreadSettingsService {
     const transported = validateThreadSettingsTransport(input);
     const task = await this.localAdapter.getTask(transported.threadId);
     if (!task) throw httpError(404, "所属节点不存在这个会话");
+    if (transported.expectedModel !== undefined && task.model !== transported.expectedModel) throw httpError(409, "会话模型已变化，请刷新后重试");
     if (!this.nativeAdapter?.apply) throw httpError(503, "所属节点的原生设置服务不可用");
     const options = await this.options();
     const normalized = validateThreadSettingsChange(transported, { current: task, options });

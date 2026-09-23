@@ -4,6 +4,7 @@ import { deviceHostLabel, deviceRoleLabel, filterSessions, groupSessionsByDevice
 import { createRemoteConversation } from "./remote-conversation.js";
 import { createProjectCopyControl } from "./project-copy.js";
 import { createConversationTabs } from "./conversation-tabs.js";
+import { createModelBulkControl } from "./model-bulk.js";
 
 export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
@@ -20,6 +21,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   });
   remoteConversation = createRemoteConversation({ $, formatDate, fetchImpl, onRequestClose: () => conversationTabs.showHome() });
   const projectCopy = createProjectCopyControl({ fetchImpl });
+  const modelBulk = createModelBulkControl({ state, $, fetchImpl, onChanged: () => render() });
   const filter = { query: "", status: "all" };
   const disclosure = new SessionDisclosureState();
   let visibleDevices = [];
@@ -154,6 +156,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   }
 
   function render() {
+    modelBulk.render();
     const tasks = filterSessions(state.tasks, filter);
     visibleDevices = groupSessionsByDevice(state.devices, tasks);
     list.replaceChildren(...visibleDevices.map(deviceCard));
@@ -180,6 +183,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   }
 
   function bind() {
+    modelBulk.bind();
     search.addEventListener("input", () => { filter.query = search.value.trim().slice(0, 200); render(); });
     statusFilter.addEventListener("change", () => { filter.status = statusFilter.value; render(); });
     clearFilter.addEventListener("click", () => { search.value = ""; statusFilter.value = "all"; filter.query = ""; filter.status = "all"; render(); search.focus(); });

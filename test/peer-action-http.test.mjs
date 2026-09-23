@@ -50,6 +50,10 @@ test("browser remote messages require exact origin and owner actions require a n
   const browserSettings = JSON.stringify({ changes: { reasoningEffort: "high" } });
   assert.equal((await fetch(`${origin}/api/tasks/thread-1/settings?device=forest-mac`, { method: "POST", headers: { "content-type": "application/json" }, body: browserSettings })).status, 403);
   assert.equal((await fetch(`${origin}/api/tasks/thread-1/settings?device=forest-mac`, { method: "POST", headers: { origin: config.dashboardOrigin, "content-type": "application/json" }, body: browserSettings })).status, 202);
+  remoteThreadSettingsService.localAdapter = { device: { id: "local-mac" } };
+  const localSettings = JSON.stringify({ changes: { model: "gpt-6-sol" }, expectedModel: "gpt-5.6-sol" });
+  assert.equal((await fetch(`${origin}/api/tasks/thread-1/settings?device=local-mac`, { method: "POST", headers: { origin: config.dashboardOrigin, "content-type": "application/json" }, body: localSettings })).status, 202);
+  assert.ok(calls.some((call) => call[0] === "settings-owner" && call[1] === "thread-1"));
 
   const ownerPath = "/api/node/actions/message";
   const ownerBody = Buffer.from(JSON.stringify({ threadId: "thread-1", prompt: "owner executes" }));
@@ -105,6 +109,7 @@ test("browser remote messages require exact origin and owner actions require a n
     ["control-route", "thread-1", "forest-mac", "interrupt", "01a04446-8d03-7243-a4d3-181180bb626e"],
     ["control-route", "thread-1", "forest-mac", "resolveApproval", "01a04446-8d03-7243-a4d3-181180bb626e"],
     ["settings-route", "thread-1", "forest-mac", { reasoningEffort: "high" }],
+    ["settings-owner", "thread-1", { model: "gpt-6-sol" }],
     ["owner", "thread-1", "owner executes"],
     ["draft-owner", "thread-1", "", "a".repeat(64)],
     ["control-owner", "thread-1", "01a04446-8d03-7243-a4d3-181180bb626e", "interrupt"],

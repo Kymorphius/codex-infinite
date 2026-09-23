@@ -249,12 +249,12 @@ export class SshPeerAdapter {
     throw error;
   }
 
-  async updateSettings(threadId, changes = {}) {
-    const normalized = validateThreadSettingsTransport({ threadId, changes });
+  async updateSettings(threadId, changes = {}, expectedModel) {
+    const normalized = validateThreadSettingsTransport({ threadId, changes, expectedModel });
     const key = await loadActionKey(this.actionKeyPath);
     const timestamp = String(Date.now());
     const nonce = crypto.randomUUID();
-    const body = Buffer.from(JSON.stringify({ threadId: normalized.threadId, changes: normalized.changes, requestId: nonce }), "utf8");
+    const body = Buffer.from(JSON.stringify({ threadId: normalized.threadId, changes: normalized.changes, expectedModel: normalized.expectedModel, requestId: nonce }), "utf8");
     const headers = { [ACTION_HEADERS.timestamp]: timestamp, [ACTION_HEADERS.nonce]: nonce };
     headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: SETTINGS_ACTION_PATH, timestamp, nonce, body });
     for (const transport of this.peer.transports) {

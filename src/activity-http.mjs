@@ -29,7 +29,8 @@ export function createActivityHttpHandler({ adapter, localAdapter, remoteMessage
       sendJson(response, 400, { status: "error", message: "缺少会话所属设备" });
       return true;
     }
-    let activity = match.owner ? await localAdapter.getActivity(match.id) : await adapter.getActivity(match.id, deviceId);
+    const isLocal = deviceId === localAdapter.device?.id;
+    let activity = isLocal ? await localAdapter.getActivity(match.id) : await adapter.getActivity(match.id, deviceId);
     if (match.owner && activity && remoteMessageService) {
       const [draft, approvals] = await Promise.all([
         remoteMessageService.readDraft(match.id),
@@ -37,7 +38,7 @@ export function createActivityHttpHandler({ adapter, localAdapter, remoteMessage
       ]);
       activity = { ...activity, draft, approvals };
     }
-    if (match.owner && activity && remoteThreadSettingsService) activity = await remoteThreadSettingsService.decorateActivity(activity);
+    if (isLocal && activity && remoteThreadSettingsService) activity = await remoteThreadSettingsService.decorateActivity(activity);
     if (!activity) sendJson(response, 404, { status: "error", message: "会话不存在或已不可读" });
     else if (match.owner) sendJson(response, 200, activity);
     else sendJson(response, 200, { status: "ok", activity });

@@ -43,7 +43,9 @@ export function createPeerActionHttpHandler({ adapter, remoteMessageService, rem
           ? await adapter.updateDraft(browser.threadId, deviceId, input.text, input.expectedDraftRevision)
         : browser.kind === "control"
           ? await adapter.control(browser.threadId, deviceId, input)
-          : await adapter.updateSettings(browser.threadId, deviceId, input.changes);
+          : deviceId === remoteThreadSettingsService?.localAdapter?.device?.id
+            ? await remoteThreadSettingsService.update({ threadId: browser.threadId, changes: input.changes, expectedModel: input.expectedModel })
+            : await adapter.updateSettings(browser.threadId, deviceId, input.changes, input.expectedModel);
       if (!result) throw httpError(404, "会话所属节点不可用");
       sendJson(response, 202, { status: "ok", ...result });
       return true;
