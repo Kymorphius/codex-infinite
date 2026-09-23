@@ -62,18 +62,22 @@ test('all checklist entry points share search and multiline direct editing while
   }
 });
 
-test('ordinary checklists show add above search with icons, while both claim views hide add', () => {
+test('checklist controls use monochrome SVG icons and a clear hierarchy, while both claim views hide add', () => {
   const source = buildNativeProjectChecklistScript();
-  assert.match(source, /form::before\{content:'＋'/);
-  assert.match(source, /\[data-checklist-search\]::before\{content:'🔍'/);
-  assert.match(source, /form\{order:1\}/);
-  assert.match(source, /\[data-checklist-controls\]\{display:flex;flex-direction:column;order:2\}/);
+  assert.match(source, /encodeURIComponent/);
+  assert.match(source, /M12 5v14M5 12h14/);
+  assert.match(source, /<circle cx="11" cy="11" r="7"\/>/);
+  assert.doesNotMatch(source, /🔍|＋/);
+  assert.match(source, /\[data-checklist-controls\] p\{order:1\}/);
+  assert.match(source, /form\{order:2\}/);
+  assert.match(source, /\[data-checklist-search\]\{order:3\}/);
   for (const mode of ['project', 'general', 'claim', 'new-claim']) {
     const h = harness({ mode }), form = h.dialog.children[2], controls = h.dialog.children[1];
     assert.equal(controls.children[1], h.searchRoot);
     assert.equal(h.dialog.children[0].children.length, 2);
     assert.equal(form.hidden, mode === 'claim' || mode === 'new-claim');
     assert.equal(h.dialog.dataset.claim, String(form.hidden));
+    assert.match(h.document.head.children[0].textContent, /data:image\/svg\+xml,/);
   }
   const h = harness({ mode: 'claim' });
   h.api.openGeneral(); assert.equal(h.dialog.children[2].hidden, false);

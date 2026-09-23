@@ -9,7 +9,7 @@ import { createChecklistSearch } from './native-checklist-search.mjs';
 import { createNativeChecklistThreadStarter, createNativeChecklistNewThreadClaim } from './native-checklist-new-thread-claim.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim) {
-  const VERSION = '2026-09-23.claim-layout1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.claim-layout2', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -19,30 +19,37 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   const make = (tag, text) => { const node = document.createElement(tag); if (text) node.textContent = text; return node; };
   const time = createTimePresentation(readTime);
   const search = createSearch(make);
+  const icon = body => 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + body + '</svg>') + '")';
+  const addIcon = icon('<path d="M12 5v14M5 12h14"/>');
+  const searchIcon = icon('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>');
   const style = make('style'); style.textContent = `
-    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(600px,calc(100vw - 48px));max-height:80vh;padding:24px;border:1px solid #8885;border-radius:16px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 20px 80px #0006;font:14px/1.5 system-ui}
+    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(640px,calc(100vw - 40px));max-height:82vh;padding:22px;border:1px solid #8885;border-radius:18px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 24px 80px #0008;font:14px/1.5 system-ui}
     [data-ccc-checklist]::backdrop{background:#0006}
-    [data-ccc-checklist][open]{display:flex;flex-direction:column}
-    [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;order:0}
-    [data-ccc-checklist] form{order:1}[data-ccc-checklist] [data-checklist-controls]{display:flex;flex-direction:column;order:2}
-    [data-ccc-checklist] > :not(header):not(form):not([data-checklist-controls]){order:3}
-    [data-ccc-checklist] [data-checklist-search]{display:flex;align-items:center;gap:8px}
-    [data-ccc-checklist] form::before,[data-ccc-checklist] [data-checklist-search]::before{align-self:center;flex:none;width:22px;text-align:center;color:var(--color-text-secondary,#aaa)}
-    [data-ccc-checklist] form::before{content:'＋';font-size:22px;line-height:1}
-    [data-ccc-checklist] [data-checklist-search]::before{content:'🔍';font-size:16px;line-height:1}
-    [data-ccc-checklist][data-claim=true] [data-checklist-search]{order:-1}
+    [data-ccc-checklist][open]{display:flex;flex-direction:column;gap:10px}
+    [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;order:0}
+    [data-ccc-checklist] [data-checklist-controls]{display:contents}
+    [data-ccc-checklist] [data-checklist-controls] p{order:1}
+    [data-ccc-checklist] form{order:2}[data-ccc-checklist] [data-checklist-search]{order:3}
+    [data-ccc-checklist] > :not(header):not(form):not([data-checklist-controls]){order:4}
+    [data-ccc-checklist] form,[data-ccc-checklist] [data-checklist-search]{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid #8885;border-radius:11px;background:#8881;min-height:38px}
+    [data-ccc-checklist] form:focus-within,[data-ccc-checklist] [data-checklist-search]:focus-within{border-color:#aaa9}
+    [data-ccc-checklist] form::before,[data-ccc-checklist] [data-checklist-search]::before{content:'';flex:none;width:18px;height:18px;background:var(--color-text-secondary,#aaa)}
+    [data-ccc-checklist] form::before{-webkit-mask:${addIcon} center/contain no-repeat;mask:${addIcon} center/contain no-repeat}
+    [data-ccc-checklist] [data-checklist-search]::before{-webkit-mask:${searchIcon} center/contain no-repeat;mask:${searchIcon} center/contain no-repeat}
     [data-ccc-checklist] [data-checklist-search] small{white-space:nowrap}[data-ccc-checklist] [hidden]{display:none}
-    [data-ccc-checklist] h2{font-size:18px;margin:0}[data-ccc-checklist] p{color:#999;margin:6px 0 12px;overflow-wrap:anywhere}
-    [data-ccc-checklist] button{cursor:pointer;border:1px solid #8885;border-radius:7px;padding:5px 10px;background:transparent;color:inherit}
+    [data-ccc-checklist] h2{font-size:18px;margin:0;font-weight:650}[data-ccc-checklist] p{color:#aaa;margin:0;overflow-wrap:anywhere}
+    [data-ccc-checklist] button{cursor:pointer;border:1px solid #8885;border-radius:8px;padding:5px 10px;background:transparent;color:inherit}
     [data-ccc-checklist] select{min-width:150px;max-width:240px;border:1px solid #8885;border-radius:7px;padding:5px 8px;background:var(--color-background-primary,#252525);color:inherit}
-    [data-ccc-checklist] form{display:flex;gap:8px;margin:16px 0 12px}
     [data-ccc-checklist] input[type=text],[data-ccc-checklist] input[type=search],[data-ccc-checklist] textarea{min-width:0;flex:1;border:1px solid #8885;border-radius:7px;background:transparent;color:inherit;padding:8px}
+    [data-ccc-checklist] form input,[data-ccc-checklist] [data-checklist-search] input{border:0;background:transparent;outline:0;padding:4px 2px}
+    [data-ccc-checklist] form button{background:#8882}
     [data-ccc-checklist] textarea{font:inherit;resize:vertical}
-    [data-ccc-checklist] ul{list-style:none;padding:0;margin:12px 0;max-height:45vh;overflow:auto}
-    [data-ccc-checklist] li{display:flex;align-items:center;gap:8px 10px;padding:6px 0;flex-wrap:wrap}
+    [data-ccc-checklist] ul{list-style:none;padding:0;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:7px}
+    [data-ccc-checklist] li{display:flex;align-items:center;gap:8px 10px;padding:9px 10px;flex-wrap:wrap;border:1px solid #8883;border-radius:10px;background:#8881}
     [data-ccc-checklist] [data-checklist-added]{flex-basis:100%;font-size:11px;color:#999;text-align:right;line-height:1.2}
     [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
-    [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;padding:8px;border-radius:8px;background:#8881}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}
+    [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;background:#8882}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}
+    [data-ccc-checklist] [data-checklist-count]{padding-top:5px;font-size:12px}
     [data-ccc-checklist] small{display:block;color:#999}[data-ccc-checklist] button:disabled{opacity:.4;cursor:default}
   `;
   const dialog = make('dialog'); dialog.setAttribute('data-ccc-checklist', ''); dialog.setAttribute('aria-label', '项目任务清单');
@@ -50,7 +57,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   const subtitle = make('div'), description = make('p'), form = make('form'), input = make('input'), add = make('button', '添加');
   subtitle.setAttribute('data-checklist-controls', ''); subtitle.append(description, search.root);
   input.type = 'text'; input.maxLength = 5000; input.placeholder = '想在这个项目里做什么？'; input.setAttribute('aria-label', '新任务'); add.type = 'submit'; form.append(input, add);
-  const count = make('small'), list = make('ul'), status = make('small'); status.setAttribute('role', 'status');
+  const count = make('small'), list = make('ul'), status = make('small'); count.setAttribute('data-checklist-count', ''); status.setAttribute('role', 'status');
   dialog.append(header, subtitle, form, count, list, status, make('small', '保存在本机 · 按加入时间从早到晚 · 勾选记录完成状态'));
   document.head.append(style); document.body.append(dialog);
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(pending)); storageError = ''; } catch { storageError = '任务尚未保存到草稿，请勿关闭窗口'; } }
