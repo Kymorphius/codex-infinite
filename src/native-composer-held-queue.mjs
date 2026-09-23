@@ -4,7 +4,8 @@ import { NATIVE_HELD_QUEUE_STYLE } from "./native-held-queue-style.mjs";
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { createNativeClaimTaskBridge } from "./native-claim-task-control.mjs";
 import { createNativeSaveDraftTodoButton } from "./native-save-draft-control.mjs";
-import { appendAssignedChecklistTaskRows, normalizeAssignedChecklistTasks, createAssignedChecklistState, resumeAssignedTask, updateHeldQueueShell } from "./native-assigned-checklist-tasks.mjs";
+import { normalizeAssignedChecklistTasks, createAssignedChecklistState, resumeAssignedTask, updateHeldQueueShell } from "./native-assigned-checklist-tasks.mjs";
+import { appendNativeHeldTodoRows, orderNativeHeldTodoEntries } from './native-held-todo-rows.mjs';
 import { reloadWithHeldDraft, restoreNativeHeldDraft } from "./native-held-draft-recovery.mjs";
 import { summarizeNativeHeldMessage } from "./native-held-message-summary.mjs";
 import { createNativeHeldQueueRequest } from "./native-held-queue-bridge.mjs";
@@ -16,7 +17,7 @@ import { readHeldViews, readHeldView } from './held-queue-view-storage.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-23.reassign1', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-24.unified-todo1', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-23.reassign1', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
@@ -48,7 +49,8 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   ${readHeldEditableText.toString()}
   ${replaceHeldEditableText.toString()} ${formatHeldInitialTime.toString()} ${orderHeldForView.toString()}
   ${createHeldDisplayRow.toString()} ${createHeldEditRow.toString()}
-  ${appendAssignedChecklistTaskRows.toString()} ${normalizeAssignedChecklistTasks.toString()} ${createAssignedChecklistState.toString()}
+  ${appendNativeHeldTodoRows.toString()} ${orderNativeHeldTodoEntries.toString()}
+  ${normalizeAssignedChecklistTasks.toString()} ${createAssignedChecklistState.toString()}
   ${resumeAssignedTask.toString()} ${updateHeldQueueShell.toString()}
   ${restoreNativeHeldDraft.toString()}
   ${reloadWithHeldDraft.toString()}
@@ -248,17 +250,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     serverItems.forEach((item, index) => list.append(createHeldDisplayRow('排队', summarize(item.input), [
       button('编辑', () => pauseItem(id, item, true), busy), button('上移', () => reorderServer(id, index, -1), busy || index === 0), button('下移', () => reorderServer(id, index, 1), busy || index === serverItems.length - 1), button('暂停', () => pauseItem(id, item), busy)
     ])));
-    held.forEach((item, index) => {
-      const kind = item.origin === 'draft' ? '待办·直存' : item.origin === 'paused-queue' ? '待办·暂停' : '待办';
-      if (editing?.id === item.id) { const edit = createHeldEditRow(kind, item, editing?.value || '', [button('保存', () => saveHeldEdit(id, item), busy), button('取消', cancelHeldEdit, busy)], () => { if (editing?.id === item.id) editing.value = edit.editor.value; }); list.append(edit.row); queueMicrotask(() => edit.editor.focus()); }
-      else list.append(createHeldDisplayRow(kind, item.summary || summarize(item.input), [
-        button('编辑', () => startHeldEdit(item), busy), button('上移', () => reorderHeld(id, index, -1), busy || heldView === 'time' || index === 0), button('下移', () => reorderHeld(id, index, 1), busy || heldView === 'time' || index === held.length - 1), button('恢复', () => resumeItem(id, item), busy), button('删除', () => removeHeld(id, item), busy)
-      ], item.heldAt));
-    });
     const returnTask = (task) => returnAssignedTodo(task, { threadId: id, isCurrent: () => threadId() === id, busy: () => busy, setBusy, setWarning: (value) => { warning = value; } });
-    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, returnTask, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, hydrateInput: value => value.input ? imageTools.hydrate(value.input) : [{ type: 'text', text: value.text }], removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }), (task) => {
-      if (busy || threadId() !== id || !assignedState.owns(id, task)) return;
-      if (!window.__cccProjectChecklist?.openReassignTask?.(task.id, id, task.text)) { warning = '任务状态已变化，请同步后重试'; render(); }
+    appendNativeHeldTodoRows(list, orderNativeHeldTodoEntries(held, assignedTasks, heldView), createHeldDisplayRow, createHeldEditRow, button, {
+      editing, busy, timeView: heldView === 'time', heldCount: held.length, summarize,
+      save: item => saveHeldEdit(id, item), cancel: cancelHeldEdit, edit: startHeldEdit,
+      move: (index, offset) => reorderHeld(id, index, offset), remove: item => removeHeld(id, item), returnTask,
+      resume: (source, item) => source === 'held' ? resumeItem(id, item) : resumeAssignedTask(item, { threadId: id, isCurrent: () => threadId() === id, ownsTask: value => assignedState.owns(id, value), busy: () => busy, setBusy, request, hydrateInput: value => value.input ? imageTools.hydrate(value.input) : [{ type: 'text', text: value.text }], removeAssigned: taskId => assignedState.remove(id, taskId), setServerItems: items => { serverItems = items; }, listQueue, setWarning: value => { warning = value; } }),
+      reassign: task => { if (busy || threadId() !== id || !assignedState.owns(id, task)) return; if (!window.__cccProjectChecklist?.openReassignTask?.(task.id, id, task.text)) { warning = '任务状态已变化，请同步后重试'; render(); } }
     });
     if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办'; list.append(empty); }
     panel.append(list);

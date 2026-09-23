@@ -146,7 +146,7 @@ test('claim clicks keep task identity through reordered rows, persistence and th
   assert.deepEqual(JSON.parse(JSON.stringify(actions[0])), { ...taskA, assignedThreadId: threadA, projectKey: generalKey, type: 'upsert', requestId: 'id-1' });
   await store.apply(actions[0]);
   const saved = (await new ProjectChecklistStore(directory).read(generalKey)).items;
-  assert.deepEqual(assignedChecklistTasksForThread(saved, threadA), [{ id: taskA.id, text: taskA.text }]);
+  assert.deepEqual(assignedChecklistTasksForThread(saved, threadA), [{ id: taskA.id, text: taskA.text, createdAt: saved.find(item => item.id === taskA.id).createdAt }]);
   assert.equal(saved.find(item => item.id === taskB.id).assignedThreadId, null);
   assert.equal(saved.find(item => item.id === taskB.id).text, taskB.text);
 });

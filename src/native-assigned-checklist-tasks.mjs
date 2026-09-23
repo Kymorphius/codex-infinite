@@ -1,5 +1,5 @@
 export function normalizeAssignedChecklistTasks(items) {
-  return Array.isArray(items) ? items.filter((item) => item && /^[a-zA-Z0-9-]{1,100}$/.test(String(item.id || '')) && typeof item.text === 'string' && item.text.trim()).slice(0, 100).map((item) => ({ id: String(item.id), text: item.text.trim(), ...(Array.isArray(item.input) ? { input: item.input } : {}) })) : [];
+  return Array.isArray(items) ? items.filter((item) => item && /^[a-zA-Z0-9-]{1,100}$/.test(String(item.id || '')) && typeof item.text === 'string' && item.text.trim()).slice(0, 100).map((item) => ({ id: String(item.id), text: item.text.trim(), ...(typeof item.createdAt === 'string' ? { createdAt: item.createdAt } : {}), ...(Array.isArray(item.input) ? { input: item.input } : {}) })) : [];
 }
 
 // Self-contained apart from normalization, so the same state contract runs in
@@ -19,10 +19,6 @@ export function createAssignedChecklistState(readThreadId) {
     owns(id, task) { return forThread(id).some(item => item.id === task?.id && item.text === task.text); },
     remove(id, taskId) { if (snapshot.threadId === id) snapshot.items = snapshot.items.filter(item => item.id !== taskId); }
   };
-}
-
-export function appendAssignedChecklistTaskRows(list, items, createRow, makeButton, busy, returnTask, resume, reassign) {
-  items.forEach((item) => list.append(createRow('待办·暂停', item.text, [makeButton('恢复', () => resume(item), busy), makeButton('重派', () => reassign(item), busy), makeButton('退回', () => returnTask(item), busy)])));
 }
 
 export async function resumeAssignedTask(task, context) {

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { appendAssignedChecklistTaskRows, createAssignedChecklistState, resumeAssignedTask } from '../src/native-assigned-checklist-tasks.mjs';
+import { createAssignedChecklistState, resumeAssignedTask } from '../src/native-assigned-checklist-tasks.mjs';
+import { appendNativeHeldTodoRows, orderNativeHeldTodoEntries } from '../src/native-held-todo-rows.mjs';
 import { syncProjectChecklist } from '../src/project-checklist-sync.mjs';
 
 const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -9,8 +10,9 @@ const a = { id: 'task-a', text: 'A 任务' }, b = { id: 'task-b', text: 'B 任�
 
 test('assigned todo row exposes reassign between resume and return without sending', () => {
   const rows = [], called = [];
-  appendAssignedChecklistTaskRows({ append: row => rows.push(row) }, [a], (status, text, buttons) => ({ status, text, buttons }),
-    (label, action) => ({ label, action }), false, () => called.push('return'), () => called.push('resume'), task => called.push(['reassign', task.id]));
+  appendNativeHeldTodoRows({ append: row => rows.push(row) }, orderNativeHeldTodoEntries([], [a], 'manual'),
+    (status, text, buttons) => ({ status, text, buttons }), null, (label, action) => ({ label, action }),
+    { busy: false, resume: () => called.push('resume'), reassign: task => called.push(['reassign', task.id]), returnTask: () => called.push('return') });
   assert.deepEqual(rows[0].buttons.map(button => button.label), ['恢复', '重派', '退回']);
   rows[0].buttons[1].action();
   assert.deepEqual(called, [['reassign', a.id]]);

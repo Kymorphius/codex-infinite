@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildNativeProjectChecklistScript } from '../src/native-project-checklist.mjs';
 import { returnAssignedTodo } from '../src/native-checklist-return.mjs';
-import { appendAssignedChecklistTaskRows } from '../src/native-assigned-checklist-tasks.mjs';
+import { appendNativeHeldTodoRows, orderNativeHeldTodoEntries } from '../src/native-held-todo-rows.mjs';
 import { ProjectChecklistStore } from '../src/project-checklist-store.mjs';
 import { assignedChecklistTasksForThread } from '../src/project-checklist-assignment.mjs';
 
@@ -61,10 +61,10 @@ function todoContext() {
 
 test('assigned todo exposes reassign and return actions with the original task', () => {
   const rows = [], returned = [], resumed = [], reassigned = [];
-  appendAssignedChecklistTaskRows({ append: row => rows.push(row) }, [task],
-    (label, text, buttons) => ({ label, text, buttons }),
-    (label, click, disabled) => ({ label, click, disabled }), false,
-    item => returned.push(item), item => resumed.push(item), item => reassigned.push(item));
+  appendNativeHeldTodoRows({ append: row => rows.push(row) }, orderNativeHeldTodoEntries([], [task], 'manual'),
+    (label, text, buttons) => ({ label, text, buttons }), null,
+    (label, click, disabled) => ({ label, click, disabled }),
+    { busy: false, returnTask: item => returned.push(item), resume: (_, item) => resumed.push(item), reassign: item => reassigned.push(item) });
   assert.deepEqual(rows[0].buttons.map(button => button.label), ['恢复', '重派', '退回']);
   rows[0].buttons[1].click();
   assert.equal(reassigned[0], task);
@@ -175,6 +175,6 @@ test('persisted return becomes claimable and can be reclaimed using the same tas
   const reclaimed = (await new ProjectChecklistStore(directory).read(generalKey)).items;
   assert.equal(reclaimed.length, 1);
   assert.equal(reclaimed[0].createdAt, original.createdAt);
-  assert.deepEqual(assignedChecklistTasksForThread(reclaimed, threadB), [{ id: task.id, text: task.text }]);
+  assert.deepEqual(assignedChecklistTasksForThread(reclaimed, threadB), [{ id: task.id, text: task.text, createdAt: original.createdAt }]);
   assert.deepEqual(assignedChecklistTasksForThread(reclaimed, threadA), []);
 });

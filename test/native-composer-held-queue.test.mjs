@@ -12,7 +12,7 @@ test('generated held image injection remains parseable', () => {
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-23\.reassign1'/);
+  assert.match(source, /const VERSION = '2026-09-24\.unified-todo1'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -26,7 +26,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
   assert.match(source, /__codexControlConsoleSetAssignedChecklistTasks/);
-  assert.match(source, /待办·暂停/);
+  assert.match(source, /appendNativeHeldTodoRows/);
   assert.match(source, /resumeAssignedTask/);
   assert.match(source, /completeAssignedTask/);
   assert.match(source, /makeButton\('恢复'/);
@@ -121,11 +121,11 @@ test("save-as-todo survives composer remounts independently of legacy queue rein
   assert.match(lifecycle, /manager\?\.parentElement === host \? manager : null/);
 });
 
-test("held queue records retain a bounded source marker for truthful labels", () => {
+test("legacy held queue records retain a bounded source marker without a second visible row label", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
   assert.match(source, /HELD_ORIGINS = new Set\(\['draft', 'paused-queue'\]\)/);
-  assert.match(source, /待办·直存/);
-  assert.match(source, /待办·暂停/);
+  assert.doesNotMatch(source, /待办·直存|待办·暂停/);
+  assert.match(source, /createRow\('待办'/);
 });
 
 test("held input editing changes one text part without dropping structured siblings", () => {
@@ -147,7 +147,7 @@ test("held todo time remains an explicit original timestamp hint", () => {
   assert.match(source, /badge\.title = timeHint/);
   assert.match(source, /title = timeHint \?/);
   assert.match(source, /editor\.title = timeHint/);
-  assert.match(source, /\], item\.heldAt\)\)/);
+  assert.match(source, /source === 'held' \? item\.heldAt : Date\.parse\(item\.createdAt\)/);
 });
 
 test("manual and time views preserve distinct held ordering contracts", () => {
@@ -170,9 +170,10 @@ test("every pending row exposes edit and queued editing pauses before opening", 
   assert.match(pause, /editAfterPause/);
   assert.ok(pause.indexOf("thread/queue/delete") < pause.indexOf("editing ="));
   assert.match(rows, /button\('编辑', \(\) => pauseItem\(id, item, true\)/);
-  assert.match(rows, /button\('编辑', \(\) => startHeldEdit\(item\)/);
-  assert.match(source, /button\('保存', \(\) => saveHeldEdit/);
-  assert.match(source, /button\('取消', cancelHeldEdit/);
+  assert.match(rows, /appendNativeHeldTodoRows/);
+  assert.match(source, /makeButton\('编辑', \(\) => context\.edit\(item\)/);
+  assert.match(source, /save: item => saveHeldEdit/);
+  assert.match(source, /cancel: cancelHeldEdit/);
   assert.match(source, /editor\.dataset\.cccHeldEditor/);
 });
 
