@@ -29,7 +29,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /appendNativeHeldTodoRows/);
   assert.match(source, /resumeAssignedTask/);
   assert.match(source, /completeAssignedTask/);
-  assert.match(source, /makeButton\('加入发送队列'/);
+  assert.match(source, /makeButton\('入队'/);
   assert.match(source, /makeButton\('退回'/);
   assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
   assert.doesNotMatch(source, /updateShell\(id, toolbar, panel\); if \(!open\) return/);
