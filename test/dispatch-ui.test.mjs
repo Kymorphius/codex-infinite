@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { destinationProjectNames, dispatchColumnStatus, dispatchMetrics, filterDispatches, orderDispatchColumn } from "../public/features/dispatch/index.js";
+import { checklistBoardStatus, destinationProjectNames, dispatchColumnStatus, dispatchMetrics, filterDispatches, orderDispatchColumn } from "../public/features/dispatch/index.js";
 import { localDateTimeValue, scheduleRelativeLabel } from "../public/features/dispatch/details.js";
 
 test("dispatch UI groups cancelled work with failures and reports truthful metrics", () => {
@@ -13,6 +13,12 @@ test("dispatch UI groups cancelled work with failures and reports truthful metri
   assert.equal(dispatchColumnStatus("delivery_unknown"), "failed");
   assert.equal(dispatchColumnStatus("sent"), "sent");
   assert.deepEqual(dispatchMetrics(items), { count: 3, waitingCount: 2, targetCount: 2 });
+});
+
+test('checklist board follows canonical assignment and completion state', () => {
+  assert.equal(checklistBoardStatus({ done: false, assignedThreadId: null }), 'unassigned');
+  assert.equal(checklistBoardStatus({ done: false, assignedThreadId: 'thread-1' }), 'assigned');
+  assert.equal(checklistBoardStatus({ done: true, assignedThreadId: 'thread-1' }), 'done');
 });
 
 test("dispatch destinations are unique, sorted, and retain unclassified tasks", () => {

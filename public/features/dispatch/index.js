@@ -35,6 +35,10 @@ export function filterDispatches(items = [], { query = "", project = "" } = {}) 
   });
 }
 
+export function checklistBoardStatus(item) {
+  return item.done ? 'done' : item.assignedThreadId ? 'assigned' : 'unassigned';
+}
+
 export function createDispatchFeature({ state, $, formatDate, showToast }) {
   const panel = $('[data-module-panel="board"]');
   const board = $('[data-testid="dispatch-board"]');
@@ -47,6 +51,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
   const composer = $('[data-testid="dispatch-composer"]');
   const results = $('[data-testid="dispatch-results"]');
   const filter = { query: "", project: "" };
+  let checklistSignature = '';
   const details = createDispatchDetails({ state, $, formatDate, showToast, onSaved: () => load({ quiet: true }) });
 
   function updateThreadSelector() {
@@ -137,6 +142,26 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
   }
 
   function render() {
+    const checklistError = $('[data-testid="checklist-board-error"]');
+    checklistError.textContent = state.checklistError || '';
+    checklistError.classList.toggle('hidden', !state.checklistError);
+    const nextChecklistSignature = JSON.stringify(state.checklistItems || []);
+    if (nextChecklistSignature !== checklistSignature) {
+      checklistSignature = nextChecklistSignature;
+      for (const status of ['unassigned', 'assigned', 'done']) {
+        const items = (state.checklistItems || []).filter(item => checklistBoardStatus(item) === status);
+        $(`[data-checklist-count="${status}"]`).textContent = String(items.length);
+        const list = $(`[data-checklist-list="${status}"]`);
+        list.replaceChildren(...items.map(item => {
+          const card = document.createElement('article'); card.className = 'dispatch-card'; card.dataset.checklistId = item.id;
+          const text = document.createElement('p'); text.textContent = item.text;
+          const meta = document.createElement('div'); meta.className = 'dispatch-meta';
+          meta.textContent = [item.createdAt ? formatDate(item.createdAt) : '', status === 'assigned' ? `会话 ${item.assignedThreadId.slice(0, 8)}` : ''].filter(Boolean).join(' · ');
+          card.append(text, meta); return card;
+        }));
+        if (!items.length) { const empty = document.createElement('div'); empty.className = 'column-empty'; empty.textContent = '暂无任务'; list.append(empty); }
+      }
+    }
     updateProjectFilter();
     const visibleItems = filterDispatches(state.dispatches, filter);
     for (const column of DISPATCH_COLUMNS) {
@@ -190,6 +215,8 @@ export function createDispatchFeature({ state, $, formatDate, showToast }) {
     try {
       const data = await requestJson("/api/dispatches", { cache: "no-store" });
       state.dispatches = Array.isArray(data.items) ? data.items : [];
+      if (!data.checklistError) state.checklistItems = Array.isArray(data.checklistItems) ? data.checklistItems : [];
+      state.checklistError = data.checklistError || null;
       setState("connected");
       render();
     } catch (error) {

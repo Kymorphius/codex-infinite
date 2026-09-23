@@ -14,7 +14,7 @@ export const MODULES = Object.freeze({
 export function createAppState(requestedModule = "board") {
   return {
     module: Object.hasOwn(MODULES, requestedModule) ? requestedModule : "board",
-    tasks: [], projects: [], devices: [], dispatches: [], generators: [], generatorRuns: [],
+    tasks: [], projects: [], devices: [], dispatches: [], checklistItems: [], checklistError: null, generators: [], generatorRuns: [],
     taskStatus: "loading", dispatchStatus: "loading",
     context: { initialized: false, status: "loading", items: [] },
     zotero: {

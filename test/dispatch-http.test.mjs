@@ -9,18 +9,35 @@ function config() {
   };
 }
 
-async function start(t, { dispatchStore } = {}) {
+async function start(t, { dispatchStore, checklistStore } = {}) {
   const tasks = [{ id: "thread-1", project: "demo", title: "Demo", cwd: "/tmp/demo" }];
   const adapter = {
     async listTasks() { return { status: "connected", tasks, projects: [] }; },
     async getTask(id) { return tasks.find((task) => task.id === id) || null; }
   };
-  const dashboard = createDashboardServer({ config: config(), adapter, dispatchStore });
+  const dashboard = createDashboardServer({ config: config(), adapter, dispatchStore, checklistStore });
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
   return (pathname, options = {}) => fetch(`${origin}${pathname}`, options);
 }
+
+test('dispatch read projects the same checklist task and reports checklist failure separately', async (t) => {
+  let unavailable = false;
+  const checklistStore = { async read(key) {
+    assert.equal(key, 'ccc:general-inbox:v1');
+    if (unavailable) throw Error('storage failed');
+    return { items: [{ id: 'task-1', text: '想法', done: false, assignedThreadId: null, input: [{ type: 'image', data: 'secret' }] }] };
+  } };
+  const request = await start(t, { dispatchStore: memoryDispatchStore(), checklistStore });
+  const first = await (await request('/api/dispatches')).json();
+  assert.deepEqual(first.checklistItems, [{ id: 'task-1', text: '想法', createdAt: null, done: false, assignedThreadId: null }]);
+  assert.equal(first.checklistError, null);
+  unavailable = true;
+  const second = await (await request('/api/dispatches')).json();
+  assert.equal(second.checklistError, '综合任务清单暂时无法读取');
+  assert.deepEqual(second.items, []);
+});
 
 function memoryDispatchStore() {
   const items = new Map();

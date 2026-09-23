@@ -30,8 +30,15 @@
           </section>
 
           <section class="board-section">
+            <div class="section-heading"><div><p class="eyebrow">TASK LIST</p><h2>综合任务清单</h2><p class="muted">与原生任务清单同步；这里不会自动发送。</p></div></div>
+            <p class="dispatch-error hidden" data-testid="checklist-board-error"></p>
+            <div class="dispatch-board" data-testid="checklist-board">
+              <section class="board-column"><header class="board-column-header"><h3>待领取</h3><span class="column-count" data-checklist-count="unassigned">0</span></header><div class="board-column-list" data-checklist-list="unassigned"></div></section>
+              <section class="board-column"><header class="board-column-header"><h3>会话待办</h3><span class="column-count" data-checklist-count="assigned">0</span></header><div class="board-column-list" data-checklist-list="assigned"></div></section>
+              <section class="board-column"><header class="board-column-header"><h3>已完成</h3><span class="column-count" data-checklist-count="done">0</span></header><div class="board-column-list" data-checklist-list="done"></div></section>
+            </div>
             <div class="section-heading">
-              <div><p class="eyebrow">TASK PIPELINE</p><h2>发送队列</h2></div>
+              <div><p class="eyebrow">SEND PIPELINE</p><h2>排期与发送</h2></div>
               <button class="quiet-button" type="button" data-action="refresh-dispatches">刷新</button>
             </div>
             <div class="dispatch-toolbar" aria-label="筛选任务">

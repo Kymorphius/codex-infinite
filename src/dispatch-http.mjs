@@ -1,4 +1,5 @@
 import { assertExactMutationOrigin, assertJsonContentType, decodePathSegment, readJsonBody, sendJson } from "./http-utils.mjs";
+import { GENERAL_CHECKLIST_KEY, projectChecklistBoardItems } from './checklist-board-projection.mjs';
 
 const BROWSER_DISPATCH_STATUSES = new Set(["backlog", "scheduled", "queued", "cancelled"]);
 
@@ -8,7 +9,7 @@ export function resolveDispatchTarget(tasks, { project, targetThreadId }) {
   return projectTasks[0] || null;
 }
 
-export function createDispatchHttpHandler({ adapter, dispatchStore, dashboardOrigin }) {
+export function createDispatchHttpHandler({ adapter, dispatchStore, checklistStore = null, dashboardOrigin }) {
   return async function handleDispatchRequest(request, response, requestUrl) {
     const isCollection = requestUrl.pathname === "/api/dispatches";
     const isItem = requestUrl.pathname.startsWith("/api/dispatches/");
@@ -19,7 +20,12 @@ export function createDispatchHttpHandler({ adapter, dispatchStore, dashboardOri
       return true;
     }
     if (isCollection && (request.method === "GET" || request.method === "HEAD")) {
-      sendJson(response, 200, { status: "ok", items: dispatchStore.list() });
+      let checklistItems = [], checklistError = null;
+      if (checklistStore) {
+        try { checklistItems = projectChecklistBoardItems((await checklistStore.read(GENERAL_CHECKLIST_KEY)).items); }
+        catch { checklistError = '综合任务清单暂时无法读取'; }
+      }
+      sendJson(response, 200, { status: "ok", items: dispatchStore.list(), checklistItems, checklistError });
       return true;
     }
     if (isItem && requestUrl.pathname.endsWith("/audit") && (request.method === "GET" || request.method === "HEAD")) {
