@@ -36,6 +36,7 @@ function harness({ mode = 'general', items = [later, early], held = [] } = {}) {
   const api = context.window.__cccProjectChecklist;
   api.cacheGeneral(items);
   if (mode === 'claim') api.openClaimableForCurrentThread(threadA);
+  else if (mode === 'new-claim') api.openClaimableForNewThread();
   else if (mode === 'general') api.openGeneral();
   else { api.open({ key: 'project-a' }); api.accept({ projectKey: 'project-a', items, acknowledged: [] }); }
   const dialog = document.body.children[0], list = find(dialog, node => node.tag === 'ul');
@@ -51,12 +52,12 @@ function harness({ mode = 'general', items = [later, early], held = [] } = {}) {
 }
 
 test('all checklist entry points share search and multiline direct editing while their action buttons differ', () => {
-  for (const mode of ['project', 'general', 'claim']) {
+  for (const mode of ['project', 'general', 'claim', 'new-claim']) {
     const h = harness({ mode });
     assert.equal(h.search.type, 'search'); assert.equal(h.searchRoot.dataset.checklistSearch, '');
     const text = editor(h.rows()[0]);
     assert.equal(text.tag, 'textarea'); assert.equal(text.disabled, false); assert.equal(text.maxLength, 5000);
-    assert.deepEqual(h.rows()[0].children.filter(node => node.tag === 'button').map(node => node.textContent), mode === 'claim' ? ['领取'] : mode === 'general' ? ['指派会话', '删除'] : ['删除']);
+    assert.deepEqual(h.rows()[0].children.filter(node => node.tag === 'button').map(node => node.textContent), mode === 'claim' || mode === 'new-claim' ? ['领取'] : mode === 'general' ? ['指派会话', '删除'] : ['删除']);
     assert.deepEqual(h.rows().map(row => editor(row).value), [early.text, later.text]);
   }
 });
@@ -87,6 +88,9 @@ test('general search includes lower assigned and held todos but claim search can
   const claim = harness({ mode: 'claim', items: [early, assigned, completed], held });
   assert.equal(claim.idle.length, 0); assert.equal(claim.rows().length, 1);
   for (const query of ['会话专属', '本地直存', '已完成专属']) { claim.query(query); assert.equal(claim.visible().length, 0); }
+  const newClaim = harness({ mode: 'new-claim', items: [early, assigned, completed], held });
+  assert.equal(newClaim.idle.length, 0); assert.equal(newClaim.rows().length, 1);
+  assert.match(button(newClaim.rows()[0], '领取').title, /发送/);
   assert.equal(general.api.packet().actions.length, 0); assert.equal(claim.api.packet().actions.length, 0);
 });
 

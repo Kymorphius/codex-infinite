@@ -16,8 +16,8 @@ test('native composer controls use compact labels without changing their actions
   assert.match(createNativeSaveDraftTodoButton.toString(), /存待办/);
   assert.match(buildNativeContextInjectionScript(), /order:3/);
   assert.match(createNativeClaimTaskBridge.toString(), /领任务/);
-  assert.match(createNativeClaimTaskBridge.toString(), /指派任务/);
-  assert.match(createNativeClaimTaskBridge.toString(), /指派给已有会话/);
+  assert.match(createNativeClaimTaskBridge.toString(), /openClaimableForNewThread/);
+  assert.doesNotMatch(createNativeClaimTaskBridge.toString(), /['"]指派任务 /);
   assert.match(createNativeClaimTaskBridge.toString(), /order:2/);
 
   const jev = buildNativeJevRoutingInjectionScript();

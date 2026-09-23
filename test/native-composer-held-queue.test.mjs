@@ -8,7 +8,7 @@ import { updateHeldQueueShell } from "../src/native-assigned-checklist-tasks.mjs
 
 test("native held queue uses fixed app-server queue contracts and bounded local storage", () => {
   const source = buildNativeComposerHeldQueueInjectionScript();
-  assert.match(source, /const VERSION = '2026-09-22\.11'/);
+  assert.match(source, /const VERSION = '2026-09-23\.new-task-claim1'/);
   for (const method of ["thread/queue/list", "thread/queue/delete", "thread/queue/add", "thread/queue/reorder"]) assert.match(source, new RegExp(method.replaceAll("/", "\\/")));
   assert.match(source, /MAX_HELD = 100/);
   assert.match(source, /native-held-queue\.v1/);
@@ -18,7 +18,7 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /data-app-action-sidebar-thread-selected/);
   assert.match(source, /codex-control-console-held-todos-changed/);
   assert.match(source, /领任务/);
-  assert.match(source, /指派任务/);
+  assert.doesNotMatch(source, /['"]指派任务 /);
   assert.match(source, /openClaimableForCurrentThread/);
   assert.match(source, /__codexControlConsoleSetClaimableTaskCount/);
   assert.match(source, /__codexControlConsoleSetAssignedChecklistTasks/);
@@ -29,8 +29,8 @@ test("native held queue uses fixed app-server queue contracts and bounded local 
   assert.match(source, /makeButton\('退回'/);
   assert.doesNotMatch(source, /assignedTasks\.length \+ ' 任务'/);
   assert.doesNotMatch(source, /updateShell\(id, toolbar, panel\); if \(!open\) return/);
-  assert.match(source, /指派任务 '.*\+ count/);
-  assert.match(source, /指派给已有会话/);
+  assert.match(source, /领任务 '.*\+ count/);
+  assert.match(source, /openClaimableForNewThread/);
   assert.match(source, /if \(!id\) \{.*claimTasks\.ensure/);
 });
 
@@ -216,7 +216,7 @@ test("held shell and claim controls skip identical DOM writes", () => {
   assert.equal(buttonWrites, 2);
 
   renderNativeClaimTaskButton(button, 8, false);
-  assert.equal(buttonText, "指派任务 8");
-  assert.equal(buttonTitle, "把 8 项未指派任务指派给已有会话");
-  assert.equal(buttonWrites, 4);
+  assert.equal(buttonText, "领任务 8");
+  assert.equal(buttonTitle, "领取未指派任务，填入输入框并发送创建新会话");
+  assert.equal(buttonWrites, 3);
 });
