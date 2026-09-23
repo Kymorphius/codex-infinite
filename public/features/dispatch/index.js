@@ -54,7 +54,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   const filter = { query: "", project: "" };
   let checklistSignature = '';
   const details = createDispatchDetails({ state, $, formatDate, showToast, onSaved: () => load({ quiet: true }) });
-  const personalPanel = createPersonalPanelBoard({ $, showToast, formatDate });
+  const personalPanel = createPersonalPanelBoard({ $, showToast, formatDate, state, requestOpen });
 
   function updateThreadSelector() {
     const tasks = state.tasks.filter((task) => isLocalTask(task) && task.project === projectSelect.value);

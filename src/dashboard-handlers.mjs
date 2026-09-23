@@ -30,7 +30,7 @@ export function createDashboardHandlers({ config, experimentService, adapter, lo
     createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createTurboHttpHandler({ turboCoordinator, turboPolicyService, jevRoutingService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createJevRoutingHttpHandler({ service: jevRoutingService, dashboardOrigin: config.dashboardOrigin }),
-    createPersonalPanelTaskHttpHandler({ adapter: personalPanelTaskAdapter, dashboardOrigin: config.dashboardOrigin }),
+    createPersonalPanelTaskHttpHandler({ adapter: personalPanelTaskAdapter, localAdapter: local, localDevice: config.nodeDevice, dashboardOrigin: config.dashboardOrigin }),
     createProjectCopyHttpHandler({ service: projectCopyService, dashboardOrigin: config.dashboardOrigin }),
     createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService, remoteThreadSettingsService }),
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),

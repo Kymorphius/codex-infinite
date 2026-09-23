@@ -18,7 +18,7 @@ export class PersonalPanelTaskAdapter {
     return new Promise((resolve, reject) => {
       const child = spawn(this.nodePath, [this.scriptPath], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env } });
       let output = '', failed = false;
-      const timeoutMs = request.op === 'task.list' || request.op === 'task.get' ? this.readTimeoutMs : this.writeTimeoutMs;
+      const timeoutMs = ['task.list', 'task.get', 'task.links.inspect', 'task.listLinks'].includes(request.op) ? this.readTimeoutMs : this.writeTimeoutMs;
       const timer = setTimeout(() => { failed = true; child.kill(); reject(new Error('Personal Panel 响应超时；请刷新核对，不要直接重试写入')); }, timeoutMs);
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', chunk => { output += chunk; if (output.length > 1024 * 1024) { failed = true; child.kill(); reject(new Error('Personal Panel 响应过大')); } });
@@ -39,5 +39,7 @@ export class PersonalPanelTaskAdapter {
   }
 
   async list() { return normalizePersonalPanelTaskList(await this.run({ op: 'task.list', limit: 100, cursor: null })); }
+  async inspectLinks() { return this.run({ op: 'task.links.inspect' }); }
+  async listLinks(owner, id) { return this.run({ op: 'task.listLinks', owner, id }); }
   async mutate(request) { return this.run(request); }
 }

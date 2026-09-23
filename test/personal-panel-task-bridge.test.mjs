@@ -52,3 +52,35 @@ test('HTTP status action writes once and returns a fresh native readback', async
   assert.equal(response.body.status, 'ok');
   assert.deepEqual(calls, ['list', { op: 'task.complete', owner, id: 'task-1', revision: 'a'.repeat(64) }, 'list']);
 });
+
+test('link action rejects a missing Codex conversation before native mutation', async () => {
+  const calls = [];
+  const adapter = {
+    inspectLinks: async () => ({ version: 1, owner, schema: { ready: true } }),
+    listLinks: async () => { calls.push('read'); return { taskId: 'task-1', revision: 'a'.repeat(64), readOnly: false, links: [] }; },
+    mutate: async command => { calls.push(command); }
+  };
+  const handler = createPersonalPanelTaskHttpHandler({ adapter, localAdapter: { getTask: async () => null }, localDevice: { id: 'local:test' }, dashboardOrigin: 'http://127.0.0.1:47831' });
+  const response = { writeHead(code) { this.statusCode = code; }, end(value) { this.body = JSON.parse(value); } };
+  const request = { method: 'POST', headers: { origin: 'http://127.0.0.1:47831', 'content-type': 'application/json' }, async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ action: 'link', owner, id: 'task-1', revision: 'a'.repeat(64), confirmed: true, deviceId: 'local:test', sessionId: 'thread-1' })); } };
+  await handler(request, response, new URL('http://127.0.0.1:47831/api/personal-panel/links'));
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(calls, ['read']);
+});
+
+test('link action uses confirmed local identity, exact revision and native readback', async () => {
+  const calls = [];
+  let links = [];
+  const adapter = {
+    inspectLinks: async () => ({ version: 1, owner, schema: { ready: true } }),
+    listLinks: async () => ({ taskId: 'task-1', revision: 'a'.repeat(64), readOnly: false, links }),
+    mutate: async command => { calls.push(command); links = [{ source: 'codex', deviceId: 'local:test', sessionId: 'thread-1', linkedAt: 1 }]; }
+  };
+  const handler = createPersonalPanelTaskHttpHandler({ adapter, localAdapter: { getTask: async () => ({ id: 'thread-1', device: { id: 'local:test' } }) }, localDevice: { id: 'local:test' }, dashboardOrigin: 'http://127.0.0.1:47831' });
+  const response = { writeHead(code) { this.statusCode = code; }, end(value) { this.body = JSON.parse(value); } };
+  const request = { method: 'POST', headers: { origin: 'http://127.0.0.1:47831', 'content-type': 'application/json' }, async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ action: 'link', owner, id: 'task-1', revision: 'a'.repeat(64), confirmed: true, deviceId: 'local:test', sessionId: 'thread-1' })); } };
+  await handler(request, response, new URL('http://127.0.0.1:47831/api/personal-panel/links'));
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.task.links[0].sessionId, 'thread-1');
+  assert.deepEqual(calls, [{ op: 'task.linkExecution', owner, id: 'task-1', revision: 'a'.repeat(64), confirmed: true, deviceId: 'local:test', sessionId: 'thread-1' }]);
+});
