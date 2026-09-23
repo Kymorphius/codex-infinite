@@ -16,11 +16,14 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.5';
-  if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) return;
+  const VERSION = '2026-09-23.6';
+  if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
+    window.__codexControlConsoleSentMessageSearch.ensure?.();
+    return;
+  }
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
   const HISTORY_KEY = 'codex-control-console.sent-message-search.history.v1';
-  let root, topLaunch, panel, input, results, historyPanel, timer, observer, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
+  let root, topLaunch, panel, input, results, historyPanel, timer, observer, observedRoot, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
   let history = [];
   try {
     const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -136,9 +139,10 @@ export function installNativeSentMessageSearch() {
   }
   function install() {
     const projectSearch = document.querySelector('[data-codex-control-console-project-search]');
-    if (!projectSearch?.parentElement) return;
+    const tabBar = document.querySelector('[data-codex-control-console-native-tabs]');
+    if (!projectSearch?.parentElement && !tabBar) return;
     if (!root) {
-      root = make('div', projectSearch.className, null);
+      root = make('div', projectSearch?.className || 'group/nav-section relative px-row-x py-1', null);
       root.setAttribute('data-codex-control-console-sent-message-search', '');
       const launch = make('button', 'sidebar-item w-full rounded-md px-2 py-1 text-start text-sm text-default hover:bg-primary-ghost-hover', '搜索发送内容');
       launch.type = 'button'; launch.setAttribute('aria-haspopup', 'dialog'); launch.addEventListener('click', open);
@@ -204,10 +208,10 @@ export function installNativeSentMessageSearch() {
       panel.append(dialog); document.body.append(panel);
       root.addEventListener('pointerdown', event => event.stopPropagation());
     }
-    if (root.parentElement !== projectSearch.parentElement || root.previousSibling !== projectSearch) {
+    if (projectSearch?.parentElement && (root.parentElement !== projectSearch.parentElement || root.previousSibling !== projectSearch)) {
+      root.className = projectSearch.className;
       projectSearch.parentElement.insertBefore(root, projectSearch.nextSibling);
     }
-    const tabBar = document.querySelector('[data-codex-control-console-native-tabs]');
     if (tabBar) {
       const recent = tabBar.querySelector('[data-recent-menu]');
       if (topLaunch.parentElement !== tabBar || topLaunch.nextSibling !== recent) tabBar.insertBefore(topLaunch, recent);
@@ -215,11 +219,21 @@ export function installNativeSentMessageSearch() {
   }
   window.__codexControlConsoleSentMessageSearch = {
     version: VERSION,
+    ensure() {
+      if (!active) return;
+      install();
+      if (observer && observedRoot !== document.documentElement) {
+        observer.disconnect();
+        observedRoot = document.documentElement;
+        observer.observe(observedRoot, { childList: true, subtree: true });
+      }
+    },
     receive(value) { if (value?.id === requestId && input?.value.trim()) show(value); },
     dispose() { active = false; clearTimeout(timer); observer?.disconnect(); root?.remove(); topLaunch?.remove(); panel?.remove(); }
   };
   active = true;
   install();
   observer = new MutationObserver(() => { if (active) install(); });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observedRoot = document.documentElement;
+  observer.observe(observedRoot, { childList: true, subtree: true });
 }

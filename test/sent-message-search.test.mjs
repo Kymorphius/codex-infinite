@@ -138,4 +138,43 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
   historyPanel.children[0].children[1].listeners.click();
   assert.equal(saved.size, 0);
   assert.equal(historyPanel.hidden, true);
+  input.value = 'unfinished query';
+  parent.children[1].remove();
+  topLaunch.remove();
+  assert.equal(parent.children.length, 1);
+  assert.equal(tabBar.children.includes(topLaunch), false);
+  vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
+  assert.equal(parent.children[1].children[0], launch);
+  assert.equal(tabBar.children[1], topLaunch);
+  assert.equal(body.children[0], panel);
+  assert.equal(input.value, 'unfinished query');
+});
+
+test('top search launcher mounts before project search becomes available', () => {
+  class Node {
+    constructor() { this.children = []; this.style = {}; this.attrs = {}; this.parentElement = null; this.className = ''; }
+    append(...nodes) { for (const node of nodes) { this.children.push(node); node.parentElement = this; } }
+    insertBefore(node, before) { node.remove(); const at = this.children.indexOf(before); this.children.splice(at < 0 ? this.children.length : at, 0, node); node.parentElement = this; }
+    remove() { if (this.parentElement) this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1); this.parentElement = null; }
+    get nextSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) + 1] || null; }
+    get previousSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) - 1] || null; }
+    setAttribute(key, value) { this.attrs[key] = value; }
+    addEventListener() {}
+    querySelector(selector) { return this.children.find(child => selector === '[data-recent-menu]' && child.attrs['data-recent-menu'] != null); }
+  }
+  const parent = new Node(), tabBar = new Node(), body = new Node(), projectSearch = new Node(), recent = new Node();
+  projectSearch.className = 'project-search'; recent.setAttribute('data-recent-menu', ''); tabBar.append(recent);
+  const document = { body, documentElement: parent, createElement: () => new Node(), querySelector(selector) {
+    if (selector === '[data-codex-control-console-native-tabs]') return tabBar;
+    if (selector === '[data-codex-control-console-project-search]') return projectSearch.parentElement ? projectSearch : null;
+    return null;
+  } };
+  const context = vm.createContext({ document, window: {}, localStorage: { getItem: () => null }, MutationObserver: class { observe() {} disconnect() {} } });
+  vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
+  assert.equal(tabBar.children[0].attrs['data-codex-control-console-tab-message-search'], '');
+  assert.equal(parent.children.length, 0);
+  parent.append(projectSearch);
+  vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
+  assert.equal(parent.children[1].attrs['data-codex-control-console-sent-message-search'], '');
+  assert.equal(parent.children[1].className, 'project-search');
 });
