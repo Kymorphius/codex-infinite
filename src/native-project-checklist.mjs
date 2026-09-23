@@ -13,11 +13,11 @@ import { normalizeChecklistInput } from './project-checklist-input.mjs';
 import { assignedChecklistTasksForThread } from './project-checklist-assignment.mjs';
 import { createNativeChecklistPasteImages, createNativeChecklistTaskModel } from './native-checklist-unified-task.mjs';
 import { createNativeChecklistTaskRow } from './native-checklist-task-row.mjs';
-import { focusNativeChecklistTask } from './native-checklist-board-jump.mjs';
+import { focusNativeChecklistTask, openNativeChecklistReassignPicker, createNativeChecklistReassignController } from './native-checklist-board-jump.mjs';
 import { createNativeChecklistAssignmentControl } from './native-checklist-assignment-control.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim, syncBinding, normalizeInput, makeImageTools, assignedChecklistTasksForThread, makePasteImages, makeTaskModel) {
-  const VERSION = '2026-09-23.board-jump1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-23.reassign1', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -116,6 +116,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       try { window[syncBinding]?.('return'); } catch { /* periodic sync remains the recovery path */ }
     }
   });
+  const reassign = createNativeChecklistReassignController({ readThreadId: () => readThreadId(document), readItems: () => view(GENERAL_KEY, generalItems), openGeneral: () => window.__cccProjectChecklist.openGeneral(), getLoaded: () => loaded === GENERAL_KEY, isOpen: () => dialog.open, list, warn: message => { claimWarning = message; state(); }, render: () => render() });
   const newThreadClaim = createNewThreadClaim({
     start: createThreadStarter(),
     readTask: id => view(GENERAL_KEY, generalItems).find(item => item.id === id),
@@ -156,6 +157,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       row.append(source, text, open); appendTime(row, item); list.append(row);
     }
     search.apply();
+    reassign.afterRender();
     if (focusTaskId && dialog.open && loaded === project?.key && focusNativeChecklistTask(list, focusTaskId)) focusTaskId = null;
   }
   function appendTime(row, item) { const detail = time.describe(item), stamp = make('time', detail.label); stamp.setAttribute('data-checklist-added', ''); if (detail.dateTime) stamp.setAttribute('datetime', detail.dateTime); stamp.title = detail.title; row.append(stamp); }
@@ -176,6 +178,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     assignedTasksForThread: taskModel.tasksForThread,
     hasLegacyDrafts: taskModel.hasLegacyDrafts,
     openGeneral(taskId = null) { focusTaskId = typeof taskId === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(taskId) ? taskId : null; this.open({ key: GENERAL_KEY, general: true, name: '记下任务，再领取或指派给会话。' }); if (focusTaskId && loaded === project?.key) render(); },
+    openReassignTask(id, threadId, text) { return reassign.open(id, threadId, text); },
     openClaimableForCurrentThread(threadId) { this.open({ key: 'ccc:general-inbox:v1', general: true, claimThreadId: threadId, name: '直接编辑任务内容；领取时使用框内最新内容，放入当前会话待办并保持暂停。领取不会发送消息。' }); },
     openClaimableForNewThread() { this.open({ key: GENERAL_KEY, general: true, claimNewThread: true, name: '直接编辑任务内容；点击领取会填入新任务输入框并发送，创建新会话。' }); },
     completeAssignedTask(id, threadId, text) {
@@ -204,4 +207,4 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   function refreshHeldTodos() { if (project?.general && !project.claimThreadId && !project.claimNewThread) { heldLoaded = false; scheduleHeldLoad(); render(); } }
   window.addEventListener('codex-control-console-held-todos-changed', refreshHeldTodos);
 }
-export function buildNativeProjectChecklistScript() { return `${focusNativeChecklistTask.toString()}\n${createNativeChecklistThreadStarter.toString()}\n${createNativeChecklistNewThreadClaim.toString()}\n${createNativeChecklistTaskModel.toString()}\n${createNativeChecklistPasteImages.toString()}\n${createNativeChecklistTaskRow.toString()}\n${createNativeChecklistAssignmentControl.toString()}\n(${installNativeProjectChecklist.toString()})(${readNativeChecklistHeldTodos.toString()},${readNativeChecklistConversationChoices.toString()},${readNativeComposerThreadId.toString()},${createChecklistReturnBridge.toString()},${checklistTimeMetadata.toString()},${createChecklistTimePresentation.toString()},${createChecklistTaskEditor.toString()},${createChecklistSearch.toString()},createNativeChecklistThreadStarter,createNativeChecklistNewThreadClaim,${JSON.stringify(PROJECT_CHECKLIST_SYNC_BINDING)},${normalizeChecklistInput.toString()},${createNativeHeldImageTools.toString()},${assignedChecklistTasksForThread.toString()},createNativeChecklistPasteImages,createNativeChecklistTaskModel);`; }
+export { buildNativeProjectChecklistScript } from './native-project-checklist-script.mjs';

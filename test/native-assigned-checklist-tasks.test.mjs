@@ -1,11 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { createAssignedChecklistState, resumeAssignedTask } from '../src/native-assigned-checklist-tasks.mjs';
+import { appendAssignedChecklistTaskRows, createAssignedChecklistState, resumeAssignedTask } from '../src/native-assigned-checklist-tasks.mjs';
 import { syncProjectChecklist } from '../src/project-checklist-sync.mjs';
 
 const A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const a = { id: 'task-a', text: 'A 任务' }, b = { id: 'task-b', text: 'B 任务' };
+
+test('assigned todo row exposes reassign between resume and return without sending', () => {
+  const rows = [], called = [];
+  appendAssignedChecklistTaskRows({ append: row => rows.push(row) }, [a], (status, text, buttons) => ({ status, text, buttons }),
+    (label, action) => ({ label, action }), false, () => called.push('return'), () => called.push('resume'), task => called.push(['reassign', task.id]));
+  assert.deepEqual(rows[0].buttons.map(button => button.label), ['恢复', '重派', '退回']);
+  rows[0].buttons[1].action();
+  assert.deepEqual(called, [['reassign', a.id]]);
+});
 
 test('assigned snapshots hide foreign tasks immediately, reject delayed and legacy publications, and skip identical writes', () => {
   let current = A;

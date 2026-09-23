@@ -59,14 +59,16 @@ function todoContext() {
   };
 }
 
-test('assigned todo exposes return action with the original task and no management action', () => {
-  const rows = [], returned = [], resumed = [];
+test('assigned todo exposes reassign and return actions with the original task', () => {
+  const rows = [], returned = [], resumed = [], reassigned = [];
   appendAssignedChecklistTaskRows({ append: row => rows.push(row) }, [task],
     (label, text, buttons) => ({ label, text, buttons }),
     (label, click, disabled) => ({ label, click, disabled }), false,
-    item => returned.push(item), item => resumed.push(item));
-  assert.deepEqual(rows[0].buttons.map(button => button.label), ['恢复', '退回']);
+    item => returned.push(item), item => resumed.push(item), item => reassigned.push(item));
+  assert.deepEqual(rows[0].buttons.map(button => button.label), ['恢复', '重派', '退回']);
   rows[0].buttons[1].click();
+  assert.equal(reassigned[0], task);
+  rows[0].buttons[2].click();
   assert.equal(returned[0], task);
   assert.equal(resumed.length, 0);
 });

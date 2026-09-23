@@ -12,11 +12,12 @@ import{noThread}from"./native-composer-availability.mjs";
 import { returnAssignedTodo } from './native-checklist-return.mjs';
 import { createNativeHeldImageTools } from './native-held-image-tools.mjs';
 import { saveNativeHeldDraft } from './native-held-draft-save.mjs';
+import { readHeldViews, readHeldView } from './held-queue-view-storage.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-23.save-todo-closed1', LEGACY = '2026-09-18.3';
-  const SAVE_DRAFT_VERSION = '2026-09-23.save-todo-closed1', LEGACY_SAVE = '2026-09-18.1';
+  const VERSION = '2026-09-23.reassign1', LEGACY = '2026-09-18.3';
+  const SAVE_DRAFT_VERSION = '2026-09-23.reassign1', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
   window.__codexControlConsoleHeldQueueInputCleanup?.();
@@ -33,18 +34,13 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   window.__codexControlConsoleSaveDraftTodoInstalledVersion = SAVE_DRAFT_VERSION;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const readThreadId = ${readNativeComposerThreadId.toString()};
-  const STORE_KEY = 'codex-control-console.native-held-queue.v1';
-  const VIEW_KEY = STORE_KEY + '.view';
-  const DRAFT_KEY = STORE_KEY + '.recovery-draft';
+  const STORE_KEY = 'codex-control-console.native-held-queue.v1', VIEW_KEY = STORE_KEY + '.view', DRAFT_KEY = STORE_KEY + '.recovery-draft';
   const MAX_HELD = 100;
-  const SAVE_STYLE = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid #8884;border-radius:999px;background:none;color:inherit;font-size:12px;font-weight:600;white-space:nowrap';
+  const SAVE_STYLE = 'display:inline-flex;order:1;align-items:center;height:28px;padding:0 9px;border:1px solid #8884;border-radius:999px;background:none;color:inherit;font-size:12px';
   const HELD_ORIGINS = new Set(['draft', 'paused-queue']);
   let open = false;
   let busy = false;
-  let serverItems = [];
-  let warning = '';
-  let editing = null;
-  let heldView = 'manual';
+  let serverItems = [], warning = '', editing = null, heldView = 'manual';
   const staleThreads = new Set();
   let activeThreadId = null;
 
@@ -60,6 +56,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   ${createNativeHeldImageTools.toString()}
   ${saveNativeHeldDraft.toString()}
   ${returnAssignedTodo.toString()}
+  ${readHeldViews.toString()} ${readHeldView.toString()}
 
   const style = document.createElement('style');
   style.dataset.cccHeldQueueStyle = '';
@@ -83,8 +80,6 @@ export function buildNativeComposerHeldQueueInjectionScript() {
     return item && UUID.test(String(item.id || '')) && item.input != null && typeof item.input === 'object' && Number.isFinite(item.heldAt) && (item.origin == null || HELD_ORIGINS.has(item.origin));
   }
   function heldFor(id) { return (readStore()[id] || []).filter(validHeld).slice(0, MAX_HELD); }
-  function readHeldViews() { try { const values = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}'); return values && typeof values === 'object' && !Array.isArray(values) ? values : {}; } catch { return {}; } }
-  function readHeldView(id) { return readHeldViews()[id] === 'time' ? 'time' : 'manual'; }
   function setHeldView(id, view) { const values = readHeldViews(); values[id] = view; localStorage.setItem(VIEW_KEY, JSON.stringify(values)); heldView = view; render(); }
   function writeHeld(id, items) {
     if (items.length > MAX_HELD) throw new Error('待办消息已达 100 条，请先整理后再保存');
@@ -261,7 +256,10 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       ], item.heldAt));
     });
     const returnTask = (task) => returnAssignedTodo(task, { threadId: id, isCurrent: () => threadId() === id, busy: () => busy, setBusy, setWarning: (value) => { warning = value; } });
-    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, returnTask, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, hydrateInput: value => value.input ? imageTools.hydrate(value.input) : [{ type: 'text', text: value.text }], removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
+    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, returnTask, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, hydrateInput: value => value.input ? imageTools.hydrate(value.input) : [{ type: 'text', text: value.text }], removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }), (task) => {
+      if (busy || threadId() !== id || !assignedState.owns(id, task)) return;
+      if (!window.__cccProjectChecklist?.openReassignTask?.(task.id, id, task.text)) { warning = '任务状态已变化，请同步后重试'; render(); }
+    });
     if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办'; list.append(empty); }
     panel.append(list);
   }
