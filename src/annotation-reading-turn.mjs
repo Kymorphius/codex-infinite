@@ -13,13 +13,14 @@ export function readAnnotationReadingTurn(context, selectTurn) {
   if (!context) return null;
   const scroll = context.content?.closest('[data-app-action-timeline-scroll]');
   const rect = scroll?.getBoundingClientRect();
-  const geometry = context.turns.flatMap(turn => {
-    const bounds = turn.anchor?.getBoundingClientRect();
-    return bounds ? [{ id: turn.id, top: bounds.top, bottom: bounds.bottom }] : [];
-  });
   const dimensionsKnown = Number.isFinite(scroll?.scrollTop) && Number.isFinite(scroll?.scrollHeight) && scroll?.clientHeight > 0;
   const reversed = scroll?.classList?.contains('flex-col-reverse') || (typeof getComputedStyle === 'function' && scroll && getComputedStyle(scroll).flexDirection === 'column-reverse');
   const atEnd = dimensionsKnown && (reversed ? scroll.scrollTop >= -2 : scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop <= 2);
   const viewport = rect ? { top: rect.top, bottom: rect.bottom, atEnd, latestTurnId: context.turns.at(-1)?.id } : null;
+  if (viewport?.bottom > viewport?.top && atEnd && viewport.latestTurnId) return viewport.latestTurnId;
+  const geometry = context.turns.flatMap(turn => {
+    const bounds = turn.anchor?.getBoundingClientRect();
+    return bounds ? [{ id: turn.id, top: bounds.top, bottom: bounds.bottom }] : [];
+  });
   return selectTurn(geometry, viewport) || context.turns.find(turn => turn.markers.some(marker => marker.getAttribute('aria-current') === 'true'))?.id || null;
 }

@@ -41,3 +41,15 @@ test('normal scroll containers also honor the bottom boundary without forcing th
   scroll.scrollTop = 200;
   assert.equal(readAnnotationReadingTurn(context, selectAnnotationReadingTurn), 'previous');
 });
+test('at the timeline end selects the latest turn without measuring every anchor', () => {
+  let anchorReads = 0;
+  const scroll = { scrollTop: 400, scrollHeight: 1000, clientHeight: 600, classList: { contains: () => false }, getBoundingClientRect: () => ({ top: 0, bottom: 600 }) };
+  const context = { content: { closest: () => scroll }, turns: Array.from({ length: 180 }, (_, index) => ({
+    id: String(index), markers: [], anchor: { getBoundingClientRect() { anchorReads += 1; return { top: index, bottom: index + 1 }; } }
+  })) };
+  assert.equal(readAnnotationReadingTurn(context, selectAnnotationReadingTurn), '179');
+  assert.equal(anchorReads, 0);
+  scroll.scrollTop = 397;
+  readAnnotationReadingTurn(context, selectAnnotationReadingTurn);
+  assert.equal(anchorReads, 180, 'reading above the end keeps exact geometry selection');
+});
