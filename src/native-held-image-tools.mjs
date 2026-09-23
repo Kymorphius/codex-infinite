@@ -52,13 +52,28 @@ export function createNativeHeldImageTools({ store = null, fetchImage = globalTh
   const capture = async (editor, heldId) => {
     const candidates = images(editor);
     if (candidates.length > 8) throw new Error('每条待办最多保存 8 张图片');
-    const saved = [];
+    const blobs = [];
     let total = 0;
     try {
       for (const image of candidates) {
         const response = await fetchImage(image.currentSrc || image.src);
         if (!response?.ok) throw new Error('无法读取输入框图片');
         const blob = await response.blob();
+        total += blob.size;
+        if (!blob.size || blob.size > 8 * 1024 * 1024 || total > 24 * 1024 * 1024) throw new Error('图片为空或超过待办保存上限');
+        blobs.push(blob);
+      }
+      return await captureBlobs(blobs, heldId);
+    } catch (error) {
+      throw error;
+    }
+  };
+  const captureBlobs = async (blobs, heldId) => {
+    if (!Array.isArray(blobs) || !blobs.length || blobs.length > 8 || typeof heldId !== 'string' || !/^[0-9a-f-]{36}$/i.test(heldId)) throw new Error('粘贴图片数量或任务标识无效');
+    const saved = []; let total = 0;
+    try {
+      for (const blob of blobs) {
+        if (!(blob instanceof Blob)) throw new Error('粘贴内容不是图片');
         total += blob.size;
         if (!blob.size || blob.size > 8 * 1024 * 1024 || total > 24 * 1024 * 1024) throw new Error('图片为空或超过待办保存上限');
         const mime = await mimeFor(blob);
@@ -68,10 +83,7 @@ export function createNativeHeldImageTools({ store = null, fetchImage = globalTh
         saved.push({ type: 'heldImage', id });
       }
       return saved;
-    } catch (error) {
-      await release(saved).catch(() => {});
-      throw error;
-    }
+    } catch (error) { await release(saved).catch(() => {}); throw error; }
   };
   const hydrate = async (input) => {
     const output = [];
@@ -86,5 +98,5 @@ export function createNativeHeldImageTools({ store = null, fetchImage = globalTh
     }
     return output;
   };
-  return { images, capture, hydrate, release, count: (input) => refs(input).length };
+  return { images, capture, captureBlobs, hydrate, release, count: (input) => refs(input).length };
 }

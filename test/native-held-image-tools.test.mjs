@@ -19,8 +19,8 @@ const fixture = () => {
 
 test('held image capture survives hydration and cleans up only after release', async () => {
   const { blobs, editor, tools } = fixture();
-  const refs = await tools.capture(editor, 'held-1');
-  assert.deepEqual(refs, [{ type: 'heldImage', id: 'held-1:0' }]);
+  const refs = await tools.capture(editor, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  assert.deepEqual(refs, [{ type: 'heldImage', id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:0' }]);
   assert.equal(blobs.size, 1);
   const input = [{ type: 'text', text: '看看图片' }, ...refs];
   assert.equal(summarizeNativeHeldMessage(input), '看看图片 · 图片 1 张');
@@ -32,23 +32,23 @@ test('held image capture survives hydration and cleans up only after release', a
 
 test('image-only draft is saved before text clearing; failure keeps composer untouched', async () => {
   const { editor, tools, blobs } = fixture();
-  let items = [], cleared = 0, warning = '', busy = false, opened = false;
+  let created = [], cleared = 0, warning = '', busy = false;
   const base = {
     threadId: () => 'thread-1', editor, readText: () => '', imageTools: tools,
-    heldFor: () => items, writeHeld: (_, next) => { items = next; }, summarize: summarizeNativeHeldMessage,
+    createTask: item => { created.push(item); },
     clearText: () => { cleared += 1; return true; }, setBusy: (value) => { busy = value; },
-    setOpen: () => { opened = true; }, setWarning: (value) => { warning = value; }, render: () => {}, updateButton: () => {}
+    setWarning: (value) => { warning = value; }, render: () => {}, updateButton: () => {}
   };
   await saveNativeHeldDraft(base);
-  assert.equal(items.length, 1);
-  assert.equal(items[0].summary, '图片 1 张');
+  assert.equal(created.length, 1);
+  assert.equal(created[0].text, '图片待办（1 张）');
+  assert.deepEqual(created[0].input, [{ type: 'heldImage', id: `${created[0].id}:0` }]);
   assert.equal(cleared, 0);
   assert.equal(busy, false);
-  assert.equal(opened, false);
   assert.match(warning, /原输入框图片仍在/);
   assert.equal(blobs.size, 1);
-  await saveNativeHeldDraft({ ...base, writeHeld: () => { throw new Error('storage full'); } });
-  assert.equal(items.length, 1);
+  await saveNativeHeldDraft({ ...base, createTask: () => { throw new Error('storage full'); } });
+  assert.equal(created.length, 1);
   assert.match(warning, /storage full/);
   assert.equal(blobs.size, 1);
 });
@@ -59,5 +59,5 @@ test('unsupported image is rejected without creating a held todo', async () => {
     store: { put: async () => assert.fail('must not persist'), get: async () => undefined, delete: async () => {} },
     fetchImage: async () => ({ ok: true, blob: async () => new Blob(['not an image']) })
   });
-  await assert.rejects(() => tools.capture(editor, 'held-2'), /仅支持/);
+  await assert.rejects(() => tools.capture(editor, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'), /仅支持/);
 });

@@ -59,9 +59,9 @@ test("native held queue saves image and text draft before clearing text", () => 
   assert.match(save, /saveNativeHeldDraft/);
   assert.doesNotMatch(save, /setOpen/);
   const flow = source.slice(source.indexOf('async function saveNativeHeldDraft'), source.indexOf('function returnAssignedTodo'));
-  assert.ok(flow.indexOf('imageTools.capture') < flow.indexOf('writeHeld(id,'));
-  assert.ok(flow.indexOf('writeHeld(id,') < flow.indexOf('clearText(editor)'));
-  assert.match(flow, /origin: 'draft'/);
+  assert.ok(flow.indexOf('imageTools.capture') < flow.indexOf('createAssignedTask'));
+  assert.ok(flow.indexOf('createAssignedTask') < flow.indexOf('clearText(editor)'));
+  assert.match(flow, /assigned thread|createAssignedTask/);
   assert.match(flow, /imageTools.release/);
   assert.doesNotMatch(save, /thread\/queue\/add/);
   assert.match(source, /items\.length > MAX_HELD/);

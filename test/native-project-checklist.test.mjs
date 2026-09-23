@@ -34,8 +34,8 @@ test('native checklist adds, edits, completes and deletes while acknowledging wi
   let packet = h.api.packet(); assert.equal(packet.actions.length, 1);
   const action = packet.actions[0], row = list.children[0]; row.children[1].value = '尚未失去焦点的编辑';
   h.api.accept({ projectKey: 'p', items: [{ id: action.id, text: action.text, done: false, createdAt: action.createdAt, updatedAt: 'now' }], acknowledged: [action.requestId] });
-  assert.equal(list.children[0], row); assert.equal(row.children[1].value, '尚未失去焦点的编辑');
-  row.children[1].listeners.change();
+  assert.notEqual(list.children[0], row); assert.equal(list.children[0].children[1].value, '尚未失去焦点的编辑');
+  list.children[0].children[1].listeners.change();
   assert.equal(h.api.packet().actions[0].text, '尚未失去焦点的编辑');
   list.children[0].children[0].checked = true; list.children[0].children[0].listeners.change();
   assert.equal(h.api.packet().actions.at(-1).done, true);
@@ -47,7 +47,7 @@ test('checklist numbers have a separate small card beside the task card', () => 
   assert.match(source, /ul\{list-style:none;padding:0;padding-inline-start:48px/);
   assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
-  assert.match(source, /2026-09-23\.return-wake1/);
+  assert.match(source, /2026-09-23\.unified-task2/);
 });
 test('project switching isolates visible items and restores pending drafts after reload', () => {
   const pending = [{ projectKey: 'a', type: 'upsert', id: 'item', requestId: 'req', text: '保留草稿', done: false }];

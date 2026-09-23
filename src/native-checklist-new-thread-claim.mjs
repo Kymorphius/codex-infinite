@@ -32,7 +32,10 @@ export function createNativeChecklistThreadStarter() {
     })).catch(error => { cleanup(); reject(error); }); }
     catch (error) { cleanup(); reject(error); }
   });
-  return async text => {
+  return async input => {
+    const parts = Array.isArray(input) ? input : [{ type: 'text', text: String(input || '') }];
+    const text = parts.filter(part => part?.type === 'text').map(part => part.text || '').join('\n');
+    if (parts.some(part => part?.type === 'heldImage')) throw new Error('含图片的任务请领取到现有会话待办；新建会话图片发送暂不支持');
     const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     const root = editor?.closest('[data-composer-surface-variant]');
     if (!root || readMountedId()) throw new Error('请从新建任务页领取');
@@ -86,7 +89,7 @@ export function createNativeChecklistNewThreadClaim({ start, readTask, enqueue, 
       inFlight.add(id);
       report('正在用任务内容创建新会话…');
       try {
-        const threadId = await start(edited.text);
+        const threadId = await start(edited.input || edited.text);
         const current = readTask(id);
         if (!current || current.done || current.assignedThreadId) {
           report('会话已创建，但任务状态已变化；请检查任务清单');

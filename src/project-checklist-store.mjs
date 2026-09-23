@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { normalizeChecklistAction } from './project-checklist-contract.mjs';
 import { checklistTimeMetadata } from './project-checklist-time.mjs';
+import { taskInputAfterTextEdit } from './project-checklist-input.mjs';
 export class ProjectChecklistStore {
   constructor(directory) { this.directory = directory; this.chain = Promise.resolve(); }
   file(key) {
@@ -31,7 +32,9 @@ export class ProjectChecklistStore {
       else {
         const updatedAt = new Date().toISOString();
         const time = index >= 0 ? checklistTimeMetadata(data.items[index]) : checklistTimeMetadata(Object.prototype.hasOwnProperty.call(action, 'createdAt') ? action : { ...action, createdAt: updatedAt });
-        const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId, updatedAt, ...time };
+        const previous = index >= 0 ? data.items[index] : null;
+        const input = previous ? taskInputAfterTextEdit(action.input || previous.input, previous.text, action.text) : action.input;
+        const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId, updatedAt, ...time, ...(input ? { input } : {}) };
         if (index >= 0) data.items[index] = item; else data.items.push(item);
       }
       if (data.items.length > 1000) throw Error('清单最多保存 1000 项');

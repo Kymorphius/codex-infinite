@@ -1,4 +1,5 @@
 import { checklistTimeMetadata } from './project-checklist-time.mjs';
+import { normalizeChecklistInput } from './project-checklist-input.mjs';
 
 export function normalizeChecklistAction(value) {
   if (!value || typeof value.projectKey !== 'string' || !value.projectKey.trim() || value.projectKey.length > 1000) throw Error('无效项目');
@@ -18,5 +19,6 @@ export function normalizeChecklistAction(value) {
     if (typeof value.createdAtEstimated !== 'boolean') throw Error('无效加入时间标记');
     time.createdAtEstimated = value.createdAtEstimated;
   }
-  return { projectKey: value.projectKey, id: value.id, requestId: value.requestId, type: value.type, text: value.text?.trim(), done: value.done, assignedThreadId, ...time };
+  const input = Object.prototype.hasOwnProperty.call(value, 'input') ? { input: normalizeChecklistInput(value.input) } : {};
+  return { projectKey: value.projectKey, id: value.id, requestId: value.requestId, type: value.type, text: value.text?.trim(), done: value.done, assignedThreadId, ...time, ...input };
 }

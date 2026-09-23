@@ -225,7 +225,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
   async function saveDraftTodo() {
     const id = threadId(), editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
     if (busy || !id || !editor) return;
-    await saveNativeHeldDraft({ threadId, editor, readText: draftText, imageTools, heldFor, writeHeld, summarize,
+    await saveNativeHeldDraft({ threadId, editor, readText: draftText, imageTools,
       clearText: clearDraftText, setBusy: (value) => { busy = value; },
       setWarning: (value) => { warning = value; }, render, updateButton: updateDraftButton });
   }
@@ -261,7 +261,7 @@ export function buildNativeComposerHeldQueueInjectionScript() {
       ], item.heldAt));
     });
     const returnTask = (task) => returnAssignedTodo(task, { threadId: id, isCurrent: () => threadId() === id, busy: () => busy, setBusy, setWarning: (value) => { warning = value; } });
-    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, returnTask, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
+    appendAssignedChecklistTaskRows(list, assignedTasks, createHeldDisplayRow, button, busy, returnTask, (task) => resumeAssignedTask(task, { threadId: id, isCurrent: () => threadId() === id, ownsTask: (item) => assignedState.owns(id, item), busy: () => busy, setBusy, request, hydrateInput: value => value.input ? imageTools.hydrate(value.input) : [{ type: 'text', text: value.text }], removeAssigned: (taskId) => assignedState.remove(id, taskId), setServerItems: (items) => { serverItems = items; }, listQueue, setWarning: (value) => { warning = value; } }));
     if (!serverItems.length && !held.length && !assignedTasks.length) { const empty = document.createElement('div'); empty.dataset.cccHeldEmpty = ''; empty.textContent = '没有排队或待办'; list.append(empty); }
     panel.append(list);
   }

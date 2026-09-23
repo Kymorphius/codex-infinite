@@ -1,5 +1,5 @@
 export function normalizeAssignedChecklistTasks(items) {
-  return Array.isArray(items) ? items.filter((item) => item && /^[a-zA-Z0-9-]{1,100}$/.test(String(item.id || '')) && typeof item.text === 'string' && item.text.trim()).slice(0, 100).map((item) => ({ id: String(item.id), text: item.text.trim() })) : [];
+  return Array.isArray(items) ? items.filter((item) => item && /^[a-zA-Z0-9-]{1,100}$/.test(String(item.id || '')) && typeof item.text === 'string' && item.text.trim()).slice(0, 100).map((item) => ({ id: String(item.id), text: item.text.trim(), ...(Array.isArray(item.input) ? { input: item.input } : {}) })) : [];
 }
 
 // Self-contained apart from normalization, so the same state contract runs in
@@ -29,7 +29,8 @@ export async function resumeAssignedTask(task, context) {
   if (context.busy() || !task?.id || !task.text || !context.isCurrent() || !context.ownsTask(task)) return;
   context.setBusy(true);
   try {
-    await context.request('thread/queue/add', { threadId: context.threadId, input: [{ type: 'text', text: task.text }], clientUserMessageId: crypto.randomUUID() });
+    const input = task.input ? await context.hydrateInput(task) : [{ type: 'text', text: task.text }];
+    await context.request('thread/queue/add', { threadId: context.threadId, input, clientUserMessageId: crypto.randomUUID() });
     window.__cccProjectChecklist?.completeAssignedTask?.(task.id, context.threadId, task.text);
     context.removeAssigned(task.id);
     if (context.isCurrent()) {
