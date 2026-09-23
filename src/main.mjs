@@ -10,6 +10,7 @@ import { AttentionConversationService } from "./attention-conversation-service.m
 import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
+import { SentMessageIndex } from './sent-message-index.mjs';
 import { NativeThreadReadStateAdapter } from "./native-thread-read-state.mjs";
 import { NewProjectService } from "./new-project-service.mjs";
 import { getConfig } from "./config.mjs";
@@ -145,7 +146,11 @@ export async function run() {
   const sidebarLabelService = new NativeSidebarLabelService({ adapter, localAdapter, currentThreadProjectIndex });
   const remoteSidebarService = new NativeRemoteSidebarService({ adapter });
   const newProjectService = new NewProjectService({ codexPath: config.codexPath, codexHome: config.nativeCodexHome, taskAdapter: localAdapter, statePath: path.join(config.wrapperCodexHome, "new-project-lifecycle.json"), projectStatePaths: [config.sourceCodexHome, config.wrapperCodexHome].map(home => path.join(home, ".codex-global-state.json")) });
-  const sentMessageSearchService = new SentMessageSearchService({ catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }) });
+  const sentMessageSearchService = new SentMessageSearchService({
+    catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }),
+    index: new SentMessageIndex({ databasePath: path.join(config.wrapperCodexHome, 'sent-message-search.sqlite'), sessionRoots: [config.sessionRoot] })
+  });
+  void sentMessageSearchService.prepare().catch(error => console.warn(`[codex-control-console] sent message indexing unavailable: ${error.message}`));
   const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
   const recentSentConversations = new RecentSentConversationService({ taskAdapter: localAdapter, archivedSessionRoot: config.archivedSessionRoot });
   const primaryAttentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: new NativeConversationAdapter({ cdpOrigin: config.primaryCdpOrigin }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.primaryCdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
@@ -201,7 +206,7 @@ export async function run() {
   let injector;
   let nativeOwnerInjector = null;
   const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
-  const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); scheduler.stop(); } });
+  const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService });
@@ -240,6 +245,7 @@ export async function run() {
     console.log("[codex-control-console] regular-chat context: model default");
     console.log(`[codex-control-console] per-thread extended context request: ${wrapper.requestedContextWindow}`);
   } catch (error) {
+    await sentMessageSearchService.index?.close();
     zoteroAdapter.close();
     await dashboard.close();
     throw error;
@@ -249,6 +255,7 @@ export async function run() {
     jevTaskDispatcher.close();
     await injector.stop();
     await nativeOwnerInjector?.stop();
+    await sentMessageSearchService.index?.close();
     scheduler.stop();
     zoteroAdapter.close();
     await dashboard.close();

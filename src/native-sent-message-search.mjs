@@ -16,7 +16,7 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.2';
+  const VERSION = '2026-09-23.3';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) return;
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
   let root, panel, input, results, timer, observer, requestId = 0, active = false;
@@ -38,9 +38,11 @@ export function installNativeSentMessageSearch() {
       results.append(status(value));
       return;
     }
+    const indexing = value.indexing && !value.indexing.ready ?
+      ` · 正在建立索引 ${value.indexing.indexed}/${value.indexing.total}` : '';
     results.append(status(value.error ||
-      (value.items.length ? `${value.items.length} 个会话${value.incomplete ? ' · 结果可能不完整' : ''}` :
-        value.incomplete ? '没有匹配结果 · 部分历史暂不可读取' : '没有匹配的已发送消息')));
+      (value.items.length ? `${value.items.length} 个会话${value.incomplete && !indexing ? ' · 结果可能不完整' : ''}` :
+        indexing ? '已索引范围内暂无匹配' : value.incomplete ? '没有匹配结果 · 部分历史暂不可读取' : '没有匹配的已发送消息') + indexing));
     for (const item of value.items) {
       const row = make('button', 'sidebar-item w-full px-2 py-1 text-start hover:bg-primary-ghost-hover');
       Object.assign(row.style, { display: 'block', width: '100%', padding: '10px', textAlign: 'left', background: 'transparent', color: 'inherit', border: '0', borderBottom: '1px solid #383838', cursor: 'pointer' });

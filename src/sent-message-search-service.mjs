@@ -71,10 +71,17 @@ export async function findLatestSentMatch(file, query) {
 }
 
 export class SentMessageSearchService {
-  constructor({ catalog, readMatch = findLatestSentMatch, fastSearch = findSentMatchesInRoots } = {}) {
+  constructor({ catalog, index = null, readMatch = findLatestSentMatch, fastSearch = findSentMatchesInRoots } = {}) {
     this.catalog = catalog;
+    this.index = index;
     this.readMatch = readMatch;
     this.fastSearch = fastSearch;
+  }
+
+  async prepare() {
+    if (!this.index) return;
+    const snapshot = await this.catalog.snapshot();
+    this.index.sync(snapshot.conversations.filter(item => !item.archived && !item.internal && item.transcriptPath), { force: true });
   }
 
   async search(rawQuery) {
@@ -84,6 +91,17 @@ export class SentMessageSearchService {
     const conversations = snapshot.conversations.filter(item => !item.archived && !item.internal && item.transcriptPath);
     const items = [];
     let failures = 0;
+    if (this.index) {
+      try {
+        this.index.sync(conversations);
+        const indexed = await this.index.search(query);
+        const byId = new Map(conversations.map(item => [item.id, item]));
+        const matches = indexed.items.filter(item => byId.has(item.id)).map(item => ({ ...item,
+          title: byId.get(item.id).title, updatedAt: byId.get(item.id).updatedAt }));
+        return { items: matches.slice(0, 30), incomplete: snapshot.truncated || indexed.incomplete || matches.length > 30,
+          indexing: indexed.progress?.ready ? null : indexed.progress };
+      } catch { /* Retain the read-only transcript search if the local index is unavailable. */ }
+    }
     if (this.readMatch === findLatestSentMatch && this.catalog.sessionRoots?.length) {
       try {
         const byPath = new Map(conversations.map(item => [item.transcriptPath, item]));

@@ -42,6 +42,17 @@ test('search skips archived and internal threads, caps results and reports missi
   assert.equal(result.incomplete, true);
 });
 
+test('search returns indexed results and progress without rescanning transcripts', async () => {
+  const service = new SentMessageSearchService({
+    catalog: { async snapshot() { return { truncated: false, conversations: [{ id: 'one', title: 'Fresh title', transcriptPath: '/one' }] }; } },
+    index: { sync(items) { assert.equal(items.length, 1); }, async search(query) { assert.equal(query, '项目'); return { items: [{ id: 'one', excerpt: '项目', at: '2026-09-23' }], incomplete: true, progress: { indexed: 1, total: 2, ready: false } }; } },
+    async readMatch() { throw new Error('transcript scan should not run'); }
+  });
+  const result = await service.search('项目');
+  assert.equal(result.items[0].title, 'Fresh title');
+  assert.deepEqual(result.indexing, { indexed: 1, total: 2, ready: false });
+});
+
 test('root search finds user text with full-width letters without matching assistant text', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'sent-search-roots-'));
   const file = path.join(root, 'thread.jsonl');
