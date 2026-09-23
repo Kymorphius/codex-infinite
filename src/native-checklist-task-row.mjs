@@ -1,6 +1,7 @@
 export function createNativeChecklistTaskRow({ item, project, version, renderVersion, dialog, loaded, generalItems, items, make, createTaskEditor, drafts, taskEditors, view, act, appendAssignmentControl, appendTime, searchRegister, setError, newThreadClaim }) {
   const row = make('li'), check = make('input'), text = make('textarea'), remove = make('button', '删除');
   row.setAttribute('data-checklist-row', ''); row.dataset.done = String(item.done); check.type = 'checkbox'; check.checked = item.done; check.setAttribute('aria-label', '完成：' + item.text);
+  row.dataset.checklistTaskId = item.id;
   check.disabled = text.disabled = remove.disabled = loaded !== project.key;
   const projectKey = project.key, targetThreadId = project.claimThreadId, newThread = Boolean(project.claimNewThread), taskId = item.id;
   const isCurrent = () => dialog.open && version === renderVersion() && project?.key === projectKey && project.claimThreadId === targetThreadId && Boolean(project.claimNewThread) === newThread && loaded === projectKey;

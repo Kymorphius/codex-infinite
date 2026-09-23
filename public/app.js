@@ -57,7 +57,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
 
   const consoleFeature = createConsoleFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen });
   const contextFeature = createContextFeature({ state, $, formatDate, formatTokens, showToast });
-  const dispatchFeature = createDispatchFeature({ state, $, formatDate, showToast });
+  const dispatchFeature = createDispatchFeature({ state, $, formatDate, showToast, requestOpen });
   const generatorsFeature = createGeneratorsFeature({ state, $, formatDate, showToast });
   const priorityFeature = createPriorityFeature({ state, $, formatDate, formatDuration });
   sessionsFeature = createSessionsFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen });

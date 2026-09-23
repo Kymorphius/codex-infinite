@@ -4,6 +4,7 @@ import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-reco
 import { installNativeProjectManagementEntry } from "./native-project-management-entry.mjs";
 import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "./native-entry-probe.mjs";
+import { openNativeChecklistTask } from './native-checklist-board-jump.mjs';
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -36,7 +37,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-23.content-mutation1.tabs-${digest}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-23.board-task-jump1.tabs-${digest}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -45,12 +46,11 @@ export function buildInjectionScript(dashboardUrl) {
   const DASHBOARD_ORIGIN = new URL(DASHBOARD_URL).origin;
   const FRAME_ALLOW = 'clipboard-read; clipboard-write';
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
-
 ${nativeConversationTabsSource}
 ${embeddedFrameRecoverySource}
 ${findNativeEntryAnchor.toString()}
 ${nativeEntryMutationNeedsInstall.toString()}
-
+${openNativeChecklistTask.toString()}
   if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
@@ -299,7 +299,7 @@ ${nativeEntryMutationNeedsInstall.toString()}
       if (result.ok) restoreWorkspace();
     } else if (event.data.type === 'codex-control-console-close') {
       restoreWorkspace();
-    }
+    } else if (event.data.type === 'codex-control-console-open-checklist-task') openNativeChecklistTask(event.data.taskId, restoreWorkspace);
   });
 
   function scheduleInstall(records = []) {

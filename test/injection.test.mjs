@@ -38,7 +38,8 @@ test("native entry anchor lookup retains its original label selection", () => {
 test("outer injection version tracks native tabs source so recent menu changes replace an old installation", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831");
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
-  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-23\\.content-mutation1\\.tabs-${digest}"`));
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-23\\.board-task-jump1\\.tabs-${digest}"`));
+  assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);
 });
 
