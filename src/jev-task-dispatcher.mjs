@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { spawn } from "node:child_process";
-import { JEV_ROUTE_EFFORTS, JEV_ROUTE_MODELS } from "./jev-routing-policy.mjs";
+import { supportsJevRoute } from "./jev-routing-policy.mjs";
 
 const MAX_PROMPT_BYTES = 128 * 1024;
 
@@ -15,7 +15,7 @@ export class JevTaskDispatcher {
   dispatch({ prompt: rawPrompt, cwd: rawCwd, model, effort }) {
     const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : "";
     if (!prompt || Buffer.byteLength(prompt, "utf8") > MAX_PROMPT_BYTES) throw new Error("任务内容无效");
-    if (!JEV_ROUTE_MODELS.includes(model) || !JEV_ROUTE_EFFORTS.includes(effort) || (model === "gpt-5.6-luna" && effort === "ultra")) throw new Error("自动分流的模型或推理强度无效");
+    if (!supportsJevRoute(model, effort)) throw new Error("自动分流的模型或推理强度无效");
     const cwd = path.resolve(typeof rawCwd === "string" && rawCwd.trim() ? rawCwd.trim() : process.cwd());
     if (!this.exists(cwd) || !this.stat(cwd).isDirectory()) throw new Error("工作目录不存在或不是文件夹");
     const child = this.spawnImpl(this.codexPath, ["app-server"], {

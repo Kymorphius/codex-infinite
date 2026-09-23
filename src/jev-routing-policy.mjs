@@ -8,8 +8,22 @@ export const JEV_ROUTE_TIERS = Object.freeze([
   "critical",
   "extreme"
 ]);
-export const JEV_ROUTE_MODELS = Object.freeze(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
 export const JEV_ROUTE_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]);
+export const JEV_ROUTE_MODEL_EFFORTS = Object.freeze({
+  "gpt-6-luna": Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+  "gpt-6-sol": JEV_ROUTE_EFFORTS,
+  "gpt-6-astra": JEV_ROUTE_EFFORTS,
+  "gpt-reserve": Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+  "gpt-5.6-luna": Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+  "gpt-5.6-terra": JEV_ROUTE_EFFORTS,
+  "gpt-5.6-sol": JEV_ROUTE_EFFORTS,
+  "gpt-5.5": Object.freeze(["low", "medium", "high", "xhigh"])
+});
+export const JEV_ROUTE_MODELS = Object.freeze(Object.keys(JEV_ROUTE_MODEL_EFFORTS));
+
+export function supportsJevRoute(model, effort) {
+  return JEV_ROUTE_MODEL_EFFORTS[model]?.includes(effort) === true;
+}
 
 const DEFAULT_MAPPINGS = Object.freeze({
   instant: Object.freeze({ model: "gpt-5.6-luna", effort: "low" }),
@@ -49,7 +63,7 @@ function normalizeMapping(value, tier) {
   const effort = typeof value?.effort === "string" ? value.effort.trim().toLowerCase() : "";
   if (!JEV_ROUTE_MODELS.includes(model)) throw new Error(`${tier} 的模型不受支持`);
   if (!JEV_ROUTE_EFFORTS.includes(effort)) throw new Error(`${tier} 的推理强度不受支持`);
-  if (model === "gpt-5.6-luna" && effort === "ultra") throw new Error("GPT-5.6 Luna 不支持 Ultra 推理强度");
+  if (!supportsJevRoute(model, effort)) throw new Error(`${model} 不支持 ${effort === "ultra" ? "Ultra" : effort} 推理强度`);
   return { model, effort };
 }
 

@@ -1,4 +1,4 @@
-const ROUTE_MODELS = new Set(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
+const ROUTE_MODELS = new Set(["gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-reserve", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]);
 const ROUTE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max", "ultra"]);
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function formatNativeJevEffort(value) {
@@ -9,13 +9,13 @@ export function formatNativeJevEffort(value) {
 export function formatNativeJevTurnChoice(value = {}) {
   const tiers = { instant: "即时", quick: "轻快", everyday: "日常", substantial: "进阶", complex: "复杂", deep: "深度", critical: "关键", extreme: "极限" };
   const tier = tiers[value.tier] || String(value.tier || "").trim();
-  const model = String(value.model || "").trim().replace(/^gpt-/i, "GPT-").replace(/-(luna|terra|sol|astra)$/i, (_, name) => ` ${name[0].toUpperCase()}${name.slice(1).toLowerCase()}`);
+  const model = String(value.model || "").trim().replace(/^gpt-/i, "GPT-").replace(/-(luna|terra|sol|astra)$/i, (_, name) => ` ${name[0].toUpperCase()}${name.slice(1).toLowerCase()}`).replace(/^GPT-reserve$/, "GPT-Reserve");
   const effort = String(value.effort || "").trim();
   return tier && model && effort ? `Jev · ${tier} · ${model} · ${formatNativeJevEffort(effort)}${value.fallback ? " · 兜底" : value.lowConfidence ? " · 低置信度" : ""}` : "";
 }
 
 export function formatNativeJevModelChange(value = {}) {
-  const labels = { "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-6-astra": "GPT-6 Astra" };
+  const labels = { "gpt-6-luna": "GPT-6 Luna", "gpt-6-sol": "GPT-6 Sol", "gpt-6-astra": "GPT-6 Astra", "gpt-reserve": "GPT-Reserve", "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5" };
   const model = labels[value.model] || String(value.model || "").trim();
   const effort = String(value.effort || "").trim();
   if (!model || !effort) return "";

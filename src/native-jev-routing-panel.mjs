@@ -5,12 +5,17 @@ export function buildNativeJevRoutingPanelSource() {
     ['complex', '复杂'], ['deep', '深度'], ['critical', '关键'], ['extreme', '极限']
   ];
   const ROUTE_MODEL_OPTIONS = [
-    ['gpt-5.6-luna', 'GPT-5.6 Luna'], ['gpt-5.6-terra', 'GPT-5.6 Terra'],
-    ['gpt-5.6-sol', 'GPT-5.6 Sol'], ['gpt-6-astra', 'GPT-6 Astra']
+    ['gpt-6-luna', 'GPT-6 Luna'], ['gpt-6-sol', 'GPT-6 Sol'], ['gpt-6-astra', 'GPT-6 Astra'], ['gpt-reserve', 'GPT-Reserve'],
+    ['gpt-5.6-luna', 'GPT-5.6 Luna'], ['gpt-5.6-terra', 'GPT-5.6 Terra'], ['gpt-5.6-sol', 'GPT-5.6 Sol'], ['gpt-5.5', 'GPT-5.5']
   ];
   const ROUTE_EFFORT_OPTIONS = [
     ['low', '轻度'], ['medium', '中'], ['high', '高'], ['xhigh', '极高'], ['max', '最高'], ['ultra', 'Ultra']
   ];
+  const ROUTE_MODEL_EFFORTS = {
+    'gpt-6-luna': ['low','medium','high','xhigh','max'], 'gpt-6-sol': ['low','medium','high','xhigh','max','ultra'], 'gpt-6-astra': ['low','medium','high','xhigh','max','ultra'],
+    'gpt-reserve': ['low','medium','high','xhigh','max'], 'gpt-5.6-luna': ['low','medium','high','xhigh','max'], 'gpt-5.6-terra': ['low','medium','high','xhigh','max','ultra'],
+    'gpt-5.6-sol': ['low','medium','high','xhigh','max','ultra'], 'gpt-5.5': ['low','medium','high','xhigh']
+  };
   const ROUTE_DEFAULT_MAPPINGS = {
     instant: ['gpt-5.6-luna', 'low'], quick: ['gpt-5.6-luna', 'medium'], everyday: ['gpt-5.6-terra', 'medium'], substantial: ['gpt-5.6-terra', 'high'],
     complex: ['gpt-5.6-sol', 'high'], deep: ['gpt-5.6-sol', 'xhigh'], critical: ['gpt-6-astra', 'xhigh'], extreme: ['gpt-6-astra', 'ultra']
@@ -44,7 +49,7 @@ export function buildNativeJevRoutingPanelSource() {
       const tierLabel = document.createElement('strong'); tierLabel.textContent = label; tierLabel.style.cssText = 'font-size:12px;color:#d9d9dd';
       const model = createSelect(ROUTE_MODEL_OPTIONS, current.model || fallback[0]);
       const effort = createSelect(ROUTE_EFFORT_OPTIONS, current.effort || fallback[1]);
-      const syncEfforts = () => { const selected = effort.value; const allowed = ROUTE_EFFORT_OPTIONS.filter(([value]) => !(model.value === 'gpt-5.6-luna' && value === 'ultra')); effort.textContent = ''; for (const [value, optionLabel] of allowed) { const option = document.createElement('option'); option.value = value; option.textContent = optionLabel; option.selected = value === selected || (!allowed.some(([candidate]) => candidate === selected) && value === 'max'); effort.append(option); } };
+      const syncEfforts = () => { const selected = effort.value; const supported = ROUTE_MODEL_EFFORTS[model.value] || []; const allowed = ROUTE_EFFORT_OPTIONS.filter(([value]) => supported.includes(value)); const next = supported.includes(selected) ? selected : allowed.at(-1)?.[0]; effort.textContent = ''; for (const [value, optionLabel] of allowed) { const option = document.createElement('option'); option.value = value; option.textContent = optionLabel; option.selected = value === next; effort.append(option); } };
       model.addEventListener('change', syncEfforts); syncEfforts(); row.append(tierLabel, model, effort); form.append(row); fields.set(tier, { model, effort });
     }
     const status = document.createElement('div'); status.setAttribute('role', 'status'); status.style.cssText = 'min-height:16px;padding:0 2px;color:#f0b866;font-size:11px'; form.append(status);

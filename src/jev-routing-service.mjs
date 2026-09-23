@@ -1,18 +1,16 @@
 import fs from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { JEV_ROUTE_TIERS, JEV_TIER_DESCRIPTIONS, fallbackJevClassification, normalizeJevRoutingConfig } from "./jev-routing-policy.mjs";
+import { JEV_ROUTE_EFFORTS, JEV_ROUTE_MODELS, JEV_ROUTE_TIERS, JEV_TIER_DESCRIPTIONS, fallbackJevClassification, normalizeJevRoutingConfig } from "./jev-routing-policy.mjs";
 
 const MAX_PROMPT_BYTES = 128 * 1024;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ROUTE_MODELS = new Set(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
-const ROUTE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max", "ultra"]);
 
 export function normalizeJevRoutingReceipt(value) {
   const threadId = String(value?.threadId || "").toLowerCase();
   const turnId = String(value?.turnId || "").toLowerCase();
-  if (!UUID.test(threadId) || !UUID.test(turnId) || !ROUTE_MODELS.has(value?.model) || !ROUTE_EFFORTS.has(value?.effort)) return null;
+  if (!UUID.test(threadId) || !UUID.test(turnId) || !JEV_ROUTE_MODELS.includes(value?.model) || !JEV_ROUTE_EFFORTS.includes(value?.effort)) return null;
   return {
     threadId,
     turnId,

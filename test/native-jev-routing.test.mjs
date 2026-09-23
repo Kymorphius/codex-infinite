@@ -136,6 +136,9 @@ test("native Jev binding accepts only bounded classify, toggle, and mapping requ
   const mappings = { instant: { model: "gpt-5.6-luna", effort: "low" }, quick: { model: "gpt-5.6-luna", effort: "medium" }, everyday: { model: "gpt-5.6-terra", effort: "medium" }, substantial: { model: "gpt-5.6-terra", effort: "high" }, complex: { model: "gpt-5.6-sol", effort: "high" }, deep: { model: "gpt-5.6-sol", effort: "xhigh" }, critical: { model: "gpt-6-astra", effort: "xhigh" }, extreme: { model: "gpt-6-astra", effort: "ultra" } };
   assert.deepEqual(parseNativeJevRoutingRequest(JSON.stringify({ id: "map", kind: "set-mappings", mappings })), { id: "map", kind: "set-mappings", mappings });
   assert.equal(parseNativeJevRoutingRequest(JSON.stringify({ id: "map", kind: "set-mappings", mappings: { ...mappings, instant: { model: "gpt-5.6-luna", effort: "ultra" } } })), null);
+  const upgraded = { ...mappings, instant: { model: "gpt-6-luna", effort: "max" }, everyday: { model: "gpt-6-sol", effort: "ultra" }, deep: { model: "gpt-reserve", effort: "max" }, critical: { model: "gpt-5.5", effort: "xhigh" } };
+  assert.deepEqual(parseNativeJevRoutingRequest(JSON.stringify({ id: "new", kind: "set-mappings", mappings: upgraded }))?.mappings, upgraded);
+  assert.equal(parseNativeJevRoutingRequest(JSON.stringify({ id: "new", kind: "set-mappings", mappings: { ...upgraded, instant: { model: "gpt-6-luna", effort: "ultra" } } })), null);
   assert.equal(parseNativeJevRoutingRequest('{"id":"two","kind":"classify","prompt":""}'), null);
   assert.equal(parseNativeJevRoutingRequest('{"id":"two","kind":"other"}'), null);
 
@@ -168,6 +171,8 @@ test("turn choice labels and pending-turn matching stay bounded and deterministi
   assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", lowConfidence: true }), "Jev · 深度 · GPT-5.6 Sol · 高 · 低置信度");
   assert.equal(formatNativeJevTurnChoice({ tier: "everyday", model: "gpt-5.6-terra", effort: "low", fallback: true }), "Jev · 日常 · GPT-5.6 Terra · 轻度 · 兜底");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.9 }), "模型已设置为 GPT-5.6 Sol，推理强度 高，置信度 0.90。");
+  assert.equal(formatNativeJevModelChange({ model: "gpt-6-sol", effort: "medium", confidence: 0.9 }), "模型已设置为 GPT-6 Sol，推理强度 中，置信度 0.90。");
+  assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-reserve", effort: "max" }), "Jev · 复杂 · GPT-Reserve · 最高");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.18, lowConfidence: true }), "模型已设置为 GPT-5.6 Sol，推理强度 高，置信度 0.18（低置信度）。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-terra", effort: "medium", confidence: 0.18, fallback: true }), "模型已设置为 GPT-5.6 Terra，推理强度 中，置信度 0.18（兜底）。");
   const candidates = [{ id: first, userText: "same" }, { id: second, userText: "same" }];
@@ -243,6 +248,10 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /set-mappings/);
   assert.match(source, /addEventListener\('contextmenu'/);
   assert.match(source, /路由档位/);
+  assert.match(source, /GPT-6 Luna/);
+  assert.match(source, /GPT-6 Sol/);
+  assert.match(source, /GPT-Reserve/);
+  assert.match(source, /GPT-5\.5/);
   assert.match(source, /ignoreClickUntil/);
   assert.match(source, /flex:0 0 48px/);
   assert.match(source, /padding:0 6px/);

@@ -26,7 +26,7 @@ export function buildNativeJevComposerControlSource() {
     if (arrow) { arrow.style.setProperty('position', 'absolute', 'important'); arrow.style.setProperty('right', '8px', 'important'); arrow.style.setProperty('visibility', 'visible', 'important'); arrow.style.setProperty('color', '#62bd84', 'important'); }
     let effective = control.querySelector('[data-codex-control-console-jev-native-model-effective]');
     if (!effective) { effective = document.createElement('span'); effective.setAttribute('data-codex-control-console-jev-native-model-effective', ''); control.append(effective); }
-    const model = String(choice?.value?.model || '').replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1));
+    const model = String(choice?.value?.model || '').replace(/^gpt-/i, 'GPT-').replace(/-(luna|terra|sol|astra)$/i, (_, name) => ' ' + name[0].toUpperCase() + name.slice(1)).replace(/^GPT-reserve$/, 'GPT-Reserve');
     const effortLabels = { none: '无', minimal: '极低', low: '轻度', medium: '中', high: '高', xhigh: '极高', max: '最高', ultra: 'Ultra' };
     const effort = effortLabels[choice?.value?.effort] || choice?.value?.effort;
     const effectiveText = model && effort ? model + ' ' + effort : 'Jev 自动选择';

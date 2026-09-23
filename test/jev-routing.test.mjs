@@ -5,7 +5,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough, Readable } from "node:stream";
-import { defaultJevRoutingConfig, normalizeJevRoutingConfig } from "../src/jev-routing-policy.mjs";
+import { JEV_ROUTE_MODEL_EFFORTS, JEV_ROUTE_MODELS, defaultJevRoutingConfig, normalizeJevRoutingConfig, supportsJevRoute } from "../src/jev-routing-policy.mjs";
+import { JEV_MODEL_EFFORTS, JEV_MODELS } from "../public/features/jev-routing/index.js";
 import { JevRoutingStore } from "../src/jev-routing-store.mjs";
 import { JevThreadRoutingStore, normalizeJevThreadRoutingOverrides } from "../src/jev-thread-routing-store.mjs";
 import { JevRoutingService, readJevRoutingReceipts } from "../src/jev-routing-service.mjs";
@@ -49,6 +50,20 @@ test("routing policy keeps configurable model and effort mappings bounded", () =
   assert.deepEqual(changed.mappings.quick, { model: "gpt-5.6-sol", effort: "max" });
   assert.throws(() => normalizeJevRoutingConfig({ ...defaults, mappings: { ...defaults.mappings, quick: { model: "gpt-5.6-luna", effort: "ultra" } } }), /不支持 Ultra/);
   assert.throws(() => normalizeJevRoutingConfig({ ...defaults, transportMode: "proxy-ish" }), /传输方式无效/);
+});
+
+test("all locally listed native models are routable with their supported reasoning levels on both settings surfaces", () => {
+  assert.deepEqual(JEV_MODELS, JEV_ROUTE_MODELS);
+  assert.deepEqual(JEV_MODEL_EFFORTS, JEV_ROUTE_MODEL_EFFORTS);
+  for (const [model, effort] of [["gpt-6-luna", "max"], ["gpt-6-sol", "ultra"], ["gpt-6-astra", "ultra"], ["gpt-reserve", "max"], ["gpt-5.5", "xhigh"]]) {
+    assert.equal(supportsJevRoute(model, effort), true);
+    const defaults = defaultJevRoutingConfig();
+    const config = normalizeJevRoutingConfig({ ...defaults, mappings: { ...defaults.mappings, everyday: { model, effort } } });
+    assert.deepEqual(config.mappings.everyday, { model, effort });
+  }
+  assert.equal(supportsJevRoute("gpt-6-luna", "ultra"), false);
+  assert.equal(supportsJevRoute("gpt-reserve", "ultra"), false);
+  assert.equal(supportsJevRoute("gpt-5.5", "max"), false);
 });
 
 test("legacy four-tier config migrates without losing existing mappings", () => {

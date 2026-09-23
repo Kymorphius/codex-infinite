@@ -1,6 +1,6 @@
 const MAX_PROMPT_BYTES = 128 * 1024;
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-import { JEV_ROUTE_EFFORTS, JEV_ROUTE_MODELS, JEV_ROUTE_TIERS } from "./jev-routing-policy.mjs";
+import { JEV_ROUTE_TIERS, supportsJevRoute } from "./jev-routing-policy.mjs";
 
 function parseMappings(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -11,7 +11,7 @@ function parseMappings(value) {
     const mapping = value[tier];
     const model = typeof mapping?.model === "string" ? mapping.model.trim() : "";
     const effort = typeof mapping?.effort === "string" ? mapping.effort.trim().toLowerCase() : "";
-    if (!JEV_ROUTE_MODELS.includes(model) || !JEV_ROUTE_EFFORTS.includes(effort) || (model === "gpt-5.6-luna" && effort === "ultra")) return null;
+    if (!supportsJevRoute(model, effort)) return null;
     mappings[tier] = { model, effort };
   }
   return mappings;

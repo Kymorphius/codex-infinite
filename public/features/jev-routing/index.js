@@ -10,11 +10,16 @@ export const JEV_TIERS = Object.freeze([
   { id: "critical", label: "关键", description: "高风险架构或迁移" },
   { id: "extreme", label: "极限", description: "极高风险或高度模糊" }
 ]);
-export const JEV_MODELS = Object.freeze(["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6-astra"]);
+export const JEV_MODELS = Object.freeze(["gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-reserve", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]);
 export const JEV_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]);
+export const JEV_MODEL_EFFORTS = Object.freeze({
+  "gpt-6-luna": ["low", "medium", "high", "xhigh", "max"], "gpt-6-sol": JEV_EFFORTS, "gpt-6-astra": JEV_EFFORTS,
+  "gpt-reserve": ["low", "medium", "high", "xhigh", "max"], "gpt-5.6-luna": ["low", "medium", "high", "xhigh", "max"],
+  "gpt-5.6-terra": JEV_EFFORTS, "gpt-5.6-sol": JEV_EFFORTS, "gpt-5.5": ["low", "medium", "high", "xhigh"]
+});
 
 function modelLabel(model) {
-  return ({ "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-6-astra": "GPT-6 Astra" })[model] || model;
+  return ({ "gpt-6-luna": "GPT-6 Luna", "gpt-6-sol": "GPT-6 Sol", "gpt-6-astra": "GPT-6 Astra", "gpt-reserve": "GPT-Reserve", "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5" })[model] || model;
 }
 
 export function createJevRoutingFeature({ $, showToast }) {
@@ -77,9 +82,9 @@ export function createJevRoutingFeature({ $, showToast }) {
     for (const tier of JEV_TIERS) {
       const model = configForm.elements[`${tier.id}.model`];
       const effort = configForm.elements[`${tier.id}.effort`];
-      const ultra = [...effort.options].find((option) => option.value === "ultra");
-      ultra.disabled = model.value === "gpt-5.6-luna";
-      if (ultra.disabled && effort.value === "ultra") effort.value = "max";
+      const supported = JEV_MODEL_EFFORTS[model.value] || [];
+      for (const option of effort.options) option.disabled = !supported.includes(option.value);
+      if (!supported.includes(effort.value)) effort.value = supported.at(-1);
     }
   }
 
