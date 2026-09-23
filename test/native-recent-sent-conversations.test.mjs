@@ -203,16 +203,16 @@ test("select and new-window actions work for sent conversations absent from open
   assert.deepEqual(f.state.tabs.map((tab) => tab.id), [id(1)], "snapshot selection does not silently rewrite opened history");
 });
 
-test("loading, empty and stale snapshots have explicit non-destructive display states", () => {
+test("loading and empty states stay visible while stale records have no banner", () => {
   const f = fixture({ items: [], loading: true });
   f.trigger.dispatch("click");
   assert.match(f.menu.textContent, /正在索引发送时间/);
   f.update({ items: [] });
   assert.match(f.menu.textContent, /暂无发过消息的本机会话/);
   f.update({ items: [record(2)], stale: true });
-  assert.match(f.menu.textContent, /部分发送时间暂未刷新，保留已知记录/);
-  assert.equal(f.menu.children[0].getAttribute("role"), "status");
-  assert.equal(f.menu.children[1].children[0].dataset.recentKey, `local:${id(2)}`);
+  assert.doesNotMatch(f.menu.textContent, /部分发送时间暂未刷新/);
+  assert.equal(f.menu.children[0].getAttribute("role"), "none");
+  assert.equal(f.menu.children[0].children[0].dataset.recentKey, `local:${id(2)}`);
   assert.equal(f.menu.hidden, false);
 });
 

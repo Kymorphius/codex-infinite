@@ -22,7 +22,7 @@ export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, 
     readStatus: () => {
       const snapshot = readSnapshot();
       if (!snapshot || snapshot.loading) return "正在索引发送时间…";
-      return snapshot.stale ? "部分发送时间暂未刷新，保留已知记录" : "";
+      return "";
     },
     emptyText: "暂无发过消息的本机会话",
     detailFor: (tab) => new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }),
