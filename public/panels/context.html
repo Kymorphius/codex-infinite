@@ -1,4 +1,12 @@
         <section class="context-panel hidden" data-module-panel="context">
+          <section class="composer-card account-usage" aria-label="Codex 账号用量">
+            <div class="section-heading">
+              <div><p class="eyebrow">ACCOUNT USAGE</p><h2>Codex 账号用量</h2><p class="muted">账号额度与单条会话的上下文窗口分别计算；这里显示已用比例和重置时间。</p></div>
+              <button class="quiet-button" type="button" data-action="refresh-usage">刷新用量</button>
+            </div>
+            <p class="muted" data-testid="account-usage-status" role="status">正在读取账号用量…</p>
+            <div class="account-usage-list" data-testid="account-usage-list"></div>
+          </section>
           <section class="intro-card">
             <div>
               <p class="eyebrow">PER-CONVERSATION CONTEXT</p>

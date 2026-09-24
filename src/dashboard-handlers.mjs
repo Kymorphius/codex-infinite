@@ -16,6 +16,8 @@ import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
 import { createJevRoutingHttpHandler } from "./jev-routing-http.mjs";
 import { createPersonalPanelTaskHttpHandler } from './personal-panel-task-http.mjs';
+import { AccountUsageReader } from './account-usage.mjs';
+import { createAccountUsageHttpHandler } from './account-usage-http.mjs';
 
 export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
   const health = createHealthHttpHandler(config);
@@ -35,6 +37,7 @@ export function createDashboardHandlers({ config, experimentService, adapter, lo
     createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService, remoteThreadSettingsService }),
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),
     createTasksHttpHandler({ adapter, localAdapter: local, nodeRuntimeService }),
+    createAccountUsageHttpHandler({ reader: new AccountUsageReader({ codexPath: config.codexPath, codexHome: config.nativeCodexHome }) }),
     createContextHttpHandler({ adapter: local, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin }),
     createGeneratorHttpHandler({ adapter: local, generatorService, dashboardOrigin: config.dashboardOrigin }),
     createDispatchHttpHandler({ adapter: local, dispatchStore, checklistStore, dashboardOrigin: config.dashboardOrigin })
