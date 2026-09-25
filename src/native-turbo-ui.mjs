@@ -15,12 +15,18 @@ export function buildNativeTurboUiSource(bindingName) {
     button.setAttribute('data-codex-control-console-turbo-render-signature', signature);
     button.dataset.enabled = active ? 'true' : 'false';
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.setAttribute('aria-label', active ? 'Turbo 模式已开启' : 'Turbo 模式已关闭');
     button.disabled = pending;
     button.title = title + '；右键打开设置';
-    button.style.cssText = 'display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1;white-space:nowrap;cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
-    button.textContent = '';
-    const text = document.createElement('span'); text.textContent = 'Turbo';
-    button.append(text);
+    button.style.cssText = 'display:inline-flex;flex:0 0 28px;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:8px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '17'); icon.setAttribute('height', '17');
+    icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8');
+    icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round');
+    icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('focusable', 'false');
+    const bolt = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    bolt.setAttribute('d', 'M13 2 5 13h6l-1 9 9-13h-6V2z'); icon.append(bolt);
+    button.replaceChildren(icon);
   }
 
   function restoreReasoningControl(button) {

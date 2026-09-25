@@ -197,7 +197,9 @@ test("native sidebar Turbo control uses one bounded binding action", async () =>
   assert.doesNotMatch(source, /setAttribute\('data-codex-control-console-native-turbo-settings'/);
   assert.match(source, /addEventListener\('contextmenu'/);
   assert.match(source, /openSettings\(button\)/);
-  assert.doesNotMatch(source, /createElementNS\('http:\/\/www\.w3\.org\/2000\/svg'/);
+  assert.match(source, /createElementNS\('http:\/\/www\.w3\.org\/2000\/svg', 'svg'\)/);
+  assert.match(source, /button\.setAttribute\('aria-label', active \? 'Turbo 模式已开启' : 'Turbo 模式已关闭'\)/);
+  assert.match(source, /button\.replaceChildren\(icon\)/);
   assert.match(source, /百万上下文/);
   assert.match(source, /data-composer-navigation-target="reasoning"/);
   assert.match(source, /Fast/);

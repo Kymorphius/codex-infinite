@@ -6,11 +6,22 @@ export function buildNativeJevButtonRenderSource() {
     if (button.getAttribute('data-codex-control-console-jev-render-signature') === signature) return;
     button.dataset.enabled = String(active);
     button.setAttribute('aria-pressed', String(active));
-    button.setAttribute('aria-label', active ? 'Jev 自动分流已开启' : 'Jev 自动分流已关闭');
+    button.setAttribute('aria-label', '全局 Jev 自动分流已' + (active ? '开启' : '关闭') + '，' + (policy.transportMode === 'native' ? '直连模式' : '路由模式'));
     button.disabled = togglePending;
-    button.textContent = policy.transportMode === 'native' ? '直连' : '路由';
-    button.title = togglePending ? '正在统一所有会话的自动分流设置…' : active ? '统一开启：所有未单独设置的会话自动分流；点击关闭并清除会话覆盖' : '统一关闭：所有未单独设置的会话不自动分流；点击开启并清除会话覆盖';
-    button.style.cssText = 'display:inline-flex;position:relative;z-index:1;align-items:center;height:24px;padding:0 8px;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.24)') + ';border-radius:999px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '.88') + ';pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
+    button.title = (policy.transportMode === 'native' ? '直连模式；' : '路由模式；') + (togglePending ? '正在统一所有会话的自动分流设置…' : active ? '统一开启：所有未单独设置的会话自动分流；点击关闭并清除会话覆盖' : '统一关闭：所有未单独设置的会话不自动分流；点击开启并清除会话覆盖');
+    button.style.cssText = 'display:inline-flex;position:relative;z-index:1;flex:0 0 28px;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid ' + (active ? 'rgba(106,190,138,.52)' : 'rgba(128,128,128,.24)') + ';border-radius:8px;background:' + (active ? 'rgba(75,166,110,.15)' : 'transparent') + ';color:' + (active ? '#62bd84' : 'currentColor') + ';cursor:' + (togglePending ? 'wait' : 'pointer') + ';opacity:' + (togglePending ? '.58' : '.88') + ';pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '17'); icon.setAttribute('height', '17');
+    icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8');
+    icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round');
+    icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('focusable', 'false');
+    for (const [cx, cy] of [[5, 4], [19, 6], [19, 18]]) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      node.setAttribute('cx', String(cx)); node.setAttribute('cy', String(cy)); node.setAttribute('r', '2'); icon.append(node);
+    }
+    const branch = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    branch.setAttribute('d', 'M5 6v8a4 4 0 0 0 4 4h8M5 12h8a6 6 0 0 0 6-4'); icon.append(branch);
+    button.replaceChildren(icon);
     button.setAttribute('data-codex-control-console-jev-render-signature', signature);
   }
 

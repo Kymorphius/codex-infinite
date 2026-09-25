@@ -59,7 +59,7 @@ export function buildNativeTurboInjectionScript() {
   const enforcementSource = buildNativeTurboEnforcementSource();
   const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-22.new-chat-preset3') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-25.sidebar-icons1') return;
   window.__codexControlConsoleTurboTurnCleanup?.();
   window.__codexControlConsoleTurboNewChatCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
@@ -71,7 +71,7 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-22.new-chat-preset3';
+  window.__codexControlConsoleTurboVersion = '2026-09-25.sidebar-icons1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;

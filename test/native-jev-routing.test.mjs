@@ -232,7 +232,9 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /新建聊天继承全局 Jev 路由/);
   assert.match(source, /selectedThreadId \? await request\('set-thread-enabled'/);
   assert.match(source, /if \(!composerHost\) \{ current\?\.remove\(\); choice\?\.remove\(\); return; \}/);
-  assert.match(source, /button\.textContent = policy\.transportMode === 'native' \? '直连' : '路由';/);
+  assert.match(source, /function renderGlobalButton\(button\)[\s\S]*?button\.replaceChildren\(icon\)/);
+  assert.match(source, /function renderGlobalButton\(button\)[\s\S]*?createElementNS\('http:\/\/www\.w3\.org\/2000\/svg', 'svg'\)/);
+  assert.match(source, /button\.textContent = submissionPending \? '判断中…' : policy\.transportMode === 'native' \? '直连' : '路由';/);
   assert.doesNotMatch(source, /button\.textContent = 'Jev';/);
   assert.doesNotMatch(source, /Jev 全局/);
   assert.match(source, /'直连' : '路由'/);
