@@ -26,6 +26,13 @@ function processDouble(onInput) {
   return child;
 }
 
+function hybridResponse(choice, confidence, scores = [2, 2, 2, 1, 2, 2]) {
+  return JSON.stringify({ answers: {
+    tier: { type: "choice", choice, confidence },
+    ...Object.fromEntries(["complexity", "scope", "reasoning", "risk", "context", "iteration"].map((name, index) => [name, { type: "score", score: scores[index], confidence: 0.8 }])),
+  } });
+}
+
 function responseRecorder() {
   return { writeHead(code) { this.code = code; }, end(body) { this.body = JSON.parse(body); } };
 }
@@ -128,15 +135,15 @@ test("Jev classification uses stdin and returns the mapped choice", async () => 
     spawnImpl(command, args) {
       invocation = { command, args };
       const child = processDouble((input) => {
-        if (input === "修复跨模块并发故障") queueMicrotask(() => { child.stdout.end('{"answer":{"choice":"complex","confidence":0.91}}'); child.emit("close", 0); });
+        if (JSON.parse(input).state === "修复跨模块并发故障") queueMicrotask(() => { child.stdout.end(hybridResponse("complex", 0.91)); child.emit("close", 0); });
       });
       return child;
     }
   });
   const result = await service.classify("修复跨模块并发故障", defaultJevRoutingConfig());
   assert.equal(invocation.command, "/bin/jev");
-  assert.deepEqual(result, { tier: "complex", classifiedTier: "complex", confidence: 0.91, lowConfidence: false, fallback: false, reason: "Jev 以 0.91 置信度选择 complex", model: "gpt-5.6-sol", effort: "high" });
-  assert.ok(invocation.args.includes("--json"));
+  assert.deepEqual([result.tier, result.classifiedTier, result.confidence, result.lowConfidence, result.source, result.model, result.effort], ["complex", "complex", 0.91, false, "jev", "gpt-5.6-sol", "high"]);
+  assert.deepEqual(invocation.args, ["raw"]);
 });
 
 test("Windows Jev command wrappers run through cmd.exe", async () => {
@@ -145,7 +152,7 @@ test("Windows Jev command wrappers run through cmd.exe", async () => {
     store: { read: async () => defaultJevRoutingConfig() }, jevPath: "C:\\Users\\Admin\\.local\\bin\\jev.cmd", taskDispatcher: {}, exists: () => true, platform: "win32",
     spawnImpl(command, args) {
       invocation = { command, args };
-      const child = processDouble(() => queueMicrotask(() => { child.stdout.end('{"answer":{"choice":"quick","confidence":0.92}}'); child.emit("close", 0); }));
+      const child = processDouble(() => queueMicrotask(() => { child.stdout.end(hybridResponse("quick", 0.92)); child.emit("close", 0); }));
       return child;
     }
   });
@@ -154,17 +161,17 @@ test("Windows Jev command wrappers run through cmd.exe", async () => {
   assert.deepEqual(invocation.args.slice(0, 4), ["/d", "/s", "/c", '"C:\\Users\\Admin\\.local\\bin\\jev.cmd"']);
 });
 
-test("low-confidence Jev choices remain routed while invalid results use the fallback", async () => {
+test("low-confidence Jev choices use six dimensions while invalid results use the fallback", async () => {
   const config = { ...defaultJevRoutingConfig(), fallbackTier: "critical" };
   const lowService = new JevRoutingService({
     store: { read: async () => config }, jevPath: "/bin/jev", taskDispatcher: {}, exists: () => true,
     spawnImpl() {
-      const child = processDouble(() => queueMicrotask(() => { child.stdout.end('{"answer":{"choice":"deep","confidence":0.18}}'); child.emit("close", 1); }));
+      const child = processDouble(() => queueMicrotask(() => { child.stdout.end(hybridResponse("deep", 0.18, [3, 3, 3, 3, 3, 3])); child.emit("close", 0); }));
       return child;
     }
   });
   const low = await lowService.classify("难以区分档位的任务", config);
-  assert.deepEqual(low, { tier: "deep", classifiedTier: "deep", confidence: 0.18, lowConfidence: true, fallback: false, reason: "Jev 以 0.18 置信度选择 deep；低于提示线 0.70，仍采用本次判断", model: "gpt-5.6-sol", effort: "xhigh" });
+  assert.deepEqual([low.tier, low.classifiedTier, low.confidence, low.lowConfidence, low.source, low.model, low.effort], ["substantial", "deep", 0.18, true, "dimensions", "gpt-5.6-terra", "high"]);
 
   const failedService = new JevRoutingService({
     store: { read: async () => config }, jevPath: "/bin/jev", taskDispatcher: {}, exists: () => true,
@@ -186,7 +193,7 @@ test("Jev classification accepts the new intermediate and extreme tiers", async 
     const service = new JevRoutingService({
       store: { read: async () => defaultJevRoutingConfig() }, jevPath: "/bin/jev", taskDispatcher: {}, exists: () => true,
       spawnImpl() {
-        const child = processDouble(() => queueMicrotask(() => { child.stdout.end(JSON.stringify({ answer: { choice, confidence: 0.92 } })); child.emit("close", 0); }));
+        const child = processDouble(() => queueMicrotask(() => { child.stdout.end(hybridResponse(choice, 0.92)); child.emit("close", 0); }));
         return child;
       }
     });
@@ -217,7 +224,7 @@ test("router receipts are read back as bounded exact-turn choices", async (t) =>
   const turnId = "01a0bf10-1497-7263-a1ca-4ea079c001de";
   await fs.writeFile(path.join(directory, `${threadId}.json`), JSON.stringify({ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }));
   await fs.writeFile(path.join(directory, "not-a-receipt.json"), "{}");
-  assert.deepEqual(await readJevRoutingReceipts(directory), [{ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, lowConfidence: false, fallback: false, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }]);
+  assert.deepEqual(await readJevRoutingReceipts(directory), [{ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, lowConfidence: false, fallback: false, source: null, dimensionScore: null, dimensionConfidence: null, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }]);
 });
 
 test("native dispatcher starts a durable thread with routed model and effort", async () => {

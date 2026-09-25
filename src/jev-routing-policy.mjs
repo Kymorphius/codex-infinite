@@ -88,5 +88,5 @@ export function normalizeJevRoutingConfig(value) {
 export function fallbackJevClassification(configValue, reason, extra = {}) {
   const config = normalizeJevRoutingConfig(configValue);
   const tier = config.fallbackTier;
-  return { tier, confidence: null, fallback: true, reason, ...extra, ...config.mappings[tier] };
+  return { tier, confidence: null, fallback: true, source: "fallback", reason, ...extra, ...config.mappings[tier] };
 }

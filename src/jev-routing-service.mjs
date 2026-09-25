@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { JEV_ROUTE_EFFORTS, JEV_ROUTE_MODELS, JEV_ROUTE_TIERS, JEV_TIER_DESCRIPTIONS, fallbackJevClassification, normalizeJevRoutingConfig } from "./jev-routing-policy.mjs";
+import { jevHybridRequest, resolveJevHybridAnswer } from "./jev-hybrid-policy.mjs";
 
 const MAX_PROMPT_BYTES = 128 * 1024;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -20,6 +21,9 @@ export function normalizeJevRoutingReceipt(value) {
     confidence: Number.isFinite(value?.confidence) ? value.confidence : null,
     lowConfidence: value?.lowConfidence === true,
     fallback: value?.fallback === true,
+    source: ["jev", "dimensions", "fallback"].includes(value?.source) ? value.source : null,
+    dimensionScore: Number.isFinite(value?.dimensionScore) && value.dimensionScore >= 0 && value.dimensionScore <= 30 ? value.dimensionScore : null,
+    dimensionConfidence: Number.isFinite(value?.dimensionConfidence) && value.dimensionConfidence >= 0 && value.dimensionConfidence <= 1 ? value.dimensionConfidence : null,
     reason: String(value?.reason || "").slice(0, 500),
     routedAt: String(value?.routedAt || "").slice(0, 64)
   };
@@ -120,23 +124,18 @@ export class JevRoutingService {
     const prompt = promptText(rawPrompt);
     const config = normalizeJevRoutingConfig(configValue);
     if (!this.jevPath || !this.exists(this.jevPath)) return fallbackJevClassification(config, "Jev 未安装，已使用兜底档位");
-    const args = ["pick", "Choose the smallest Codex capability tier that can reliably complete this task.", ...JEV_ROUTE_TIERS.map((tier) => `${tier}=${JEV_TIER_DESCRIPTIONS[tier]}`), "--min-confidence", String(config.minConfidence), "--json"];
+    const args = ["raw"];
     let result;
     const windowsCommand = this.platform === "win32" && /\.cmd$/i.test(this.jevPath || "");
     const command = windowsCommand ? (process.env.ComSpec || "cmd.exe") : this.jevPath;
     const commandArgs = windowsCommand ? ["/d", "/s", "/c", `\"${this.jevPath}\"`, ...args] : args;
-    try { result = await collect(this.spawnImpl(command, commandArgs, { env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }), prompt, this.timeoutMs); }
+    try { result = await collect(this.spawnImpl(command, commandArgs, { env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true }), JSON.stringify(jevHybridRequest(prompt, JEV_TIER_DESCRIPTIONS)), this.timeoutMs); }
     catch (error) { return fallbackJevClassification(config, `${error.message}，已使用兜底档位`); }
     let parsed;
     try { parsed = JSON.parse(result.stdout.trim()); } catch {}
-    const classifiedTier = parsed?.answer?.choice;
-    const confidence = Number(parsed?.answer?.confidence);
-    if (![0, 1].includes(result.code) || !JEV_ROUTE_TIERS.includes(classifiedTier) || !Number.isFinite(confidence)) return fallbackJevClassification(config, "Jev 判断失败，已使用兜底档位");
-    const lowConfidence = result.code === 1 || confidence < config.minConfidence;
-    const reason = lowConfidence
-      ? `Jev 以 ${confidence.toFixed(2)} 置信度选择 ${classifiedTier}；低于提示线 ${config.minConfidence.toFixed(2)}，仍采用本次判断`
-      : `Jev 以 ${confidence.toFixed(2)} 置信度选择 ${classifiedTier}`;
-    return { tier: classifiedTier, classifiedTier, confidence, lowConfidence, fallback: false, reason, ...config.mappings[classifiedTier] };
+    if (result.code !== 0 || !parsed?.answers || typeof parsed.answers !== "object") return fallbackJevClassification(config, "Jev 判断失败，已使用兜底档位");
+    const decision = resolveJevHybridAnswer(parsed, { tiers: JEV_ROUTE_TIERS, minConfidence: config.minConfidence, fallbackTier: config.fallbackTier });
+    return { ...decision, ...config.mappings[decision.tier] };
   }
 
   async dispatch({ prompt: rawPrompt, cwd }) {

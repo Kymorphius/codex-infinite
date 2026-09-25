@@ -169,11 +169,13 @@ test("turn choice labels and pending-turn matching stay bounded and deterministi
   assert.equal(formatNativeJevEffort("ultra"), "Ultra");
   assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-5.6-sol", effort: "medium" }), "Jev · 复杂 · GPT-5.6 Sol · 中");
   assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", lowConfidence: true }), "Jev · 深度 · GPT-5.6 Sol · 高 · 低置信度");
+  assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", lowConfidence: true, source: "dimensions" }), "Jev · 深度 · GPT-5.6 Sol · 高 · 六维");
   assert.equal(formatNativeJevTurnChoice({ tier: "everyday", model: "gpt-5.6-terra", effort: "low", fallback: true }), "Jev · 日常 · GPT-5.6 Terra · 轻度 · 兜底");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.9 }), "模型已设置为 GPT-5.6 Sol，推理强度 高，置信度 0.90。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-6-sol", effort: "medium", confidence: 0.9 }), "模型已设置为 GPT-6 Sol，推理强度 中，置信度 0.90。");
   assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-reserve", effort: "max" }), "Jev · 复杂 · GPT-Reserve · 最高");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.18, lowConfidence: true }), "模型已设置为 GPT-5.6 Sol，推理强度 高，置信度 0.18（低置信度）。");
+  assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.18, source: "dimensions", dimensionScore: 24, dimensionConfidence: 0.8 }), "模型已设置为 GPT-5.6 Sol，推理强度 高，Jev 置信度 0.18；六维判断 24/30，维度平均置信度 0.80。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-terra", effort: "medium", confidence: 0.18, fallback: true }), "模型已设置为 GPT-5.6 Terra，推理强度 中，置信度 0.18（兜底）。");
   const candidates = [{ id: first, userText: "same" }, { id: second, userText: "same" }];
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], []), second);
