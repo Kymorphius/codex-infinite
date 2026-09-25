@@ -213,7 +213,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /setTimeout\(\(\) => \{ pending = ''/);
   assert.match(source, /data-navigation-pending/);
   assert.match(source, /data-navigation-superseded/);
-  assert.match(source, /prefers-reduced-motion:reduce/);
+  assert.match(source, /data-navigation-pending\] \.ccc-native-tab-title\{opacity:\.7\}/);
   assert.match(source, /openLocal: request/);
   assert.match(source, /data-thread-title="true"/);
   assert.match(source, /openLocal/);
@@ -226,7 +226,10 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
   assert.match(source, /data-window-opening/);
   assert.match(source, /data-window-error/);
-  assert.match(source, /2026-09-25\.topbar-finish1/);
+  assert.match(source, /2026-09-25\.topbar-finish2/);
+  assert.match(source, /consoleTab\.append\(consoleLabel\)/);
+  assert.match(source, /item\.append\(label\)/);
+  assert.doesNotMatch(source, /(?:consoleTab|item)\.append\((?:mark|dot),/);
   assert.match(source, /createNativeLatestNavigation\(document, window\)/);
   assert.match(source, /openNativeConversationPages/);
   assert.match(source, /installNativeRecentConversationMenu/);

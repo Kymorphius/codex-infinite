@@ -44,7 +44,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeConversationTabStyle.toString()}
   ${hasVisibleNativeTitleAction.toString()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-25.topbar-finish1';
+    const VERSION = '2026-09-25.topbar-finish2';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -177,11 +177,10 @@ export function buildNativeConversationTabsInjectionSource() {
       item.draggable = false;
       item.setAttribute('aria-selected', String(state.activeKey === key)); item.tabIndex = state.activeKey === key ? 0 : -1;
       item.title = tab.title + (tab.kind === 'remote' && tab.deviceName ? '\\n' + tab.deviceName : '');
-      const dot = document.createElement('span'); dot.className = 'ccc-native-tab-dot'; dot.dataset.kind = tab.kind; dot.setAttribute('aria-hidden', 'true');
       const label = document.createElement('span'); label.className = 'ccc-native-tab-title'; label.textContent = tab.title;
       const newWindow = createNativeConversationWindowButton(document, tab, key);
       const close = document.createElement('button'); close.type = 'button'; close.draggable = false; close.className = 'ccc-native-tab-close'; close.dataset.closeKey = key; close.textContent = '×'; close.setAttribute('aria-label', '关闭标签：' + tab.title);
-      item.append(dot, label); if (newWindow) item.append(newWindow); item.append(close); return item;
+      item.append(label); if (newWindow) item.append(newWindow); item.append(close); return item;
     }
 
     function render() {
@@ -297,8 +296,7 @@ export function buildNativeConversationTabsInjectionSource() {
 
     root = document.createElement('nav'); root.setAttribute('data-codex-control-console-native-tabs', ''); root.setAttribute('aria-label', '打开的页面');
     const consoleTab = document.createElement('button'); consoleTab.type = 'button'; consoleTab.className = 'ccc-native-tab ccc-native-console'; consoleTab.dataset.consoleTab = ''; consoleTab.dataset.tabKey = 'console'; consoleTab.setAttribute('role', 'tab');
-    const mark = document.createElement('span'); mark.className = 'ccc-native-tab-dot'; mark.setAttribute('aria-hidden', 'true');
-    const consoleLabel = document.createElement('span'); consoleLabel.className = 'ccc-native-tab-title'; consoleLabel.textContent = '控制台'; consoleTab.append(mark, consoleLabel);
+    const consoleLabel = document.createElement('span'); consoleLabel.className = 'ccc-native-tab-title'; consoleLabel.textContent = '控制台'; consoleTab.append(consoleLabel);
     const list = document.createElement('div'); list.className = 'ccc-native-tab-list'; list.dataset.nativeTabList = ''; list.setAttribute('role', 'tablist');
     root.append(consoleTab, list); document.body.append(root);
     recentMenu = installNativeRecentConversationMenu({ documentRef: document, root, state, keyFor, activate, openWindow: options.openWindow });

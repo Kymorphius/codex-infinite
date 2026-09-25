@@ -13,9 +13,7 @@ export function showPendingNativeConversationTab(root, key) {
 
 export function nativeConversationTabTransitionStyle(rootSelector) {
   return rootSelector + ' .ccc-native-tab[aria-selected="true"]:not([data-navigation-superseded]),' + rootSelector + ' .ccc-native-tab[data-navigation-pending]{background:color-mix(in srgb,currentColor 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 7%,transparent),0 1px 2px rgba(0,0,0,.08)}' +
-    rootSelector + ' .ccc-native-tab[data-navigation-pending] .ccc-native-tab-dot{animation:ccc-native-tab-pending .7s ease-in-out infinite alternate}' +
-    '@keyframes ccc-native-tab-pending{to{opacity:.35;transform:scale(.72)}}' +
-    '@media(prefers-reduced-motion:reduce){' + rootSelector + ' .ccc-native-tab[data-navigation-pending] .ccc-native-tab-dot{animation:none;opacity:.55}}';
+    rootSelector + ' .ccc-native-tab[data-navigation-pending] .ccc-native-tab-title{opacity:.7}';
 }
 
 export function createNativeConversationTabTransition(root, onTimeout) {
