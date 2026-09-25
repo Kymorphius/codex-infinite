@@ -8,7 +8,7 @@
   --native-ui-border-strong: #3c3c3f;
   --native-ui-text: var(--native-ui-dark-text);
   --native-ui-text-secondary: #a6a6ac;
-  --native-ui-text-tertiary: #7f7f85;
+  --native-ui-text-tertiary: #929298;
   --native-ui-shadow: none;
   color: var(--native-ui-text);
   background: var(--native-ui-canvas);
