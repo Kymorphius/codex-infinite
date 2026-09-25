@@ -50,16 +50,32 @@ export function installNativeRecentConversationMenu({
   trigger.setAttribute("aria-expanded", "false");
   trigger.setAttribute("aria-label", label);
   trigger.title = hint;
-  const triggerIcon = documentRef.createElement("span");
-  triggerIcon.className = "ccc-native-recent-icon";
+  const triggerIcon = documentRef.createElementNS("http://www.w3.org/2000/svg", "svg");
+  triggerIcon.setAttribute("class", "ccc-native-recent-icon");
   triggerIcon.setAttribute("aria-hidden", "true");
-  triggerIcon.textContent = icon;
+  triggerIcon.setAttribute("viewBox", "0 0 24 24");
+  triggerIcon.setAttribute("fill", "none");
+  triggerIcon.setAttribute("stroke", "currentColor");
+  triggerIcon.setAttribute("stroke-width", "1.8");
+  triggerIcon.setAttribute("stroke-linecap", "round");
+  triggerIcon.setAttribute("stroke-linejoin", "round");
+  const symbol = documentRef.createElementNS("http://www.w3.org/2000/svg", "path");
+  symbol.setAttribute("d", icon === "↑" ? "M12 19V5m-6 6 6-6 6 6" : "M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5m4-1v5l3 2");
+  triggerIcon.append(symbol);
   const triggerLabel = documentRef.createElement("span");
   triggerLabel.textContent = label;
-  const triggerChevron = documentRef.createElement("span");
-  triggerChevron.className = "ccc-native-recent-chevron";
+  const triggerChevron = documentRef.createElementNS("http://www.w3.org/2000/svg", "svg");
+  triggerChevron.setAttribute("class", "ccc-native-recent-chevron");
   triggerChevron.setAttribute("aria-hidden", "true");
-  triggerChevron.textContent = "⌄";
+  triggerChevron.setAttribute("viewBox", "0 0 24 24");
+  triggerChevron.setAttribute("fill", "none");
+  triggerChevron.setAttribute("stroke", "currentColor");
+  triggerChevron.setAttribute("stroke-width", "2");
+  triggerChevron.setAttribute("stroke-linecap", "round");
+  triggerChevron.setAttribute("stroke-linejoin", "round");
+  const chevronPath = documentRef.createElementNS("http://www.w3.org/2000/svg", "path");
+  chevronPath.setAttribute("d", "m6 9 6 6 6-6");
+  triggerChevron.append(chevronPath);
   trigger.append(triggerIcon, triggerLabel, triggerChevron);
 
   const menu = documentRef.createElement("div");
@@ -246,9 +262,10 @@ export function installNativeRecentConversationMenu({
 export const NATIVE_RECENT_CONVERSATION_STYLE =
   '[data-codex-control-console-native-tabs]{container-type:inline-size;container-name:ccc-native-tabs}' +
   '.ccc-native-recent{position:relative;display:flex;flex:0 0 auto;align-items:center}' +
-  '.ccc-native-recent-trigger{display:flex;height:26px;align-items:center;gap:5px;border:0;border-radius:7px;padding:0 8px;background:transparent;color:inherit;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}' +
-  '.ccc-native-recent-trigger:hover,.ccc-native-recent-trigger[aria-expanded="true"]{background:color-mix(in srgb,currentColor 10%,transparent)}' +
-  '.ccc-native-recent-icon{font-size:15px}.ccc-native-recent-chevron{font-size:11px;opacity:.65}' +
+  '.ccc-native-recent-trigger{display:flex;height:28px;align-items:center;gap:7px;border:0;border-radius:7px;padding:0 9px;background:transparent;color:inherit;font:500 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap;transition:background .16s ease}' +
+  '.ccc-native-recent-trigger:hover,.ccc-native-recent-trigger[aria-expanded="true"]{background:color-mix(in srgb,currentColor 8%,transparent)}' +
+  '.ccc-native-recent-trigger:focus-visible{outline:2px solid color-mix(in srgb,currentColor 65%,transparent);outline-offset:-2px}' +
+  '.ccc-native-recent-icon{width:15px;height:15px;flex:0 0 15px}.ccc-native-recent-chevron{width:11px;height:11px;flex:0 0 11px;opacity:.65}' +
   '@keyframes ccc-native-recent-status-spin{to{transform:rotate(360deg)}}' +
   '.ccc-native-recent-status{width:14px;height:14px;flex:0 0 14px;display:inline-flex;align-items:center;justify-content:center}' +
   '.ccc-native-recent-status svg{width:14px;height:14px;flex:none}' +

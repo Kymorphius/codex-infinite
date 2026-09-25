@@ -44,7 +44,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeConversationTabStyle.toString()}
   ${hasVisibleNativeTitleAction.toString()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-23.recent-stable1';
+    const VERSION = '2026-09-25.topbar-finish1';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';

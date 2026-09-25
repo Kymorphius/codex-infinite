@@ -36,6 +36,8 @@ test("recent menu injection is bounded, dismissable, and route-oriented", () => 
   assert.match(source, /pointerdown/);
   assert.match(source, /textContent = tab\.title/);
   assert.doesNotMatch(source, /innerHTML/);
+  assert.match(source, /createElementNS\("http:\/\/www\.w3\.org\/2000\/svg", "svg"\)/);
+  assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /height:28px/);
   assert.doesNotThrow(() => new Function(`(() => { ${source} })()`));
   assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /max-height/);
   assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /data-active/);

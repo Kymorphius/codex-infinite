@@ -97,7 +97,7 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
   const parent = new Node('div'), projectSearch = new Node('div'), body = new Node('body'), tabBar = new Node('nav');
   projectSearch.className = 'sidebar'; parent.append(projectSearch);
   const recent = new Node('div'); recent.setAttribute('data-recent-menu', 'opened'); tabBar.append(new Node('div'), recent);
-  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : selector === '[data-codex-control-console-native-tabs]' ? tabBar : null; }, createElement: tag => new Node(tag) };
+  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : selector === '[data-codex-control-console-native-tabs]' ? tabBar : null; }, createElement: tag => new Node(tag), createElementNS: (_namespace, tag) => new Node(tag) };
   const routes = [], calls = [], saved = new Map();
   const localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
   const window = { __codexControlConsoleSearchSentMessages: value => calls.push(JSON.parse(value)), postMessage: value => routes.push(value.path) };
@@ -107,6 +107,7 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
   assert.equal(launch.textContent, '搜索发送内容');
   const topLaunch = tabBar.children[1];
   assert.equal(topLaunch.attrs['aria-label'], '搜索已发送消息');
+  assert.equal(topLaunch.children[0].tag, 'svg');
   assert.equal(tabBar.children[2], recent);
   topLaunch.listeners.click({ currentTarget: topLaunch });
   assert.equal(body.children[0].hidden, false);
@@ -164,7 +165,7 @@ test('top search launcher mounts before project search becomes available', () =>
   }
   const parent = new Node(), tabBar = new Node(), body = new Node(), projectSearch = new Node(), recent = new Node();
   projectSearch.className = 'project-search'; recent.setAttribute('data-recent-menu', ''); tabBar.append(recent);
-  const document = { body, documentElement: parent, createElement: () => new Node(), querySelector(selector) {
+  const document = { body, documentElement: parent, createElement: () => new Node(), createElementNS: () => new Node(), querySelector(selector) {
     if (selector === '[data-codex-control-console-native-tabs]') return tabBar;
     if (selector === '[data-codex-control-console-project-search]') return projectSearch.parentElement ? projectSearch : null;
     return null;

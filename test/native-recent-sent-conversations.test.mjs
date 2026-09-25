@@ -63,6 +63,7 @@ class Element extends Events {
 function fixture(snapshot = { items: [] }) {
   const document = new Events();
   document.createElement = (tag) => new Element(document, tag);
+  document.createElementNS = (_namespace, tag) => new Element(document, tag);
   const root = document.createElement("nav"), selected = [], opened = [], activated = [];
   const state = { tabs: [record(1)], activeKey: `local:${id(1)}` };
   const window = { __codexControlConsoleRecentSentSnapshot: normalizeRecentSentSnapshot(snapshot) };
@@ -111,6 +112,8 @@ test("recent sent normalization sorts actual user time, deduplicates, bounds and
 test("both recent menus append forty entries in pages only while opened", () => {
   const items = Array.from({ length: 40 }, (_, index) => record(index + 1));
   const f = fixture({ items });
+  assert.equal(f.trigger.children[0].tagName, "svg");
+  assert.equal(f.trigger.children[2].tagName, "svg");
   f.state.tabs = items;
   assert.equal(f.menu.replaceCalls, 0);
   const openedMenu = f.root.children[0].children[1];

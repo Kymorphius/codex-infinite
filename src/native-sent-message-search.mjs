@@ -16,7 +16,7 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-23.7';
+  const VERSION = '2026-09-25.topbar-finish1';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
     window.__codexControlConsoleSentMessageSearch.ensure?.();
     return;
@@ -153,9 +153,15 @@ export function installNativeSentMessageSearch() {
       topLaunch.setAttribute('aria-label', '搜索已发送消息');
       topLaunch.setAttribute('aria-haspopup', 'dialog');
       topLaunch.title = '搜索已发送消息';
-      Object.assign(topLaunch.style, { display: 'flex', flex: '0 0 auto', alignItems: 'center', gap: '5px', height: '26px', padding: '0 8px', border: '0', borderRadius: '7px', background: 'transparent', color: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap' });
-      const icon = make('span', '', '⌕'); icon.setAttribute('aria-hidden', 'true');
-      Object.assign(icon.style, { fontSize: '19px', lineHeight: '1' });
+      topLaunch.style.flex = '0 0 auto';
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '15'); icon.setAttribute('height', '15');
+      icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8');
+      icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('aria-hidden', 'true');
+      const lens = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      lens.setAttribute('cx', '10.8'); lens.setAttribute('cy', '10.8'); lens.setAttribute('r', '6.6'); icon.append(lens);
+      const handle = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      handle.setAttribute('d', 'm16 16 4.2 4.2'); icon.append(handle);
       topLaunch.append(icon, make('span', '', '消息搜索'));
       topLaunch.addEventListener('click', open);
       panel = make('div', 'fixed inset-0 z-[9999] flex items-start justify-center bg-black/50 p-6 pt-[10vh]', null);
