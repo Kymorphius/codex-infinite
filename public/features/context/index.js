@@ -13,42 +13,6 @@ export function createContextFeature({ state, $, formatDate, formatTokens, showT
   const form = $('[data-testid="context-form"]');
   const list = $('[data-testid="context-list"]');
   const threadOptions = $('[data-testid="context-thread-options"]');
-  const usageStatus = $('[data-testid="account-usage-status"]');
-  const usageList = $('[data-testid="account-usage-list"]');
-
-  function renderUsage(windows) {
-    usageList.replaceChildren(...windows.map((window) => {
-      const item = document.createElement('article');
-      item.className = 'account-usage-window';
-      const title = document.createElement('h3');
-      const duration = window.windowDurationMins === 300 ? '5 小时' : window.windowDurationMins === 10080 ? '一周' : window.windowDurationMins ? `${window.windowDurationMins} 分钟` : '额度窗口';
-      title.textContent = `${window.label === 'codex' ? 'Codex' : window.label} · ${duration}`;
-      const amount = document.createElement('strong');
-      amount.textContent = `${window.usedPercent}% 已用`;
-      const progress = document.createElement('progress');
-      progress.max = 100;
-      progress.value = window.usedPercent;
-      progress.setAttribute('aria-label', `${title.textContent}已用比例`);
-      const reset = document.createElement('p');
-      reset.textContent = window.resetsAt ? `重置时间：${formatDate(window.resetsAt * 1000)}` : '重置时间暂不可用';
-      item.append(title, amount, progress, reset);
-      return item;
-    }));
-  }
-
-  async function loadUsage() {
-    usageStatus.textContent = '正在读取账号用量…';
-    try {
-      const data = await requestJson('/api/account-usage', { cache: 'no-store' });
-      const windows = Array.isArray(data.windows) ? data.windows : [];
-      renderUsage(windows);
-      usageStatus.textContent = windows.length ? '' : '当前账号未返回可用的额度窗口。';
-    } catch {
-      usageList.replaceChildren();
-      usageStatus.textContent = '账号用量暂时不可读取，请稍后刷新。';
-    }
-  }
-
   function renderThreadOptions() {
     threadOptions.replaceChildren(...state.tasks.filter(isLocalTask).map((task) => {
       const option = document.createElement("option");
@@ -115,7 +79,6 @@ export function createContextFeature({ state, $, formatDate, formatTokens, showT
 
   async function load({ quiet = false } = {}) {
     state.context.initialized = true;
-    void loadUsage();
     if (!quiet) setState("loading");
     try {
       const data = await requestJson("/api/context-overrides", { cache: "no-store" });
@@ -159,7 +122,6 @@ export function createContextFeature({ state, $, formatDate, formatTokens, showT
       return;
     }
     if (event.target.closest('[data-action="refresh-context"]')) await load();
-    if (event.target.closest('[data-action="refresh-usage"]')) await loadUsage();
   }
 
   function bind() {

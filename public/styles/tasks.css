@@ -35,14 +35,6 @@
 .context-submit .primary-button { min-height: 38px; white-space: nowrap; }
 .context-list { display: grid; gap: 11px; }
 .context-card { display: grid; gap: 15px; padding: 18px; border: 1px solid #e3e3e6; border-radius: 14px; background: #fff; }
-.account-usage { margin-bottom: 24px; }
-.account-usage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.account-usage-window { display: grid; gap: 8px; padding: 16px; border: 1px solid #e3e3e6; border-radius: 12px; background: #fff; }
-.account-usage-window h3, .account-usage-window p { margin: 0; }
-.account-usage-window h3 { font-size: var(--native-ui-body-size); }
-.account-usage-window strong { font-size: 22px; }
-.account-usage-window progress { width: 100%; height: 10px; accent-color: #7773d8; }
-.account-usage-window p { color: #77777c; font-size: var(--native-ui-meta-size); }
 .context-card-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
 .context-card-heading h3 { margin-bottom: 5px; color: #29292d; font-size: var(--native-ui-body-size); line-height: var(--native-ui-body-line); }
 .context-card-heading code { color: #89898e; }

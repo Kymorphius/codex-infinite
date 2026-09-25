@@ -5,6 +5,7 @@ export const MODULES = Object.freeze({
   console: { title: "控制台", caption: "只读本机任务记录" },
   sessions: { title: "会话中心", caption: "按工作目录查看原生 Codex 会话" },
   context: { title: "上下文状态", caption: "普通会话使用模型默认窗口；需要时按会话扩展" },
+  usage: { title: "用量", caption: "查看 Codex 账号额度与重置时间" },
   priority: { title: "项目优先级", caption: "按会话活跃度与运行时间排序" },
   experiments: { title: "实验", caption: "查看各设备已启用的原生实验与控制台扩展" },
   skills: { title: "技能共享", caption: "查看并同步各设备的个人 Codex Skill" },

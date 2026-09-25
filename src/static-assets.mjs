@@ -6,13 +6,13 @@ import packageMetadata from "../package.json" with { type: "json" };
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "project-priority", "refresh-policy", "state", "tasks", "transport"];
-const featureNames = ["runtime", "console", "context", "dispatch", "generators", "jev-routing", "priority", "sessions", "experiments", "skills", "turbo", "zotero"];
+const featureNames = ["runtime", "console", "context", "usage", "dispatch", "generators", "jev-routing", "priority", "sessions", "experiments", "skills", "turbo", "zotero"];
 const dispatchSupportFiles = ["details", "personal-panel"];
 const skillSupportFiles = ["group-actions"];
 const sessionSupportFiles = ["approval-model", "conversation-model", "conversation-tabs", "disclosure", "draft-sync", "execution-view", "markdown-view", "model", "model-bulk", "project-copy", "remote-approvals", "remote-conversation", "settings-controller"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
-const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "jev-routing", "responsive"];
-const panelFiles = ["board", "generators", "jev-routing", "context", "console", "sessions", "priority", "experiments", "skills", "zotero"].map((name) => `panels/${name}.html`);
+const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "jev-routing", "usage", "responsive"];
+const panelFiles = ["board", "generators", "jev-routing", "context", "usage", "console", "sessions", "priority", "experiments", "skills", "zotero"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
   ["/conversations.html", { file: "conversations.html", type: "text/html; charset=utf-8" }],
   ["/styles/conversations.css", { file: "styles/conversations.css", type: "text/css; charset=utf-8" }],

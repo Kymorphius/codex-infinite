@@ -1,8 +1,9 @@
-# Codex account usage in Context Status
+# Codex account usage page
 
 ## Behavior
 
-- The Context Status page shows a separate account usage section. It never labels an account rate limit as conversation context consumption.
+- A dedicated Usage page shows account level quota separately from the Context Status page's per-conversation context settings.
+- The module navigation exposes Usage as a top-level page adjacent to Context Status.
 - For each available Codex rate limit window, show the used percentage, progress, and local reset time. Unknown or unavailable data stays unknown rather than becoming zero.
 - A manual page refresh reloads usage. No dollar amount is shown: the subscription rate limit response is not a bill.
 
@@ -16,4 +17,4 @@
 
 - Test normalization for multiple windows, absent windows, invalid percentages, and missing reset timestamps.
 - Test the HTTP read-only boundary and absence of account metadata.
-- Run repository checks and inspect the rendered Context Status page.
+- Run repository checks and inspect the rendered Usage page.

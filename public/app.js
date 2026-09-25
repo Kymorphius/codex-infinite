@@ -8,6 +8,7 @@ import { createAppState, MODULES } from "./core/state.js";
 import { createTaskSource } from "./core/tasks.js";
 import { createConsoleFeature } from "./features/console/index.js";
 import { createContextFeature } from "./features/context/index.js";
+import { createUsageFeature } from "./features/usage/index.js";
 import { createDispatchFeature } from "./features/dispatch/index.js";
 import { createGeneratorsFeature } from "./features/generators/index.js";
 import { createPriorityFeature } from "./features/priority/index.js";
@@ -36,12 +37,14 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
       if (module === "skills") void skillsFeature.load();
       if (module === "generators") void generatorsFeature.load();
       if (module === "jev-routing") void jevRoutingFeature.load();
+      if (module === "usage") void usageFeature.load();
     },
     async onRefresh() {
       if (state.module === "experiments") return experimentsFeature.load();
       const refreshes = [taskSource.load(), dispatchFeature.load(), generatorsFeature.load()];
       if (state.module === "zotero") refreshes.push(zoteroFeature.load());
       if (state.module === "context") refreshes.push(contextFeature.load());
+      if (state.module === "usage") refreshes.push(usageFeature.load());
       await Promise.all(refreshes);
     },
     onOpenRemoteConversation(reference) {
@@ -57,6 +60,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
 
   const consoleFeature = createConsoleFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen });
   const contextFeature = createContextFeature({ state, $, formatDate, formatTokens, showToast });
+  const usageFeature = createUsageFeature({ $, formatDate });
   const dispatchFeature = createDispatchFeature({ state, $, formatDate, showToast, requestOpen });
   const generatorsFeature = createGeneratorsFeature({ state, $, formatDate, showToast });
   const priorityFeature = createPriorityFeature({ state, $, formatDate, formatDuration });
@@ -91,6 +95,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
   });
 
   contextFeature.bind();
+  usageFeature.bind();
   dispatchFeature.bind();
   generatorsFeature.bind();
   sessionsFeature.bind();
@@ -104,6 +109,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
   Promise.all([taskSource.load(), dispatchFeature.load(), generatorsFeature.load(), turboFeature.load()]);
   if (state.module === "zotero") void zoteroFeature.load();
   if (state.module === "context") void contextFeature.load();
+  if (state.module === "usage") void usageFeature.load();
   if (state.module === "experiments") void experimentsFeature.load();
   if (state.module === "skills") void skillsFeature.load();
   if (state.module === "jev-routing") void jevRoutingFeature.load();
