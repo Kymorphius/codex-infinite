@@ -58,6 +58,9 @@ import { createTerminalFeature } from "./features/terminal/index.js";
     onCopyRemoteProject(reference) {
       pendingProjectCopyReference = reference;
       if (sessionsFeature?.copyRemoteProjectReference(reference)) pendingProjectCopyReference = null;
+    },
+    onOpenTerminalConversation(reference) {
+      terminalFeature.openReference(reference);
     }
   });
   const requestOpen = (task) => navigation.requestOpen(task);
@@ -68,7 +71,8 @@ import { createTerminalFeature } from "./features/terminal/index.js";
   const dispatchFeature = createDispatchFeature({ state, $, formatDate, showToast, requestOpen });
   const generatorsFeature = createGeneratorsFeature({ state, $, formatDate, showToast });
   const priorityFeature = createPriorityFeature({ state, $, formatDate, formatDuration });
-  sessionsFeature = createSessionsFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen });
+  sessionsFeature = createSessionsFeature({ state, $, formatDate, statusLabel: taskStatusLabel, requestOpen,
+    onOpenTerminalReference(reference) { terminalFeature.openReference(reference); navigation.showModule('terminal'); } });
   const zoteroFeature = createZoteroFeature({ state, $, setScopedState, showToast });
   const turboFeature = createTurboFeature({ $, showToast });
   const experimentsFeature = createExperimentsFeature({ $ });

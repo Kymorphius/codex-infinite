@@ -1,7 +1,7 @@
-import { filterProjects, pinTarget, projectAction, projectCatalog, validateCatalogPayload } from './model.js';
+import { filterProjects, pinTarget, projectAction, projectCatalog, projectTerminalReference, terminalProjectUrl, validateCatalogPayload } from './model.js';
 import { createProjectView } from './view.js';
 
-export function createProjectController({ fetchImpl = fetch, render = () => {}, notice = () => {}, onLocalOpen = () => {}, copyText, requestTimeoutMs = 15000 } = {}) {
+export function createProjectController({ fetchImpl = fetch, render = () => {}, notice = () => {}, onLocalOpen = () => {}, onOpenTerminal, copyText, requestTimeoutMs = 15000 } = {}) {
   const state = { payload: null, filters: { query: '', device: '', source: '', section: '', sort: 'native' },
     loading: false, busy: null, stale: false, readError: '' };
   let readVersion = 0, disposed = false;
@@ -54,6 +54,11 @@ export function createProjectController({ fetchImpl = fetch, render = () => {}, 
     if (disposed || state.busy) return false;
     const project = projected().catalog.projects.find(item => item.identity === identity);
     if (!project) { notice('项目列表已变化，请刷新后重试', true); return false; }
+    if (requestedAction === 'terminal') {
+      const reference = projectTerminalReference(project, targetSectionId);
+      if (!reference || typeof onOpenTerminal !== 'function') { notice('请从已连接的本机项目中选择具体工作目录', true); return false; }
+      onOpenTerminal(reference); return true;
+    }
     if (requestedAction === 'copy') {
       try {
         if (!project.sourceDirectories.length) throw Error('此项目没有可复制的路径');
@@ -103,6 +108,7 @@ export function mountProjects({ documentRef = document, windowRef = window, fetc
   const close = () => windowRef.parent.postMessage({ type: 'codex-control-console-close' }, 'app://-');
   const controller = createProjectController({ fetchImpl, ...view,
     onLocalOpen: () => { if (embedded) close(); },
+    onOpenTerminal: reference => windowRef.location.assign(terminalProjectUrl(reference, windowRef.location.href)),
     copyText: windowRef.navigator.clipboard?.writeText ? text => windowRef.navigator.clipboard.writeText(text) : null });
   const $ = selector => documentRef.querySelector(selector);
   $('#search').addEventListener('input', event => controller.setFilters({ query: event.target.value }));
@@ -112,7 +118,7 @@ export function mountProjects({ documentRef = document, windowRef = window, fetc
   $('#back').addEventListener('click', event => { if (embedded) { event.preventDefault(); close(); } });
   $('#project-grid').addEventListener('click', event => {
     const button = event.target.closest('[data-project-action]');
-    if (button && !button.disabled) void controller.act(button.closest('[data-project-id]').dataset.projectId, button.dataset.projectAction);
+    if (button && !button.disabled) void controller.act(button.closest('[data-project-id]').dataset.projectId, button.dataset.projectAction, button.dataset.cwd);
   });
   $('#project-grid').addEventListener('change', async event => {
     const select = event.target.closest('.move-project');

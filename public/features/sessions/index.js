@@ -5,8 +5,9 @@ import { createRemoteConversation } from "./remote-conversation.js";
 import { createProjectCopyControl } from "./project-copy.js";
 import { createConversationTabs } from "./conversation-tabs.js";
 import { createModelBulkControl } from "./model-bulk.js";
+import { localTerminalReference } from "../projects/model.js";
 
-export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, fetchImpl = fetch }) {
+export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, onOpenTerminalReference, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
   const list = $('[data-testid="session-project-list"]');
   const search = $('[data-testid="session-search"]');
@@ -84,6 +85,14 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     }
     const actions = document.createElement("div");
     actions.className = "session-project-actions";
+    const terminalReference = localTerminalReference({ deviceKind: device.kind, status: device.status, cwd: group.directory, projectName: group.project });
+    if (terminalReference && typeof onOpenTerminalReference === "function") {
+      const terminal = document.createElement("button");
+      terminal.type = "button"; terminal.className = "task-open session-project-terminal"; terminal.textContent = "终端会话";
+      terminal.setAttribute("aria-label", `在 ${group.project} 打开终端会话`);
+      terminal.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); onOpenTerminalReference(terminalReference); });
+      actions.append(terminal);
+    }
     const copy = projectCopy.button(device, group);
     if (copy) actions.append(copy);
     actions.append(stats);

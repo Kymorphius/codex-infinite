@@ -3,6 +3,35 @@ export const projectIdentity = (deviceId, itemKey) => JSON.stringify([deviceId, 
 export const sectionIdentity = (deviceId, sectionId) => JSON.stringify([deviceId, sectionId]);
 export const sourceLabel = source => source === 'chatgpt' ? 'ChatGPT' : 'Codex';
 
+export function isAbsoluteProjectDirectory(path) {
+  return typeof path === 'string' && path.length <= 4096 && !/[\u0000-\u001f\u007f]/u.test(path)
+    && (/^\//u.test(path) || /^[A-Za-z]:[\\/]/u.test(path) || /^\\\\[^\\]+\\[^\\]+/u.test(path));
+}
+
+export function localTerminalReference({ deviceKind, status, stale = false, cwd, projectName } = {}) {
+  if (deviceKind !== 'local-codex' || status !== 'connected' || stale || !isAbsoluteProjectDirectory(cwd)) return null;
+  return { provider: 'terminal', cwd, ...(typeof projectName === 'string' && projectName ? { projectName } : {}) };
+}
+
+export function projectTerminalDirectories(project) {
+  return [...new Set(project.sourceDirectories || [])].filter(cwd => localTerminalReference({ ...project, cwd }));
+}
+
+export function projectTerminalReference(project, cwd) {
+  return projectTerminalDirectories(project).includes(cwd)
+    ? localTerminalReference({ ...project, cwd, projectName: project.name }) : null;
+}
+
+export function terminalProjectUrl(reference, currentUrl) {
+  if (reference?.provider !== 'terminal' || !isAbsoluteProjectDirectory(reference.cwd)) throw Error('终端工作目录无效');
+  const current = new URL(currentUrl), target = new URL('/', current);
+  target.searchParams.set('module', 'terminal');
+  target.searchParams.set('cwd', reference.cwd);
+  if (typeof reference.projectName === 'string' && reference.projectName) target.searchParams.set('projectName', reference.projectName);
+  for (const key of ['theme', 'embedded']) if (current.searchParams.has(key)) target.searchParams.set(key, current.searchParams.get(key));
+  return target.pathname + target.search;
+}
+
 export function validateCatalogPayload(payload) {
   if (payload?.schemaVersion !== 1 || !Array.isArray(payload.devices)
     || payload.devices.some(owner => !owner?.device?.id || !['connected', 'loading', 'offline'].includes(owner.status)

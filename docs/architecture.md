@@ -8,6 +8,15 @@ The embedded local terminal is a separate PTY capability for interactive shells
 and native Claude CLI. The console owns only terminal processes it starts, with
 bounded memory-only output and exact-origin local transport. Terminal sessions
 are not Codex conversation records and do not enter the native session index.
+The terminal conversation composer is a second input surface for the same PTY,
+not a model API client. It uses xterm paste modes and a connection-bound submit
+operation, while direct terminal keyboard input remains fully interactive.
+Drafts belong to individual terminal IDs in page memory; no Codex controls or
+task queues are reused without a terminal-specific implementation.
+Project catalog and session-directory entries pass an explicit `terminal`
+reference with an exact local cwd to the terminal workspace. Session deep links
+resolve only existing PTY IDs, with latest-reference-wins loading; missing IDs
+remain explicit errors. Terminal IDs never go through native Codex task routes.
 
 The following are invariants:
 
@@ -45,6 +54,10 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   `src/terminal-websocket.mjs` — bounded terminal contracts, owned local PTYs,
   single-controller connections, and exact-origin HTTP/WebSocket transport.
   `src/terminal-assets.mjs` registers only the pinned browser runtime assets.
+- `public/features/terminal/index.js`, `presentation.js`, and `session.js` —
+  terminal conversation layout, per-session composer state, and xterm input /
+  display adapter. Composer controls and native terminal input share the same
+  ready-gated socket; they never send messages through the Codex task bridge.
 - `src/board.mjs`, `src/priority.mjs`, `public/core/project-priority.js` — pure
   derived domain views and the browser-compatible shared priority policy.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.

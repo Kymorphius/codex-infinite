@@ -1,22 +1,46 @@
         <section class="terminal-panel hidden" data-module-panel="terminal">
-          <div class="terminal-toolbar">
-            <label class="field terminal-directory"><span>工作目录</span><input type="text" data-testid="terminal-cwd" list="terminal-project-directories" autocomplete="off" spellcheck="false" placeholder="选择项目或输入绝对路径"><datalist id="terminal-project-directories"></datalist></label>
-            <button class="quiet-button terminal-new" type="button" data-terminal-create="shell">新建终端</button>
-            <button class="primary-button" type="button" data-terminal-create="claude">Claude CLI</button>
+          <div class="terminal-heading">
+            <div><h2>会话</h2><span>本机终端</span><button class="quiet-button hidden" type="button" data-terminal-all>所有终端</button></div>
+            <details class="terminal-launcher" data-terminal-launcher>
+              <summary>＋ 新会话</summary>
+              <div class="terminal-toolbar">
+                <label class="field terminal-directory"><span>工作目录</span><input type="text" data-testid="terminal-cwd" list="terminal-project-directories" autocomplete="off" spellcheck="false" placeholder="选择项目或输入绝对路径"><datalist id="terminal-project-directories"></datalist></label>
+                <div><button class="quiet-button terminal-new" type="button" data-terminal-create="shell">新建终端</button><button class="primary-button" type="button" data-terminal-create="claude">Claude CLI</button></div>
+              </div>
+            </details>
           </div>
           <div class="terminal-alert hidden" data-testid="terminal-error" role="alert"></div>
           <div class="terminal-workspace">
-            <div class="terminal-tabbar" role="tablist" aria-label="终端会话" data-testid="terminal-tabs"></div>
-            <div class="terminal-session-bar hidden" data-testid="terminal-session-bar">
-              <div class="terminal-session-meta"><span data-testid="terminal-status" role="status"></span><code data-testid="terminal-path"></code></div>
-              <button class="quiet-button hidden" type="button" data-terminal-reconnect>重新连接</button>
-              <button class="quiet-button" type="button" data-terminal-close>关闭终端</button>
+            <div class="terminal-sidebar"><div class="terminal-sidebar-label">会话</div><div class="terminal-tabbar" role="tablist" aria-label="终端会话" data-testid="terminal-tabs"></div></div>
+            <div class="terminal-conversation">
+              <div class="terminal-session-bar hidden" data-testid="terminal-session-bar">
+                <div class="terminal-session-meta"><div><strong data-testid="terminal-session-title">终端会话</strong><span data-testid="terminal-status" role="status"></span></div><code data-testid="terminal-path"></code></div>
+                <button class="quiet-button hidden" type="button" data-terminal-reconnect>重连</button>
+                <button class="quiet-button terminal-close" type="button" data-terminal-close aria-label="关闭终端" title="关闭终端">×</button>
+              </div>
+              <p class="terminal-replay-note hidden" data-testid="terminal-replay-note">较早的输出已超出保留范围；当前程序仍可继续使用。</p>
+              <div class="terminal-empty" data-testid="terminal-empty"><span class="terminal-empty-symbol" aria-hidden="true">›_</span><h2>完整终端，熟悉的会话</h2><p data-testid="terminal-empty-message">从右上角新建会话，打开终端或原生 Claude CLI。</p><button class="quiet-button" type="button" data-terminal-refresh>刷新会话</button></div>
+              <div class="terminal-viewport hidden" data-testid="terminal-viewport"></div>
+              <form class="terminal-composer hidden" data-testid="terminal-composer">
+                <div class="terminal-composer-box">
+                  <label class="sr-only" for="terminal-composer-input">向当前终端输入</label>
+                  <textarea id="terminal-composer-input" data-testid="terminal-composer-input" rows="2" spellcheck="false" placeholder="输入消息或命令…" aria-describedby="terminal-composer-hint"></textarea>
+                  <div class="terminal-composer-actions">
+                    <details class="terminal-keys" data-terminal-keys>
+                      <summary aria-label="更多终端操作" title="终端按键与同目录 Shell">＋</summary>
+                      <div class="terminal-keys-menu">
+                        <span>终端按键</span><div class="terminal-key-grid"><button type="button" data-terminal-key="enter">Enter</button><button type="button" data-terminal-key="escape">Esc</button><button type="button" data-terminal-key="tab">Tab</button><button type="button" data-terminal-key="up" aria-label="向上方向键">↑</button><button type="button" data-terminal-key="down" aria-label="向下方向键">↓</button><button type="button" data-terminal-key="eof">Ctrl+D</button></div>
+                        <button class="terminal-same-directory" type="button" data-terminal-same-directory title="保留当前会话，在同一工作目录新建 Shell">同目录新建 Shell</button>
+                      </div>
+                    </details>
+                    <div class="terminal-composer-pills"><button type="button" data-terminal-focus title="直接使用完整终端键盘">操作终端</button><button type="button" data-terminal-paste title="只粘贴文字，不发送 Enter">仅粘贴</button><button type="button" data-terminal-key="interrupt" title="向当前终端发送 Ctrl+C">打断</button></div>
+                    <div class="terminal-composer-right"><span class="terminal-session-kind" data-testid="terminal-session-kind" title="当前会话类型">Claude CLI</span><button class="terminal-send" type="submit" data-terminal-send aria-label="发送到终端" title="发送到终端"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4m-7 7 7-7 7 7"/></svg></button></div>
+                  </div>
+                </div>
+                <div class="terminal-composer-hint" id="terminal-composer-hint" data-testid="terminal-composer-hint">Enter 发送 · Shift+Enter 换行</div>
+              </form>
             </div>
-            <p class="terminal-replay-note hidden" data-testid="terminal-replay-note">较早的输出已超出保留范围；当前程序仍可继续使用。</p>
-            <div class="terminal-empty" data-testid="terminal-empty"><span class="terminal-empty-symbol" aria-hidden="true">›_</span><h2>终端就在这里</h2><p data-testid="terminal-empty-message">选择工作目录，打开终端或原生 Claude CLI。</p><button class="quiet-button" type="button" data-terminal-refresh>刷新会话</button></div>
-            <div class="terminal-viewport hidden" data-testid="terminal-viewport"></div>
           </div>
-          <p class="terminal-footnote">仅在本机运行。切换页面或刷新会保留终端，重启控制台会结束终端。</p>
           <dialog class="terminal-confirm" data-testid="terminal-close-dialog" aria-labelledby="terminal-close-title">
             <h3 id="terminal-close-title">关闭正在运行的终端？</h3><p>这会关闭终端连接，并结束仍在运行的终端会话。</p><code data-testid="terminal-close-name"></code>
             <div><button class="quiet-button" type="button" data-terminal-close-cancel>保留终端</button><button class="primary-button" type="button" data-terminal-close-confirm>结束并关闭</button></div>

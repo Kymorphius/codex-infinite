@@ -1,4 +1,4 @@
-import { actionReason, moveTargets, pinTarget, sourceLabel } from './model.js';
+import { actionReason, moveTargets, pinTarget, projectTerminalDirectories, sourceLabel } from './model.js';
 
 export function createProjectView(documentRef = document) {
   const $ = selector => documentRef.querySelector(selector);
@@ -27,10 +27,21 @@ export function createProjectView(documentRef = document) {
     text(find('.section-name'), project.section?.name || '未映射分区');
     find('.section-name').title = project.memberships.map(section => section.name).join(' / ');
     text(find('.conversation-count'), project.conversationCount === null ? '会话数未知' : `${project.conversationCount} 个已载入会话`);
-    const paths = find('.project-paths'), pathKey = JSON.stringify(project.sourceDirectories);
+    const paths = find('.project-paths'), terminalDirectories = projectTerminalDirectories(project);
+    const pathKey = JSON.stringify([project.sourceDirectories, terminalDirectories, busy]);
     if (paths.dataset.paths !== pathKey) {
       const labels = project.sourceDirectories.length ? project.sourceDirectories : [project.source === 'chatgpt' ? '云端项目 · 无本地路径' : '未提供项目路径'];
-      paths.replaceChildren(...labels.map(path => { const row = documentRef.createElement('p'); row.textContent = path; return row; }));
+      paths.replaceChildren(...labels.map(path => {
+        const row = documentRef.createElement('p'), label = documentRef.createElement('span');
+        row.className = 'project-path-row'; label.textContent = path; row.append(label);
+        if (terminalDirectories.includes(path)) {
+          const button = documentRef.createElement('button');
+          button.type = 'button'; button.className = 'button terminal-project'; button.textContent = '终端会话';
+          button.dataset.projectAction = 'terminal'; button.dataset.cwd = path; button.disabled = busy;
+          button.setAttribute('aria-label', `在 ${path} 打开终端会话`); button.title = `工作目录：${path}`; row.append(button);
+        }
+        return row;
+      }));
       paths.dataset.paths = pathKey;
     }
     const open = find('.open-project'), copy = find('.copy-path'), pin = find('.pin-project'), move = find('.move-project');

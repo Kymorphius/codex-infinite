@@ -56,6 +56,9 @@ select { max-width:240px; min-height:32px; padding:4px 28px 4px 8px; color:var(-
 .project-paths { min-height:50px; margin-bottom:18px; padding:10px; border-radius:7px; background:var(--soft); font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); }
 .project-paths p { margin:0; overflow-wrap:anywhere; }
 .project-paths p+p { padding-top:6px; }
+.project-path-row { display:flex; align-items:center; gap:8px; }
+.project-path-row>span { flex:1; min-width:0; }
+.terminal-project { flex-shrink:0; min-height:29px; padding:4px 7px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif; font-size:11px; }
 .card-actions { display:flex; gap:7px; margin-top:auto; flex-wrap:wrap; }
 .card-actions .button { padding:7px 10px; }
 .primary { background:var(--text); color:var(--surface); border-color:var(--text); margin-right:auto; }

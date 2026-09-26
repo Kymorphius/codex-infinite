@@ -4,7 +4,7 @@ export function announceEmbeddedReady(windowRef = window) {
   return true;
 }
 
-export function createNavigation({ state, modules, $, showToast, onActivate, onRefresh, onOpenRemoteConversation = () => {}, onCopyRemoteProject = () => {}, documentRef = document, windowRef = window }) {
+export function createNavigation({ state, modules, $, showToast, onActivate, onRefresh, onOpenRemoteConversation = () => {}, onCopyRemoteProject = () => {}, onOpenTerminalConversation = () => {}, documentRef = document, windowRef = window }) {
   function updateChrome() {
     const module = modules[state.module];
     let selectedTab = null;
@@ -59,6 +59,12 @@ export function createNavigation({ state, modules, $, showToast, onActivate, onR
       next.focus();
     });
     windowRef.addEventListener("message", (event) => {
+      if (event.data?.type === 'codex-control-console-open-terminal-conversation') {
+        if (event.source !== windowRef.parent || event.origin !== 'app://-') return;
+        onOpenTerminalConversation(event.data.reference || {});
+        showModule('terminal');
+        return;
+      }
       if (event.source === windowRef.parent && event.data?.type === "codex-control-console-open-remote-conversation") {
         showModule("sessions");
         onOpenRemoteConversation(event.data.reference || {});

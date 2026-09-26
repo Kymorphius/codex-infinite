@@ -39,3 +39,64 @@ export function terminalTabTitle(session, sessions) {
   const duplicates = sessions.filter((item) => titleOf(item) === title);
   return duplicates.length > 1 ? `${title} ${duplicates.findIndex((item) => item.id === session.id) + 1}` : title;
 }
+
+export function shouldSubmitTerminalDraft(event, composing = false) {
+  return event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode !== 229 && !composing;
+}
+
+export function createTerminalComposer({ getView, onChange = () => {} }) {
+  const drafts = new Map();
+  const revisions = new Map();
+  const pending = new Set();
+  let selectedId = "";
+  const draft = () => drafts.get(selectedId) || "";
+  return {
+    draft,
+    select(id) { selectedId = id; onChange(); },
+    setDraft(text) { if (selectedId) { drafts.set(selectedId, text); revisions.set(selectedId, (revisions.get(selectedId) || 0) + 1); } onChange(); },
+    forget(id) { drafts.delete(id); revisions.delete(id); },
+    clear() { drafts.clear(); revisions.clear(); },
+    snapshot() {
+      const state = getView(selectedId)?.snapshot();
+      const sending = pending.has(selectedId) || Boolean(state?.sending);
+      const canInput = Boolean(state?.canInput);
+      return { draft: draft(), sending, canInput, canSend: canInput && !sending };
+    },
+    async send({ submit = true } = {}) {
+      const id = selectedId;
+      const text = draft();
+      const revision = revisions.get(id);
+      const view = getView(id);
+      if (!id || !text.trim()) return { ok: false, message: "请先输入内容。" };
+      if (pending.has(id) || !view?.snapshot().canInput || view.snapshot().sending) return { ok: false, message: "终端当前无法接收输入，草稿已保留。" };
+      pending.add(id);
+      onChange();
+      try {
+        const result = await view.pasteText(text, { submit });
+        if (result.ok && drafts.get(id) === text && revisions.get(id) === revision) drafts.delete(id);
+        return result;
+      } catch (error) {
+        return { ok: false, message: terminalMessage(error, "未能发送到终端，草稿已保留。请查看终端后重试。") };
+      } finally { pending.delete(id); onChange(); }
+    }
+  };
+}
+
+export function normalizeTerminalReference(value, localDeviceId) {
+  if (!value || value.provider !== "terminal" || value.deviceId && value.deviceId !== localDeviceId) throw Error("此入口只支持本机终端会话。");
+  const { sessionId = "", cwd = "", projectName = "" } = value;
+  if (typeof sessionId !== "string" || sessionId && !/^[a-zA-Z0-9_-]{1,80}$/u.test(sessionId)) throw Error("终端会话标识无效。");
+  if (typeof cwd !== "string" || cwd && (!isAbsoluteTerminalDirectory(cwd) || cwd.length > 4096 || /[\u0000-\u001f\u007f]/u.test(cwd))) throw Error("项目工作目录无效。");
+  if (typeof projectName !== "string") throw Error("项目名称无效。");
+  return { provider: "terminal", sessionId, cwd, projectName: projectName.replace(/[\u0000-\u001f\u007f]/gu, "").trim().slice(0, 160) };
+}
+
+export function terminalReferenceSessions(sessions, reference) {
+  return reference.cwd ? sessions.filter(session => session.cwd === reference.cwd) : sessions;
+}
+
+export function resolveTerminalSelection(sessions, reference, preferredId) {
+  const scoped = terminalReferenceSessions(sessions, reference);
+  if (reference.sessionId && !scoped.some(session => session.id === reference.sessionId)) return { id: "", error: "该终端会话已关闭，或不属于当前项目。" };
+  return { id: reference.sessionId || selectListedTerminal(scoped, preferredId), error: "" };
+}

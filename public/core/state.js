@@ -4,7 +4,7 @@ export const MODULES = Object.freeze({
   "jev-routing": { title: "自动分流", caption: "Jev 判断任务档位，模型与推理强度由你映射" },
   console: { title: "控制台", caption: "只读本机任务记录" },
   sessions: { title: "会话中心", caption: "按工作目录查看原生 Codex 会话" },
-  terminal: { title: "终端", caption: "本机 Shell 与原生 Claude CLI" },
+  terminal: { title: "终端会话", caption: "完整终端 · 会话输入控制台" },
   context: { title: "上下文状态", caption: "普通会话使用模型默认窗口；需要时按会话扩展" },
   usage: { title: "用量", caption: "查看 Codex 账号额度与重置时间" },
   priority: { title: "项目优先级", caption: "按会话活跃度与运行时间排序" },
