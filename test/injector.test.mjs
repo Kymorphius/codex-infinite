@@ -162,7 +162,9 @@ test("injector reloads an unprepared parent before embedded navigation", async (
     }
   };
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
-  assert.ok(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source.startsWith("window.__codexControlConsoleCspDocumentPrepared = true;")));
+  assert.ok(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source.includes("window.__codexControlConsoleCspDocumentPrepared = true;")));
+  assert.ok(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source === "window.__codexControlConsoleCspDocumentPrepared = true;"));
+  assert.equal(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source.includes("统一显示各设备的原生分区")), false);
   assert.equal(calls.filter((call) => call.method === "Page.reload").length, 1);
 });
 

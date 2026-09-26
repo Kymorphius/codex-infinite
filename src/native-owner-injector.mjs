@@ -23,6 +23,7 @@ import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-h
 import { buildNativeComposerControlOrderSource } from "./native-composer-control-order.mjs";
 import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
+import { deferNativeDocumentSource } from "./native-document-bootstrap.mjs";
 
 function nativeOwnerInjectionScripts() {
   return [
@@ -102,7 +103,7 @@ export class NativeOwnerInjector {
       await connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       await connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       for (const source of nativeOwnerDocumentStartScripts()) {
-        await connection.send("Page.addScriptToEvaluateOnNewDocument", { source });
+        await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(source) });
       }
     } catch (error) {
       await connection.close().catch(() => {});

@@ -32,6 +32,7 @@ import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-h
 import { buildNativeComposerControlOrderSource } from "./native-composer-control-order.mjs";
 import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
+import { deferNativeDocumentSource, waitForReloadedNativeDocument } from "./native-document-bootstrap.mjs";
 
 export async function persistNativeContextAction(payload, contextWindowStore) {
   if (!contextWindowStore) return null;
@@ -90,15 +91,6 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
 }
 
-async function waitForReloadedDocument(connection) {
-  for (let attempt = 0; attempt < 24; attempt += 1) {
-    const ready = await connection.evaluate("document.readyState === 'interactive' || document.readyState === 'complete'").catch(() => false);
-    if (ready) return;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error("Codex renderer did not become ready after enabling dashboard compatibility");
-}
-
 async function prepareCspBypass(connection, { reloadAfterCspBypass = true } = {}) {
   await connection.send("Page.setBypassCSP", { enabled: true });
   const tokenSource = `(() => {
@@ -119,7 +111,7 @@ async function prepareCspBypass(connection, { reloadAfterCspBypass = true } = {}
   connection.__codexControlConsoleCspDocumentToken = documentToken;
   if (!reloadAfterCspBypass) return false;
   await connection.send("Page.reload", { ignoreCache: false });
-  await waitForReloadedDocument(connection);
+  await waitForReloadedNativeDocument(connection, documentToken);
   connection.__codexControlConsoleCspDocumentToken = await connection.evaluate(tokenSource).catch(() => null);
   return true;
 }
@@ -128,42 +120,42 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: "window.__codexControlConsoleCspDocumentPrepared = true;" + buildNativeUnifiedSidebarInjectionScript(dashboardUrl) + ";" + buildInjectionScript(dashboardUrl)
+      source: "window.__codexControlConsoleCspDocumentPrepared = true;"
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeContextInjectionScript()
+      source: deferNativeDocumentSource(buildNativeContextInjectionScript())
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeApprovalInjectionScript()
+      source: deferNativeDocumentSource(buildNativeApprovalInjectionScript())
     });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeJevRoutingInjectionScript() });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeJevRoutingInjectionScript()) });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeTurboInjectionScript()
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeSidebarLabelsInjectionScript()
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeSidebarActivityInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeRemoteSidebarInjectionScript()
+      source: deferNativeDocumentSource(buildNativeTurboInjectionScript())
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeAttentionStickyInjectionScript()
+      source: deferNativeDocumentSource(buildNativeSidebarLabelsInjectionScript())
+    });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeSidebarActivityInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: deferNativeDocumentSource(buildNativeRemoteSidebarInjectionScript())
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeChatgptChatSectionInjectionScript()
+      source: deferNativeDocumentSource(buildNativeAttentionStickyInjectionScript())
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: buildNativeOpenLocalProjectInjectionScript()
+      source: deferNativeDocumentSource(buildNativeChatgptChatSectionInjectionScript())
     });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { ${buildNativeComposerControlOrderSource()} })()` });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeLongConversationInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeTurnStateInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeNewProjectsInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeAttentionConversationsInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeProjectSearchInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativeSentMessageSearchInjectionScript() });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: buildNativePinnedEmptyInjectionScript() });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: deferNativeDocumentSource(buildNativeOpenLocalProjectInjectionScript())
+    });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(`(() => { ${buildNativeComposerControlOrderSource()} })()`) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeLongConversationInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeTurnStateInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeNewProjectsInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeAttentionConversationsInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeProjectSearchInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeSentMessageSearchInjectionScript()) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativePinnedEmptyInjectionScript()) });
     connection.__codexControlConsoleScriptsPrepared = true;
   }
   await prepareCspBypass(connection, { reloadAfterCspBypass });
@@ -180,7 +172,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     if (state.frameRecoveryRequest && state.frameRecoveryRequest !== connection.__codexControlConsoleFrameRecoveryRequest) {
       connection.__codexControlConsoleFrameRecoveryRequest = state.frameRecoveryRequest;
       await connection.send("Page.reload", { ignoreCache: false });
-      await waitForReloadedDocument(connection);
+      await waitForReloadedNativeDocument(connection, connection.__codexControlConsoleCspDocumentToken);
     }
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
