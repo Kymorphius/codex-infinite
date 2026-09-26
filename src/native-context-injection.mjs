@@ -27,10 +27,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-22.5' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-26.manual-guard1' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-22.5';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-26.manual-guard1';
   ${buildNativeComposerTransitionShieldSource()}
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
@@ -72,7 +72,10 @@ export function buildNativeContextInjectionScript() {
     });
   }
 
-  async function resume(threadId, settings = {}) {
+  const SUPERSEDED = Symbol('superseded');
+  function assertCurrent(shouldApply) { if (!shouldApply()) throw SUPERSEDED; }
+
+  async function resume(threadId, settings = {}, shouldApply = () => true) {
     const normalized = String(threadId || '').toLowerCase();
     const hasContextWindow = Object.prototype.hasOwnProperty.call(settings, 'contextWindow');
     const contextWindow = hasContextWindow ? settings.contextWindow : overrides.get(normalized) || null;
@@ -92,19 +95,24 @@ export function buildNativeContextInjectionScript() {
     if (settings.model) params.model = settings.model;
     if (settings.serviceTier) params.serviceTier = settings.serviceTier;
     if (settings.permissionProfile) params.permissions = settings.permissionProfile;
+    assertCurrent(shouldApply);
     const result = await request('thread/resume', params);
+    assertCurrent(shouldApply);
     window.__codexControlConsoleLastContextResume = {
       threadId: normalized, contextWindow, mode: contextWindow ? 'extended' : 'default', appliedAt: new Date().toISOString(), ok: true
     };
     return { applied: Boolean(contextWindow), threadId: normalized, contextWindow, result };
   }
 
-  async function updateThreadSettings(params) {
+  async function updateThreadSettings(params, shouldApply) {
+    assertCurrent(shouldApply);
     try {
       return await request('thread/settings/update', params);
     } catch (error) {
+      assertCurrent(shouldApply);
       if (!/thread not found/i.test(String(error?.message || ''))) throw error;
-      await resume(params.threadId);
+      await resume(params.threadId, {}, shouldApply);
+      assertCurrent(shouldApply);
       return request('thread/settings/update', params);
     }
   }
@@ -221,7 +229,7 @@ export function buildNativeContextInjectionScript() {
     return activation;
   };
 
-  window.__codexControlConsoleApplyThreadSettings = async (threadId, changes) => {
+  window.__codexControlConsoleApplyThreadSettings = async (threadId, changes, options = {}) => {
     const normalized = String(threadId || '').trim().toLowerCase();
     if (!UUID.test(normalized) || !changes || typeof changes !== 'object' || Array.isArray(changes)) throw new Error('会话设置变更无效');
     const settings = {};
@@ -251,21 +259,30 @@ export function buildNativeContextInjectionScript() {
       settings.contextWindow = contextWindow;
     }
     if (!Object.keys(settings).length) throw new Error('会话设置变更为空');
+    const shouldApply = typeof options?.shouldApply === 'function' ? options.shouldApply : () => true;
     const update = { threadId: normalized };
     if (settings.model) update.model = settings.model;
     if (settings.reasoningEffort) update.effort = settings.reasoningEffort;
     if (settings.serviceTier) update.serviceTier = settings.serviceTier;
     if (settings.permissionProfile) update.permissions = settings.permissionProfile;
     const results = {};
-    if (Object.keys(update).length > 1) results.settings = await updateThreadSettings(update);
-    if (Object.prototype.hasOwnProperty.call(settings, 'contextWindow')) results.context = await resume(normalized, settings);
-    if (Object.prototype.hasOwnProperty.call(settings, 'contextWindow')) {
-      if (settings.contextWindow) overrides.set(normalized, settings.contextWindow);
-      else overrides.delete(normalized);
-      scheduleToggle();
+    try {
+      assertCurrent(shouldApply);
+      if (Object.keys(update).length > 1) results.settings = await updateThreadSettings(update, shouldApply);
+      assertCurrent(shouldApply);
+      if (Object.prototype.hasOwnProperty.call(settings, 'contextWindow')) results.context = await resume(normalized, settings, shouldApply);
+      assertCurrent(shouldApply);
+      if (Object.prototype.hasOwnProperty.call(settings, 'contextWindow')) {
+        if (settings.contextWindow) overrides.set(normalized, settings.contextWindow);
+        else overrides.delete(normalized);
+        scheduleToggle();
+      }
+      window.__codexControlConsoleLastThreadSettings = { threadId: normalized, settings, appliedAt: new Date().toISOString(), ok: true };
+      return { applied: true, threadId: normalized, settings, results };
+    } catch (error) {
+      if (error === SUPERSEDED) return { applied: false, threadId: normalized, reason: 'superseded' };
+      throw error;
     }
-    window.__codexControlConsoleLastThreadSettings = { threadId: normalized, settings, appliedAt: new Date().toISOString(), ok: true };
-    return { applied: true, threadId: normalized, settings, results };
   };
 
   window.__codexControlConsoleInterruptThread = async (threadId, turnId) => {

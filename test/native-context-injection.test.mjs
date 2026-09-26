@@ -64,8 +64,8 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /__codexControlConsoleApplyThreadSettings/);
   assert.match(source, /request\('thread\/settings\/update'/);
   assert.match(source, /thread not found/);
-  assert.match(source, /await resume\(params\.threadId\)/);
-  assert.match(source, /results\.settings = await updateThreadSettings\(update\)/);
+  assert.match(source, /await resume\(params\.threadId, \{\}, shouldApply\)/);
+  assert.match(source, /results\.settings = await updateThreadSettings\(update, shouldApply\)/);
   assert.match(source, /update\.effort = settings\.reasoningEffort/);
   assert.match(source, /update\.serviceTier = settings\.serviceTier/);
   assert.match(source, /update\.permissions = settings\.permissionProfile/);

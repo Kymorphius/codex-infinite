@@ -23,6 +23,13 @@ export function buildNativeTurboEnforcementSource() {
     try { localStorage.setItem(turboLeaseStorageKey, JSON.stringify(Array.from(turboLeases.values()).slice(-64))); } catch {}
   }
 
+  function discardTurboLease(threadId) {
+    turboLeases.delete(threadId); turboAppliedSignatures.delete(threadId); turboVerifiedSettings.delete(threadId);
+    persistTurboLeases();
+  }
+
+  function turboLeaseBlocked(threadId) { return typeof turboManualBlocks === 'function' && turboManualBlocks(threadId); }
+
   function turboPolicySignature(threadId) {
     return [threadId, policy.model || '', policy.reasoningEffort, policy.fast, policy.millionContext, policy.accessMode].join(':');
   }
@@ -64,18 +71,25 @@ export function buildNativeTurboEnforcementSource() {
   }
 
   async function applyTurboLease(threadId) {
+    const revision = typeof turboManualRevision === 'function' ? turboManualRevision() : 0;
+    const signature = turboPolicySignature(threadId);
+    const current = () => policy.enabled && policy.active && !turboLeaseBlocked(threadId) && signature === turboPolicySignature(threadId) && revision === (typeof turboManualRevision === 'function' ? turboManualRevision() : 0);
+    if (!current()) return;
     const apply = window.__codexControlConsoleApplyThreadSettings;
     if (typeof apply !== 'function') throw new Error('Turbo 原生设置服务尚未就绪');
     let lease = turboLeases.get(threadId);
     if (!lease) {
       lease = await readTurboThreadSettings(threadId);
+      if (!current()) return;
       turboLeases.set(threadId, lease);
       persistTurboLeases();
     }
     const changes = turboChanges(lease);
     const appliedSignature = turboPolicySignature(threadId);
-    await apply(threadId, changes);
+    await apply(threadId, changes, { shouldApply: current });
+    if (!current()) return;
     const verified = await readTurboThreadSettings(threadId);
+    if (!current()) return;
     if (verified.model !== changes.model || verified.reasoningEffort !== changes.reasoningEffort || verified.serviceTier !== changes.serviceTier) throw new Error('Turbo 设置未通过原生回读');
     turboAppliedSignatures.set(threadId, appliedSignature);
     turboVerifiedSettings.set(threadId, { model: verified.model, effort: verified.reasoningEffort, serviceTier: verified.serviceTier, contextWindow: verified.contextWindow });
@@ -86,7 +100,10 @@ export function buildNativeTurboEnforcementSource() {
     const apply = window.__codexControlConsoleApplyThreadSettings;
     if (typeof apply !== 'function') throw new Error('Turbo 原生设置服务尚未就绪');
     for (const [threadId, lease] of Array.from(turboLeases)) {
-      await apply(threadId, restoreChanges(lease));
+      const current = () => (!policy.enabled || !policy.active) && !turboLeaseBlocked(threadId);
+      if (!current()) continue;
+      await apply(threadId, restoreChanges(lease), { shouldApply: current });
+      if (!current()) continue;
       turboLeases.delete(threadId);
       turboAppliedSignatures.delete(threadId);
       turboVerifiedSettings.delete(threadId);
@@ -95,13 +112,14 @@ export function buildNativeTurboEnforcementSource() {
   }
 
   function turboIsEnforcedForCurrentThread() {
+    if (turboLeaseBlocked(typeof turboCurrentManualThreadId === 'function' ? turboCurrentManualThreadId() : selectedTurboThreadId())) return false;
     if (turboBridgeIsWrapped()) return true;
     const threadId = selectedTurboThreadId();
     return threadId ? turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId) : turboNewChatIsReady();
   }
 
   function verifiedTurboTurnSettings(threadId) {
-    if (!policy.enabled || !policy.active || turboBridgeIsWrapped()) return null;
+    if (!policy.enabled || !policy.active || turboLeaseBlocked(threadId) || turboBridgeIsWrapped()) return null;
     const settings = turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId) ? turboVerifiedSettings.get(threadId) || null : null;
     if (settings) settings.contextWindow = Number(window.__codexControlConsoleGetContextWindow?.(threadId)) || null;
     return settings;
@@ -110,6 +128,7 @@ export function buildNativeTurboEnforcementSource() {
   async function syncTurboEnforcement() {
     if (turboBridgeIsWrapped() || turboEnforcementBusy) return;
     const threadId = selectedTurboThreadId();
+    if (policy.enabled && policy.active && turboLeaseBlocked(threadId)) return;
     if (policy.enabled && policy.active && threadId && turboAppliedSignatures.get(threadId) === turboPolicySignature(threadId)) return;
     if (!policy.enabled || !policy.active) {
       if (!turboLeases.size) return;

@@ -7,6 +7,7 @@ import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { formatNativeTurboTurnReceipt, normalizeNativeTurboTurnReceipt, readNativeTurboTurnRequest } from "./native-turbo-turn-contract.mjs";
 import { installNativeTurboTurnReceipts } from "./native-turbo-turn-receipts.mjs";
 import { installNativeTurboTurnRenderer } from "./native-turbo-turn-render.mjs";
+import { installNativeTurboManualChoice } from "./native-turbo-manual-choice.mjs";
 
 export const NATIVE_TURBO_BINDING = "__codexControlConsoleToggleTurbo";
 
@@ -51,7 +52,8 @@ export function buildNativeTurboInjectionScript() {
   const enforcementSource = buildNativeTurboEnforcementSource();
   const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-26.device-scope-retired1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-26.manual-session1') return;
+  window.__codexControlConsoleTurboManualCleanup?.();
   window.__codexControlConsoleTurboTurnCleanup?.();
   window.__codexControlConsoleTurboNewChatCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
@@ -63,13 +65,19 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-26.device-scope-retired1';
+  window.__codexControlConsoleTurboVersion = '2026-09-26.manual-session1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   const normalizeTurboQuotaStatus = ${normalizeNativeTurboQuotaStatus.toString()};
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, quotaStatus: null, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
   let requestSequence = 0;
+  let turboManualChoice = null;
+  let turboDisposed = false;
+  function turboManualBlocks(threadId) { return turboDisposed || turboManualChoice?.blocks(threadId) === true; }
+  function turboManualHas(threadId) { return turboManualChoice?.has(threadId) === true; }
+  function turboManualRevision() { return turboManualChoice?.revision || 0; }
+  function turboCurrentManualThreadId() { return turboNewChatTrigger() ? null : selectedTurboThreadId(); }
   ${buildNativeTurboActionSource(NATIVE_TURBO_BINDING)}
   const preparedContextSignatures = new Map();
   const preparingContexts = new Map();
@@ -115,6 +123,9 @@ export function buildNativeTurboInjectionScript() {
     const params = message?.type === 'mcp-request' && message?.hostId === 'local' && message?.request?.method === 'turn/start' ? message.request.params : null;
     const threadId = typeof params?.threadId === 'string' ? params.threadId.toLowerCase() : '';
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return null;
+    turboManualChoice?.claimDraft(threadId);
+    if (turboManualBlocks(threadId)) return null;
+    const manualRevision = turboManualRevision();
     const shouldExtend = policy.enabled && policy.active && policy.millionContext;
     if (!shouldExtend && !affectedContextThreads.has(threadId)) return null;
     const ordinaryWindow = Number(window.__codexControlConsoleGetContextWindow?.(threadId)) || null;
@@ -124,6 +135,7 @@ export function buildNativeTurboInjectionScript() {
     const current = preparingContexts.get(threadId);
     if (current?.signature === preparationSignature) return current.promise;
     const preparation = resumeContext(originalSend, threadId, contextWindow).then(() => {
+      if (turboManualBlocks(threadId) || manualRevision !== turboManualRevision()) return;
       if (shouldExtend) affectedContextThreads.add(threadId); else affectedContextThreads.delete(threadId);
       preparedContextSignatures.set(threadId, preparationSignature);
       persistAffectedThreads();
@@ -142,7 +154,7 @@ export function buildNativeTurboInjectionScript() {
     const request = message?.type === 'mcp-request' && message?.hostId === 'local' ? message.request : null;
     const params = request?.method === 'turn/start' ? request.params : null;
     const threadId = typeof params?.threadId === 'string' ? params.threadId.toLowerCase() : '';
-    if (!policy.enabled || !policy.active || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return message;
+    if (!policy.enabled || !policy.active || turboManualBlocks(threadId) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(threadId)) return message;
     const collaborationMode = params.collaborationMode && typeof params.collaborationMode === 'object' ? clone(params.collaborationMode) : null;
     const collaborationSettings = collaborationMode?.settings && typeof collaborationMode.settings === 'object' ? clone(collaborationMode.settings) : null;
     const nativeModel = String(params.model || collaborationSettings?.model || '');
@@ -164,6 +176,20 @@ export function buildNativeTurboInjectionScript() {
   ${uiSource}
   ${newChatSource}
   ${enforcementSource}
+  turboManualChoice = (${installNativeTurboManualChoice.toString()})({
+    hostWindow: window, documentRef: document, storage: localStorage,
+    readThreadId: turboCurrentManualThreadId, isEnabled: () => policy.enabled && policy.active,
+    onChange: () => {
+      for (const threadId of turboLeases.keys()) if (turboManualChoice?.has(threadId)) discardTurboLease(threadId);
+      for (const threadId of affectedContextThreads) if (turboManualChoice?.has(threadId)) { affectedContextThreads.delete(threadId); preparedContextSignatures.delete(threadId); persistAffectedThreads(); }
+      if (turboManualBlocks(null)) turboNewChatReadySignature = '';
+      decorateReasoningControl();
+      const button = document.querySelector('[data-codex-control-console-native-turbo]');
+      if (button) renderButton(button);
+    }
+  });
+  for (const threadId of turboLeases.keys()) if (turboManualChoice.has(threadId)) discardTurboLease(threadId);
+  window.__codexControlConsoleTurboManualCleanup = () => { turboDisposed = true; turboManualChoice.cleanup(); };
   let turboTurnRenderer = null;
   const readTurboTurnRequest = ${readNativeTurboTurnRequest.toString()};
   const turboTurnReceipts = (${installNativeTurboTurnReceipts.toString()})({
@@ -178,6 +204,7 @@ export function buildNativeTurboInjectionScript() {
   turboTurnRenderer.render();
 
   function install() {
+    turboManualChoice?.refresh();
     installButton();
     void syncTurboNewChatPreset();
     decorateReasoningControl();
@@ -193,9 +220,9 @@ export function buildNativeTurboInjectionScript() {
     if (current.__codexControlTurboWrapped) { warmCurrentThread(); return; }
     const wrapped = function(message) {
       const preparation = prepareTurboContext(originalSend, message);
-      const transformed = transform(message);
-      const snapshot = transformed !== message ? readTurboTurnRequest(transformed, policy.millionContext ? 1000000 : Number(window.__codexControlConsoleGetContextWindow?.(transformed.request.params.threadId)) || null) : null;
       const dispatch = () => {
+        const transformed = transform(message);
+        const snapshot = transformed !== message ? readTurboTurnRequest(transformed, policy.millionContext ? 1000000 : Number(window.__codexControlConsoleGetContextWindow?.(transformed.request.params.threadId)) || null) : null;
         const cancelReceipt = turboTurnReceipts.trackRequest(transformed?.request?.id, snapshot);
         try {
           const result = originalSend(transformed);
@@ -240,6 +267,7 @@ export function buildNativeTurboInjectionScript() {
     clearTimeout(window.__codexControlConsoleTurboActionTimer);
     window.__codexControlConsoleTurboTurnCleanup?.();
     window.__codexControlConsoleTurboNewChatCleanup?.();
+    window.__codexControlConsoleTurboManualCleanup?.();
     clearInterval(installTimer);
     if (window.__codexControlConsoleTurboInstallTimer === installTimer) window.__codexControlConsoleTurboInstallTimer = null;
   }, { once: true });

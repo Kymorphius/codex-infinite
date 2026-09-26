@@ -22,10 +22,15 @@ export function buildNativeTurboNewChatSource() {
 
   function turboNewChatTarget() {
     const trigger = turboNewChatTrigger();
-    if (!trigger || !policy.enabled || !policy.active) return null;
+    if (!trigger || !policy.enabled || !policy.active || (typeof turboManualBlocks === 'function' && turboManualBlocks(null))) return null;
     const model = policy.model || turboNewChatModel(trigger);
     const effort = policy.reasoningEffort === 'preserve' ? null : policy.reasoningEffort === 'maximum' ? policy.efforts.get(model) || null : policy.reasoningEffort;
-    return { trigger, model, effort, signature: [model || 'preserve', effort || 'preserve', policy.fast ? 'fast' : 'native'].join(':') };
+    return { trigger, model, effort, revision: typeof turboManualRevision === 'function' ? turboManualRevision() : 0, signature: [model || 'preserve', effort || 'preserve', policy.fast ? 'fast' : 'native'].join(':') };
+  }
+
+  function assertTurboNewChatCurrent(target) {
+    const current = turboNewChatTarget();
+    if (!current || current.trigger !== target.trigger || current.signature !== target.signature || current.revision !== target.revision) { const error = new Error('Turbo 预设已被会话选择替代'); error.superseded = true; throw error; }
   }
 
   async function turboNewChatWaitFor(read, attempts = 20) {
@@ -37,19 +42,22 @@ export function buildNativeTurboNewChatSource() {
     return null;
   }
 
-  async function turboNewChatOpenMenu(trigger) {
+  async function turboNewChatOpenMenu(target) {
+    assertTurboNewChatCurrent(target);
     const open = document.querySelector('[role="menu"][data-state="open"] [data-reasoning-slider]');
     if (open) return open;
-    trigger.click();
+    target.trigger.click();
     return turboNewChatWaitFor(() => document.querySelector('[role="menu"][data-state="open"] [data-reasoning-slider]'));
   }
 
   async function turboNewChatSelectModel(target) {
     if (!target.model || turboNewChatModel(target.trigger) === target.model) return;
-    await turboNewChatOpenMenu(target.trigger);
+    await turboNewChatOpenMenu(target);
     const toggle = await turboNewChatWaitFor(() => document.querySelector('[role="menuitem"][data-model-picker-view-toggle]'));
+    assertTurboNewChatCurrent(target);
     toggle?.click();
     const option = await turboNewChatWaitFor(() => Array.from(document.querySelectorAll('[role="menuitemradio"]')).find((node) => normalizeTurboNewChatModelLabel(node.textContent) === normalizeTurboNewChatModelLabel(turboLabel(target.model))));
+    assertTurboNewChatCurrent(target);
     if (!option) throw new Error('Turbo 找不到新对话模型选项');
     option.click();
     if (!await turboNewChatWaitFor(() => turboNewChatModel(target.trigger) === target.model)) throw new Error('Turbo 新对话模型没有生效');
@@ -59,9 +67,11 @@ export function buildNativeTurboNewChatSource() {
     if (!target.effort) return;
     const effortOrder = policy.modelOptions.find((item) => item.id === target.model)?.efforts || ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
     for (let attempt = 0; attempt < 12; attempt += 1) {
+      assertTurboNewChatCurrent(target);
       const current = String(target.trigger.getAttribute('data-selected-reasoning-effort') || '');
       if (current === target.effort) return;
-      const control = await turboNewChatOpenMenu(target.trigger);
+      const control = await turboNewChatOpenMenu(target);
+      assertTurboNewChatCurrent(target);
       if (!control) break;
       const currentIndex = effortOrder.indexOf(current);
       const targetIndex = effortOrder.indexOf(target.effort);
@@ -75,10 +85,12 @@ export function buildNativeTurboNewChatSource() {
 
   async function turboNewChatEnableFast(target) {
     if (!policy.fast) return;
-    await turboNewChatOpenMenu(target.trigger);
+    await turboNewChatOpenMenu(target);
     const fast = await turboNewChatWaitFor(() => document.querySelector('[role="menuitemcheckbox"][aria-label*="快速"], [role="menuitemcheckbox"][aria-label*="Fast"]'));
+    assertTurboNewChatCurrent(target);
     if (!fast) throw new Error('Turbo 找不到新对话 Fast 开关');
     if (fast.getAttribute('aria-checked') !== 'true') { fast.click(); await turboNewChatWait(70); }
+    assertTurboNewChatCurrent(target);
     if (fast.getAttribute('aria-checked') !== 'true') throw new Error('Turbo 新对话 Fast 没有生效');
     document.body.click();
   }
@@ -94,13 +106,14 @@ export function buildNativeTurboNewChatSource() {
         await turboNewChatSelectModel(target);
         await turboNewChatSelectEffort(target);
         await turboNewChatEnableFast(target);
+        assertTurboNewChatCurrent(target);
         turboNewChatReadySignature = target.signature;
         window.__codexControlConsoleLastTurboEnforcement = { ok: true, mode: 'new-chat-preset', model: target.model, reasoningEffort: target.effort, serviceTier: policy.fast ? 'priority' : 'default', appliedAt: new Date().toISOString() };
         decorateReasoningControl();
         return true;
       } catch (error) {
         turboNewChatReadySignature = '';
-        window.__codexControlConsoleLastTurboEnforcement = { ok: false, mode: 'new-chat-preset', message: String(error?.message || error).slice(0, 240), appliedAt: new Date().toISOString() };
+        if (!error.superseded) window.__codexControlConsoleLastTurboEnforcement = { ok: false, mode: 'new-chat-preset', message: String(error?.message || error).slice(0, 240), appliedAt: new Date().toISOString() };
         return false;
       } finally { turboNewChatBusy = false; turboNewChatPromise = null; }
     })();
@@ -113,7 +126,7 @@ export function buildNativeTurboNewChatSource() {
   }
 
   function replayTurboNewChatSubmission() {
-    if (turboNewChatReplayPending || !turboNewChatIsReady()) return;
+    if (turboNewChatReplayPending || (!turboNewChatIsReady() && !(typeof turboManualHas === 'function' && turboManualHas(null)))) return;
     const send = Array.from(document.querySelectorAll('button')).find((button) => /^(发送|Send)$/i.test(String(button.getAttribute('aria-label') || button.textContent || '').trim()) && !button.disabled);
     if (!send) return;
     turboNewChatReplayPending = true;
@@ -126,8 +139,16 @@ export function buildNativeTurboNewChatSource() {
     const clickedSend = event.type === 'click' && button && /^(发送|Send)$/i.test(String(button.getAttribute('aria-label') || button.textContent || '').trim());
     const pressedEnter = event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target?.closest?.('[contenteditable="true"],textarea');
     if (!clickedSend && !pressedEnter) return;
+    const trigger = turboNewChatTrigger();
     event.preventDefault(); event.stopImmediatePropagation();
-    void syncTurboNewChatPreset().then((ready) => { if (ready) replayTurboNewChatSubmission(); });
+    void syncTurboNewChatPreset().then(async (ready) => {
+      if (!ready && typeof turboManualBlocks === 'function' && turboManualBlocks(null)) await turboNewChatWaitFor(() => typeof turboManualHas === 'function' && turboManualHas(null), 200);
+      if (turboNewChatTrigger() !== trigger) return;
+      if (ready || (typeof turboManualHas === 'function' && turboManualHas(null))) {
+        if (event.isTrusted && typeof turboManualChoice !== 'undefined') turboManualChoice?.submitDraft();
+        replayTurboNewChatSubmission();
+      }
+    });
   }
 
   document.addEventListener?.('click', blockUnpreparedTurboNewChat, true);

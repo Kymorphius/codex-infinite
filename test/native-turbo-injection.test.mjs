@@ -54,7 +54,7 @@ function runtime({ respondToResume = true } = {}) {
 
 test("native runtime receives quota settings and refreshes trigger status without account data", () => {
   const { context, window } = runtime();
-  assert.equal(window.__codexControlConsoleTurboVersion, "2026-09-26.device-scope-retired1");
+  assert.equal(window.__codexControlConsoleTurboVersion, "2026-09-26.manual-session1");
   const snapshot = vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled:false,autoDisableOnLowQuota:true,quotaRemainingThreshold:25,quotaStatus:{ state:"triggered",remainingPercent:20,thresholdPercent:25,accountId:"private" } }), context);
   assert.equal(snapshot.autoDisableOnLowQuota, true); assert.equal(snapshot.quotaRemainingThreshold, 25);
   assert.equal(snapshot.quotaStatus.state, "triggered"); assert.equal(snapshot.quotaStatus.remainingPercent, 20);

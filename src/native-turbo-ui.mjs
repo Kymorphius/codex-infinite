@@ -8,9 +8,10 @@ export function buildNativeTurboUiSource() {
 
   function renderButton(button) {
     const active = policy.enabled && policy.active;
+    const manual = typeof turboManualBlocks === 'function' && turboManualBlocks(turboCurrentManualThreadId());
     const enforced = !active || typeof turboIsEnforcedForCurrentThread !== 'function' || turboIsEnforcedForCurrentThread();
     const badges = [policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : ''].filter(Boolean).join(' · ');
-    const title = pending ? (state.turboActionPending?.operation === 'save' ? '正在保存到本机…' : '正在同步所有设备…') : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
+    const title = pending ? (state.turboActionPending?.operation === 'save' ? '正在保存到本机…' : '正在同步所有设备…') : active && manual ? 'Turbo 已开启；当前会话使用手动设置；点击关闭 Turbo' : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
     const signature = [active, enforced, pending, title].join(':');
     if (button.getAttribute('data-codex-control-console-turbo-render-signature') === signature) return;
     button.setAttribute('data-codex-control-console-turbo-render-signature', signature);
