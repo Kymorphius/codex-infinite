@@ -17,7 +17,7 @@ export const CONTROL_WORKSPACE_ATTRIBUTE = "data-codex-control-console-workspace
 
 export { injectionDecision } from './native-entry-probe.mjs';
 
-export function buildInjectionScript(dashboardUrl) {
+export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding = "" } = {}) {
   const dashboardLiteral = JSON.stringify(dashboardUrl);
   const entryAttribute = JSON.stringify(CONTROL_ENTRY_ATTRIBUTE);
   const workspaceAttribute = JSON.stringify(CONTROL_WORKSPACE_ATTRIBUTE);
@@ -33,12 +33,13 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_ATTRIBUTE = ${JSON.stringify(SESSION_ENTRY_ATTRIBUTE)};
   const PRIORITY_ENTRY_ATTRIBUTE = ${JSON.stringify(PRIORITY_ENTRY_ATTRIBUTE)};
   const WORKSPACE_ATTRIBUTE = ${workspaceAttribute};
+  const STANDALONE_DASHBOARD_BINDING = ${JSON.stringify(standaloneDashboardBinding)};
   const ENTRY_SELECTOR = '[' + ENTRY_ATTRIBUTE + ']';
   const KANBAN_ENTRY_SELECTOR = '[' + KANBAN_ENTRY_ATTRIBUTE + ']';
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-26.managed-terminal.tabs-${digest}.provider-${providerDigest}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.tabs-${digest}.provider-${providerDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -134,6 +135,10 @@ ${placeNativeBoardBelowChecklist.toString()}
 
   function openWorkspace(module = 'board', loadingLabel = '', activateConsole = true) {
     if (module !== 'terminal') cancelTerminalNavigation();
+    if (STANDALONE_DASHBOARD_BINDING && typeof window[STANDALONE_DASHBOARD_BINDING] === 'function') {
+      window[STANDALONE_DASHBOARD_BINDING](JSON.stringify({ module: ['console', 'sessions', 'priority', 'projects', 'conversations', 'terminal'].includes(module) ? module : 'board' }));
+      return;
+    }
     if (requestEmbeddedFramePreparation(module, terminalTarget)) return;
     if (activateConsole) window.__codexControlConsoleConversationTabs?.showConsole?.(module);
     let existing = document.querySelector(WORKSPACE_SELECTOR);
@@ -323,7 +328,7 @@ ${providerSource}
       openRemote: (tab) => openRemoteConversation(tab),
       openTerminal: (tab) => openTerminalConversation(tab)
     });
-    installNativeTerminalProvider(DASHBOARD_URL, readNativeSidebarModel, createNativeTerminalSidebar, createNativeTerminalActions, () => requestEmbeddedFramePreparation('projects'));
+    if (!STANDALONE_DASHBOARD_BINDING) installNativeTerminalProvider(DASHBOARD_URL, readNativeSidebarModel, createNativeTerminalSidebar, createNativeTerminalActions, () => requestEmbeddedFramePreparation('projects'));
     window.__codexControlConsoleNativeThreadListener = handleNativeThreadSelection;
     document.addEventListener('click', handleNativeThreadSelection, true);
     window.__codexControlConsoleObserver = new MutationObserver(scheduleInstall);

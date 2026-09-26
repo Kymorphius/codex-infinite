@@ -20,8 +20,22 @@ still observing the previous document.
   connection reapplies the target-scoped CSP bypass; document-start hooks never
   create loopback frames.
 - ChatGPT 26 requires the target-scoped CSP bypass to be active before its first
-  local iframe navigation. macOS therefore uses the same one-time prepared reload
-  as Windows; the new-document token prevents reload loops.
+  local iframe navigation. On macOS its native startup handshake is not reload
+  safe: a CDP reload leaves the app on the launch logo because the main process
+  does not resend the one-time bootstrap payload. macOS therefore does not enable
+  the bypass or reload the document; it uses the standalone boundary below.
+  Windows retains the prepared reload, and its new-document token prevents reload
+  loops there.
+- ChatGPT 26 also blocks loopback iframes and fetches in the already-running app
+  document. macOS must not weaken that policy or attempt a late bypass. Its native
+  entries call one allowlisted CDP binding which raises the signed standalone
+  `加强版 ChatGPT` dashboard app. Windows retains the embedded dashboard.
+- The standalone launch binding accepts only known dashboard module identifiers;
+  it does not accept URLs, executable paths, arguments, or shell text. macOS does
+  not install the hidden sidebar or terminal loopback frames in this mode.
+- The isolated wrapper home atomically mirrors a source router catalog only when
+  it parses and contains at least one model. An empty or malformed source never
+  overwrites an existing valid wrapper catalog.
 - The dedicated and primary native injectors share the same deferred-document
   wrapper. Feature modules keep their existing ownership and version guards.
 - No login data, cookies, native project state, or session content is copied or
@@ -33,5 +47,6 @@ still observing the previous document.
   sources use the wrapper.
 - Reload tests prove the injector waits for the new token rather than accepting the
   old document.
-- A real ChatGPT 26.924 reload produces no null-root bootstrap exceptions from the
-  console injections.
+- A fresh macOS ChatGPT 26.924 launch reaches the native authenticated shell
+  without a CDP reload; its control entry raises the standalone dashboard and no
+  loopback iframe is added to the ChatGPT renderer.

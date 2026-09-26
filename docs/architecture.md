@@ -119,7 +119,13 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 - `src/node-runtime.mjs` — normalized owner-runtime capability contract and cached
   native-host health policy; it describes routing without claiming feature installation.
 - `src/zotero-local-api.mjs`, `src/zotero-local-contract.mjs`, `src/zotero-write-validation.mjs`, `src/zotero-credentials.mjs` — credential-isolated Zotero write orchestration, safe protocol mapping, and allowlisted validation.
-- `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`, `src/launcher.mjs`, `src/desktop-host.mjs` — dedicated Codex integration infrastructure and platform-specific desktop hosting.
+- `src/cdp-client.mjs`, `src/injector.mjs`, `src/injection.mjs`,
+  `src/native-csp-bypass.mjs`, `src/launcher.mjs`, `src/desktop-host.mjs` —
+  dedicated Codex integration infrastructure, target-scoped CSP preparation, and
+  platform-specific desktop hosting.
+- `src/native-dashboard-launch.mjs` — macOS ChatGPT 26 compatibility adapter;
+  validates a fixed module contract and raises the installed standalone dashboard
+  without granting the renderer arbitrary process or URL launch capability.
 - `src/native-conversation-tabs.mjs` — ephemeral native-shell tab state and
   bounded presentation injection; native routes and owner-routed readers remain
   owned by their existing adapters.

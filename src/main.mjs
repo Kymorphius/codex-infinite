@@ -11,6 +11,7 @@ import { createTaskCenterRuntime } from './task-center-runtime.mjs';
 import { TurnAnnotationStore } from './turn-annotation-store.mjs';
 import { RuntimeRestartService } from "./runtime-restart.mjs";
 import { NativeAppLaunchService } from "./native-app-launch.mjs";
+import { NativeDashboardLaunchService } from "./native-dashboard-launch.mjs";
 import { AttentionConversationService } from "./attention-conversation-service.mjs";
 import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
@@ -220,6 +221,7 @@ export async function run() {
     filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter) });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
+  const nativeDashboardLaunchService = config.cspReloadRequired ? null : new NativeDashboardLaunchService();
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
   const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers, terminalConversations });
@@ -246,7 +248,8 @@ export async function run() {
       recentSentConversationProvider: recentSentConversations,
       turnStateProvider: turnStateService,
       recoverTarget: () => ensureDedicatedCodex(config),
-      reloadAfterCspBypass: config.cspReloadRequired
+      reloadAfterCspBypass: config.cspReloadRequired,
+      dashboardLauncher: nativeDashboardLaunchService
     });
     await injector.start();
     if (config.primaryCdpEnabled) {

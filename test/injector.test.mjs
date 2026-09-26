@@ -88,6 +88,22 @@ test("injector can explicitly suppress the compatibility reload", async () => {
   assert.equal(calls.at(-1).method, "evaluate");
 });
 
+test("standalone dashboard mode avoids CSP bypass and loopback bridge injection", async () => {
+  const calls = [];
+  const connection = {
+    async send(method, params) { calls.push({ method, params }); return {}; },
+    async evaluate(source) { calls.push({ method: "evaluate", source }); return false; }
+  };
+  await installIntoTarget(connection, "http://127.0.0.1:47831", {
+    reloadAfterCspBypass: false,
+    standaloneDashboardBinding: "codexControlConsoleOpenDashboard"
+  });
+  assert.equal(calls.some((call) => call.method === "Page.setBypassCSP"), false);
+  assert.equal(calls.some((call) => call.method === "Page.reload"), false);
+  assert.equal(calls.some((call) => call.method === "evaluate" && call.source.includes("codex-control-console.unified-sidebar.v1")), false);
+  assert.equal(calls.at(-1).source.includes('STANDALONE_DASHBOARD_BINDING = "codexControlConsoleOpenDashboard"'), true);
+});
+
 test("injector reasserts target-scoped CSP bypass after a renderer changes behind the same target", async () => {
   const calls = [];
   const connection = {
@@ -130,7 +146,7 @@ test("injector leaves a handshake-managed pending frame mounted for bounded reco
   assert.equal(calls.some((call) => call.method === "evaluate" && call.source === "window.__codexControlConsoleClose?.()"), false);
 });
 
-test("injector reloads once for one handshake recovery request", async () => {
+test("injector does not reload a handshake recovery request when host reload is disabled", async () => {
   const calls = [];
   const connection = {
     __codexControlConsoleInstalled: true,
@@ -146,16 +162,17 @@ test("injector reloads once for one handshake recovery request", async () => {
   };
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
   await installIntoTarget(connection, "http://127.0.0.1:47831", { reloadAfterCspBypass: false });
-  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 1);
+  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 0);
   assert.equal(connection.__codexControlConsoleFrameRecoveryRequest, "request-1");
 });
 
-test("injector reloads an unprepared parent before embedded navigation", async () => {
+test("injector marks an unprepared parent without reloading when host reload is disabled", async () => {
   const calls = [];
   const connection = {
     __codexControlConsoleInstalled: true,
     async send(method, params) { calls.push({ method, params }); return {}; },
     async evaluate(source) {
+      calls.push({ method: "evaluate", source });
       if (source.includes("frameRecoveryManaged")) return { hasEntry: true, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: "preflight-1" };
       if (source.includes("document.readyState")) return true;
       return false;
@@ -165,7 +182,8 @@ test("injector reloads an unprepared parent before embedded navigation", async (
   assert.ok(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source.includes("window.__codexControlConsoleCspDocumentPrepared = true;")));
   assert.ok(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source === "window.__codexControlConsoleCspDocumentPrepared = true;"));
   assert.equal(calls.some((call) => call.method === "Page.addScriptToEvaluateOnNewDocument" && call.params.source.includes("统一显示各设备的原生分区")), false);
-  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 1);
+  assert.ok(calls.some((call) => call.method === "evaluate" && call.source === "window.__codexControlConsoleCspDocumentPrepared = true;"));
+  assert.equal(calls.filter((call) => call.method === "Page.reload").length, 0);
 });
 
 test("injector relaunches a missing dedicated Codex target before the next sync", async () => {

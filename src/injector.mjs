@@ -33,6 +33,8 @@ import { buildNativeComposerControlOrderSource } from "./native-composer-control
 import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
 import { deferNativeDocumentSource, waitForReloadedNativeDocument } from "./native-document-bootstrap.mjs";
+import { NATIVE_DASHBOARD_BINDING } from "./native-dashboard-launch.mjs";
+import { prepareNativeCspBypass } from "./native-csp-bypass.mjs";
 
 export async function persistNativeContextAction(payload, contextWindowStore) {
   if (!contextWindowStore) return null;
@@ -91,32 +93,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
 }
 
-async function prepareCspBypass(connection, { reloadAfterCspBypass = true } = {}) {
-  await connection.send("Page.setBypassCSP", { enabled: true });
-  const tokenSource = `(() => {
-    if (!window.__codexControlConsoleCspDocumentToken) {
-      window.__codexControlConsoleCspDocumentToken = globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random();
-    }
-    return window.__codexControlConsoleCspDocumentToken;
-  })()`;
-  if (!connection.__codexControlConsoleCspTokenScriptPrepared) {
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: "window.__codexControlConsoleCspDocumentToken = globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random();"
-    });
-    connection.__codexControlConsoleCspTokenScriptPrepared = true;
-  }
-  const documentToken = await connection.evaluate(tokenSource).catch(() => null);
-  if (connection.__codexControlConsoleCspPrepared && connection.__codexControlConsoleCspDocumentToken === documentToken) return false;
-  connection.__codexControlConsoleCspPrepared = true;
-  connection.__codexControlConsoleCspDocumentToken = documentToken;
-  if (!reloadAfterCspBypass) return false;
-  await connection.send("Page.reload", { ignoreCache: false });
-  await waitForReloadedNativeDocument(connection, documentToken);
-  connection.__codexControlConsoleCspDocumentToken = await connection.evaluate(tokenSource).catch(() => null);
-  return true;
-}
-
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "" } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -158,9 +135,11 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativePinnedEmptyInjectionScript()) });
     connection.__codexControlConsoleScriptsPrepared = true;
   }
-  await prepareCspBypass(connection, { reloadAfterCspBypass });
-  await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl));
-  await connection.evaluate(buildNativeUnifiedSidebarInjectionScript(dashboardUrl));
+  if (!standaloneDashboardBinding) {
+    await prepareNativeCspBypass(connection, { reloadAfterCspBypass });
+    await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl));
+    await connection.evaluate(buildNativeUnifiedSidebarInjectionScript(dashboardUrl));
+  }
   if (!force && connection.__codexControlConsoleInstalled) {
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');
@@ -171,13 +150,15 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     })()`).catch(() => ({ hasEntry: false, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: '' }));
     if (state.frameRecoveryRequest && state.frameRecoveryRequest !== connection.__codexControlConsoleFrameRecoveryRequest) {
       connection.__codexControlConsoleFrameRecoveryRequest = state.frameRecoveryRequest;
-      await connection.send("Page.reload", { ignoreCache: false });
-      await waitForReloadedNativeDocument(connection, connection.__codexControlConsoleCspDocumentToken);
+      if (reloadAfterCspBypass) {
+        await connection.send("Page.reload", { ignoreCache: false });
+        await waitForReloadedNativeDocument(connection, connection.__codexControlConsoleCspDocumentToken);
+      }
     }
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
       await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
-      await connection.evaluate(buildInjectionScript(dashboardUrl));
+      await connection.evaluate(buildInjectionScript(dashboardUrl, { standaloneDashboardBinding }));
       return { status: "already-installed" };
     }
     if (state.hasEntry && state.hasFrame && !state.frameReady) {
@@ -186,13 +167,13 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     }
   }
   await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
-  await connection.evaluate(buildInjectionScript(dashboardUrl));
+  await connection.evaluate(buildInjectionScript(dashboardUrl, { standaloneDashboardBinding }));
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -212,6 +193,7 @@ export class CodexInjector {
     this.turnStateProvider = turnStateProvider;
     this.recoverTarget = recoverTarget;
     this.reloadAfterCspBypass = reloadAfterCspBypass;
+    this.dashboardLauncher = dashboardLauncher;
     this.running = false;
     this.timer = null;
     this.syncing = false;
@@ -221,6 +203,7 @@ export class CodexInjector {
     this.contextActionChain = Promise.resolve();
     this.turboActionChain = Promise.resolve();
     this.jevActionChain = Promise.resolve();
+    this.dashboardLaunchChain = Promise.resolve();
     this.checklistWake = createProjectChecklistSyncWake({
       canRun: () => this.running && !this.syncing && Boolean(this.connection && this.checklistStore),
       run: () => syncProjectChecklist(this.connection, this.checklistStore),
@@ -252,6 +235,7 @@ export class CodexInjector {
         await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
         await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
         await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
+        if (this.dashboardLauncher) await this.connection.send("Runtime.addBinding", { name: NATIVE_DASHBOARD_BINDING });
         this.removeContextBindingListener = this.connection.onEvent((event) => {
           if (event.method !== "Runtime.bindingCalled") return;
           if (event.params?.name === NATIVE_CONTEXT_BINDING) {
@@ -268,6 +252,10 @@ export class CodexInjector {
             this.jevActionChain = this.jevActionChain
               .then(() => respondToNativeJevRoutingBinding(event.params.payload, connection, this.jevRoutingService))
               .catch((error) => this.logger.warn(`[codex-control-console] Jev native routing failed: ${error.message}`));
+          } else if (event.params?.name === NATIVE_DASHBOARD_BINDING && this.dashboardLauncher) {
+            this.dashboardLaunchChain = this.dashboardLaunchChain
+              .then(() => this.dashboardLauncher.open(event.params.payload))
+              .catch((error) => this.logger.warn(`[codex-control-console] dashboard launch failed: ${error.message}`));
           } else if (event.params?.name === SENT_MESSAGE_SEARCH_BINDING && this.sentMessageSearchService) {
             void respondToSentMessageSearch(event.params.payload, this.connection, this.sentMessageSearchService)
               .catch((error) => this.logger.warn(`[codex-control-console] sent message search failed: ${error.message}`));
@@ -280,6 +268,7 @@ export class CodexInjector {
       await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
+      if (this.dashboardLauncher) await this.connection.send("Runtime.addBinding", { name: NATIVE_DASHBOARD_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       await this.connection.send("Runtime.addBinding", { name: PROJECT_CHECKLIST_SYNC_BINDING });
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
@@ -296,7 +285,8 @@ export class CodexInjector {
         attentionConversations: await this.attentionConversationProvider?.read?.(),
         recentSentConversations: await this.recentSentConversationProvider?.read?.(),
         turnStateSnapshot: await this.turnStateProvider?.snapshot?.(),
-        reloadAfterCspBypass: this.reloadAfterCspBypass
+        reloadAfterCspBypass: this.reloadAfterCspBypass,
+        standaloneDashboardBinding: this.dashboardLauncher ? NATIVE_DASHBOARD_BINDING : ""
       });
       await syncTurnAnnotations(this.connection, this.annotationStore, { targets, dashboardUrl: this.dashboardUrl });
       this.checklistWake.clear(); // The imminent periodic read includes earlier return signals.
@@ -331,6 +321,7 @@ export class CodexInjector {
     await this.contextActionChain;
     await this.turboActionChain;
     await this.jevActionChain;
+    await this.dashboardLaunchChain;
     await this.checklistWake.settle();
     await this.connection?.close();
     this.connection = null;
