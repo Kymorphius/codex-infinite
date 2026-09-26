@@ -54,7 +54,7 @@ function runtime({ respondToResume = true } = {}) {
 
 test("native runtime receives quota settings and refreshes trigger status without account data", () => {
   const { context, window } = runtime();
-  assert.equal(window.__codexControlConsoleTurboVersion, "2026-09-26.quota-trigger1");
+  assert.equal(window.__codexControlConsoleTurboVersion, "2026-09-26.device-scope-retired1");
   const snapshot = vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled:false,autoDisableOnLowQuota:true,quotaRemainingThreshold:25,quotaStatus:{ state:"triggered",remainingPercent:20,thresholdPercent:25,accountId:"private" } }), context);
   assert.equal(snapshot.autoDisableOnLowQuota, true); assert.equal(snapshot.quotaRemainingThreshold, 25);
   assert.equal(snapshot.quotaStatus.state, "triggered"); assert.equal(snapshot.quotaStatus.remainingPercent, 20);
@@ -150,7 +150,7 @@ test("unprepared million-context send waits for enhancement and never falls back
   assert.deepEqual(sent.map((item) => item.request.method), ["thread/resume", "turn/start"]);
 });
 
-test("Turbo leaves a node outside the configured device range untouched", async () => {
+test("Turbo leaves an explicitly inactive snapshot untouched", async () => {
   const { context, window, sent } = runtime();
   vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: true, active: false, fast: true, modelEfforts: [{ model: "gpt-5.6-sol", effort: "ultra" }] }), context);
   const request = { type: "mcp-request", hostId: "local", request: { id: "turn", method: "turn/start", params: { threadId, model: "gpt-5.6-sol", effort: "low", input: [] } } };

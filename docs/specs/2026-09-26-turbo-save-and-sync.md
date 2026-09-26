@@ -20,9 +20,10 @@ different from the local empty (all devices) scope.
   resulting policy, including enabled state and access mode, to every configured
   trusted peer. Existing per-device differences must converge after a successful
   synchronization. No credentials, identities or unrelated settings are copied.
-- Device selection is labelled as the policy's application scope, separately from
-  delivery. Synchronization reaches every configured peer even if a peer is not
-  in that application scope; it does not silently widen the selected scope.
+- Save/sync delivery is independent of the former application scope. The later
+  [device-scope retirement](2026-09-26-turbo-retire-device-scope.md) removes that
+  selection and canonicalizes stored policies to unrestricted application;
+  synchronization continues to reach every configured peer.
 - Existing global enable/disable controls keep their all-device behavior and send
   a complete resulting policy as well.
 - Settings actions carry an explicit save/sync operation and request identity;

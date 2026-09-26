@@ -44,13 +44,13 @@ test("Turbo persists its switch and bounded model maximum map", async (t) => {
   assert.equal(configured.enabled, true);
   assert.equal(configured.millionContext, true);
   await service.update({ model: "gpt-5.6-luna", reasoningEffort: "high", fast: false, autoDisableGlobalRouting: true, autoDisableOnLowQuota: false, quotaRemainingThreshold: 25, accessMode: "workspace", deviceIds: ["forest-mac"] });
-  assert.equal(service.snapshot().active, false);
+  assert.equal(service.snapshot().active, true);
   assert.equal(service.snapshot().model, "gpt-5.6-luna");
   assert.equal(service.snapshot().reasoningEffort, "high");
   assert.equal(service.snapshot().fast, false);
   assert.equal(service.snapshot().autoDisableGlobalRouting, true);
   assert.equal(service.snapshot().accessMode, "workspace");
-  assert.deepEqual(service.snapshot().deviceIds, ["forest-mac"]);
+  assert.deepEqual(service.snapshot().deviceIds, []);
   assert.deepEqual(service.snapshot().devices.map((item) => item.id), ["mac-air", "forest-mac"]);
   const restored = new TurboPolicyStore({ filePath });
   await restored.init();
@@ -89,4 +89,57 @@ test("Turbo validates remaining-quota settings before writing and preserves them
     await assert.rejects(service.update(change));
     assert.equal(await fs.readFile(filePath, "utf8"), before);
   }
+});
+
+test("Turbo retires stored device restrictions without changing other preferences", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "turbo-policy-retire-scope-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const filePath = path.join(directory, "turbo.json");
+  const previous = {
+    version: 2, enabled: true, model: "gpt-5.6-luna", reasoningEffort: "high", fast: false,
+    millionContext: true, autoDisableGlobalRouting: true, autoDisableOnLowQuota: false,
+    quotaRemainingThreshold: 25, accessMode: "workspace", deviceIds: ["other-node"],
+    updatedAt: "2026-09-26T01:02:03Z", modelOptions: [{ id: "gpt-5.6-luna", efforts: ["high", "max"] }],
+    modelEfforts: [{ model: "gpt-5.6-luna", effort: "max" }]
+  };
+  await fs.writeFile(filePath, JSON.stringify(previous));
+  const store = new TurboPolicyStore({ filePath });
+  await store.init();
+  assert.deepEqual(JSON.parse(await fs.readFile(filePath, "utf8")), { ...previous, deviceIds: [] });
+  assert.deepEqual(store.snapshot().deviceIds, []);
+  assert.equal(Object.isFrozen(store.snapshot().deviceIds), true);
+  const service = new TurboPolicyService({ store, nodeId: "local", modelCatalog: {
+    async listOptions() { return [{ id: "gpt-5.6-luna", reasoningEfforts: [{ effort: "high" }, { effort: "max" }] }]; }
+  } });
+  assert.equal(service.snapshot().active, true);
+  for (const enabled of [false, true]) {
+    await service.setEnabled(enabled);
+    assert.equal(service.snapshot().active, enabled);
+    assert.deepEqual(service.snapshot().deviceIds, []);
+    assert.equal(service.snapshot().model, previous.model);
+    assert.equal(service.snapshot().quotaRemainingThreshold, previous.quotaRemainingThreshold);
+  }
+  await service.update({ deviceIds: ["other-node"] });
+  assert.equal(service.snapshot().active, true);
+  assert.deepEqual(JSON.parse(await fs.readFile(filePath, "utf8")).deviceIds, []);
+  const beforeInvalid = await fs.readFile(filePath, "utf8");
+  for (const deviceIds of [null, "other-node", ["invalid scope"], Array(33).fill("other-node")]) {
+    await assert.rejects(service.update({ deviceIds }), /设备范围无效/);
+    assert.equal(await fs.readFile(filePath, "utf8"), beforeInvalid);
+  }
+});
+
+test("Turbo local activation and header toggles ignore an old adapter's scope", async () => {
+  let policy = { enabled: true, deviceIds: ["other-node"] };
+  const service = new TurboPolicyService({ nodeId: "local", store: {
+    snapshot: () => policy, async set(value) { policy = value; return policy; }
+  } });
+  assert.equal(service.snapshot().active, true);
+  await service.setEnabled(false);
+  assert.equal(service.snapshot().active, false);
+  assert.deepEqual(policy.deviceIds, []);
+  policy.deviceIds = ["other-node"];
+  await service.setEnabled(true);
+  assert.equal(service.snapshot().active, true);
+  assert.deepEqual(policy.deviceIds, []);
 });

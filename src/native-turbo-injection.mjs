@@ -51,7 +51,7 @@ export function buildNativeTurboInjectionScript() {
   const enforcementSource = buildNativeTurboEnforcementSource();
   const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-26.quota-trigger1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-26.device-scope-retired1') return;
   window.__codexControlConsoleTurboTurnCleanup?.();
   window.__codexControlConsoleTurboNewChatCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
@@ -63,7 +63,7 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-26.quota-trigger1';
+  window.__codexControlConsoleTurboVersion = '2026-09-26.device-scope-retired1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   const normalizeTurboQuotaStatus = ${normalizeNativeTurboQuotaStatus.toString()};
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, quotaStatus: null, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };

@@ -10,7 +10,7 @@ export function buildNativeTurboUiSource() {
     const active = policy.enabled && policy.active;
     const enforced = !active || typeof turboIsEnforcedForCurrentThread !== 'function' || turboIsEnforcedForCurrentThread();
     const badges = [policy.fast ? 'Fast' : '', policy.millionContext ? '1M' : ''].filter(Boolean).join(' · ');
-    const title = pending ? (state.turboActionPending?.operation === 'save' ? '正在保存到本机…' : '正在同步所有设备…') : policy.enabled && !policy.active ? 'Turbo 已开启，但这台设备不在作用范围内' : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
+    const title = pending ? (state.turboActionPending?.operation === 'save' ? '正在保存到本机…' : '正在同步所有设备…') : active && !enforced ? '正在把 Turbo 策略应用到当前原生会话…' : active ? 'Turbo 已开启：' + (badges || '使用自定义策略') + '；点击关闭' : '开启 Turbo';
     const signature = [active, enforced, pending, title].join(':');
     if (button.getAttribute('data-codex-control-console-turbo-render-signature') === signature) return;
     button.setAttribute('data-codex-control-console-turbo-render-signature', signature);
@@ -19,7 +19,7 @@ export function buildNativeTurboUiSource() {
     button.setAttribute('aria-label', active ? 'Turbo 模式已开启' : 'Turbo 模式已关闭');
     button.disabled = pending;
     button.title = title + '；右键打开设置';
-    button.style.cssText = 'display:inline-flex;flex:0 0 28px;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:8px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : policy.enabled && !policy.active ? '.5' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
+    button.style.cssText = 'display:inline-flex;flex:0 0 28px;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:1px solid ' + (active ? 'rgba(232,173,33,.48)' : 'rgba(128,128,128,.24)') + ';border-radius:8px;background:' + (active ? 'rgba(232,173,33,.14)' : 'transparent') + ';color:' + (active ? '#d39a19' : 'currentColor') + ';cursor:' + (pending ? 'wait' : 'pointer') + ';opacity:' + (pending ? '.58' : '.82') + ';-webkit-app-region:no-drag;app-region:no-drag;';
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '17'); icon.setAttribute('height', '17');
     icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8');

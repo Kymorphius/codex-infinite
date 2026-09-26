@@ -35,8 +35,6 @@ function normalizeStoredPolicy(value = {}) {
   const model = value.model === null ? null : cleanText(value.model, 120) || null;
   const reasoningEffort = cleanText(value.reasoningEffort, 40);
   const accessMode = cleanText(value.accessMode, 40);
-  const deviceIds = (Array.isArray(value.deviceIds) ? value.deviceIds : []).map((item) => cleanText(item, 80))
-    .filter((item, index, items) => /^[A-Za-z0-9_.:-]{1,80}$/.test(item) && items.indexOf(item) === index).slice(0, 32);
   return Object.freeze({
     enabled: value.enabled === true,
     model,
@@ -46,7 +44,7 @@ function normalizeStoredPolicy(value = {}) {
     autoDisableGlobalRouting: value.autoDisableGlobalRouting === true,
     ...normalizeTurboQuotaSettings(value),
     accessMode: TURBO_ACCESS_MODES.includes(accessMode) ? accessMode : "preserve",
-    deviceIds: Object.freeze(deviceIds),
+    deviceIds: Object.freeze([]),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
     modelOptions: normalizeTurboModelOptions(value.modelOptions),
     modelEfforts: Object.freeze(highestModelEfforts((Array.isArray(value.modelEfforts) ? value.modelEfforts : []).map((item) => ({ id: item.model, reasoningEfforts: [{ effort: item.effort }] }))))
@@ -99,7 +97,7 @@ export class TurboPolicyService {
     const policy = this.store.snapshot();
     return Object.freeze({
       ...policy,
-      active: policy.enabled && (!policy.deviceIds.length || policy.deviceIds.includes(this.nodeId)),
+      active: policy.enabled,
       devices: this.devices
     });
   }
@@ -131,7 +129,7 @@ export class TurboPolicyService {
     if (Object.hasOwn(change, "accessMode") && !TURBO_ACCESS_MODES.includes(change.accessMode)) throw new Error("Turbo 访问权限无效");
     if (Object.hasOwn(change, "deviceIds") && (!Array.isArray(change.deviceIds) || change.deviceIds.length > 32 || change.deviceIds.some((id) => !/^[A-Za-z0-9_.:-]{1,80}$/.test(String(id))))) throw new Error("Turbo 设备范围无效");
     const current = this.snapshot();
-    if (keys.length === 1 && change.enabled === false) return this.store.set({ ...current, enabled: false });
+    if (keys.length === 1 && change.enabled === false) return this.store.set({ ...current, enabled: false, deviceIds: [] });
     const models = await (this.modelCatalog?.listOptions?.({ limit: 32 }) || []);
     const modelEfforts = highestModelEfforts(models);
     const model = Object.hasOwn(change, "model") ? change.model : current.model;
@@ -151,7 +149,7 @@ export class TurboPolicyService {
       autoDisableOnLowQuota: Object.hasOwn(change, "autoDisableOnLowQuota") ? change.autoDisableOnLowQuota : current.autoDisableOnLowQuota,
       quotaRemainingThreshold: Object.hasOwn(change, "quotaRemainingThreshold") ? change.quotaRemainingThreshold : current.quotaRemainingThreshold,
       accessMode: Object.hasOwn(change, "accessMode") ? change.accessMode : current.accessMode,
-      deviceIds: Object.hasOwn(change, "deviceIds") ? change.deviceIds : current.deviceIds,
+      deviceIds: [],
       modelOptions: normalizeTurboModelOptions(models),
       modelEfforts
     });

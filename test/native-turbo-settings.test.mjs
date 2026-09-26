@@ -43,17 +43,20 @@ function runtime(policyChange = {}) {
 
 const panelSelector = '[data-codex-control-console-turbo-popover]';
 
-test('settings save and synchronization are separate operations with unchanged application scope', () => {
+test('settings keep separate save and sync actions without device-scope controls', () => {
   const r = runtime();
   assert.equal(r.find('[data-turbo-operation="save"]').textContent, '保存');
   assert.equal(r.find('[data-turbo-operation="sync"]').textContent, '同步到所有设备');
-  assert.match(r.find(panelSelector).textContent, /以上作用范围保持不变/);
+  assert.equal(r.find('input[name="allDevices"]'), null);
+  assert.equal(r.find('[data-turbo-device]'), null);
+  assert.doesNotMatch(r.find(panelSelector).textContent, /应用于全部设备|作用范围|生效的设备/);
+  assert.match(r.find('[role="status"]').textContent, /保存仅更新本机；同步会发送到所有设备/);
   assert.equal(r.find('select[name="reasoningEffort"]').value, 'high');
   r.find('input[name="fast"]').checked = false;
   r.submit();
   assert.equal(r.requests[0].operation, 'save');
   assert.equal(r.requests[0].action.fast, false);
-  assert.deepEqual(r.requests[0].action.deviceIds, ['local']);
+  assert.deepEqual(r.requests[0].action.deviceIds, []);
   assert.ok(r.find(panelSelector));
   r.complete({ operation:'save',nodes:[{ id:'local',name:'本机',status:'applied' }] });
   assert.match(r.find('[role="status"]').textContent, /已保存到本机/);
@@ -70,7 +73,6 @@ test('pending disables duplicate actions and retains edited form across refreshe
   assert.equal(r.find('[data-turbo-operation="save"]').disabled, true);
   assert.equal(r.find('[data-turbo-operation="sync"]').disabled, true);
   assert.equal(fast.disabled, true); assert.equal(model.disabled, true);
-  assert.equal(r.find('[data-turbo-device="local"]').disabled, true);
   assert.match(r.find('[role="status"]').textContent, /正在保存并同步到所有设备/);
   r.context.policy = { ...r.context.policy,fast:true,model:null };
   r.refresh(); r.submit(); r.find('[data-turbo-operation="sync"]').click();
@@ -103,19 +105,29 @@ test('partial synchronization shows every device result and allows retry', () =>
   assert.equal(r.requests.length, 2);
 });
 
-test('local save failures remain visible and unselected application scope never submits', () => {
+test('local save failures remain visible and allow retry', () => {
   const r = runtime();
-  r.find('[data-turbo-device="local"]').checked = false;
-  r.submit();
-  assert.equal(r.requests.length, 0);
-  assert.match(r.find('[role="status"]').textContent, /请至少选择一台生效设备/);
-  r.find('input[name="allDevices"]').checked = true;
   r.submit();
   assert.deepEqual(r.requests[0].action.deviceIds, []);
   r.complete({ operation:'save',error:'无法写入设置' });
   assert.match(r.find('[role="status"]').textContent, /保存失败：无法写入设置/);
   assert.ok(r.find(panelSelector));
   assert.equal(r.find('[data-turbo-operation="save"]').disabled, false);
+  r.submit();
+  assert.equal(r.requests.length, 2);
+});
+
+test('either settings action clears legacy device scope without a prior save', () => {
+  for (const deviceIds of [[], ['peer'], ['local', 'peer']]) {
+    for (const operation of ['save', 'sync']) {
+      const r = runtime({ deviceIds });
+      assert.equal(r.requests.length, 0);
+      if (operation === 'save') r.submit(); else r.find('[data-turbo-operation="sync"]').click();
+      assert.equal(r.requests.length, 1);
+      assert.equal(r.requests[0].operation, operation);
+      assert.deepEqual(r.requests[0].action.deviceIds, []);
+    }
+  }
 });
 
 test('an inside pointer event does not remove outside dismissal and pending blocks Escape', () => {
@@ -137,11 +149,11 @@ test('editing after a successful save marks the form unsaved and preserves unava
   assert.equal(r.find('select[name="model"]').value, 'gpt-6-sol');
   assert.equal(r.find('select[name="reasoningEffort"]').value, 'high');
   r.submit(); r.complete({ operation:'save',nodes:[{ id:'local',status:'applied' }] });
-  r.find('input[name="allDevices"]').checked = true;
+  r.find('input[name="fast"]').checked = false;
   r.find('form').fire('change');
   assert.match(r.find('[role="status"]').textContent, /设置已修改，尚未保存/);
   assert.equal(r.find('[data-turbo-device-results]').textContent, '');
-  assert.equal(r.find('[data-turbo-device="local"]').disabled, true);
+  assert.equal(r.find('input[name="fast"]').disabled, false);
 });
 
 test('quota trigger defaults to remaining 10 percent and both actions carry its configuration', () => {
