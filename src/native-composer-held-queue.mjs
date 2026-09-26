@@ -20,7 +20,7 @@ import { clearDraftText } from './native-held-draft-clear.mjs';
 
 export function buildNativeComposerHeldQueueInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-24.queue-label1', LEGACY = '2026-09-18.3';
+  const VERSION = '2026-09-26.federated-delivery1', LEGACY = '2026-09-18.3';
   const SAVE_DRAFT_VERSION = '2026-09-23.reassign1', LEGACY_SAVE = '2026-09-18.1';
   if (window.__codexControlConsoleHeldQueueInstalledVersion === VERSION && window.__codexControlConsoleSaveDraftTodoInstalledVersion === SAVE_DRAFT_VERSION && window.__codexControlConsoleHeldQueueObserver && window.__codexControlConsoleSaveDraftTodoObserver) return;
   window.__codexControlConsoleHeldQueueObserver?.disconnect?.();
