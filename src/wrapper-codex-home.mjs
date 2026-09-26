@@ -95,6 +95,14 @@ async function ensureSharedEntry(sourceHome, wrapperHome, name, platform, allowA
 export async function mirrorValidRouterCatalog(sourceHome, wrapperHome) {
   const sourcePath = path.join(sourceHome, ROUTER_CATALOG_RELATIVE_PATH);
   const targetPath = path.join(wrapperHome, ROUTER_CATALOG_RELATIVE_PATH);
+  // The router owns a valid wrapper catalog. A source-home fallback must never
+  // replace the account-aware catalog it refreshed for this dedicated profile.
+  try {
+    const target = JSON.parse(await fs.readFile(targetPath, "utf8"));
+    if (Array.isArray(target?.models) && target.models.length > 0) return null;
+  } catch (error) {
+    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+  }
   let source;
   try {
     source = await fs.readFile(sourcePath, "utf8");

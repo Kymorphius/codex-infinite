@@ -142,6 +142,24 @@ test("invalid or empty router catalogs never replace a valid wrapper catalog", a
   assert.deepEqual(JSON.parse(await fs.readFile(targetPath, "utf8")), { models: [{ slug: "keep" }] });
 });
 
+test("startup preserves a valid dedicated router catalog when the source is stale", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-fresh-router-catalog-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const sourceHome = path.join(directory, "source");
+  const wrapperHome = path.join(directory, "wrapper");
+  await fs.mkdir(path.join(sourceHome, "codex-router"), { recursive: true });
+  await fs.mkdir(path.join(wrapperHome, "codex-router"), { recursive: true });
+  await fs.writeFile(path.join(sourceHome, "codex-router", "merged-models.json"), JSON.stringify({ models: [{ slug: "gpt-old" }] }));
+  const targetPath = path.join(wrapperHome, "codex-router", "merged-models.json");
+  await fs.writeFile(targetPath, JSON.stringify({ models: [{ slug: "gpt-6-sol" }] }));
+
+  const result = await prepareWrapperCodexHome({ sourceHome, wrapperHome, contextWindow: 1_000_000 });
+
+  assert.equal(result.routerCatalogPath, null);
+  assert.deepEqual(JSON.parse(await fs.readFile(targetPath, "utf8")), { models: [{ slug: "gpt-6-sol" }] });
+  assert.equal(JSON.parse(await fs.readFile(result.metadataPath, "utf8")).routerCatalogMirrored, false);
+});
+
 test("wrapper preparation refuses a regular SQLite sidecar without replacing it", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-sidecar-refusal-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));

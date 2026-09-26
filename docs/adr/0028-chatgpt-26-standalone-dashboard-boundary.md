@@ -23,8 +23,10 @@ existing prepared-reload and embedded-dashboard behavior.
 
 The isolated wrapper CODEX_HOME continues to own its configuration, but receives
 an atomic mirror of the source router catalog only when that catalog is valid and
-non-empty. This supplies the native App Server with its configured model catalog
-without sharing writable configuration ownership.
+non-empty and the wrapper has no valid catalog. After the router refreshes a
+catalog for the dedicated profile, that catalog remains authoritative. This
+supplies the native App Server with its configured model catalog without sharing
+writable configuration ownership.
 
 ## Alternatives considered
 

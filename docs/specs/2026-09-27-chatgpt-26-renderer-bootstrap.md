@@ -34,8 +34,9 @@ still observing the previous document.
   it does not accept URLs, executable paths, arguments, or shell text. macOS does
   not install the hidden sidebar or terminal loopback frames in this mode.
 - The isolated wrapper home atomically mirrors a source router catalog only when
-  it parses and contains at least one model. An empty or malformed source never
-  overwrites an existing valid wrapper catalog.
+  its own catalog is missing or empty and the source parses with at least one
+  model. The router's valid account-aware wrapper catalog remains authoritative
+  across restarts, even when the source catalog is stale.
 - The dedicated and primary native injectors share the same deferred-document
   wrapper. Feature modules keep their existing ownership and version guards.
 - No login data, cookies, native project state, or session content is copied or
