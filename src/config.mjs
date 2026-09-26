@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { resolveBundledCodexPath } from "./codex-cli-path.mjs";
 
 export const DEFAULT_DASHBOARD_HOST = "127.0.0.1";
 export const DEFAULT_DASHBOARD_PORT = 47831;
@@ -56,7 +57,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const appPath = env.CODEX_CONTROL_APP_PATH || (platform === "darwin" ? DEFAULT_APP_PATH : "");
   const codexPath = env.CODEX_CONTROL_CODEX_PATH || (
     platform === "darwin"
-      ? hostPath.join(appPath, "Contents", "Resources", "codex")
+      ? resolveBundledCodexPath(appPath, { platform })
       : platform === "win32"
         ? hostPath.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe")
         : "codex"
