@@ -56,6 +56,7 @@ import { NativeSidebarLabelService } from "./native-sidebar-labels.mjs";
 import { NativeRemoteSidebarService } from "./native-remote-sidebar.mjs";
 import { WindowsProjectCopyAdapter } from "./windows-project-copy-adapter.mjs";
 import { ProjectCopyService } from "./project-copy-service.mjs";
+import { createProjectSyncRuntime } from './project-sync-runtime.mjs';
 import { NativeProjectImportAdapter } from "./native-project-import-adapter.mjs";
 import { NativeProjectSidebarRegistry } from "./native-project-sidebar-registry.mjs";
 import { ProjectCopyReceiptStore } from "./project-copy-receipts.mjs";
@@ -124,6 +125,7 @@ export async function run() {
   const peerAdapters = peers.map((peer) => new SshPeerAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }));
   const nativeSidebarAdapter = new NativeSidebarAdapter({ cdpOrigin: config.cdpOrigin, titleIndex: new SessionTitleIndex({ filePath: config.sessionTitleIndexPath }), taskAdapter: localAdapter });
   const sidebarService = new SidebarFederationService({ localAdapter: nativeSidebarAdapter, localDevice: config.nodeDevice, peers: peerAdapters });
+  const projectSync = createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeConversationAdapter, localAdapter, peers });
   const adapter = new FederatedTaskAdapter({ localAdapter, peerAdapters });
   const localSkillAdapter = new LocalSkillAdapter({
     node: config.nodeDevice,
@@ -212,7 +214,7 @@ export async function run() {
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
   const personalPanelTaskAdapter = new PersonalPanelTaskAdapter({ scriptPath: config.personalPanelTaskBridgePath });
-  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
   await dashboard.listen();
   try {
     const codex = attachedCodex || await ensureDedicatedCodex(config);

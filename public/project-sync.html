@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>项目同步 · Codex</title>
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles/project-sync.css">
+</head>
+<body>
+  <main class="workspace">
+    <header class="page-header">
+      <div><span class="eyebrow">工作空间</span><h1>项目同步</h1><p>把最新代码带到另一台设备，继续你的项目。</p></div>
+      <div class="header-actions"><button id="refresh" class="button" type="button">刷新设备</button><a class="button quiet" href="/projects.html">项目管理 <span aria-hidden="true">↗</span></a></div>
+    </header>
+    <div class="progress" aria-label="同步步骤"><span id="step-select" class="step active"><b>1</b> 选择项目</span><i aria-hidden="true"></i><span id="step-check" class="step"><b>2</b> 预检与确认</span><i aria-hidden="true"></i><span id="step-done" class="step"><b>3</b> 完成同步</span></div>
+    <div class="devices-heading"><p id="catalog-status" role="status">正在读取设备项目…</p><span>手动同步 · 单向更新</span></div>
+    <div id="devices" class="devices" aria-label="设备连接状态"></div>
+    <div id="error" class="notice error" role="alert" hidden></div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="selection" class="selection" aria-label="选择同步方向" aria-busy="true">
+      <article class="project-choice">
+        <div class="choice-heading"><span class="project-symbol" aria-hidden="true">↗</span><div><h2>从这里同步</h2><p>拥有最新提交的设备</p></div><span class="tag">源项目</span></div>
+        <label for="source">设备与项目</label><select id="source"><option value="">选择源项目…</option></select>
+        <p id="source-path" class="project-path">选择项目后显示所在目录</p>
+      </article>
+      <div class="direction-arrow" aria-hidden="true">→</div>
+      <article class="project-choice target-choice">
+        <div class="choice-heading"><span class="project-symbol" aria-hidden="true">↙</span><div><h2>同步到这里</h2><p>准备继续工作的设备</p></div><span class="tag">目标项目</span></div>
+        <label for="target">设备与项目</label><select id="target"><option value="">选择目标项目…</option></select>
+        <p id="target-path" class="project-path">选择另一台设备上的已有项目</p>
+      </article>
+    </section>
+    <section id="preview" class="preview" aria-labelledby="preview-title" hidden>
+      <div class="preview-heading"><span class="check-symbol" aria-hidden="true">✓</span><div><h2 id="preview-title"></h2><p id="preview-direction"></p></div></div>
+      <div id="versions" class="versions"></div>
+      <p id="preview-note" class="preview-note"></p>
+    </section>
+    <div class="action-bar"><p id="action-hint" role="status">请选择源项目和目标项目</p><div class="actions"><button id="preflight" class="button primary" type="button" disabled>检查同步条件</button><button id="execute" class="button primary" type="button" hidden disabled>确认同步</button></div></div>
+    <details class="scope"><summary>同步范围与设备独立设置</summary><div><p>同步普通 Git 项目中已提交的代码和历史。两端须为同一分支且没有未提交改动，目标版本须能快进到源版本。请确认选择的是同一个项目。</p><p>各机的 Git 配置、登录凭据、依赖和被 Git 忽略的文件保持独立。Git 已跟踪文件及历史会随仓库传递，敏感内容请先检查。</p><p>正在运行的任务与会话仍在原设备。本次不迁移进程，不自动分配设备；多根项目、worktree、LFS 和子模块暂不支持。</p></div></details>
+    <footer>先预检，再确认。以目标设备读回的版本和工作目录状态确认完成。</footer>
+  </main>
+  <script type="module" src="/features/project-sync/index.js"></script>
+</body>
+</html>

@@ -12,6 +12,7 @@ import { createTasksHttpHandler } from "./tasks-http.mjs";
 import { createZoteroHttpHandler } from "./zotero-http.mjs";
 import { createTurboHttpHandler } from "./turbo-http.mjs";
 import { createProjectCopyHttpHandler } from "./project-copy-http.mjs";
+import { createProjectSyncHttpHandler } from './project-sync-http.mjs';
 import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
 import { createJevRoutingHttpHandler } from "./jev-routing-http.mjs";
@@ -19,7 +20,7 @@ import { createPersonalPanelTaskHttpHandler } from './personal-panel-task-http.m
 import { AccountUsageReader } from './account-usage.mjs';
 import { createAccountUsageHttpHandler } from './account-usage-http.mjs';
 
-export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
+export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
   const health = createHealthHttpHandler(config);
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
@@ -34,6 +35,7 @@ export function createDashboardHandlers({ config, experimentService, adapter, lo
     createJevRoutingHttpHandler({ service: jevRoutingService, dashboardOrigin: config.dashboardOrigin }),
     createPersonalPanelTaskHttpHandler({ adapter: personalPanelTaskAdapter, localAdapter: local, localDevice: config.nodeDevice, dashboardOrigin: config.dashboardOrigin }),
     createProjectCopyHttpHandler({ service: projectCopyService, dashboardOrigin: config.dashboardOrigin }),
+    createProjectSyncHttpHandler({ service: projectSync.projectSyncService, localAdapter: projectSync.localProjectSyncAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService, remoteThreadSettingsService }),
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),
     createTasksHttpHandler({ adapter, localAdapter: local, nodeRuntimeService }),

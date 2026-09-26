@@ -67,6 +67,13 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   remote-project selection, stdin-only Windows manifest inspection, SFTP
   staging transport, verified local promotion, native fork/import conversation
   cloning, and exact-origin HTTP workflow.
+- `src/project-sync-contract.mjs`, `src/project-sync-service.mjs`,
+  `src/local-project-sync-adapter.mjs`, `src/project-sync-git*.mjs`,
+  `src/ssh-project-sync-adapter.mjs`, `src/project-sync-peer-commands.mjs`,
+  `src/project-sync-http.mjs`, `src/project-sync-runtime.mjs` — explicit
+  device/project selection, version-bound previews, Git-object staging and
+  fast-forward application, signed node transport and exact-origin browser
+  routes. Code synchronization does not transfer native task ownership.
 - `src/approval-contract.mjs` — pure bounded contract for owner-issued approval
   capabilities; only one-turn acceptance and denial cross the node boundary.
 - `src/execution-transcript.mjs` — pure, bounded full-fidelity projection and
