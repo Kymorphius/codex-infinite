@@ -1,4 +1,5 @@
 import { highestModelEfforts, TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
+import { buildNativeTurboActionSource } from "./native-turbo-actions.mjs";
 import { buildNativeTurboUiSource } from "./native-turbo-ui.mjs";
 import { buildNativeTurboEnforcementSource } from "./native-turbo-enforcement.mjs";
 import { buildNativeTurboNewChatSource } from "./native-turbo-new-chat.mjs";
@@ -9,31 +10,7 @@ import { installNativeTurboTurnRenderer } from "./native-turbo-turn-render.mjs";
 
 export const NATIVE_TURBO_BINDING = "__codexControlConsoleToggleTurbo";
 
-export function parseNativeTurboAction(payload) {
-  let value;
-  try { value = JSON.parse(String(payload || "")); } catch { return null; }
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const keys = Object.keys(value);
-  const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "accessMode", "deviceIds"];
-  if (!keys.length || keys.some((key) => !allowed.includes(key))) return null;
-  if (Object.hasOwn(value, "enabled") && typeof value.enabled !== "boolean") return null;
-  if (Object.hasOwn(value, "model") && value.model !== null && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(String(value.model))) return null;
-  if (Object.hasOwn(value, "reasoningEffort") && !TURBO_REASONING_MODES.includes(value.reasoningEffort)) return null;
-  if (Object.hasOwn(value, "fast") && typeof value.fast !== "boolean") return null;
-  if (Object.hasOwn(value, "millionContext") && typeof value.millionContext !== "boolean") return null;
-  if (Object.hasOwn(value, "autoDisableGlobalRouting") && typeof value.autoDisableGlobalRouting !== "boolean") return null;
-  if (Object.hasOwn(value, "accessMode") && !TURBO_ACCESS_MODES.includes(value.accessMode)) return null;
-  if (Object.hasOwn(value, "deviceIds") && (!Array.isArray(value.deviceIds) || value.deviceIds.length > 32 || value.deviceIds.some((id) => !/^[A-Za-z0-9_.:-]{1,80}$/.test(String(id))))) return null;
-  const action = {};
-  for (const key of allowed) if (Object.hasOwn(value, key)) action[key] = key === "deviceIds" ? [...new Set(value[key])] : value[key];
-  return Object.freeze(action);
-}
-
-export async function applyNativeTurboAction(payload, turboController) {
-  const action = parseNativeTurboAction(payload);
-  if (!action || typeof turboController?.update !== "function") return null;
-  return turboController.update(action);
-}
+export { parseNativeTurboAction, applyNativeTurboAction, respondToNativeTurboBinding } from "./native-turbo-actions.mjs";
 
 export function normalizeTurboPolicy(policy = {}) {
   policy = policy && typeof policy === "object" ? policy : {};
@@ -54,12 +31,11 @@ export function normalizeTurboPolicy(policy = {}) {
 }
 
 export function buildNativeTurboInjectionScript() {
-  const bindingName = JSON.stringify(NATIVE_TURBO_BINDING);
   const uiSource = buildNativeTurboUiSource(NATIVE_TURBO_BINDING);
   const enforcementSource = buildNativeTurboEnforcementSource();
   const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-25.sidebar-icons1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-26.save-sync1') return;
   window.__codexControlConsoleTurboTurnCleanup?.();
   window.__codexControlConsoleTurboNewChatCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
@@ -71,12 +47,13 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-25.sidebar-icons1';
+  window.__codexControlConsoleTurboVersion = '2026-09-26.save-sync1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
   let requestSequence = 0;
+  ${buildNativeTurboActionSource(NATIVE_TURBO_BINDING)}
   const preparedContextSignatures = new Map();
   const preparingContexts = new Map();
   const affectedStorageKey = 'codex-control-console-turbo-context-threads';
@@ -232,7 +209,7 @@ export function buildNativeTurboInjectionScript() {
       modelOptions: Array.isArray(value?.modelOptions) ? value.modelOptions : [],
       devices: Array.isArray(value?.devices) ? value.devices : []
     };
-    pending = false;
+    if (!state.turboActionPending) pending = false;
     install();
     return { enabled: policy.enabled, active: policy.active, model: policy.model, reasoningEffort: policy.reasoningEffort, fast: policy.fast, millionContext: policy.millionContext, autoDisableGlobalRouting: policy.autoDisableGlobalRouting, accessMode: policy.accessMode, deviceCount: policy.deviceIds.length, modelCount: policy.efforts.size };
   };
@@ -240,6 +217,7 @@ export function buildNativeTurboInjectionScript() {
   installTimer = setInterval(install, 1000);
   window.__codexControlConsoleTurboInstallTimer = installTimer;
   window.addEventListener('beforeunload', () => {
+    clearTimeout(window.__codexControlConsoleTurboActionTimer);
     window.__codexControlConsoleTurboTurnCleanup?.();
     window.__codexControlConsoleTurboNewChatCleanup?.();
     clearInterval(installTimer);

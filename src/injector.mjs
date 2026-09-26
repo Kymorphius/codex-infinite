@@ -20,7 +20,7 @@ import {
   NATIVE_CONTEXT_BINDING,
   normalizeNativeContextAction
 } from "./native-context-injection.mjs";
-import { applyNativeTurboAction, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
+import { respondToNativeTurboBinding, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
 import { buildNativeJevRoutingInjectionScript, buildNativeJevRoutingSnapshotScript, NATIVE_JEV_ROUTING_BINDING, respondToNativeJevRoutingBinding } from "./native-jev-routing.mjs";
 import { buildNativeSidebarLabelsInjectionScript, buildNativeSidebarLabelsSnapshotScript } from "./native-sidebar-labels.mjs";
 import { buildNativeSidebarActivityInjectionScript } from "./native-sidebar-activity.mjs";
@@ -267,8 +267,9 @@ export class CodexInjector {
               .then(() => persistNativeContextAction(event.params.payload, this.contextWindowStore))
               .catch((error) => this.logger.warn(`[codex-control-console] context toggle persistence failed: ${error.message}`));
           } else if (event.params?.name === NATIVE_TURBO_BINDING) {
+            const connection = this.connection;
             this.turboActionChain = this.turboActionChain
-              .then(() => applyNativeTurboAction(event.params.payload, this.turboController))
+              .then(() => respondToNativeTurboBinding(event.params.payload, connection, this.turboController))
               .catch((error) => this.logger.warn(`[codex-control-console] Turbo toggle failed: ${error.message}`));
           } else if (event.params?.name === NATIVE_JEV_ROUTING_BINDING) {
             const connection = this.connection;

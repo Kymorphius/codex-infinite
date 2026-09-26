@@ -11,7 +11,7 @@ import {
   NATIVE_CONTEXT_BINDING
 } from "./native-context-injection.mjs";
 import { persistNativeContextAction } from "./injector.mjs";
-import { applyNativeTurboAction, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
+import { respondToNativeTurboBinding, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
 import { buildNativeJevRoutingInjectionScript, buildNativeJevRoutingSnapshotScript, NATIVE_JEV_ROUTING_BINDING, respondToNativeJevRoutingBinding } from "./native-jev-routing.mjs";
 import { buildNativeSidebarLabelsInjectionScript, buildNativeSidebarLabelsSnapshotScript } from "./native-sidebar-labels.mjs";
 import { buildNativeSidebarActivityInjectionScript } from "./native-sidebar-activity.mjs";
@@ -116,7 +116,7 @@ export class NativeOwnerInjector {
           .catch((error) => this.logger.warn(`[codex-control-console] primary context persistence failed: ${error.message}`));
       } else if (event.params?.name === NATIVE_TURBO_BINDING) {
         this.turboActionChain = this.turboActionChain
-          .then(() => applyNativeTurboAction(event.params.payload, this.turboController))
+          .then(() => respondToNativeTurboBinding(event.params.payload, connection, this.turboController))
           .catch((error) => this.logger.warn(`[codex-control-console] primary Turbo toggle failed: ${error.message}`));
       } else if (event.params?.name === NATIVE_JEV_ROUTING_BINDING) {
         this.jevActionChain = this.jevActionChain

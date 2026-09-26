@@ -3,6 +3,7 @@ import { loadActionKey, NonceReplayWindow, verifyPeerAction } from "./peer-actio
 import { validateTurboChange } from "./turbo-control.mjs";
 
 const OWNER_PATH = "/api/node/actions/turbo";
+const BROWSER_ACTIONS = Object.freeze({ "/api/turbo": "update", "/api/turbo/save": "save", "/api/turbo/sync": "sync" });
 
 function policyResponse(policy = {}) {
   return {
@@ -23,20 +24,21 @@ function parseBody(body) {
   catch { throw httpError(400, "请求 JSON 无效"); }
 }
 
-export function createTurboHttpHandler({ turboCoordinator, turboPolicyService, jevRoutingService, dashboardOrigin, nodeActionKeyPath, replayWindow = new NonceReplayWindow() } = {}) {
+export function createTurboHttpHandler({ turboCoordinator, turboPolicyService, dashboardOrigin, nodeActionKeyPath, replayWindow = new NonceReplayWindow() } = {}) {
   return async function handleTurboRequest(request, response, requestUrl) {
-    const browser = requestUrl.pathname === "/api/turbo";
+    const browserAction = BROWSER_ACTIONS[requestUrl.pathname];
+    const browser = Boolean(browserAction);
     const owner = requestUrl.pathname === OWNER_PATH;
     if (!browser && !owner) return false;
-    if (browser && (request.method === "GET" || request.method === "HEAD")) {
+    if (requestUrl.pathname === "/api/turbo" && (request.method === "GET" || request.method === "HEAD")) {
       sendJson(response, 200, { status: "ok", ...turboCoordinator.read() });
       return true;
     }
     if (browser && request.method === "PUT") {
       assertExactMutationOrigin(request, dashboardOrigin);
       assertJsonContentType(request);
-      const change = validateTurboChange(await readJsonBody(request, 2048));
-      const result = await turboCoordinator.update(change);
+      const change = validateTurboChange(await readJsonBody(request, 2048), { allowRequestId: false });
+      const result = await turboCoordinator[browserAction](change);
       sendJson(response, result.converged ? 200 : 207, { status: "ok", ...result });
       return true;
     }
@@ -52,8 +54,13 @@ export function createTurboHttpHandler({ turboCoordinator, turboPolicyService, j
         return true;
       }
       const change = validateTurboChange(parseBody(body));
-      const policy = await turboPolicyService.update(change);
-      if (policy.enabled && policy.autoDisableGlobalRouting) await jevRoutingService?.setEnabled?.(false);
+      let policy;
+      try { policy = await turboCoordinator.receive(change); }
+      catch (error) {
+        if (error.code !== "TURBO_PEER_BUSY") throw error;
+        sendJson(response, 409, { status: "error", code: "TURBO_PEER_BUSY", message: "本机正在保存或同步 Turbo 设置，请稍后重试" });
+        return true;
+      }
       sendJson(response, 202, { status: "ok", accepted: true, ...policyResponse(policy) });
       return true;
     }

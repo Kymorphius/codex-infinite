@@ -8,7 +8,8 @@ import { normalizePeerActivity, normalizePeerSessionSettings, normalizePeerSetti
 import { ACTION_HEADERS, loadActionKey, signPeerAction } from "./peer-action-auth.mjs";
 import { validateThreadSettingsTransport } from "./thread-settings-control.mjs";
 import { SshPeerSkills } from "./ssh-peer-skills.mjs";
-import { CONTROL_ACTION_PATH, DRAFT_ACTION_PATH, MESSAGE_ACTION_PATH, SETTINGS_ACTION_PATH, TURBO_ACTION_PATH, sshActionArguments, sshActivityArguments, sshSnapshotArguments } from "./ssh-peer-commands.mjs";
+import { updatePeerTurbo } from "./ssh-peer-turbo.mjs";
+import { CONTROL_ACTION_PATH, DRAFT_ACTION_PATH, MESSAGE_ACTION_PATH, SETTINGS_ACTION_PATH, sshActionArguments, sshActivityArguments, sshSnapshotArguments } from "./ssh-peer-commands.mjs";
 
 export { sshActionArguments, sshActivityArguments, sshSkillContentArguments, sshSkillsArguments, sshSnapshotArguments } from "./ssh-peer-commands.mjs";
 
@@ -312,39 +313,6 @@ export class SshPeerAdapter {
   }
 
   async updateTurbo(change) {
-    change = typeof change === "boolean" ? { enabled: change } : change;
-    if (!change || typeof change !== "object" || Array.isArray(change)) throw new Error("Turbo setting is invalid");
-    const keys = Object.keys(change);
-    const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "accessMode", "deviceIds"];
-    if (!keys.length || keys.some((key) => !allowed.includes(key))) throw new Error("Turbo setting is invalid");
-    if (Object.hasOwn(change, "enabled") && typeof change.enabled !== "boolean") throw new Error("Turbo switch is invalid");
-    if (Object.hasOwn(change, "model") && change.model !== null && typeof change.model !== "string") throw new Error("Turbo model setting is invalid");
-    if (Object.hasOwn(change, "reasoningEffort") && typeof change.reasoningEffort !== "string") throw new Error("Turbo reasoning setting is invalid");
-    if (Object.hasOwn(change, "fast") && typeof change.fast !== "boolean") throw new Error("Turbo speed setting is invalid");
-    if (Object.hasOwn(change, "millionContext") && typeof change.millionContext !== "boolean") throw new Error("Turbo context setting is invalid");
-    if (Object.hasOwn(change, "accessMode") && typeof change.accessMode !== "string") throw new Error("Turbo access setting is invalid");
-    if (Object.hasOwn(change, "deviceIds") && !Array.isArray(change.deviceIds)) throw new Error("Turbo device setting is invalid");
-    const key = await loadActionKey(this.actionKeyPath);
-    const timestamp = String(Date.now());
-    const nonce = crypto.randomUUID();
-    const body = Buffer.from(JSON.stringify({ ...change, requestId: nonce }), "utf8");
-    const headers = { [ACTION_HEADERS.timestamp]: timestamp, [ACTION_HEADERS.nonce]: nonce };
-    headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: TURBO_ACTION_PATH, timestamp, nonce, body });
-    for (const transport of this.peer.transports) {
-      try {
-        const payload = JSON.parse(await executeAction(this.spawn, sshActionArguments(transport, headers, TURBO_ACTION_PATH, { remotePlatform: this.peer.platform }), body));
-        if (payload.status !== "ok" || !payload.accepted || typeof payload.enabled !== "boolean" || typeof payload.millionContext !== "boolean") throw new Error("所属节点拒绝了 Turbo 设置");
-        return {
-          accepted: true, enabled: payload.enabled, model: typeof payload.model === "string" ? payload.model : null,
-          reasoningEffort: payload.reasoningEffort, fast: payload.fast !== false, millionContext: payload.millionContext,
-          accessMode: payload.accessMode, deviceIds: Array.isArray(payload.deviceIds) ? payload.deviceIds : [], transport: transport.type
-        };
-      } catch {
-        this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} turbo transport ${transport.type} unavailable`);
-      }
-    }
-    const error = new Error(`${this.peer.name} 暂时不可达，Turbo 设置未同步。`);
-    error.statusCode = 503;
-    throw error;
+    return updatePeerTurbo(this, executeAction, change);
   }
 }
