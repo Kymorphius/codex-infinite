@@ -25,6 +25,20 @@ function harness(saved = '[]', conversationRows = []) {
   vm.runInContext(buildNativeProjectChecklistScript(), context);
   return { api: context.window.__cccProjectChecklist, dialog: document.body.children[0], storage: () => storage };
 }
+test('ack advances only unsent dependent revisions and conflicts keep a visible draft without blocking sync', () => {
+  const sourceRef = { ownerDeviceId: 'windows', scopeId: 'a'.repeat(64), id: 'remote' }, projectKey = 'ccc:general-inbox:v1';
+  const task = { id: 'federated-remote', text: '原文', done: false, assignedThreadId: null, sourceRef, expectedRevision: 'old' };
+  const pending = ['first', 'second'].map(requestId => ({ ...task, text: requestId, projectKey, type: 'upsert', requestId }));
+  const h = harness(JSON.stringify(pending)); h.api.cacheGeneral([task]); h.api.openGeneral();
+  h.api.accept({ projectKey, items: [{ ...task, text: 'first', expectedRevision: 'new' }], acknowledged: ['first'], actionResults: [{ requestId: 'first', projectKey, id: task.id, previousRevision: 'old', item: { ...sourceRef, revision: 'new' } }] });
+  assert.equal(h.api.packet().actions[0].expectedRevision, 'new');
+  h.api.accept({ projectKey, items: [{ ...task, text: '远端新内容', expectedRevision: 'remote-revision' }], acknowledged: [], conflicts: [{ requestId: 'second', projectKey, id: task.id, error: '任务在其他设备修改' }] });
+  assert.equal(h.api.packet().actions.length, 0);
+  const saved = JSON.parse(h.storage()); assert.equal(saved[0].text, 'second'); assert.equal(saved[0].conflict, '任务在其他设备修改');
+  const recovery = h.dialog.children.at(-1); assert.equal(recovery.hidden, false);
+  assert.match(recovery.children[0].textContent, /1 项更改未保存/);
+  assert.equal(recovery.children[1].children[0].children[1].value, 'second');
+});
 test('native checklist adds, edits, completes and deletes while acknowledging without replacing in-progress input', () => {
   const h = harness(); h.api.open({ key: 'p', name: '项目' });
   const form = h.dialog.children[2], input = form.children[0], list = h.dialog.children[4];
@@ -47,7 +61,7 @@ test('checklist numbers have a separate small card beside the task card', () => 
   assert.match(source, /ul\{list-style:none;padding:0;padding-inline-start:48px/);
   assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
-  assert.match(source, /2026-09-24\.queue-sync2/);
+  assert.match(source, /2026-09-26\.federated/);
   assert.match(source, /checklistTaskId/);
 });
 test('project switching isolates visible items and restores pending drafts after reload', () => {
@@ -80,11 +94,12 @@ test('general inbox opens from the proactively published snapshot without waitin
   assert.equal(h.dialog.children[4].children[0].children[1].value, '立即显示');
 });
 
-test('completed assigned task persists a pending completion and wakes checklist sync', () => {
+test('delivered assigned task persists delivery without completing the task', () => {
   const task = { id: 'assigned', text: '入队后不再是待办', done: false, assignedThreadId: 'thread-a' };
   const h = harness(); h.api.cacheGeneral([task]);
   assert.equal(h.api.completeAssignedTask(task.id, task.assignedThreadId, task.text), true);
-  assert.equal(h.api.packet().actions.at(-1).done, true);
+  assert.equal(h.api.packet().actions.at(-1).done, false);
+  assert.equal(h.api.packet().actions.at(-1).executionState, 'delivered');
   assert.equal(h.api.completeAssignedTask(task.id, task.assignedThreadId, task.text), false);
 });
 
@@ -191,7 +206,7 @@ test('resuming an assigned general task completes its exact identity while anoth
   assert.equal(h.api.completeAssignedTask(generalTask.id, threadA, generalTask.text), true);
   const [action] = h.api.packet().actions;
   assert.equal(action.projectKey, generalKey); assert.equal(action.id, generalTask.id);
-  assert.equal(action.text, generalTask.text); assert.equal(action.assignedThreadId, threadA); assert.equal(action.done, true);
+  assert.equal(action.text, generalTask.text); assert.equal(action.assignedThreadId, threadA); assert.equal(action.done, false); assert.equal(action.executionState, 'delivered');
   assert.equal(h.dialog.children[4].children[0].children[1].value, projectTask.text);
   assert.equal(h.dialog.children[4].children[0].children[0].checked, false);
   assert.equal(h.api.completeAssignedTask(generalTask.id, threadA, generalTask.text), false);
@@ -213,7 +228,7 @@ test('assigned completion resolves general pending changes without using same-ID
   assert.equal(h.api.completeAssignedTask(task.id, threadB, changed.text), true);
   const action = h.api.packet().actions.at(-1);
   assert.equal(action.projectKey, generalKey); assert.equal(action.assignedThreadId, threadB);
-  assert.equal(action.text, changed.text); assert.equal(action.done, true);
+  assert.equal(action.text, changed.text); assert.equal(action.done, false); assert.equal(action.executionState, 'delivered');
 });
 
 test('assigned completion rejects completed, removed, unassigned and changed tasks', () => {

@@ -1,6 +1,6 @@
-const IMAGE_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-7]$/i;
-
 export function normalizeChecklistInput(value) {
+  // This function is also serialized into the native renderer; keep it self-contained.
+  const IMAGE_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-7]$/i;
   if (!Array.isArray(value) || !value.length || value.length > 9) throw Error('任务消息载荷无效');
   const parts = [], refs = new Set(); let textCount = 0;
   for (const part of value) {

@@ -70,3 +70,11 @@ test('unsupported image is rejected without creating a held todo', async () => {
   });
   await assert.rejects(() => tools.capture(editor, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'), /仅支持/);
 });
+
+test('cross-device import verifies stored bytes before allowing the attachment to be used', async () => {
+  const value = png(), url = `data:image/png;base64,${Buffer.from(await value.arrayBuffer()).toString('base64')}`;
+  const tools = createNativeHeldImageTools({ store: {
+    put: async () => {}, get: async () => new Blob([Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1])], { type: 'image/png' })
+  } });
+  await assert.rejects(tools.importImages([{ id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa:0', dataUrl: url }]), /写入校验失败/);
+});

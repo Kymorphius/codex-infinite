@@ -1,9 +1,12 @@
 import { createNativeChecklistTaskRow } from './native-checklist-task-row.mjs';
 import { focusNativeChecklistTask, createNativeChecklistReassignController } from './native-checklist-board-jump.mjs';
 import { createNativeChecklistAssignmentControl } from './native-checklist-assignment-control.mjs';
+import { nativeChecklistStyles } from './native-checklist-style.mjs';
+import { createChecklistDeliveryBridge } from './native-checklist-delivery.mjs';
+import { createChecklistConflictView } from './native-checklist-conflicts.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim, syncBinding, normalizeInput, makeImageTools, assignedChecklistTasksForThread, makePasteImages, makeTaskModel) {
-  const VERSION = '2026-09-24.queue-sync2', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-26.federated', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -15,82 +18,48 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   const make = (tag, text) => { const node = document.createElement(tag); if (text) node.textContent = text; return node; };
   const time = createTimePresentation(readTime);
   const search = createSearch(make);
-  const icon = body => 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + body + '</svg>') + '")';
-  const addIcon = icon('<path d="M12 5v14M5 12h14"/>');
-  const searchIcon = icon('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>');
-  const style = make('style'); style.textContent = `
-    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(760px,calc(100vw - 40px));max-height:82vh;padding:22px;border:1px solid #8885;border-radius:18px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 24px 80px #0008;font:14px/1.5 system-ui}
-    [data-ccc-checklist]::backdrop{background:#0006}
-    [data-ccc-checklist][open]{display:flex;flex-direction:column;gap:10px}
-    [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;order:0}
-    [data-ccc-checklist] [data-checklist-controls]{display:contents}
-    [data-ccc-checklist] [data-checklist-controls] p{order:1}
-    [data-ccc-checklist] form{order:2}[data-ccc-checklist] [data-checklist-search]{order:3}
-    [data-ccc-checklist] > :not(header):not(form):not([data-checklist-controls]){order:4}
-    [data-ccc-checklist] form,[data-ccc-checklist] [data-checklist-search]{display:flex;align-items:center;gap:8px;padding:5px 8px;border:0;border-radius:11px;background:#8881;min-height:38px}
-    [data-ccc-checklist] form:focus-within,[data-ccc-checklist] [data-checklist-search]:focus-within{outline:1px solid #aaa8}
-    [data-ccc-checklist] form::before,[data-ccc-checklist] [data-checklist-search]::before{content:'';flex:none;width:18px;height:18px;background:var(--color-text-secondary,#aaa)}
-    [data-ccc-checklist] form::before{-webkit-mask:${addIcon} center/contain no-repeat;mask:${addIcon} center/contain no-repeat}
-    [data-ccc-checklist] [data-checklist-search]::before{-webkit-mask:${searchIcon} center/contain no-repeat;mask:${searchIcon} center/contain no-repeat}
-    [data-ccc-checklist] [data-checklist-search] small{white-space:nowrap}[data-ccc-checklist] [hidden]{display:none}
-    [data-ccc-checklist] h2{font-size:18px;margin:0;font-weight:650}[data-ccc-checklist] p{color:#aaa;margin:0;overflow-wrap:anywhere}
-    [data-ccc-checklist] button{cursor:pointer;border:0;border-radius:8px;padding:5px 10px;background:#8882;color:inherit}
-    [data-ccc-checklist] button:hover{background:#8883}
-    [data-ccc-checklist] select{min-width:150px;max-width:240px;border:0;border-radius:7px;padding:5px 8px;background:#8882;color:inherit}
-    [data-ccc-checklist] input[type=text],[data-ccc-checklist] input[type=search],[data-ccc-checklist] textarea{min-width:0;flex:1;border:0;border-radius:7px;background:#8881;color:inherit;padding:8px}
-    [data-ccc-checklist] form input,[data-ccc-checklist] [data-checklist-search] input{border:0;background:transparent;outline:0;padding:4px 2px}
-    [data-ccc-checklist] form button{background:#8882}
-    [data-ccc-checklist] textarea{font:inherit;line-height:1.4;field-sizing:content;min-height:34px;max-height:128px;overflow-y:auto;resize:vertical;padding:5px 8px;background:transparent}
-    [data-ccc-checklist] textarea:focus-visible{outline:1px solid #aaa8;background:#8881}
-    [data-ccc-checklist] ul{list-style:none;padding:0;padding-inline-start:48px;margin:2px 0;max-height:45vh;overflow:auto;display:flex;flex-direction:column;gap:5px;counter-reset:task}
-    [data-ccc-checklist][data-claim=true] ul{padding-inline-end:88px}
-    [data-ccc-checklist] li{display:flex;align-items:center;gap:4px 10px;padding:7px 9px;flex-wrap:wrap;border:0;border-radius:10px;background:#8881}
-    [data-ccc-checklist] li[data-checklist-row]{counter-increment:task;position:relative}
-    [data-ccc-checklist] li[data-checklist-row]::before{content:counter(task);position:absolute;inset-inline-start:-44px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:34px;border-radius:9px;background:#8882;font-size:11px;font-variant-numeric:tabular-nums;color:#aaa}
-    [data-ccc-checklist] li[data-checklist-claim-row]>button{position:absolute;inset-inline-end:-76px;top:50%;transform:translateY(-50%);box-sizing:border-box;width:64px;height:34px;display:flex;align-items:center;justify-content:center}
-    [data-ccc-checklist] li textarea{min-width:min(220px,100%)}
-    [data-ccc-checklist] [data-checklist-added]{order:-1;flex:none;margin-inline-end:8px;white-space:nowrap;font-size:11px;color:#999;line-height:1.2}
-    [data-ccc-checklist] li[data-done=true] textarea{text-decoration:line-through;opacity:.55}
-    [data-ccc-checklist] li[data-ccc-held-todo]{align-items:flex-start;background:#8882}[data-ccc-checklist] li[data-ccc-held-todo] input{flex:1}[data-ccc-checklist] li[data-ccc-held-todo] small{margin-inline-end:auto}
-    [data-ccc-checklist] [data-checklist-count]{padding-top:5px;font-size:12px}
-    [data-ccc-checklist] small{display:block;color:#999}[data-ccc-checklist] button:disabled{opacity:.4;cursor:default}
-  `;
+  const style = make('style'); style.textContent = nativeChecklistStyles();
   const dialog = make('dialog'); dialog.setAttribute('data-ccc-checklist', ''); dialog.setAttribute('aria-label', '项目任务清单');
   const header = make('header'), title = make('h2', '任务清单'), close = make('button', '关闭'); header.append(title, close);
   const subtitle = make('div'), description = make('p'), form = make('form'), input = make('input'), add = make('button', '添加');
   subtitle.setAttribute('data-checklist-controls', ''); subtitle.append(description, search.root);
   input.type = 'text'; input.maxLength = 5000; input.placeholder = '想在这个项目里做什么？'; input.setAttribute('aria-label', '新任务'); add.type = 'submit';
   const pasted = make('small'), count = make('small'), list = make('ul'), status = make('small'); count.setAttribute('data-checklist-count', ''); pasted.dataset.checklistPastedImages = ''; pasted.hidden = true; pasted.setAttribute('aria-live', 'polite'); status.setAttribute('role', 'status');
-  form.append(input, pasted, add); dialog.append(header, subtitle, form, count, list, status, make('small', '保存在本机 · 按加入时间从早到晚 · 勾选记录完成状态；可粘贴图片'));
+  form.append(input, pasted, add); dialog.append(header, subtitle, form, count, list, status, make('small', '按加入时间从早到晚 · 变更保存在任务来源设备 · 勾选记录完成状态'));
   document.head.append(style); document.body.append(dialog);
+  const conflicts = createChecklistConflictView({ make, readPending: () => pending, dismiss: requestId => { pending = pending.filter(action => action.requestId !== requestId); persist(); state(); } }); dialog.append(conflicts.root);
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(pending)); storageError = ''; } catch { storageError = '任务尚未保存到草稿，请勿关闭窗口'; } }
   let taskPaste = null, taskModel = null, focusTaskId = null;
   function showPastedImages() { taskPaste?.render(pasted, add, loaded === project?.key); }
+  const metadata = item => ({ ...(item.sourceRef ? { sourceRef: item.sourceRef, expectedRevision: item.expectedRevision, readOnly: item.readOnly, sourceConnected: item.sourceConnected, ...(item.attachmentError ? { attachmentError: item.attachmentError } : {}) } : {}), ...(item.assignedDeviceId ? { assignedDeviceId: item.assignedDeviceId } : {}), ...(item.executionState ? { executionState: item.executionState } : {}), ...(item.reservationToken ? { reservationToken: item.reservationToken } : {}), ...(item.deliveryReservation ? { deliveryReservation: item.deliveryReservation } : {}) });
   function view(projectKey = project?.key, source = items) {
-    const result = source.map(item => ({ id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, ...readTime(item), ...(Array.isArray(item.input) ? { input: item.input } : {}) }));
-    for (const action of pending.filter(value => value.projectKey === projectKey)) {
+    const result = source.map(item => ({ id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, ...readTime(item), ...(Array.isArray(item.input) ? { input: item.input } : {}), ...metadata(item) }));
+    for (const action of pending.filter(value => !value.conflict && value.projectKey === projectKey && !['verify-delivery', 'release-delivery'].includes(value.type))) {
       const index = result.findIndex(item => item.id === action.id);
       if (action.type === 'delete') { if (index >= 0) result.splice(index, 1); }
-      else { const previous = index >= 0 ? result[index] : action; const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId || null, ...readTime(previous), ...(Array.isArray(action.input ?? previous.input) ? { input: action.input ?? previous.input } : {}) }; if (index >= 0) result[index] = item; else result.push(item); }
+      else { const previous = index >= 0 ? result[index] : action; const item = { id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId || null, ...readTime(previous), ...(Array.isArray(action.input ?? previous.input) ? { input: action.input ?? previous.input } : {}), ...metadata(previous), ...metadata(action) }; if (index >= 0) result[index] = item; else result.push(item); }
     }
     return result;
   }
   function state() {
-    const busy = pending.some(action => action.projectKey === project?.key);
+    const busy = pending.some(action => !action.conflict && action.projectKey === project?.key);
+    conflicts.render();
     status.textContent = storageError || claimWarning || error || (busy ? '正在保存…' : loaded === project?.key ? '已保存' : '正在读取…');
     input.disabled = loaded !== project?.key; add.disabled = Boolean(taskPaste?.busy()) || loaded !== project?.key;
   }
-  function act(type, item, projectKey = project.key, refresh = true) {
-    const requestId = crypto.randomUUID();
-    pending.push({ projectKey, type, id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, ...(item.input ? { input: item.input } : {}), ...(item.legacyHeldSource ? { legacyHeldSource: item.legacyHeldSource } : {}), ...(item.createdAt ? readTime(item) : {}), requestId });
+  function act(type, item, projectKey = project.key, refresh = true, providedRequestId = null) {
+    if (item.readOnly && !(item.reservationToken && item.reservationToken === item.deliveryReservation?.token)) { error = item.attachmentError || '任务来源设备未连接，请连接后重试'; state(); return null; }
+    const requestId = providedRequestId || crypto.randomUUID();
+    pending.push({ projectKey, type, id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, ...(item.input ? { input: item.input } : {}), ...metadata(item), ...(item.creation ? { creation: true } : {}), ...(item.legacyHeldSource ? { legacyHeldSource: item.legacyHeldSource } : {}), ...(item.createdAt ? readTime(item) : {}), requestId });
     persist(); if (refresh) render(); else state();
     return requestId;
   }
   taskModel = makeTaskModel({ generalKey: GENERAL_KEY, heldKey: 'codex-control-console.native-held-queue.v1', syncBinding, documentRef: document, localStorageRef: localStorage, windowRef: window, normalizeInput, readThreadId: doc => readThreadId(doc), readGeneralItems: () => generalItems, readPending: () => pending,
-    enqueueAction(item, projectKey) { const requestId = act('upsert', item, projectKey, false); if (storageError) { pending = pending.filter(action => action.requestId !== requestId); persist(); return false; } return true; },
+    enqueueAction(item, projectKey) { const requestId = act('upsert', item, projectKey, false); if (!requestId || storageError) { pending = pending.filter(action => action.requestId !== requestId); persist(); return false; } return true; },
     setAssignedSnapshot: value => window.__codexControlConsoleSetAssignedChecklistTasks?.(value),
     onSaved: projectKey => { if (project?.key === projectKey) render(); else state(); }
   });
+  const delivery = createChecklistDeliveryBridge({ readItems: () => view(GENERAL_KEY, generalItems), enqueue: (item, requestId, type) => act(type, item, GENERAL_KEY, false, requestId), signal: () => { try { window[syncBinding]?.('verify-delivery'); } catch {} } });
   taskPaste = makePasteImages({ taskImages, cryptoRef: crypto, onError: message => { error = message; state(); }, onChange: showPastedImages });
   taskPaste.bind(form);
   const appendAssignmentControl = createNativeChecklistAssignmentControl({ make, dialog, getProject: () => project, getLoaded: () => loaded, getRenderVersion: () => renderVersion, readChoices: () => readConversationChoices(document), view, generalItems: () => generalItems, act, render, state: message => { error = message; state(); } });
@@ -105,12 +74,12 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   });
   const todoMutations = createNativeChecklistTodoMutations({
     readThreadId: () => readThreadId(document), readItems: () => view(GENERAL_KEY, generalItems),
-    enqueue: (type, item) => { const requestId = act(type, item, GENERAL_KEY); if (storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; } try { window[syncBinding]?.('todo'); } catch {} return true; },
+    enqueue: (type, item) => { const requestId = act(type, item, GENERAL_KEY); if (!requestId || storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; } try { window[syncBinding]?.('todo'); } catch {} return true; },
     replaceText: (input, value) => replaceHeldEditableText(input, value) || (!input.some(part => part.type === 'text') ? [{ type: 'text', text: value }, ...input] : null)
   });
   const reassign = createNativeChecklistReassignController({ readThreadId: () => readThreadId(document), readItems: () => view(GENERAL_KEY, generalItems), openGeneral: () => window.__cccProjectChecklist.openGeneral(), getLoaded: () => loaded === GENERAL_KEY, isOpen: () => dialog.open, list, warn: message => { claimWarning = message; state(); }, render: () => render() });
   const newThreadClaim = createNewThreadClaim({
-    start: createThreadStarter(),
+    start: createThreadStarter(), prepare: (task, requestId) => delivery.prepare(task.id, null, null, requestId, task.expectedRevision), release: delivery.release, storage: localStorage,
     readTask: id => view(GENERAL_KEY, generalItems).find(item => item.id === id),
     enqueue(item) {
       const requestId = act('upsert', item, GENERAL_KEY, false);
@@ -124,7 +93,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   function render() {
     const drafts = new Map([...taskEditors].map(([id, editor]) => [id, editor.snapshot()])); taskEditors.clear(); search.resetRows();
     const version = ++renderVersion;
-    state(); list.replaceChildren(); const values = time.order(view()), claiming = Boolean(project?.claimThreadId || project?.claimNewThread), projectedHeld = project?.general && !claiming ? held.filter(item => !values.some(task => task.id === item.id)) : [];
+    state(); list.replaceChildren(); const values = time.order(view().filter(item => item.executionState !== 'delivered')), claiming = Boolean(project?.claimThreadId || project?.claimNewThread), projectedHeld = project?.general && !claiming ? held.filter(item => !values.some(task => task.id === item.id)) : [];
     const assigned = project?.general && !claiming ? values.filter(item => !item.done && item.assignedThreadId) : [];
     const visible = claiming ? values.filter(item => !item.done && !item.assignedThreadId) : project?.general ? values.filter(item => !item.assignedThreadId) : values;
     count.textContent = project?.general ? `${visible.filter(item => !item.done).length} 项未指派 · ${values.filter(item => item.done).length} 项已完成 · ${heldLoaded ? assigned.length + projectedHeld.length + ' 项会话待办' : '正在加载会话待办…'}` : `${values.filter(item => !item.done).length} 项待办 · ${values.filter(item => item.done).length} 项已完成`;
@@ -175,31 +144,39 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     openReassignTask(id, threadId, text) { return reassign.open(id, threadId, text); },
     editAssignedTask: todoMutations.edit,
     deleteAssignedTask: todoMutations.delete,
+    prepareAssignedTask: delivery.prepare,
+    releaseAssignedTask: delivery.release,
     openClaimableForCurrentThread(threadId) { this.open({ key: 'ccc:general-inbox:v1', general: true, claimThreadId: threadId, name: '直接编辑任务内容；领取时使用框内最新内容，放入当前会话待办并保持暂停。领取不会发送消息。' }); },
     openClaimableForNewThread() { this.open({ key: GENERAL_KEY, general: true, claimNewThread: true, name: '直接编辑任务内容；点击领取会填入新任务输入框并发送，创建新会话。' }); },
-    completeAssignedTask(id, threadId, text) {
+    completeAssignedTask(id, threadId, text, reservation = {}) {
       if (!threadId || typeof text !== 'string') return false;
-      const item = view(GENERAL_KEY, generalItems).find(value => value.id === id && !value.done && value.assignedThreadId === threadId && value.text === text);
+      const item = view(GENERAL_KEY, generalItems).find(value => value.id === id && !value.done && value.executionState !== 'delivered' && value.assignedThreadId === threadId && value.text === text);
       if (!item) return false;
-      const requestId = act('upsert', { ...item, done: true }, GENERAL_KEY);
-      if (storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; }
+      const requestId = act('upsert', { ...item, ...reservation, done: false, executionState: 'delivered' }, GENERAL_KEY);
+      if (!requestId || storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; }
       try { window[syncBinding]?.('complete'); } catch { /* periodic sync remains the recovery path */ }
       return true;
     },
     open(value) { if (taskPaste.images().length) void taskPaste.discard(); title.textContent = value.general ? '综合任务清单' : '任务清单'; dialog.setAttribute('aria-label', value.general ? '综合任务清单' : '项目任务清单'); input.placeholder = value.general ? '有什么想做的？先记在这里…' : '想在这个项目里做什么？'; taskEditors.clear(); search.reset(); project = value; items = value.general && generalLoaded ? generalItems : []; held = []; heldLoaded = !value.general || !!value.claimThreadId || !!value.claimNewThread; form.hidden = Boolean(value.claimThreadId || value.claimNewThread); dialog.dataset.claim = String(form.hidden); loaded = value.general && generalLoaded ? value.key : ''; error = ''; claimWarning = ''; description.textContent = value.name || value.id; input.value = ''; showPastedImages(); render(); if (!dialog.open) dialog.showModal(); if (value.general) scheduleHeldLoad(); },
     cacheGeneral(nextItems, signalMigration = true) { if (!Array.isArray(nextItems)) return; generalItems = nextItems; generalLoaded = true; const migrationError = taskModel.migrateLegacyDrafts(signalMigration); if (migrationError) error = migrationError; if (project?.key === 'ccc:general-inbox:v1' && loaded !== project.key) { items = generalItems; loaded = project.key; render(); } },
-    packet() { return { instanceId, projectKey: project?.key || '', actions: pending.slice(0, 20) }; },
+    packet() { return { instanceId, projectKey: project?.key || '', actions: pending.filter(action => !action.conflict).slice(0, 20) }; },
     accept(result) {
       const before = JSON.stringify(view());
       const acknowledged = new Set(result.acknowledged || []), completed = pending.filter(action => acknowledged.has(action.requestId));
-      pending = pending.filter(action => !acknowledged.has(action.requestId)); persist(); error = result.error || '';
+      const rejected = new Set(result.rejected || []);
+      pending = pending.filter(action => !acknowledged.has(action.requestId) && !rejected.has(action.requestId)); persist(); error = result.error || '';
+      for (const conflict of result.conflicts || []) for (const action of pending) if (action.projectKey === conflict.projectKey && action.id === conflict.id) action.conflict = conflict.error;
+      for (const value of result.actionResults || []) for (const action of pending) if (action.projectKey === value.projectKey && action.id === value.id && action.expectedRevision === value.previousRevision) { action.expectedRevision = value.item.revision; action.sourceRef = { ownerDeviceId: value.item.ownerDeviceId, scopeId: value.item.scopeId, id: value.item.id }; delete action.creation; }
+      persist();
       taskModel.completeLegacySources(completed);
+      for (const action of completed) if (action.executionState === 'delivered') { try { localStorage.removeItem('ccc.checklist.delivery.v1:' + action.assignedThreadId + ':' + action.id); localStorage.removeItem('ccc.checklist.new-thread.v1:' + action.id); } catch {} }
       const first = loaded !== project?.key;
       if (result.projectKey === project?.key && Array.isArray(result.items)) { items = result.items; loaded = result.projectKey; if (result.projectKey === 'ccc:general-inbox:v1') { generalItems = result.items; generalLoaded = true; } }
       if (first || before !== JSON.stringify(view())) render(); else state();
       returns.accept(result);
+      delivery.accept(result);
     },
-    dispose() { returns.dispose(); void taskPaste.discard(); window.removeEventListener('codex-control-console-held-todos-changed', refreshHeldTodos); dialog.remove(); style.remove(); }
+    dispose() { returns.dispose(); delivery.dispose(); void taskPaste.discard(); window.removeEventListener('codex-control-console-held-todos-changed', refreshHeldTodos); dialog.remove(); style.remove(); }
   };
   function loadHeldTodos() { heldLoadScheduled = false; if (!project?.general || project.claimThreadId || project.claimNewThread) return; held = readHeldTodos(localStorage); heldLoaded = true; render(); }
   function scheduleHeldLoad() { if (heldLoadScheduled || heldLoaded || !project?.general || project.claimThreadId || project.claimNewThread) return; heldLoadScheduled = true; if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(loadHeldTodos, { timeout: 1000 }); else if (typeof setTimeout === 'function') setTimeout(loadHeldTodos, 0); else heldLoadScheduled = false; }

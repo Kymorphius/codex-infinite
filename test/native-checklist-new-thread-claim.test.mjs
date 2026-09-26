@@ -45,7 +45,7 @@ test('new-task entry always says 领任务 and opens the new-thread claim view',
   } finally { globalThis.document = originalDocument; globalThis.window = originalWindow; }
 });
 
-test('claim sends the latest edited text exactly once, then completes the original task with its initial time', async () => {
+test('claim sends the latest edited text exactly once, then records delivery without completing the original task', async () => {
   const native = nativeHarness(), actions = [], messages = [];
   const claim = createNativeChecklistNewThreadClaim({ start: native.start, readTask: () => task, enqueue: item => { actions.push(item); return 'saved'; },
     report: message => messages.push(message), showFailure: () => assert.fail('unexpected failure') });
@@ -54,7 +54,7 @@ test('claim sends the latest edited text exactly once, then completes the origin
   await Promise.all([first, second]);
   assert.equal(native.sent(), 1); assert.equal(native.dialogOpen(), false);
   assert.equal(native.editor.innerText, '1. 最新输入\n2. 保留序号');
-  assert.deepEqual(actions, [{ ...task, text: native.editor.innerText, done: true, assignedThreadId: threadId }]);
+  assert.deepEqual(actions, [{ ...task, text: native.editor.innerText, done: false, executionState: 'delivered', assignedThreadId: threadId }]);
   assert.match(messages.at(-1), /正在保存/);
 });
 

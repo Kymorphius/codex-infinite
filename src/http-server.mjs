@@ -4,9 +4,10 @@ import { serveStaticAsset } from "./static-assets.mjs";
 import { createDashboardHandlers } from "./dashboard-handlers.mjs";
 import { sendJson } from "./http-utils.mjs";
 
-export function createDashboardServer({ config, experimentService = null, adapter, local = adapter, remoteMessageService = null, remoteThreadSettingsService = null, turboCoordinator = null, turboPolicyService = null, skillSyncService = null, localSkillAdapter = null, projectCopyService = null, projectSync = {}, nodeRuntimeService = null, diagnosticsService = null, restartService = null, nativeAppLaunchService = null, zoteroAdapter = null, zoteroLocalApi = null, dispatchStore = null, checklistStore = null, generatorService = null, sidebarService = null, nativeSidebarAdapter = null, contextWindowStore = null, modelCatalog = null, jevRoutingService = null, personalPanelTaskAdapter = null, logger = console }) {
+export function createDashboardServer(options) {
+  const { config, adapter, local = adapter } = options;
   assertLoopbackConfig(config);
-  const handlers = createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const handlers = createDashboardHandlers({ ...options, local });
   const server = http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url || "/", config.dashboardOrigin);

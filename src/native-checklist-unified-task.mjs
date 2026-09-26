@@ -1,7 +1,7 @@
 export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBinding, documentRef, localStorageRef, windowRef, normalizeInput, readThreadId, readGeneralItems, readPending, enqueueAction, setAssignedSnapshot, onSaved }) {
   const notify = () => { try { windowRef[syncBinding]?.('save'); } catch { /* periodic sync remains the recovery path */ } };
   function enqueueTask(item, projectKey = generalKey, signal = true) {
-    if (!enqueueAction(item, projectKey)) return false;
+    if (!enqueueAction({ ...item, creation: true }, projectKey)) return false;
     if (signal) notify();
     onSaved(projectKey);
     return true;
@@ -62,12 +62,12 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
   }
   function tasksForThread(threadId) {
     const normalized = String(threadId || '').toLowerCase(), items = new Map(readGeneralItems().map(item => [item.id, item]));
-    for (const action of readPending().filter(value => value.projectKey === generalKey)) {
+    for (const action of readPending().filter(value => !value.conflict && value.projectKey === generalKey && !['verify-delivery', 'release-delivery'].includes(value.type))) {
       if (action.type === 'delete') items.delete(action.id);
       else items.set(action.id, { ...items.get(action.id), ...action });
     }
-    return [...items.values()].filter(item => !item.done && String(item.assignedThreadId || '').toLowerCase() === normalized)
-      .map(item => ({ id: item.id, text: item.text, ...(typeof item.createdAt === 'string' ? { createdAt: item.createdAt } : {}), ...(Array.isArray(item.input) ? { input: item.input } : {}) }));
+    return [...items.values()].filter(item => !item.done && item.executionState !== 'delivered' && String(item.assignedThreadId || '').toLowerCase() === normalized)
+      .map(item => ({ id: item.id, text: item.text, ...(typeof item.createdAt === 'string' ? { createdAt: item.createdAt } : {}), ...(Array.isArray(item.input) ? { input: item.input } : {}), ...(item.sourceRef ? { sourceRef: item.sourceRef, expectedRevision: item.expectedRevision, readOnly: item.readOnly, sourceConnected: item.sourceConnected, ...(item.deliveryReservation ? { deliveryReservation: item.deliveryReservation } : {}), ...(item.attachmentError ? { attachmentError: item.attachmentError } : {}) } : {}) }));
   }
   function completeLegacySources(actions) {
     for (const action of actions) if (action.legacyHeldSource) removeLegacyDraft(action.legacyHeldSource, action.input);

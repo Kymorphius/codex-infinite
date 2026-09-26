@@ -1,6 +1,8 @@
 import { ACTION_HEADERS } from "./peer-action-auth.mjs";
 
 export const SIDEBAR_ACTION_PATH = "/api/node/actions/sidebar";
+export const TASK_CENTER_ACTION_PATH = "/api/node/actions/task-center";
+export const TASK_IMAGES_ACTION_PATH = "/api/node/actions/task-images";
 export const MESSAGE_ACTION_PATH = "/api/node/actions/message";
 export const DRAFT_ACTION_PATH = "/api/node/actions/draft";
 export const CONTROL_ACTION_PATH = "/api/node/actions/control";
@@ -8,7 +10,7 @@ export const SETTINGS_ACTION_PATH = "/api/node/actions/settings";
 export const TURBO_ACTION_PATH = "/api/node/actions/turbo";
 export const SKILL_INSTALL_ACTION_PATH = "/api/node/actions/skill-install";
 export const SKILL_TOGGLE_ACTION_PATH = "/api/node/actions/skill-toggle";
-const ALLOWED_ACTION_PATHS = new Set([SIDEBAR_ACTION_PATH, MESSAGE_ACTION_PATH, DRAFT_ACTION_PATH, CONTROL_ACTION_PATH, SETTINGS_ACTION_PATH, TURBO_ACTION_PATH, SKILL_INSTALL_ACTION_PATH, SKILL_TOGGLE_ACTION_PATH]);
+const ALLOWED_ACTION_PATHS = new Set([TASK_CENTER_ACTION_PATH, TASK_IMAGES_ACTION_PATH, SIDEBAR_ACTION_PATH, MESSAGE_ACTION_PATH, DRAFT_ACTION_PATH, CONTROL_ACTION_PATH, SETTINGS_ACTION_PATH, TURBO_ACTION_PATH, SKILL_INSTALL_ACTION_PATH, SKILL_TOGGLE_ACTION_PATH]);
 const THREAD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$/;
 const SKILL_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
 const SKILL_SCOPES = new Set(["codex-user", "agents-user", "repo"]);
@@ -69,6 +71,10 @@ export function sshSidebarArguments(transport, { remotePlatform = "posix" } = {}
   return remoteGetArguments(transport, "/api/node/sidebar", ACTIVITY_CURL_TIMEOUT_SECONDS, remotePlatform).filter(argument => argument !== "--fail");
 }
 
+export function sshTaskCenterArguments(transport, { remotePlatform = 'posix' } = {}) {
+  return remoteGetArguments(transport, '/api/node/task-center', 15, remotePlatform).filter(argument => argument !== '--fail');
+}
+
 export function sshActivityArguments(transport, threadId, { remotePlatform = "posix" } = {}) {
   if (!THREAD_ID_PATTERN.test(String(threadId || ""))) throw new Error("Peer activity thread id is invalid");
   return remoteGetArguments(transport, `/api/node/activity/${encodeURIComponent(threadId)}`, ACTIVITY_CURL_TIMEOUT_SECONDS, remotePlatform);
@@ -106,7 +112,7 @@ function windowsActionCommand(url, headers, timeoutSeconds = ACTION_CURL_TIMEOUT
 
 export function sshActionArguments(transport, headers, actionPath = MESSAGE_ACTION_PATH, { remotePlatform = "posix" } = {}) {
   if (!ALLOWED_ACTION_PATHS.has(actionPath)) throw new Error("Peer action path is invalid");
-  const timeoutSeconds = actionPath === SKILL_INSTALL_ACTION_PATH ? 60 : ACTION_CURL_TIMEOUT_SECONDS;
+  const timeoutSeconds = [SKILL_INSTALL_ACTION_PATH, TASK_CENTER_ACTION_PATH, TASK_IMAGES_ACTION_PATH].includes(actionPath) ? 60 : ACTION_CURL_TIMEOUT_SECONDS;
   if (transport.type === "direct-ssh" && remotePlatform === "windows") {
     const url = `http://127.0.0.1:${transport.dashboardPort}${actionPath}`;
     return [...sshConnectionArguments(transport), ...windowsActionCommand(url, headers, timeoutSeconds)];

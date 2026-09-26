@@ -14,6 +14,8 @@ const zoteroSupportFiles = ["browser", "editor", "format"];
 const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "jev-routing", "usage", "responsive"];
 const panelFiles = ["board", "generators", "jev-routing", "context", "usage", "console", "sessions", "priority", "experiments", "skills", "zotero"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
+  ["/styles/task-center.css", { file: "styles/task-center.css", type: "text/css; charset=utf-8" }],
+  ...["index", "model", "controller", "view", "editor"].map(name => [`/features/task-center/${name}.js`, { file: `features/task-center/${name}.js`, type: javascriptType }]),
   ["/conversations.html", { file: "conversations.html", type: "text/html; charset=utf-8" }],
   ["/styles/conversations.css", { file: "styles/conversations.css", type: "text/css; charset=utf-8" }],
   ...["model", "index"].map(name => [`/features/conversations/${name}.js`, { file: `features/conversations/${name}.js`, type: javascriptType }]),

@@ -2,6 +2,7 @@ import { requestJson } from "../../core/transport.js";
 import { isLocalTask } from "../../core/tasks.js";
 import { createDispatchDetails, scheduleRelativeLabel } from "./details.js";
 import { createPersonalPanelBoard } from './personal-panel.js';
+import { createTaskCenter } from '../task-center/index.js';
 
 export const DISPATCH_COLUMNS = ["backlog", "scheduled", "queued", "sending", "sent", "failed"];
 
@@ -52,9 +53,9 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   const composer = $('[data-testid="dispatch-composer"]');
   const results = $('[data-testid="dispatch-results"]');
   const filter = { query: "", project: "" };
-  let checklistSignature = '';
   const details = createDispatchDetails({ state, $, formatDate, showToast, onSaved: () => load({ quiet: true }) });
   const personalPanel = createPersonalPanelBoard({ $, showToast, formatDate, state, requestOpen });
+  const taskCenter = createTaskCenter({ $, state, formatDate, requestOpen });
 
   function updateThreadSelector() {
     const tasks = state.tasks.filter((task) => isLocalTask(task) && task.project === projectSelect.value);
@@ -70,6 +71,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   }
 
   function updateDestinations() {
+    taskCenter.render();
     const currentProject = projectSelect.value;
     const names = destinationProjectNames(state.tasks.filter(isLocalTask));
     projectSelect.replaceChildren(new Option("选择项目", ""), ...names.map((name) => new Option(name, name)));
@@ -144,34 +146,6 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   }
 
   function render() {
-    const checklistError = $('[data-testid="checklist-board-error"]');
-    checklistError.textContent = state.checklistError || '';
-    checklistError.classList.toggle('hidden', !state.checklistError);
-    const nextChecklistSignature = JSON.stringify(state.checklistItems || []);
-    if (nextChecklistSignature !== checklistSignature) {
-      checklistSignature = nextChecklistSignature;
-      for (const status of ['unassigned', 'assigned', 'done']) {
-        const items = (state.checklistItems || []).filter(item => checklistBoardStatus(item) === status);
-        $(`[data-checklist-count="${status}"]`).textContent = String(items.length);
-        const list = $(`[data-checklist-list="${status}"]`);
-        list.replaceChildren(...items.map(item => {
-          const card = document.createElement('article'); card.className = 'dispatch-card'; card.dataset.checklistId = item.id;
-          const text = document.createElement('p'); text.textContent = item.text;
-          const meta = document.createElement('div'); meta.className = 'dispatch-meta';
-          meta.textContent = [item.createdAt ? formatDate(item.createdAt) : '', status === 'assigned' ? `已领取·暂停 · 会话 ${item.assignedThreadId.slice(0, 8)}` : status === 'done' ? '已完成' : '下一步：领取或指派'].filter(Boolean).join(' · ');
-          const actions = document.createElement('div'); actions.className = 'dispatch-actions';
-          const manage = document.createElement('button'); manage.type = 'button'; manage.className = 'task-open';
-          manage.textContent = status === 'done' ? '回看任务' : '处理任务';
-          manage.dataset.checklistAction = 'manage'; manage.dataset.checklistId = item.id; actions.append(manage);
-          if (status === 'assigned') {
-            const visit = document.createElement('button'); visit.type = 'button'; visit.className = 'primary-button small-button';
-            visit.textContent = '去会话'; visit.dataset.checklistAction = 'conversation'; visit.dataset.checklistId = item.id; actions.append(visit);
-          }
-          card.append(text, meta, actions); return card;
-        }));
-        if (!items.length) { const empty = document.createElement('div'); empty.className = 'column-empty'; empty.textContent = '暂无任务'; list.append(empty); }
-      }
-    }
     updateProjectFilter();
     const visibleItems = filterDispatches(state.dispatches, filter);
     for (const column of DISPATCH_COLUMNS) {
@@ -221,7 +195,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   }
 
   async function load({ quiet = false } = {}) {
-    if (state.module === 'board') void personalPanel.load();
+    if (state.module === 'board') { void personalPanel.load(); void taskCenter.load(); }
     if (!quiet) setState("loading");
     try {
       const data = await requestJson("/api/dispatches", { cache: "no-store" });
@@ -252,21 +226,6 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   }
 
   async function handleClick(event) {
-    const checklistAction = event.target.closest('[data-checklist-action]');
-    if (checklistAction) {
-      const item = state.checklistItems.find(candidate => candidate.id === checklistAction.dataset.checklistId);
-      if (!item) return showToast('任务状态已变化，请刷新后重试。');
-      if (checklistAction.dataset.checklistAction === 'conversation') {
-        if (!item.assignedThreadId || item.done) return showToast('这项任务当前没有待处理会话。');
-        const thread = state.tasks.find(task => isLocalTask(task) && task.id === item.assignedThreadId);
-        if (!thread) return showToast('所属会话暂时不可用，请从原任务清单处理。');
-        requestOpen(thread);
-      } else if (checklistAction.dataset.checklistAction === 'manage') {
-        if (window.parent === window) return showToast('请在 Codex 控制台中打开原任务清单。');
-        window.parent.postMessage({ type: 'codex-control-console-open-checklist-task', taskId: item.id }, '*');
-      }
-      return;
-    }
     const button = event.target.closest("[data-dispatch-action]");
     if (button) {
       if (button.dataset.dispatchAction === "details") {
@@ -300,6 +259,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
     form.addEventListener("submit", submit);
     panel.addEventListener("click", handleClick);
     details.bind();
+    taskCenter.bind();
   }
 
   return { bind, load, render, setTaskState, updateDestinations };

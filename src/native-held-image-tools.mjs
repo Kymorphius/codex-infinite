@@ -113,5 +113,38 @@ export function createNativeHeldImageTools({ store = null, fetchImage = globalTh
     }
     return output;
   };
-  return { images, capture, captureBlobs, captureQueueInput, hydrate, release, count: (input) => refs(input).length };
+  const exportImages = async (input) => {
+    const selected = refs(input), hydrated = await hydrate(selected);
+    return selected.map((part, index) => ({ id: part.id, dataUrl: hydrated[index].url }));
+  };
+  const hasImages = async (input) => {
+    for (const part of refs(input)) {
+      const blob = await storage.get(part.id);
+      if (!(blob instanceof Blob) || !blob.size || !(await mimeFor(blob))) return false;
+    }
+    return true;
+  };
+  const importImages = async (items) => {
+    if (!Array.isArray(items) || items.length > 8) throw new Error('跨设备图片数量无效');
+    const prepared = [], ids = new Set(); let total = 0;
+    for (const item of items) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-7]$/i.test(item?.id || '') || ids.has(item.id)) throw new Error('跨设备图片引用无效');
+      const match = typeof item.dataUrl === 'string' && /^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(item.dataUrl);
+      if (!match || match[2].length > Math.ceil(8 * 1024 * 1024 / 3) * 4) throw new Error('跨设备图片格式或大小无效');
+      const bytes = Uint8Array.from(atob(match[2]), char => char.charCodeAt(0));
+      const blob = new Blob([bytes], { type: match[1] });
+      total += blob.size;
+      if (!blob.size || blob.size > 8 * 1024 * 1024 || total > 24 * 1024 * 1024 || await mimeFor(blob) !== match[1]) throw new Error('跨设备图片内容无效');
+      ids.add(item.id); prepared.push({ id: item.id, blob });
+    }
+    for (const item of prepared) {
+      await storage.put(item.id, item.blob);
+      const saved = await storage.get(item.id);
+      if (!(saved instanceof Blob) || saved.size !== item.blob.size || saved.type !== item.blob.type) throw new Error('跨设备图片写入校验失败');
+      const expected = new Uint8Array(await item.blob.arrayBuffer()), actual = new Uint8Array(await saved.arrayBuffer());
+      if (!expected.every((value, index) => value === actual[index])) throw new Error('跨设备图片写入校验失败');
+    }
+    return prepared.map(item => item.id);
+  };
+  return { images, capture, captureBlobs, captureQueueInput, hydrate, exportImages, importImages, hasImages, release, count: (input) => refs(input).length };
 }

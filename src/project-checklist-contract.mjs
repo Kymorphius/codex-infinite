@@ -1,5 +1,6 @@
 import { checklistTimeMetadata } from './project-checklist-time.mjs';
 import { normalizeChecklistInput } from './project-checklist-input.mjs';
+import { validateTaskMetadata } from './task-center-contract.mjs';
 
 export function normalizeChecklistAction(value) {
   if (!value || typeof value.projectKey !== 'string' || !value.projectKey.trim() || value.projectKey.length > 1000) throw Error('无效项目');
@@ -20,5 +21,10 @@ export function normalizeChecklistAction(value) {
     time.createdAtEstimated = value.createdAtEstimated;
   }
   const input = Object.prototype.hasOwnProperty.call(value, 'input') ? { input: normalizeChecklistInput(value.input) } : {};
-  return { projectKey: value.projectKey, id: value.id, requestId: value.requestId, type: value.type, text: value.text?.trim(), done: value.done, assignedThreadId, ...time, ...input };
+  const creation = {};
+  if (Object.hasOwn(value, 'creation')) {
+    if (typeof value.creation !== 'boolean') throw Error('无效新任务标记');
+    creation.creation = value.creation;
+  }
+  return { projectKey: value.projectKey, id: value.id, requestId: value.requestId, type: value.type, text: value.text?.trim(), done: value.done, assignedThreadId, ...time, ...input, ...creation, ...validateTaskMetadata(value) };
 }

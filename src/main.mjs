@@ -3,6 +3,7 @@ import { ExperimentService } from './experiment-service.mjs';
 import { NativeSidebarAdapter } from './native-sidebar-adapter.mjs';
 import { SidebarFederationService } from './sidebar-federation.mjs';
 import { ProjectChecklistStore } from './project-checklist-store.mjs';
+import { createTaskCenterRuntime } from './task-center-runtime.mjs';
 import { TurnAnnotationStore } from './turn-annotation-store.mjs';
 import { RuntimeRestartService } from "./runtime-restart.mjs";
 import { NativeAppLaunchService } from "./native-app-launch.mjs";
@@ -214,13 +215,14 @@ export async function run() {
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
+  const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers });
   const personalPanelTaskAdapter = new PersonalPanelTaskAdapter({ scriptPath: config.personalPanelTaskBridgePath });
-  const dashboard = createDashboardServer({ config, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const dashboard = createDashboardServer({ config, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
   await dashboard.listen();
   try {
     const codex = attachedCodex || await ensureDedicatedCodex(config);
     injector = new CodexInjector({
-      checklistStore,
+      checklistStore: taskCenter.projection,
       annotationStore: new TurnAnnotationStore(path.join(config.wrapperCodexHome, 'annotations')),
       cdpOrigin: config.cdpOrigin,
       dashboardUrl: config.dashboardOrigin,

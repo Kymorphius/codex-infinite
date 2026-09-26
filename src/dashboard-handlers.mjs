@@ -1,5 +1,6 @@
 import { createExperimentsHttpHandler } from './experiments-http.mjs';
 import { createSidebarHttpHandler } from './sidebar-http.mjs';
+import { createTaskCenterHttpHandler } from './task-center-http.mjs';
 import { createRuntimeRestartHttpHandler } from "./runtime-restart-http.mjs";
 import { createNativeAppLaunchHttpHandler } from "./native-app-launch-http.mjs";
 import { createActivityHttpHandler } from "./activity-http.mjs";
@@ -20,13 +21,14 @@ import { createPersonalPanelTaskHttpHandler } from './personal-panel-task-http.m
 import { AccountUsageReader } from './account-usage.mjs';
 import { createAccountUsageHttpHandler } from './account-usage-http.mjs';
 
-export function createDashboardHandlers({ config, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
+export function createDashboardHandlers({ config, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
   const health = createHealthHttpHandler(config);
   return [
     async (_request, response, requestUrl) => health(response, requestUrl),
     createRuntimeRestartHttpHandler({ service: restartService, dashboardOrigin: config.dashboardOrigin }),
     createNativeAppLaunchHttpHandler({ service: nativeAppLaunchService, dashboardOrigin: config.dashboardOrigin }),
     createSidebarHttpHandler({ sidebarService, nativeSidebarAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
+    createTaskCenterHttpHandler({ ...taskCenter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createExperimentsHttpHandler({ experimentService }),
     createDiagnosticsHttpHandler({ diagnosticsService }),
     createSkillsHttpHandler({ skillSyncService, localSkillAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),

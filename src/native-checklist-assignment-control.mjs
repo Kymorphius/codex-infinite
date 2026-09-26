@@ -1,9 +1,9 @@
 export function createNativeChecklistAssignmentControl({ make, dialog, getProject, getLoaded, getRenderVersion, readChoices, view, generalItems, act, render, state }) {
   return function appendAssignmentControl(row, item, label, readTask) {
-    const assign = make('button', label); assign.disabled = getLoaded() !== getProject()?.key;
+    const assign = make('button', label); assign.disabled = getLoaded() !== getProject()?.key || item.readOnly === true;
     const projectKey = getProject()?.key, panelVersion = getRenderVersion();
     const current = () => {
-      if (!dialog.open || getProject()?.key !== projectKey || panelVersion !== getRenderVersion() || getLoaded() !== projectKey) return null;
+      if (item.readOnly || !dialog.open || getProject()?.key !== projectKey || panelVersion !== getRenderVersion() || getLoaded() !== projectKey) return null;
       return readTask ? readTask() : view(projectKey, generalItems()).find(value => value.id === item.id && value.text === item.text && value.done === item.done && value.assignedThreadId === item.assignedThreadId);
     };
     assign.addEventListener('pointerdown', event => event.preventDefault());

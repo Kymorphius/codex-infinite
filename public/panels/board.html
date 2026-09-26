@@ -6,11 +6,11 @@
               <p class="muted">安排任务并续接指定 Codex 对话。发送队列可手动排序，待办消息不会自动执行。</p>
             </div>
             <div class="dispatch-metrics" aria-label="看板概览">
-              <span><strong data-testid="dispatch-count">—</strong> 全部</span>
-              <span><strong data-testid="dispatch-waiting-count">—</strong> 等待</span>
-              <span><strong data-testid="dispatch-target-count">—</strong> 对话</span>
+              <span><strong data-testid="dispatch-count">—</strong> 本机排期</span>
+              <span><strong data-testid="dispatch-waiting-count">—</strong> 等待发送</span>
+              <span><strong data-testid="dispatch-target-count">—</strong> 目标对话</span>
             </div>
-            <button class="primary-button dispatch-create-toggle" type="button" data-action="toggle-dispatch-composer" aria-expanded="false" aria-controls="dispatch-composer">新建任务</button>
+            <button class="primary-button dispatch-create-toggle" type="button" data-action="toggle-dispatch-composer" aria-expanded="false" aria-controls="dispatch-composer">安排发送</button>
           </section>
 
           <section class="composer-card hidden" id="dispatch-composer" data-testid="dispatch-composer">
@@ -38,13 +38,23 @@
               <section class="board-column"><header class="board-column-header"><h3>已完成</h3><span class="column-count" data-personal-panel-count="done">0</span></header><div class="board-column-list" data-personal-panel-list="done"></div></section>
               <section class="board-column"><header class="board-column-header"><h3>待核对</h3><span class="column-count" data-personal-panel-count="review">0</span></header><div class="board-column-list" data-personal-panel-list="review"></div></section>
             </div>
-            <div class="section-heading"><div><p class="eyebrow">TASK LIST</p><h2>综合任务清单</h2><p class="muted">与原生任务清单同步；这里不会自动发送。</p></div></div>
-            <p class="dispatch-error hidden" data-testid="checklist-board-error"></p>
-            <div class="dispatch-board" data-testid="checklist-board">
-              <section class="board-column"><header class="board-column-header"><h3>待领取</h3><span class="column-count" data-checklist-count="unassigned">0</span></header><div class="board-column-list" data-checklist-list="unassigned"></div></section>
-              <section class="board-column"><header class="board-column-header"><h3>会话待办</h3><span class="column-count" data-checklist-count="assigned">0</span></header><div class="board-column-list" data-checklist-list="assigned"></div></section>
-              <section class="board-column"><header class="board-column-header"><h3>已完成</h3><span class="column-count" data-checklist-count="done">0</span></header><div class="board-column-list" data-checklist-list="done"></div></section>
-            </div>
+            <section class="task-center" data-task-center aria-labelledby="task-center-title">
+              <div class="section-heading">
+                <div><p class="eyebrow">TASK CENTER</p><h2 id="task-center-title">全设备任务中心</h2><p class="muted" data-task-center-summary>正在读取设备任务…</p></div>
+                <div class="task-center-heading-actions"><button class="quiet-button" type="button" data-task-center-refresh>刷新</button><button class="primary-button" type="button" data-task-center-add disabled>添加任务</button></div>
+              </div>
+              <div class="task-center-toolbar" aria-label="筛选全设备任务">
+                <label class="task-center-search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="sr-only">搜索全设备任务</span><input type="search" data-task-center-filter="query" placeholder="搜索任务内容、设备或项目"></label>
+                <label><span class="sr-only">来源设备</span><select data-task-center-filter="device"><option value="">全部设备</option></select></label>
+                <label><span class="sr-only">任务状态</span><select data-task-center-filter="status"><option value="">全部状态</option><option value="inbox">待领取</option><option value="assigned">会话待办</option><option value="review">待核对</option><option value="delivered">已交付</option><option value="done">已完成</option><option value="backlog">排期待办</option><option value="scheduled">已排期</option><option value="queued">排队中</option><option value="sending">发送中</option><option value="sent">已发送</option><option value="failed">发送失败</option><option value="cancelled">已取消</option><option value="delivery_unknown">发送待核对</option></select></label>
+              </div>
+              <div class="task-center-devices" data-task-center-devices hidden></div>
+              <p class="task-center-feedback" data-task-center-feedback role="status" hidden></p>
+              <form class="task-center-editor" data-task-center-editor hidden></form>
+              <div class="task-center-list" data-task-center-list></div>
+              <p class="column-empty" data-task-center-empty hidden></p>
+              <div class="task-center-footer"><span class="muted" data-task-center-count>0 / 0 项</span><button class="quiet-button" type="button" data-task-center-more hidden>再显示 50 项</button><span class="muted">按最初加入时间排列 · 本机排期在下方管理</span></div>
+            </section>
             <div class="section-heading">
               <div><p class="eyebrow">SEND PIPELINE</p><h2>排期与发送</h2></div>
               <button class="quiet-button" type="button" data-action="refresh-dispatches">刷新</button>

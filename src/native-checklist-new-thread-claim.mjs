@@ -32,7 +32,9 @@ export function createNativeChecklistThreadStarter() {
     })).catch(error => { cleanup(); reject(error); }); }
     catch (error) { cleanup(); reject(error); }
   });
-  return async input => {
+  const start = async input => {
+    let submitted = false;
+    try {
     const parts = Array.isArray(input) ? input : [{ type: 'text', text: String(input || '') }];
     const text = parts.filter(part => part?.type === 'text').map(part => part.text || '').join('\n');
     if (parts.some(part => part?.type === 'heldImage')) throw new Error('含图片的任务请领取到现有会话待办；新建会话图片发送暂不支持');
@@ -55,7 +57,7 @@ export function createNativeChecklistThreadStarter() {
     if (!send || readMountedId()) throw new Error('原生发送按钮尚未就绪，内容已留在输入框，请检查后手动发送');
     if ((editor.innerText || editor.textContent || '').trim() !== text.trim()) throw new Error('输入框内容已变化，请检查后再发送');
     const requestedAt = Date.now();
-    send.click();
+    submitted = true; send.click();
     let threadId = null;
     for (let attempt = 0; attempt < 200; attempt += 1) {
       threadId = readMountedId();
@@ -76,29 +78,67 @@ export function createNativeChecklistThreadStarter() {
       await pause(250);
     }
     throw new Error('新会话已打开，但首条消息尚未核对；请先检查会话，避免重复领取');
+    } catch (error) { if (!submitted) error.nativeNotSubmitted = true; throw error; }
   };
+  start.preflight = () => {
+    const editor = document.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+    if (!editor?.closest('[data-composer-surface-variant]') || readMountedId()) throw new Error('请从新建任务页领取');
+    if ((editor.innerText || editor.textContent || '').trim()) throw new Error('输入框已有内容，请先处理原有草稿');
+  };
+  return start;
 }
 
-export function createNativeChecklistNewThreadClaim({ start, readTask, enqueue, report, showFailure }) {
+export function createNativeChecklistNewThreadClaim({ start, readTask, enqueue, report, showFailure, prepare, release, storage }) {
   const inFlight = new Set();
-  return {
-    async claim(id, readEdited) {
+  const controller = {
+    async claim(id, readEdited, lockHeld = false) {
       if (inFlight.has(id)) return;
-      const edited = readEdited();
-      if (!edited || edited.done || edited.assignedThreadId) return;
+      if (!lockHeld && typeof navigator !== 'undefined' && navigator.locks) return navigator.locks.request('ccc-task-delivery:' + id, { ifAvailable: true }, lock => lock && controller.claim(id, readEdited, true));
+      let edited = readEdited();
+      if (!edited || edited.done || edited.executionState === 'delivered' || edited.assignedThreadId) return;
       inFlight.add(id);
       report('正在用任务内容创建新会话…');
+      const receiptKey = 'ccc.checklist.new-thread.v1:' + id;
+      let receipt;
       try {
+        if (edited.input?.some(part => part.type === 'heldImage')) throw new Error('带图任务请选择已有会话');
+        receipt = storage ? JSON.parse(storage.getItem(receiptKey) || 'null') : null;
+        if (receipt?.phase === 'releasing') {
+          if (edited.sourceConnected && !edited.deliveryReservation && edited.expectedRevision && ![receipt.expectedRevision, receipt.sourceRevisionBefore].includes(edited.expectedRevision)) { storage.removeItem(receiptKey); receipt = null; }
+          else if (edited.sourceConnected && edited.deliveryReservation?.token === receipt.reservationToken && release) { await release(id, receipt, receipt.releaseRequestId); storage.removeItem(receiptKey); report('任务预占已解除，可以重新领取'); return; }
+          else throw new Error('尚未发送消息，任务预占解除结果待核对');
+        }
+        if (receipt && (receipt.phase !== 'verifying' || !lockHeld)) throw new Error('上次领取结果待核对，已阻止重复发送；请先查看最近会话');
+        const ownsReservation = receipt && edited.deliveryReservation?.requestId === receipt.requestId;
+        if (edited.sourceConnected === false || (edited.readOnly && !ownsReservation)) throw new Error('任务来源未连接或交付待核对');
+        if (receipt?.text) edited = { ...edited, text: receipt.text, ...(receipt.input ? { input: receipt.input } : {}) };
+        if (edited.sourceRef && (!prepare || !storage)) throw new Error('任务来源核对尚未就绪，请刷新后领取');
+        start.preflight?.();
+        const requestId = receipt?.requestId || crypto.randomUUID();
+        receipt ||= { phase: 'verifying', requestId, expectedRevision: edited.expectedRevision, sourceRevisionBefore: edited.expectedRevision, text: edited.text, ...(edited.input ? { input: edited.input } : {}) };
+        storage?.setItem(receiptKey, JSON.stringify(receipt));
+        const reserved = ownsReservation ? { revision: edited.expectedRevision, deliveryReservation: edited.deliveryReservation } : prepare ? await prepare(edited, requestId) : null;
+        if (edited.sourceRef && !reserved?.deliveryReservation?.token) throw new Error('来源设备未确认任务预占，未发送消息');
+        const reservation = reserved ? { expectedRevision: reserved.revision, reservationToken: reserved.deliveryReservation.token } : {};
+        Object.assign(receipt, reservation, { phase: 'submitting' }); storage?.setItem(receiptKey, JSON.stringify(receipt));
         const threadId = await start(edited.input || edited.text);
+        receipt.phase = 'created'; receipt.threadId = threadId; storage?.setItem(receiptKey, JSON.stringify(receipt));
         const current = readTask(id);
         if (!current || current.done || current.assignedThreadId) {
           report('会话已创建，但任务状态已变化；请检查任务清单');
           return;
         }
-        const requestId = enqueue({ ...current, text: edited.text, done: true, assignedThreadId: threadId });
-        report(requestId ? '会话已创建，正在保存任务状态…' : '会话已创建，但任务状态未保存；请检查任务清单');
-      } catch (error) { report(String(error?.message || '无法新建会话')); showFailure(); }
+        const saved = enqueue({ ...current, ...reservation, text: edited.text, ...(edited.input ? { input: edited.input } : {}), done: false, executionState: 'delivered', assignedThreadId: threadId });
+        report(saved ? '会话已创建，正在保存任务状态…' : '会话已创建，但任务状态未保存；请检查任务清单');
+      } catch (error) {
+        if (receipt?.reservationToken && error.nativeNotSubmitted && release) {
+          receipt.phase = 'releasing'; receipt.releaseRequestId = crypto.randomUUID(); storage?.setItem(receiptKey, JSON.stringify(receipt));
+          try { await release(id, receipt, receipt.releaseRequestId); storage?.removeItem(receiptKey); } catch { report('尚未发送消息，任务预占解除结果待核对'); showFailure(); return; }
+        } else if (receipt?.phase === 'verifying' && ['REVISION_CONFLICT', 'TASK_NOT_FOUND', 'TARGET_MISMATCH', 'TASK_NOT_PENDING', 'DELIVERY_RESERVED'].includes(error.code)) storage?.removeItem(receiptKey);
+        report(String(error?.message || '无法新建会话')); showFailure();
+      }
       finally { inFlight.delete(id); }
     }
   };
+  return controller;
 }
