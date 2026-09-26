@@ -1,0 +1,47 @@
+.terminal-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.terminal-panel.hidden { display: none; }
+.terminal-toolbar { display: flex; align-items: flex-end; gap: 10px; }
+.terminal-directory { flex: 1; min-width: 140px; gap: 6px; }
+.terminal-directory input { width: 100%; min-width: 0; font-family: "SFMono-Regular", Menlo, monospace; font-size: 12px; }
+.terminal-toolbar button { flex-shrink: 0; min-height: 39px; }
+.terminal-new { border: 1px solid var(--native-ui-border, #ddd); }
+.terminal-alert { padding: 12px 16px; border: 1px solid #bd846740; border-radius: 10px; color: var(--native-ui-text, #222); background: #ba805d12; font-size: 13px; }
+.terminal-workspace { border: 1px solid var(--native-ui-border, #ddd); border-radius: 12px; overflow: hidden; min-width: 0; background: #171719; }
+.terminal-tabbar { display: flex; gap: 3px; overflow-x: auto; padding: 7px 9px; min-height: 45px; border-bottom: 1px solid #333337; background: #202023; }
+.terminal-tabbar:empty { display: none; }
+.terminal-tab { border: 1px solid transparent; border-radius: 6px; background: transparent; color: #a8a8b0; padding: 7px 12px; flex-shrink: 0; font-size: 12px; max-width: 260px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.terminal-tab:hover { background: #303034; color: #eee; }
+.terminal-tab[aria-selected="true"] { background: #37373d; border-color: #46464d; color: #f2f2f5; }
+.terminal-tab:focus-visible { outline: 2px solid #9ba7c2; outline-offset: -2px; }
+.terminal-tab[data-exited="true"]::after { content: " · 已退出"; color: #a1a1aa; }
+.terminal-session-bar { display: flex; align-items: center; gap: 9px; padding: 8px 13px; border-bottom: 1px solid #2d2d32; color: #a8a8b0; font-size: 11px; }
+.terminal-session-meta { display: flex; gap: 12px; flex: 1; min-width: 0; align-items: center; }
+.terminal-session-meta > span { flex-shrink: 0; color: #b1cbb8; }
+.terminal-session-meta code { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a8a8b0; font-size: 11px; }
+.terminal-session-bar .quiet-button { color: #c0c0c8; padding: 5px 9px; font-size: 11px; }
+.terminal-session-bar .quiet-button:hover { background: #333338; color: #fff; }
+.terminal-replay-note { margin: 0; padding: 7px 15px; color: #cfc1a0; background: #363126; font-size: 11px; }
+.terminal-viewport { position: relative; height: max(380px, calc(100dvh - 290px)); min-height: 380px; }
+.terminal-screen { position: absolute; inset: 0; padding: 12px 10px 8px; }
+.terminal-screen[hidden] { display: none; }
+.terminal-screen .xterm { height: 100%; }
+.terminal-screen .xterm-viewport { scrollbar-color: #515158 #171719; }
+.terminal-empty { min-height: 380px; display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 30px; text-align: center; color: #a8a8b0; }
+.terminal-empty-symbol { font-family: Menlo, monospace; font-size: 32px; color: #ceced4; margin-bottom: 15px; }
+.terminal-empty h2 { color: #e4e4e7; font-size: 17px; font-weight: 500; margin: 0 0 6px; }
+.terminal-empty p { max-width: 420px; font-size: 13px; line-height: 1.7; }
+.terminal-empty .quiet-button { color: #b4b4c0; }
+.terminal-footnote { margin: 0; font-size: 11px; color: var(--native-ui-text-secondary, #777); }
+.terminal-confirm { max-width: 420px; width: calc(100% - 40px); padding: 24px; border: 1px solid var(--native-ui-border, #ddd); border-radius: 14px; color: var(--native-ui-text, #222); background: var(--native-ui-surface, #fff); box-shadow: 0 20px 90px #0005; }
+.terminal-confirm::backdrop { background: #0006; }
+.terminal-confirm h3 { margin: 0 0 12px; font-size: 17px; }
+.terminal-confirm p { font-size: 13px; line-height: 1.6; color: var(--native-ui-text-secondary, #777); }
+.terminal-confirm code { display: block; overflow-wrap: anywhere; font-size: 12px; }
+.terminal-confirm > div { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+@media (max-width: 650px) {
+  .terminal-toolbar { flex-wrap: wrap; }
+  .terminal-directory { flex-basis: 100%; }
+  .terminal-session-meta { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .terminal-session-meta code { max-width: 100%; }
+  .terminal-viewport { height: max(380px, calc(100dvh - 350px)); }
+}

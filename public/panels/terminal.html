@@ -1,0 +1,24 @@
+        <section class="terminal-panel hidden" data-module-panel="terminal">
+          <div class="terminal-toolbar">
+            <label class="field terminal-directory"><span>工作目录</span><input type="text" data-testid="terminal-cwd" list="terminal-project-directories" autocomplete="off" spellcheck="false" placeholder="选择项目或输入绝对路径"><datalist id="terminal-project-directories"></datalist></label>
+            <button class="quiet-button terminal-new" type="button" data-terminal-create="shell">新建终端</button>
+            <button class="primary-button" type="button" data-terminal-create="claude">Claude CLI</button>
+          </div>
+          <div class="terminal-alert hidden" data-testid="terminal-error" role="alert"></div>
+          <div class="terminal-workspace">
+            <div class="terminal-tabbar" role="tablist" aria-label="终端会话" data-testid="terminal-tabs"></div>
+            <div class="terminal-session-bar hidden" data-testid="terminal-session-bar">
+              <div class="terminal-session-meta"><span data-testid="terminal-status" role="status"></span><code data-testid="terminal-path"></code></div>
+              <button class="quiet-button hidden" type="button" data-terminal-reconnect>重新连接</button>
+              <button class="quiet-button" type="button" data-terminal-close>关闭终端</button>
+            </div>
+            <p class="terminal-replay-note hidden" data-testid="terminal-replay-note">较早的输出已超出保留范围；当前程序仍可继续使用。</p>
+            <div class="terminal-empty" data-testid="terminal-empty"><span class="terminal-empty-symbol" aria-hidden="true">›_</span><h2>终端就在这里</h2><p data-testid="terminal-empty-message">选择工作目录，打开终端或原生 Claude CLI。</p><button class="quiet-button" type="button" data-terminal-refresh>刷新会话</button></div>
+            <div class="terminal-viewport hidden" data-testid="terminal-viewport"></div>
+          </div>
+          <p class="terminal-footnote">仅在本机运行。切换页面或刷新会保留终端，重启控制台会结束终端。</p>
+          <dialog class="terminal-confirm" data-testid="terminal-close-dialog" aria-labelledby="terminal-close-title">
+            <h3 id="terminal-close-title">关闭正在运行的终端？</h3><p>这会关闭终端连接，并结束仍在运行的终端会话。</p><code data-testid="terminal-close-name"></code>
+            <div><button class="quiet-button" type="button" data-terminal-close-cancel>保留终端</button><button class="primary-button" type="button" data-terminal-close-confirm>结束并关闭</button></div>
+          </dialog>
+        </section>

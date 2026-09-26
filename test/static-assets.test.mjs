@@ -126,7 +126,7 @@ test("index GET assembles only the fixed private panel files", async () => {
       return Buffer.from(`<section>${filePath.split("/").at(-1)}</section>`);
     }
   });
-  assert.equal(reads.length, 12);
+  assert.equal(reads.length, 13);
   assert.match(response.body.toString(), /board\.html.*generators\.html.*jev-routing\.html.*context\.html.*usage\.html.*console\.html.*experiments\.html.*skills\.html.*zotero\.html/s);
 });
 

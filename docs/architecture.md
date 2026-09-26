@@ -4,6 +4,11 @@
 
 Codex Control Console is a loopback-only companion embedded into a dedicated Codex desktop profile. It indexes shared native sessions, opens native conversations, schedules work, exposes context controls, ranks projects, and bridges Zotero without becoming a second chat system.
 
+The embedded local terminal is a separate PTY capability for interactive shells
+and native Claude CLI. The console owns only terminal processes it starts, with
+bounded memory-only output and exact-origin local transport. Terminal sessions
+are not Codex conversation records and do not enter the native session index.
+
 The following are invariants:
 
 - Native Codex remains the owner of conversations and project state.
@@ -35,6 +40,11 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
 ## Current module ownership
 
 - `src/main.mjs` — composition root and lifecycle only.
+- `src/terminal-contract.mjs`, `src/terminal-process.mjs`,
+  `src/terminal-service.mjs`, `src/terminal-http.mjs`,
+  `src/terminal-websocket.mjs` — bounded terminal contracts, owned local PTYs,
+  single-controller connections, and exact-origin HTTP/WebSocket transport.
+  `src/terminal-assets.mjs` registers only the pinned browser runtime assets.
 - `src/board.mjs`, `src/priority.mjs`, `public/core/project-priority.js` — pure
   derived domain views and the browser-compatible shared priority policy.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.

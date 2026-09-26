@@ -17,6 +17,7 @@ import { createZoteroFeature } from "./features/zotero/index.js";
 import { createTurboFeature } from "./features/turbo/index.js";
 import { createSkillsFeature } from "./features/skills/index.js";
 import { createJevRoutingFeature } from "./features/jev-routing/index.js";
+import { createTerminalFeature } from "./features/terminal/index.js";
 
 (() => {
   announceEmbeddedReady();
@@ -31,6 +32,8 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
   const navigation = createNavigation({
     state, modules: MODULES, $, showToast,
     onActivate(module) {
+      if (module === "terminal") void terminalFeature.load();
+      else terminalFeature.deactivate();
       if (module === "zotero" && !state.zotero.initialized) void zoteroFeature.load();
       if (module === "context" && !state.context.initialized) void contextFeature.load();
       if (module === "experiments") void experimentsFeature.load();
@@ -40,6 +43,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
       if (module === "usage") void usageFeature.load();
     },
     async onRefresh() {
+      if (state.module === "terminal") return terminalFeature.load();
       if (state.module === "experiments") return experimentsFeature.load();
       const refreshes = [taskSource.load(), dispatchFeature.load(), generatorsFeature.load()];
       if (state.module === "zotero") refreshes.push(zoteroFeature.load());
@@ -70,6 +74,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
   const experimentsFeature = createExperimentsFeature({ $ });
   const skillsFeature = createSkillsFeature({ $, showToast });
   const jevRoutingFeature = createJevRoutingFeature({ $, showToast });
+  const terminalFeature = createTerminalFeature({ state, $, showToast });
 
   const taskSource = createTaskSource({
     state,
@@ -104,6 +109,8 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
   experimentsFeature.bind();
   skillsFeature.bind();
   jevRoutingFeature.bind();
+  terminalFeature.bind();
+  window.addEventListener("pagehide", event => { if (!event.persisted) terminalFeature.dispose(); });
   navigation.bind();
   navigation.updateChrome();
   Promise.all([taskSource.load(), dispatchFeature.load(), generatorsFeature.load(), turboFeature.load()]);
@@ -113,6 +120,7 @@ import { createJevRoutingFeature } from "./features/jev-routing/index.js";
   if (state.module === "experiments") void experimentsFeature.load();
   if (state.module === "skills") void skillsFeature.load();
   if (state.module === "jev-routing") void jevRoutingFeature.load();
+  if (state.module === "terminal") void terminalFeature.load();
   setInterval(() => void dispatchFeature.load({ quiet: true }), 2500);
   setInterval(() => void generatorsFeature.load({ quiet: true }), 2500);
   createAdaptiveRefreshScheduler({

@@ -1,3 +1,5 @@
+import { TerminalService } from './terminal-service.mjs';
+import { attachTerminalWebSocket } from './terminal-websocket.mjs';
 import { NativeExperimentAdapter } from './native-experiment-adapter.mjs';
 import { ExperimentService } from './experiment-service.mjs';
 import { NativeSidebarAdapter } from './native-sidebar-adapter.mjs';
@@ -211,15 +213,17 @@ export async function run() {
   let injector;
   let nativeOwnerInjector = null;
   const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
-  const restartService = new RuntimeRestartService({ config, prepare: async () => { turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
+  const terminalService = new TerminalService({ userHome: config.userHome, defaultCwd: config.userHome });
+  const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
   const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers });
   const personalPanelTaskAdapter = new PersonalPanelTaskAdapter({ scriptPath: config.personalPanelTaskBridgePath });
-  const dashboard = createDashboardServer({ config, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
-  await dashboard.listen();
+  const dashboard = createDashboardServer({ config, terminalService, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const detachTerminal = attachTerminalWebSocket({ server: dashboard.server, service: terminalService, dashboardOrigin: config.dashboardOrigin });
   try {
+    await dashboard.listen();
     const codex = attachedCodex || await ensureDedicatedCodex(config);
     injector = new CodexInjector({
       checklistStore: taskCenter.projection,
@@ -254,6 +258,8 @@ export async function run() {
     console.log("[codex-control-console] regular-chat context: model default");
     console.log(`[codex-control-console] per-thread extended context request: ${wrapper.requestedContextWindow}`);
   } catch (error) {
+    detachTerminal();
+    await terminalService.dispose();
     turboRuntime.stop();
     await sentMessageSearchService.index?.close();
     zoteroAdapter.close();
@@ -262,6 +268,8 @@ export async function run() {
   }
 
   const shutdown = async () => {
+    detachTerminal();
+    await terminalService.dispose();
     turboRuntime.stop();
     jevTaskDispatcher.close();
     await injector.stop();

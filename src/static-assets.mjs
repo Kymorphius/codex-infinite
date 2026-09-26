@@ -2,20 +2,23 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import packageMetadata from "../package.json" with { type: "json" };
+import { terminalAssets } from './terminal-assets.mjs';
 
 const publicDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const javascriptType = "text/javascript; charset=utf-8";
 const coreNames = ["dom", "format", "navigation", "project-priority", "refresh-policy", "state", "tasks", "transport"];
-const featureNames = ["runtime", "console", "context", "usage", "dispatch", "generators", "jev-routing", "priority", "sessions", "experiments", "skills", "turbo", "zotero"];
+const featureNames = ["runtime", "console", "context", "usage", "dispatch", "generators", "jev-routing", "priority", "sessions", "experiments", "skills", "turbo", "zotero", "terminal"];
 const dispatchSupportFiles = ["details", "personal-panel"];
 const skillSupportFiles = ["group-actions"];
 const sessionSupportFiles = ["approval-model", "conversation-model", "conversation-tabs", "disclosure", "draft-sync", "execution-view", "markdown-view", "model", "model-bulk", "project-copy", "remote-approvals", "remote-conversation", "settings-controller"];
 const zoteroSupportFiles = ["browser", "editor", "format"];
-const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "jev-routing", "usage", "responsive"];
-const panelFiles = ["board", "generators", "jev-routing", "context", "usage", "console", "sessions", "priority", "experiments", "skills", "zotero"].map((name) => `panels/${name}.html`);
+const styleNames = ["base", "tasks", "sessions-priority", "approvals", "execution", "conversation", "states", "zotero", "theme", "turbo", "experiments", "skills", "generators", "jev-routing", "usage", "responsive", "terminal"];
+const panelFiles = ["board", "generators", "jev-routing", "context", "usage", "console", "sessions", "priority", "experiments", "skills", "zotero", "terminal"].map((name) => `panels/${name}.html`);
 const assetMap = new Map([
   ["/styles/task-center.css", { file: "styles/task-center.css", type: "text/css; charset=utf-8" }],
   ...["index", "model", "controller", "view", "editor"].map(name => [`/features/task-center/${name}.js`, { file: `features/task-center/${name}.js`, type: javascriptType }]),
+  ...terminalAssets,
+  ...["session", "presentation"].map(name => [`/features/terminal/${name}.js`, { file: `features/terminal/${name}.js`, type: javascriptType }]),
   ["/conversations.html", { file: "conversations.html", type: "text/html; charset=utf-8" }],
   ["/styles/conversations.css", { file: "styles/conversations.css", type: "text/css; charset=utf-8" }],
   ...["model", "index"].map(name => [`/features/conversations/${name}.js`, { file: `features/conversations/${name}.js`, type: javascriptType }]),
@@ -42,7 +45,7 @@ const assetMap = new Map([
   ...zoteroSupportFiles.map((name) => [`/features/zotero/${name}.js`, { file: `features/zotero/${name}.js`, type: javascriptType }])
 ].map(([url, asset]) => [url, Object.freeze({
   ...asset,
-  path: path.join(publicDirectory, asset.file),
+  path: asset.path || path.join(publicDirectory, asset.file),
   fragmentPaths: Object.freeze((asset.fragments || []).map((file) => path.join(publicDirectory, file)))
 })]));
 
