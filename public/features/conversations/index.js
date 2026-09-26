@@ -1,3 +1,4 @@
+import { openManagedTerminal, terminalConversationRequest } from '../../core/terminal-conversations.js';
 import { BOARD_COLUMNS, conversationCatalog, conversationIdentity, filterConversations, openAction, resolveOpenTarget, validateSidebarPayload } from './model.js';
 
 const $ = selector => document.querySelector(selector);
@@ -42,7 +43,7 @@ function renderDevices() {
 function card(item) {
   const node = $('#conversation-card-template').content.firstElementChild.cloneNode(true);
   node.dataset.conversationId = item.identity;
-  node.querySelector('.source-badge').textContent = item.source === 'chatgpt' ? 'ChatGPT' : 'Codex';
+  node.querySelector('.source-badge').textContent = item.source === 'terminal' ? (item.kind === 'claude' ? 'Claude CLI' : 'Shell') : item.source === 'chatgpt' ? 'ChatGPT' : 'Codex';
   node.querySelector('.type-badge').textContent = item.workType;
   node.querySelector('h3').textContent = item.title || '未命名会话';
   const project = node.querySelector('.project-name'); project.textContent = item.project?.name || item.cwd || '未归入项目';
@@ -112,6 +113,17 @@ async function refresh() {
 
 async function openConversation(identity) {
   if (state.busy) return;
+  const terminal = catalog().find(item => item.identity === identity && item.provider === 'terminal');
+  if (terminal) {
+    state.busy = identity; render();
+    try {
+      const { conversation } = await terminalConversationRequest('open', { id: terminal.id });
+      if (conversation.archived) throw Error('会话已归档，请先在会话管理中恢复');
+      openManagedTerminal(conversation);
+    } catch (error) { showNotice(error.message, true); }
+    finally { state.busy = null; render(); }
+    return;
+  }
   const version = ++readVersion;
   state.loading = false; state.enriching = false; state.busy = identity; render(); showNotice('正在核对所属设备的最新侧栏…');
   try {

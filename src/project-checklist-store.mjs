@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { normalizeChecklistAction } from './project-checklist-contract.mjs';
 import { checklistTimeMetadata } from './project-checklist-time.mjs';
 import { taskInputAfterTextEdit } from './project-checklist-input.mjs';
-import { changeTaskItem, normalizeTaskCenterAction, taskCenterError, taskRevision, validateTaskScopeId } from './task-center-contract.mjs';
+import { changeTaskItem, normalizeTaskCenterAction, taskProvider, taskCenterError, taskRevision, validateTaskScopeId } from './task-center-contract.mjs';
 import { TaskCenterReceiptArchive } from './task-center-receipts.mjs';
 export class ProjectChecklistStore {
   constructor(directory) { this.directory = directory; this.chain = Promise.resolve(); this.taskReceiptIndex = null; this.receiptArchive = new TaskCenterReceiptArchive(directory); }
@@ -114,7 +114,7 @@ export class ProjectChecklistStore {
         const previous = index >= 0 ? data.items[index] : null;
         const input = previous ? taskInputAfterTextEdit(action.input || previous.input, previous.text, action.text) : action.input;
         const item = { ...previous, id: action.id, text: action.text, done: action.done, assignedThreadId: action.assignedThreadId, updatedAt, ...time, ...(input ? { input } : {}) };
-        for (const key of ['assignedDeviceId', 'executionState']) if (Object.hasOwn(action, key)) item[key] = action[key];
+        for (const key of ['assignedProvider', 'assignedDeviceId', 'executionState']) if (Object.hasOwn(action, key)) item[key] = action[key];
         if (index >= 0) data.items[index] = item; else data.items.push(item);
       }
       data.receipts = [...data.receipts, action.requestId].slice(-2000);
@@ -148,20 +148,23 @@ export class ProjectChecklistStore {
       if (action.type === 'verify-delivery') {
         if (previous.done || previous.executionState === 'delivered') throw taskCenterError('TASK_NOT_PENDING', '任务已完成或交付，请刷新后重试', 409);
         const assignedDeviceId = previous.assignedDeviceId || localDeviceId;
+        if (previous.assignedThreadId && taskProvider(action.assignedProvider) !== taskProvider(previous.assignedProvider ?? 'codex')) throw taskCenterError('TARGET_MISMATCH', '任务已改派到另一种会话，请刷新后重试', 409);
         if (previous.assignedThreadId ? action.assignedDeviceId !== assignedDeviceId || action.assignedThreadId !== previous.assignedThreadId : action.assignedThreadId !== null) throw taskCenterError('TARGET_MISMATCH', '任务已改派，请刷新后重试', 409);
-        if (typeof verifyTarget !== 'function' || !(await verifyTarget({ deviceId: action.assignedDeviceId, threadId: action.assignedThreadId }))) throw taskCenterError('TARGET_UNAVAILABLE', '目标设备或会话不可用', 409);
+        if (typeof verifyTarget !== 'function' || !(await verifyTarget({ provider: taskProvider(action.assignedProvider), deviceId: action.assignedDeviceId, threadId: action.assignedThreadId }))) throw taskCenterError('TARGET_UNAVAILABLE', '目标设备或会话不可用', 409);
       }
       if (action.type === 'delivered') {
         if (!reservation || action.reservationToken !== reservation.token) throw taskCenterError('RESERVATION_MISMATCH', '交付预占凭证已失效，请核对目标会话', 409);
         const deviceId = action.assignedDeviceId || previous.assignedDeviceId || localDeviceId;
         const threadId = action.assignedThreadId || previous.assignedThreadId;
-        if (deviceId !== reservation.assignedDeviceId || !threadId || (reservation.assignedThreadId && threadId !== reservation.assignedThreadId)) throw taskCenterError('TARGET_MISMATCH', '交付目标与预占不符，请核对目标会话', 409);
-        if (typeof verifyTarget !== 'function' || !(await verifyTarget({ deviceId, threadId }))) throw taskCenterError('TARGET_UNAVAILABLE', '目标设备或会话不可用', 409);
+        const provider = taskProvider(action.assignedProvider ?? previous.assignedProvider ?? 'codex');
+        if (provider !== taskProvider(reservation.assignedProvider) || deviceId !== reservation.assignedDeviceId || !threadId || (reservation.assignedThreadId && threadId !== reservation.assignedThreadId)) throw taskCenterError('TARGET_MISMATCH', '交付目标与预占不符，请核对目标会话', 409);
+        if (typeof verifyTarget !== 'function' || !(await verifyTarget({ provider, deviceId, threadId }))) throw taskCenterError('TARGET_UNAVAILABLE', '目标设备或会话不可用', 409);
       }
       if (action.type === 'assign') {
-        const target = { deviceId: action.assignedDeviceId, threadId: action.assignedThreadId };
+        const target = { provider: taskProvider(action.assignedProvider), deviceId: action.assignedDeviceId, threadId: action.assignedThreadId };
         if (typeof verifyTarget !== 'function' || !(await verifyTarget(target))) throw taskCenterError('TARGET_UNAVAILABLE', '目标设备或会话不可用', 409);
         const input = action.input || previous?.input || [];
+        if (target.provider === 'terminal' && input.some(part => part.type !== 'text')) throw taskCenterError('TERMINAL_ATTACHMENTS_UNSUPPORTED', '终端会话暂不支持图片任务，请保留在任务中心或指派给 Codex；原任务和附件已保留', 409);
         if (action.assignedDeviceId !== localDeviceId && input.some(part => part.type !== 'text')) {
           if (typeof prepareAssignment !== 'function') throw taskCenterError('CROSS_DEVICE_ATTACHMENTS', '任务含本机附件，附件通路不可用；原任务已保留', 409);
           await prepareAssignment({ item: { ...previous, ...(action.input ? { input: action.input } : {}) }, action, target });
@@ -171,7 +174,8 @@ export class ProjectChecklistStore {
       if (action.type === 'delete') data.items.splice(index, 1);
       else {
         item = changeTaskItem(previous, action, new Date().toISOString());
-        if (action.type === 'verify-delivery') item.deliveryReservation = { token: randomUUID(), requestId: action.requestId, assignedDeviceId: action.assignedDeviceId, assignedThreadId: action.assignedThreadId, createdAt: item.updatedAt };
+        if (item.assignedProvider === 'terminal' && item.input?.some(part => part.type !== 'text')) throw taskCenterError('TERMINAL_ATTACHMENTS_UNSUPPORTED', '终端会话暂不支持图片任务，请先退回任务中心；原任务和附件已保留', 409);
+        if (action.type === 'verify-delivery') item.deliveryReservation = { token: randomUUID(), requestId: action.requestId, assignedProvider: taskProvider(action.assignedProvider), assignedDeviceId: action.assignedDeviceId, assignedThreadId: action.assignedThreadId, createdAt: item.updatedAt };
         if (index >= 0) data.items[index] = item; else data.items.push(item);
       }
       const result = { applied: true, requestId: action.requestId, ...(item ? { item } : {}) };

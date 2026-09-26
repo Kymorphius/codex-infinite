@@ -52,6 +52,10 @@ export function createTaskCenterController({ request, tasks = () => [], render =
     if (!owner || owner.status !== 'connected' || state.stale) issue ||= '来源设备暂不可用，请刷新后重试。';
     if (item && item.revision !== editor.revision) issue ||= '任务已在另一处修改，请关闭编辑并刷新后重试；当前草稿已保留。';
     const target = view.targets.find(task => task.key === editor.target);
+    if (editor.type === 'assign' && target?.provider === 'terminal') {
+      if (item?.attachmentCount || item?.input?.some(part => part.type !== 'text')) issue ||= '终端会话暂不支持图片任务，原任务和附件已保留。';
+      if (owner && owner.device.id !== state.catalog.localDeviceId) issue ||= '终端会话目前只支持领取本机来源的任务，远端任务保持不变。';
+    }
     if (editor.type === 'assign' && !target) issue ||= '请选择当前在线设备上的会话。';
     if (['edit', 'create'].includes(editor.type) && !editor.text.trim()) issue ||= '请填写任务内容。';
     if (['edit', 'create'].includes(editor.type) && editor.text.length > 5000) issue ||= '任务内容最多 5000 字。';
@@ -59,7 +63,7 @@ export function createTaskCenterController({ request, tasks = () => [], render =
     const body = { type: editor.type, ownerDeviceId: editor.ownerDeviceId, id: editor.id, requestId: randomUUID(),
       ...(item ? { scopeId: item.scopeId, expectedRevision: editor.revision } : {}),
       ...(['edit', 'create'].includes(editor.type) ? { text: editor.text } : {}),
-      ...(target ? { assignedDeviceId: target.device.id, assignedThreadId: target.id } : {}) };
+      ...(target ? { assignedProvider: target.provider ?? 'codex', assignedDeviceId: target.device.id, assignedThreadId: target.id } : {}) };
     generation++; state.pending = true; state.error = ''; publish();
     try {
       const result = await request('/api/task-center/actions', { method: 'POST', body });

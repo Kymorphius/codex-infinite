@@ -66,7 +66,7 @@ export function inferBoardState(conversation, { directMemberships = [], task = n
 }
 
 export function conversationCatalog(sidebarPayload, tasksPayload = {}, activities = new Map(), { stale = false } = {}) {
-  const tasks = new Map((tasksPayload?.tasks || []).map(task => [`${task.device?.id || 'local'}\u0000${task.id}`, task]));
+  const tasks = new Map((tasksPayload?.tasks || []).filter(task => task.provider !== 'terminal').map(task => [`${task.device?.id || 'local'}\u0000${task.id}`, task]));
   const conversations = [];
   for (const owner of sidebarPayload?.devices || []) {
     const snapshot = owner.snapshot;
@@ -84,6 +84,17 @@ export function conversationCatalog(sidebarPayload, tasksPayload = {}, activitie
         workType: inferWorkType(conversation, context.project), updatedAt: task?.updatedAt || null });
     }
   }
+  for (const record of tasksPayload?.terminalConversations || []) {
+    if (record.archived) continue;
+    const owner = sidebarPayload?.devices?.find(value => value.device.id === record.deviceId);
+    const project = owner?.snapshot?.projects.find(value => value.key === record.projectRef?.key) || null;
+    const key = `terminal:${record.id}`;
+    conversations.push({ ...record, source: 'terminal', key, identity: conversationIdentity(record.deviceId, key),
+      deviceName: owner?.device.name || '本机', deviceKind: 'local-codex', ownerStatus: 'connected', stale,
+      capabilities: ['open'], memberships: [], projectSections: [], section: null, project,
+      state: { id: 'review', reason: record.status === 'running' ? '终端已连接，执行进度在会话中查看' : '进程已停止，可打开会话继续' },
+      workType: inferWorkType(record, project), terminalConversation: record });
+  }
   return conversations.sort((a, b) => (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0) || collator.compare(a.title, b.title));
 }
 
@@ -97,6 +108,7 @@ export function filterConversations(conversations, filters = {}) {
 export function openAction(item) {
   if (item.stale || item.ownerStatus !== 'connected') throw Error('当前为缓存记录，请等待所属设备连接并刷新');
   if (!item.capabilities.includes('open')) throw Error('所属设备暂不支持从看板打开会话');
+  if (item.provider === 'terminal') return { provider: 'terminal', conversationId: item.id };
   if (!/^[0-9a-f]{64}$/.test(item.revision || '')) throw Error('所属设备未提供有效版本，请刷新后重试');
   if (!item.section) throw Error('会话尚未映射到原生分区');
   return { action: 'open', deviceId: item.deviceId, itemKey: item.key, sectionId: item.section.id, expectedRevision: item.revision };

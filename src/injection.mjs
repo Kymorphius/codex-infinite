@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { buildNativeProviderNavigationSource } from './native-terminal-navigation.mjs';
 import { buildVersionedNativeTabsSource } from "./native-tabs-injection-version.mjs";
 import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
 import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-recovery.mjs";
@@ -21,6 +23,8 @@ export function buildInjectionScript(dashboardUrl) {
   const workspaceAttribute = JSON.stringify(CONTROL_WORKSPACE_ATTRIBUTE);
   const { nativeConversationTabsSource, digest } = buildVersionedNativeTabsSource();
   const embeddedFrameRecoverySource = buildEmbeddedFrameRecoveryInjectionSource();
+  const providerSource = buildNativeProviderNavigationSource();
+  const providerDigest = createHash('sha256').update(providerSource).digest('hex').slice(0, 12);
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
@@ -34,7 +38,7 @@ export function buildInjectionScript(dashboardUrl) {
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-24.board-below-checklist1.tabs-${digest}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-26.managed-terminal.tabs-${digest}.provider-${providerDigest}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -108,7 +112,8 @@ ${placeNativeBoardBelowChecklist.toString()}
     const url = new URL(DASHBOARD_URL);
     if (module === 'projects') url.pathname = '/projects.html';
     if (module === 'conversations') url.pathname = '/conversations.html';
-    url.searchParams.set('module', ['console', 'sessions', 'priority', 'projects', 'conversations'].includes(module) ? module : 'board');
+    url.searchParams.set('module', ['console', 'sessions', 'priority', 'projects', 'conversations', 'terminal'].includes(module) ? module : 'board');
+    if (module === 'terminal') { url.searchParams.set('view', 'conversation'); if (terminalTarget) url.searchParams.set('conversationId', terminalTarget.conversationId); }
     url.searchParams.set('theme', nativeTheme());
     url.searchParams.set('embedded', 'native');
     return url.toString();
@@ -128,7 +133,8 @@ ${placeNativeBoardBelowChecklist.toString()}
   }
 
   function openWorkspace(module = 'board', loadingLabel = '', activateConsole = true) {
-    if (requestEmbeddedFramePreparation(module)) return;
+    if (module !== 'terminal') cancelTerminalNavigation();
+    if (requestEmbeddedFramePreparation(module, terminalTarget)) return;
     if (activateConsole) window.__codexControlConsoleConversationTabs?.showConsole?.(module);
     let existing = document.querySelector(WORKSPACE_SELECTOR);
     const candidate = workspaceCandidate();
@@ -148,14 +154,16 @@ ${placeNativeBoardBelowChecklist.toString()}
       const activeFrame = frame || existing.querySelector('[data-codex-control-console-frame]');
       activeFrame?.setAttribute('allow', FRAME_ALLOW);
       const targetUrl = dashboardUrlFor(module);
-      if (!activeFrame || activeFrame.getAttribute('src') !== targetUrl) {
+      let currentUrl = activeFrame?.getAttribute('src');
+      if (module === 'terminal' && currentUrl) { const current = new URL(currentUrl); if (current.searchParams.get('module') === 'terminal') { current.searchParams.set('conversationId', terminalTarget?.conversationId || ''); currentUrl = current.toString(); } }
+      if (!activeFrame || currentUrl !== targetUrl) {
         if (workspaceHost) restoreWorkspace();
         else existing.remove();
         openWorkspace(module, loadingLabel, activateConsole);
         return;
       }
       activeFrame?.focus();
-      activeFrame?.contentWindow?.postMessage({ type: 'codex-control-console-show-module', module }, DASHBOARD_ORIGIN);
+      if (module !== 'terminal') activeFrame?.contentWindow?.postMessage({ type: 'codex-control-console-show-module', module }, DASHBOARD_ORIGIN);
       existing.scrollIntoView({ block: 'nearest' });
       return;
     }
@@ -172,7 +180,7 @@ ${placeNativeBoardBelowChecklist.toString()}
     overlay.style.cssText = 'display:flex;position:relative;flex:1;min-width:0;min-height:0;width:100%;height:100%;background:' + workspaceBackground + ';overflow:hidden;';
     frame = document.createElement('iframe');
     frame.src = dashboardUrlFor(module);
-    frame.title = module === 'conversations' ? '会话看板' : module === 'projects' ? '项目管理' : module === 'console' ? 'Codex 控制台' : module === 'sessions' ? 'Codex 会话中心' : module === 'priority' ? 'Codex 项目优先级' : 'Codex 看板';
+    frame.title = module === 'terminal' ? '终端会话' : module === 'conversations' ? '会话看板' : module === 'projects' ? '项目管理' : module === 'console' ? 'Codex 控制台' : module === 'sessions' ? 'Codex 会话中心' : module === 'priority' ? 'Codex 项目优先级' : 'Codex 看板';
     frame.setAttribute('data-codex-control-console-frame', '');
     frame.setAttribute('allow', FRAME_ALLOW);
     frame.style.cssText = 'display:block;width:100%;height:100%;border:0;background:' + workspaceBackground + ';';
@@ -181,7 +189,7 @@ ${placeNativeBoardBelowChecklist.toString()}
     loading.setAttribute(FRAME_LOADING_ATTRIBUTE, '');
     loading.textContent = loadingLabel || (module === 'conversations' ? '正在打开会话看板…' : module === 'projects' ? '正在打开项目管理…' : module === 'console' ? '正在打开控制台…' : module === 'sessions' ? '正在打开会话中心…' : module === 'priority' ? '正在打开项目优先级…' : '正在打开看板…');
     loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:' + loadingColor + ';font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:none;';
-    monitorEmbeddedFrame(openingFrame, () => frame, loading, module);
+    monitorEmbeddedFrame(openingFrame, () => frame, loading, module, terminalTarget);
     overlay.append(loading, frame);
     for (const child of Array.from(workspaceHost.children)) {
       if (child !== overlay && !child.hasAttribute('data-codex-control-console-original-display')) {
@@ -190,37 +198,12 @@ ${placeNativeBoardBelowChecklist.toString()}
       }
     }
     workspaceHost.append(overlay);
-    window.__codexControlConsoleClose = restoreWorkspace;
+    window.__codexControlConsoleClose = () => { cancelTerminalNavigation(); restoreWorkspace(); };
   }
 
-  function openSessionsAction(message) {
-    const openingRemote = message?.type === 'codex-control-console-open-remote-conversation';
-    const loadingLabel = openingRemote ? '正在打开会话…' : '';
-    openWorkspace('sessions', loadingLabel, !openingRemote);
-    const activeFrame = frame || document.querySelector('[data-codex-control-console-frame]');
-    if (!activeFrame?.contentWindow) return false;
-    const send = () => activeFrame.contentWindow?.postMessage(message, DASHBOARD_ORIGIN);
-    if (activeFrame.hasAttribute('data-codex-control-console-frame-ready')) send();
-    else activeFrame.addEventListener(FRAME_READY_TYPE, send, { once: true });
-    return true;
-  }
-  function openRemoteConversation(reference) {
-    const id = normalize(reference?.id).slice(0, 160), deviceId = normalize(reference?.deviceId).slice(0, 120);
-    const title = normalize(reference?.title).slice(0, 160), cwd = normalize(reference?.cwd).slice(0, 1024), deviceName = normalize(reference?.deviceName).slice(0, 80);
-    const normalized = { id, deviceId, title, cwd, deviceName };
-    const opened = Boolean(id && deviceId) && openSessionsAction({ type: 'codex-control-console-open-remote-conversation', reference: normalized });
-    if (opened) window.__codexControlConsoleConversationTabs?.openRemote?.(normalized);
-    return opened;
-  }
-  function copyRemoteProject(reference) {
-    const deviceId = normalize(reference?.deviceId).slice(0, 120), projectName = normalize(reference?.projectName).slice(0, 100);
-    const sourceDirectory = String(reference?.sourceDirectory || '').trim().slice(0, 1024);
-    return Boolean(deviceId && sourceDirectory && !/[\\u0000\\r\\n]/.test(sourceDirectory)) && openSessionsAction({ type: 'codex-control-console-copy-remote-project', reference: { deviceId, sourceDirectory, projectName } });
-  }
-  window.__codexControlConsoleOpenRemoteConversation = openRemoteConversation;
-  window.__codexControlConsoleCopyRemoteProject = copyRemoteProject;
-
+${providerSource}
   async function openTask(task) {
+    if (task?.provider === 'terminal') return { ok: await openTerminalConversation(task), method: 'terminal-provider' };
     const title = normalize(task?.title);
     const taskId = normalize(task?.id);
     const localThreadId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId) ? taskId : null;
@@ -284,20 +267,21 @@ ${placeNativeBoardBelowChecklist.toString()}
     placeNativeBoardBelowChecklist(document.querySelector(KANBAN_ENTRY_SELECTOR), document.querySelector('[data-ccc-general-checklist-entry]'));
     scheduleEmbeddedFrameRecovery(
       () => !document.querySelector(WORKSPACE_SELECTOR) && Boolean(nativeAnchor()),
-      (recovery) => openWorkspace(recovery.module, '正在恢复控制台…')
+      (recovery) => { terminalTarget = recovery.reference || null; openWorkspace(recovery.module, '正在恢复会话…', recovery.module !== 'terminal'); }
     );
   }
 
   window.addEventListener('message', async (event) => {
-    if (!frame || event.source !== frame.contentWindow || !event.data) return;
+    if (!frame || event.source !== frame.contentWindow || event.origin !== DASHBOARD_ORIGIN || !event.data) return;
+    if (acceptTerminalMessage(event)) return;
     if (event.data.type === FRAME_READY_TYPE) {
       acceptEmbeddedFrameReady(event, frame);
     } else if (event.data.type === 'codex-control-console-open-task') {
       const result = await openTask(event.data.task || {}).catch((error) => ({ ok: false, method: 'native-route-error', message: error.message }));
       postToDashboard({ type: 'codex-control-console-open-task-result', result });
-      if (result.ok) restoreWorkspace();
+      if (result.ok && result.method !== 'terminal-provider') restoreWorkspace();
     } else if (event.data.type === 'codex-control-console-close') {
-      restoreWorkspace();
+      cancelTerminalNavigation(); restoreWorkspace();
     } else if (event.data.type === 'codex-control-console-open-checklist-task') openNativeChecklistTask(event.data.taskId, restoreWorkspace);
   });
 
@@ -309,7 +293,7 @@ ${placeNativeBoardBelowChecklist.toString()}
   }
 
   function handleNativeThreadSelection(event) {
-    const conversation = event.target?.closest?.('[data-app-action-sidebar-thread-id],[data-sidebar-chatgpt-conversation-key],[data-codex-control-console-ordinary-chat-row]'); if (!conversation || !document.querySelector(WORKSPACE_SELECTOR)) return; setTimeout(restoreWorkspace, 0);
+    const conversation = event.target?.closest?.('[data-app-action-sidebar-thread-id],[data-sidebar-chatgpt-conversation-key],[data-codex-control-console-ordinary-chat-row]'); if (!conversation) return; cancelTerminalNavigation(); if (document.querySelector(WORKSPACE_SELECTOR)) setTimeout(restoreWorkspace, 0);
   }
 
   function boot() {
@@ -323,21 +307,23 @@ ${placeNativeBoardBelowChecklist.toString()}
       workspaceCandidate,
       openConsole: (module) => openWorkspace(module || 'board'),
       openLocal: (tab) => {
-        restoreWorkspace(); const openNativeThread = window.__codexControlConsoleOpenNativeThread;
+        cancelTerminalNavigation(); restoreWorkspace(); const openNativeThread = window.__codexControlConsoleOpenNativeThread;
         if (typeof openNativeThread === 'function') {
           void openNativeThread(tab.id).catch(() => window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(tab.id) }, '*'));
           return;
         }
         window.postMessage({ type: 'navigate-to-route', path: '/local/' + encodeURIComponent(tab.id) }, '*');
       },
-      openChatgpt: (tab) => { restoreWorkspace(); window.postMessage({ type: 'navigate-to-route', path: '/c/' + encodeURIComponent(tab.id) }, '*'); },
+      openChatgpt: (tab) => { cancelTerminalNavigation(); restoreWorkspace(); window.postMessage({ type: 'navigate-to-route', path: '/c/' + encodeURIComponent(tab.id) }, '*'); },
       openWindow: (_tab, request) => {
         const send = window.electronBridge?.sendMessageFromView;
         if (typeof send !== 'function' || request?.type !== 'open-in-new-window' || !/^\\/(?:local|c)\\/[0-9a-f-]{36}$/i.test(request?.path || '')) return false;
         return send(request).then(() => true);
       },
-      openRemote: (tab) => openRemoteConversation(tab)
+      openRemote: (tab) => openRemoteConversation(tab),
+      openTerminal: (tab) => openTerminalConversation(tab)
     });
+    installNativeTerminalProvider(DASHBOARD_URL, readNativeSidebarModel, createNativeTerminalSidebar, createNativeTerminalActions, () => requestEmbeddedFramePreparation('projects'));
     window.__codexControlConsoleNativeThreadListener = handleNativeThreadSelection;
     document.addEventListener('click', handleNativeThreadSelection, true);
     window.__codexControlConsoleObserver = new MutationObserver(scheduleInstall);

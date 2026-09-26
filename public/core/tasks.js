@@ -2,6 +2,8 @@ export function isLocalTask(task) {
   return task?.device?.kind !== "remote-codex";
 }
 
+export function isNativeLocalTask(task) { return task?.provider !== 'terminal' && isLocalTask(task); }
+
 export function normalizeTaskPayload(data = {}) {
   const tasks = Array.isArray(data.tasks) ? data.tasks : [];
   const projects = Array.isArray(data.projects) ? data.projects : [];
@@ -13,7 +15,7 @@ export function normalizeTaskPayload(data = {}) {
     message = "";
   } else if (data.status === "empty") status = "empty";
   else if (data.status === "disconnected") status = "disconnected";
-  return { tasks, projects, devices, status, message };
+  return { tasks, projects, devices, status, message, ...(Array.isArray(data.terminalConversations) ? { terminalConversations: data.terminalConversations, terminalError: data.terminalError || '' } : {}) };
 }
 
 export function taskStatePresentation(status, message = "") {
@@ -32,6 +34,8 @@ export function createTaskSource({ state, onState, onData, fetchImpl = fetch }) 
       state.tasks = result.tasks;
       state.projects = result.projects;
       state.devices = result.devices;
+      state.terminalConversations = result.terminalConversations || [];
+      state.terminalError = result.terminalError || '';
       onData(result);
       onState(taskStatePresentation(result.status, result.message));
     } catch (error) {

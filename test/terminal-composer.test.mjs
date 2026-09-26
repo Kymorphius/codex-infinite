@@ -144,3 +144,16 @@ test("closed sessions discard their own drafts and disposal discards all drafts"
   composer.clear();
   assert.equal(composer.draft(), "");
 });
+
+
+test('managed drafts survive iframe replacement and confirmed delivery clears browser storage', async () => {
+  const values = new Map();
+  const storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
+  const options = { storage, storageKey: id => `device:${id}`, getView: () => ({ snapshot: () => ({ canInput: true }), pasteText: async () => ({ ok: true }) }) };
+  let composer = createTerminalComposer(options);
+  composer.select('stable-one'); composer.setDraft('keep across native tabs'); composer.clear();
+  composer = createTerminalComposer(options); composer.select('stable-one');
+  assert.equal(composer.draft(), 'keep across native tabs');
+  await composer.send();
+  assert.equal(values.has('device:stable-one'), false);
+});

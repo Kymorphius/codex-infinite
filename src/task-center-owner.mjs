@@ -1,4 +1,4 @@
-import { normalizeTaskCenterAction, taskCenterChecklistItem, taskKey, taskRevision, validateTaskScopeId } from './task-center-contract.mjs';
+import { normalizeTaskCenterAction, taskCenterChecklistItem, taskKey, taskRevision, validateTaskScopeId, TASK_PROVIDERS } from './task-center-contract.mjs';
 
 export class TaskCenterOwner {
   constructor({ checklistStore, dispatchStore, localDevice, verifyTarget, prepareAssignment }) {
@@ -16,6 +16,7 @@ export class TaskCenterOwner {
       items.push({
         key: taskKey(ownerDeviceId, 'dispatch', item.id), ownerDeviceId, scopeId: 'dispatch', id: item.id, source: 'dispatch',
         title: item.title, text: item.prompt || item.text || item.title || '', status: item.status, done: false,
+        assignedProvider: item.createdThreadId || item.targetThreadId ? 'codex' : null,
         assignedThreadId: item.createdThreadId || item.targetThreadId || null,
         assignedDeviceId: item.createdThreadId || item.targetThreadId ? ownerDeviceId : null,
         executionState: item.status === 'sent' ? 'delivered' : null,
@@ -23,7 +24,7 @@ export class TaskCenterOwner {
         revision: taskRevision(item), attachmentCount: 0, scheduledAt: item.scheduledAt || null
       });
     }
-    return { version: 1, device: this.localDevice, updatedAt: new Date().toISOString(), items };
+    return { version: 1, supportedProviders: TASK_PROVIDERS, device: this.localDevice, updatedAt: new Date().toISOString(), items };
   }
   async readTask(scopeId, id) {
     const data = await this.checklistStore.readScope(validateTaskScopeId(scopeId));

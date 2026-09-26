@@ -1,7 +1,15 @@
 import { decodePathSegment, sendJson } from "./http-utils.mjs";
 import { projectLocalNodeSnapshot } from "./peer-contract.mjs";
+import { projectTerminalConversations } from './terminal-conversation-projection.mjs';
 
-export function createTasksHttpHandler({ adapter, localAdapter = adapter, nodeRuntimeService = null }) {
+export function createTasksHttpHandler({ adapter, localAdapter = adapter, nodeRuntimeService = null, terminalConversations = null, localDevice = null, nativeSidebarAdapter = null }) {
+  let projects = [], projectsRead = 0, projectRead = null;
+  async function readProjects() {
+    if (!nativeSidebarAdapter || Date.now() - projectsRead < 5000) return projects;
+    projectRead ||= nativeSidebarAdapter.read().then(value => { projects = value.projects; }).catch(() => {})
+      .finally(() => { projectsRead = Date.now(); projectRead = null; });
+    await projectRead; return projects;
+  }
   return async function handleTasksRequest(request, response, requestUrl) {
     const isNodeSnapshot = requestUrl.pathname === "/api/node/snapshot";
     const isCollection = requestUrl.pathname === "/api/tasks";
@@ -21,7 +29,15 @@ export function createTasksHttpHandler({ adapter, localAdapter = adapter, nodeRu
       return true;
     }
     if (isCollection) {
-      sendJson(response, 200, await adapter.listTasks());
+      const snapshot = await adapter.listTasks();
+      let registry;
+      try { registry = await terminalConversations?.list(); }
+      catch {
+        sendJson(response, 200, { ...snapshot, terminalConversations: [], terminalError: '终端会话档案暂不可读取，请稍后刷新；其他会话可正常管理。' });
+        return true;
+      }
+      sendJson(response, 200, registry ? projectTerminalConversations(snapshot, registry, localDevice,
+        registry.conversations.length ? await readProjects() : []) : snapshot);
       return true;
     }
 

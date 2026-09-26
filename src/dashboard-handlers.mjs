@@ -1,4 +1,5 @@
 import { createTerminalHttpHandler } from './terminal-http.mjs';
+import { createTerminalConversationHttpHandler } from './terminal-conversation-http.mjs';
 import { createExperimentsHttpHandler } from './experiments-http.mjs';
 import { createSidebarHttpHandler } from './sidebar-http.mjs';
 import { createTaskCenterHttpHandler } from './task-center-http.mjs';
@@ -22,10 +23,11 @@ import { createPersonalPanelTaskHttpHandler } from './personal-panel-task-http.m
 import { AccountUsageReader } from './account-usage.mjs';
 import { createAccountUsageHttpHandler } from './account-usage-http.mjs';
 
-export function createDashboardHandlers({ config, terminalService = null, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
+export function createDashboardHandlers({ config, terminalService = null, terminalConversations = null, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
   const health = createHealthHttpHandler(config);
   return [
     createTerminalHttpHandler({ service: terminalService, dashboardOrigin: config.dashboardOrigin }),
+    createTerminalConversationHttpHandler({ service: terminalConversations, dashboardOrigin: config.dashboardOrigin }),
     async (_request, response, requestUrl) => health(response, requestUrl),
     createRuntimeRestartHttpHandler({ service: restartService, dashboardOrigin: config.dashboardOrigin }),
     createNativeAppLaunchHttpHandler({ service: nativeAppLaunchService, dashboardOrigin: config.dashboardOrigin }),
@@ -42,7 +44,7 @@ export function createDashboardHandlers({ config, terminalService = null, taskCe
     createProjectSyncHttpHandler({ service: projectSync.projectSyncService, localAdapter: projectSync.localProjectSyncAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createActivityHttpHandler({ adapter, localAdapter: local, remoteMessageService, remoteThreadSettingsService }),
     createZoteroHttpHandler({ zoteroAdapter, zoteroLocalApi, dashboardOrigin: config.dashboardOrigin }),
-    createTasksHttpHandler({ adapter, localAdapter: local, nodeRuntimeService }),
+    createTasksHttpHandler({ adapter, localAdapter: local, nodeRuntimeService, terminalConversations, localDevice: config.nodeDevice, nativeSidebarAdapter }),
     createAccountUsageHttpHandler({ reader: new AccountUsageReader({ codexPath: config.codexPath, codexHome: config.nativeCodexHome }) }),
     createContextHttpHandler({ adapter: local, contextWindowStore, modelCatalog, dashboardOrigin: config.dashboardOrigin }),
     createGeneratorHttpHandler({ adapter: local, generatorService, dashboardOrigin: config.dashboardOrigin }),

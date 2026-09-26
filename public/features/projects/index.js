@@ -1,4 +1,5 @@
-import { filterProjects, pinTarget, projectAction, projectCatalog, projectTerminalReference, terminalProjectUrl, validateCatalogPayload } from './model.js';
+import { terminalConversationRequest, openManagedTerminal } from '../../core/terminal-conversations.js';
+import { filterProjects, pinTarget, projectAction, projectCatalog, projectTerminalReference, validateCatalogPayload } from './model.js';
 import { createProjectView } from './view.js';
 
 export function createProjectController({ fetchImpl = fetch, render = () => {}, notice = () => {}, onLocalOpen = () => {}, onOpenTerminal, copyText, requestTimeoutMs = 15000 } = {}) {
@@ -54,10 +55,18 @@ export function createProjectController({ fetchImpl = fetch, render = () => {}, 
     if (disposed || state.busy) return false;
     const project = projected().catalog.projects.find(item => item.identity === identity);
     if (!project) { notice('项目列表已变化，请刷新后重试', true); return false; }
-    if (requestedAction === 'terminal') {
+    if (['terminal', 'shell'].includes(requestedAction)) {
       const reference = projectTerminalReference(project, targetSectionId);
       if (!reference || typeof onOpenTerminal !== 'function') { notice('请从已连接的本机项目中选择具体工作目录', true); return false; }
-      onOpenTerminal(reference); return true;
+      state.busy = identity; publish();
+      try {
+        const { conversation } = await terminalConversationRequest('create', { cwd: reference.cwd,
+          kind: requestedAction === 'shell' ? 'shell' : 'claude',
+          projectRef: { source: project.source, key: project.key, id: project.id, hostId: project.hostId },
+        }, fetchImpl);
+        onOpenTerminal(conversation); return true;
+      } catch (error) { notice(error.message, true); return false; }
+      finally { state.busy = null; publish(); }
     }
     if (requestedAction === 'copy') {
       try {
@@ -108,7 +117,7 @@ export function mountProjects({ documentRef = document, windowRef = window, fetc
   const close = () => windowRef.parent.postMessage({ type: 'codex-control-console-close' }, 'app://-');
   const controller = createProjectController({ fetchImpl, ...view,
     onLocalOpen: () => { if (embedded) close(); },
-    onOpenTerminal: reference => windowRef.location.assign(terminalProjectUrl(reference, windowRef.location.href)),
+    onOpenTerminal: conversation => openManagedTerminal(conversation, windowRef),
     copyText: windowRef.navigator.clipboard?.writeText ? text => windowRef.navigator.clipboard.writeText(text) : null });
   const $ = selector => documentRef.querySelector(selector);
   $('#search').addEventListener('input', event => controller.setFilters({ query: event.target.value }));

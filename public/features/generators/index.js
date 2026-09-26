@@ -1,5 +1,5 @@
 import { requestJson } from "../../core/transport.js";
-import { isLocalTask } from "../../core/tasks.js";
+import { isNativeLocalTask as isLocalTask } from "../../core/tasks.js";
 
 export function generatorMetrics(generators = [], runs = []) {
   return {

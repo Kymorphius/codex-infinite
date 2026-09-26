@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import { conversationCatalog, conversationIdentity, filterConversations, inferBoardState, inferWorkType, openAction, resolveOpenTarget, validateSidebarPayload } from '../public/features/conversations/model.js';
 
 const revision = 'b'.repeat(64);
+
+test('initial board render tolerates a pending task payload then merges terminal conversations', () => {
+  assert.deepEqual(conversationCatalog(null, null), []);
+  const sidebar = { devices: [owner()] };
+  assert.equal(conversationCatalog(sidebar, null).length, 3);
+  const record = { id: 'terminal-one', provider: 'terminal', deviceId: 'mac', title: 'Claude CLI',
+    cwd: '/work/app', kind: 'claude', status: 'running', projectRef: { key: 'project:p' } };
+  const rows = conversationCatalog(sidebar, { terminalConversations: [record, { ...record, id: 'archived', archived: true }] });
+  const terminal = rows.find(row => row.id === record.id);
+  assert.equal(rows.length, 4);
+  assert.equal(terminal.project.name, '产品开发');
+  assert.equal(terminal.state.id, 'review');
+  assert.deepEqual(openAction(terminal), { provider: 'terminal', conversationId: record.id });
+});
+
 function owner(id = 'mac', overrides = {}) {
   return { device: { id, name: id, kind: id === 'mac' ? 'local-codex' : 'remote-codex' }, status: 'connected', snapshot: {
     schemaVersion: 1, revision, capabilities: ['open'], conversations: [

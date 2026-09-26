@@ -35,7 +35,7 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
         if (pending.some(action => action.legacyHeldSource?.id === source.id && action.legacyHeldSource?.threadId === threadId)) continue;
         const existing = readGeneralItems().find(item => item.id === legacy.id);
         if (existing) {
-          if (existing.assignedThreadId === threadId && JSON.stringify(existing.input) === JSON.stringify(legacy.input)) removeLegacyDraft(source, legacy.input);
+          if ((existing.assignedProvider ?? 'codex') === 'codex' && existing.assignedThreadId === threadId && JSON.stringify(existing.input) === JSON.stringify(legacy.input)) removeLegacyDraft(source, legacy.input);
           else warning = warning || '旧待办与任务清单中的同 ID 任务不一致，已保留原数据';
           continue;
         }
@@ -50,10 +50,10 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
     if (signal && migrated) notify(); return warning;
   }
   function createAssignedTask(value) {
-    if (!value || value.threadId !== readThreadId(documentRef) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id || '') || typeof value.text !== 'string' || !value.text.trim()) throw new Error('任务归属或内容无效');
+    if (!value || (value.assignedProvider ?? 'codex') !== 'codex' || value.threadId !== readThreadId(documentRef) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id || '') || typeof value.text !== 'string' || !value.text.trim()) throw new Error('任务归属或内容无效');
     const input = normalizeInput(value.input), existing = [...readGeneralItems(), ...readPending().filter(action => action.projectKey === generalKey && action.type !== 'delete')].find(item => item.id === value.id);
     if (existing) {
-      if (existing.assignedThreadId === value.threadId && existing.text === value.text && JSON.stringify(existing.input) === JSON.stringify(input)) return true;
+      if ((existing.assignedProvider ?? 'codex') === 'codex' && existing.assignedThreadId === value.threadId && existing.text === value.text && JSON.stringify(existing.input) === JSON.stringify(input)) return true;
       throw new Error('任务标识冲突，未覆盖现有任务');
     }
     if (!enqueueTask({ ...value, text: value.text.trim(), done: false, assignedThreadId: value.threadId, input }, generalKey)) throw new Error('任务尚未安全保存');
@@ -66,7 +66,7 @@ export function createNativeChecklistTaskModel({ generalKey, heldKey, syncBindin
       if (action.type === 'delete') items.delete(action.id);
       else items.set(action.id, { ...items.get(action.id), ...action });
     }
-    return [...items.values()].filter(item => !item.done && item.executionState !== 'delivered' && String(item.assignedThreadId || '').toLowerCase() === normalized)
+    return [...items.values()].filter(item => (item.assignedProvider ?? 'codex') === 'codex' && !item.done && item.executionState !== 'delivered' && String(item.assignedThreadId || '').toLowerCase() === normalized)
       .map(item => ({ id: item.id, text: item.text, ...(typeof item.createdAt === 'string' ? { createdAt: item.createdAt } : {}), ...(Array.isArray(item.input) ? { input: item.input } : {}), ...(item.sourceRef ? { sourceRef: item.sourceRef, expectedRevision: item.expectedRevision, readOnly: item.readOnly, sourceConnected: item.sourceConnected, ...(item.deliveryReservation ? { deliveryReservation: item.deliveryReservation } : {}), ...(item.attachmentError ? { attachmentError: item.attachmentError } : {}) } : {}) }));
   }
   function completeLegacySources(actions) {

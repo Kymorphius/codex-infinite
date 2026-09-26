@@ -43,7 +43,7 @@ export function createEditorView({ root, node, controller }) {
         const label = node('label', 'field'); label.append(node('span', '', '设备与会话'));
         refs.target = node('select'); refs.target.name = 'target'; refs.target.required = true; label.append(refs.target); fields.append(label);
       }
-      const note = editor.type === 'assign' ? '指派后进入所选会话的暂停待办，点击“入队”才发送。'
+      const note = editor.type === 'assign' ? '指派后进入所选会话的暂停待办，由你在会话中确认发送。'
         : editor.type === 'delete' ? '删除这项任务；已经交付的消息和执行记录仍保留在会话中。'
           : editor.type === 'return' ? '解除当前指派，回到任务中心的待领取列表。'
             : editor.type === 'create' ? '只保存任务内容，之后可以指派给任意在线设备的会话。' : '';
@@ -54,7 +54,7 @@ export function createEditorView({ root, node, controller }) {
       refs.text?.focus();
     }
     const choiceData = editor.type === 'assign'
-      ? state.targets.map(task => [task.key, `${task.deviceName} · ${task.title || task.id}`])
+      ? state.targets.map(task => [task.key, `${task.deviceName} · ${task.provider === 'terminal' ? '终端 · ' : ''}${task.title || task.id}`])
       : (state.catalog?.devices || []).filter(entry => entry.status === 'connected').map(entry => [entry.device.id, entry.device.name || entry.device.id]);
     const signature = JSON.stringify(choiceData);
     if (signature !== choicesSignature) {

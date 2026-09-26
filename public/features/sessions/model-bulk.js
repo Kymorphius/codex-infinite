@@ -1,7 +1,7 @@
 const NATIVE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function planModelReplacement(tasks, catalogs, source, target) {
-  const matching = tasks.filter((task) => task.model === source);
+  const matching = tasks.filter((task) => task.provider !== 'terminal' && task.model === source);
   const eligible = matching.filter((task) => (
     NATIVE_ID.test(task.id)
     && task.device?.id
@@ -38,7 +38,7 @@ export function createModelBulkControl({ state, $, fetchImpl = fetch, onChanged 
     if (!loading && state.taskStatus === "connected" && state.tasks.some((task) => task.device?.id && !attempted.has(task.device.id))) {
       queueMicrotask(() => { void loadCatalogs(); });
     }
-    const sourceModels = [...new Set(state.tasks.map((task) => task.model).filter(Boolean))].sort();
+    const sourceModels = [...new Set(state.tasks.filter(task => task.provider !== 'terminal').map((task) => task.model).filter(Boolean))].sort();
     setOptions(source, sourceModels.map((model) => [model, model]), source.value || "gpt-5.6-sol");
     const models = [...new Map([...catalogs.values()].flat().map((model) => [model.id, model])).values()]
       .filter((model) => model.id !== source.value).sort((a, b) => a.id.localeCompare(b.id));
@@ -60,7 +60,7 @@ export function createModelBulkControl({ state, $, fetchImpl = fetch, onChanged 
       await Promise.all(devices.map(async (deviceId) => {
         attempted.add(deviceId);
         if (catalogs.has(deviceId)) return;
-        const candidates = state.tasks.filter((task) => task.device?.id === deviceId && NATIVE_ID.test(task.id)).slice(0, 3);
+        const candidates = state.tasks.filter((task) => task.provider !== 'terminal' && task.device?.id === deviceId && NATIVE_ID.test(task.id)).slice(0, 3);
         for (const task of candidates) {
           try {
             const response = await fetchImpl(`/api/tasks/${encodeURIComponent(task.id)}/activity?device=${encodeURIComponent(deviceId)}`, { cache: "no-store" });

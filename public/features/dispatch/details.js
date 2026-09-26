@@ -1,5 +1,5 @@
 import { requestJson } from "../../core/transport.js";
-import { isLocalTask } from "../../core/tasks.js";
+import { isNativeLocalTask as isLocalTask } from "../../core/tasks.js";
 
 const EDITABLE_STATUSES = new Set(["backlog", "scheduled"]);
 const STATUS_LABELS = Object.freeze({ backlog: "待办消息", scheduled: "已排期", queued: "排队中", sending: "发送中", sent: "已发送", failed: "异常", cancelled: "已取消", delivery_unknown: "交付结果未知" });

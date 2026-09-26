@@ -11,14 +11,14 @@
 <body>
   <main class="workspace">
     <header class="page-header">
-      <div class="heading"><span class="eyebrow">ChatGPT · Codex</span><h1>会话看板 <span id="catalog-count" class="count">—</span></h1><p>需要继续、确认和验收的会话，一眼看清。</p></div>
+      <div class="heading"><span class="eyebrow">ChatGPT · Codex · Claude</span><h1>会话看板 <span id="catalog-count" class="count">—</span></h1><p>需要继续、确认和验收的会话，一眼看清。</p></div>
       <div class="header-actions"><button id="refresh" class="button" type="button"><span aria-hidden="true">↻</span> 刷新</button><a id="back" class="button quiet" href="/?module=console">返回</a></div>
     </header>
     <section class="filters" aria-label="搜索与筛选会话">
       <label class="search"><span aria-hidden="true">⌕</span><span class="sr-only">搜索会话标题、项目或路径</span><input id="search" type="search" placeholder="搜索会话标题、项目或路径…" autocomplete="off"></label>
       <div class="filter-row">
         <label>设备<select id="device"><option value="">全部设备</option></select></label>
-        <label>来源<select id="source"><option value="">全部来源</option><option value="codex">Codex</option><option value="chatgpt">ChatGPT</option></select></label>
+        <label>来源<select id="source"><option value="">全部来源</option><option value="codex">Codex</option><option value="chatgpt">ChatGPT</option><option value="terminal">Claude / Shell</option></select></label>
         <label>类型<select id="work-type"><option value="">全部类型</option></select></label>
         <button id="clear" class="text-button" type="button">清除筛选</button>
       </div>

@@ -38,7 +38,7 @@ export function createPersonalPanelBoard({ $, showToast, formatDate, state, requ
           const select = document.createElement('select'); select.dataset.personalPanelTarget = task.id;
           select.setAttribute('aria-label', `选择${task.name}要关联的 Codex 会话`);
           select.append(new Option('选择现有 Codex 会话', ''));
-          for (const thread of state.tasks.filter(item => item.device?.kind !== 'remote-codex' && item.device?.id)) select.append(new Option(thread.title, thread.id));
+          for (const thread of state.tasks.filter(item => item.provider !== 'terminal' && item.device?.kind !== 'remote-codex' && item.device?.id)) select.append(new Option(thread.title, thread.id));
           const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'task-open'; confirm.textContent = '确认关联'; confirm.dataset.personalPanelLink = task.id;
           const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'task-open'; cancel.textContent = '取消'; cancel.dataset.personalPanelCancel = task.id;
           panel.append(select, confirm, cancel); card.append(panel);

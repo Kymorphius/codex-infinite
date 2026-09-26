@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTerminalFeature } from "../public/features/terminal/index.js";
+import { createLegacyTerminalFeature as createTerminalFeature } from "../public/features/terminal/legacy.js";
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const session = (id, cwd) => ({ id, cwd, title: id, kind: "shell", status: "running", cols: 80, rows: 24 });

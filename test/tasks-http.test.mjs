@@ -9,7 +9,7 @@ function config() {
   };
 }
 
-async function start(t) {
+async function start(t, terminalConversations = null) {
   const calls = [];
   const task = { id: "thread/one", title: "Demo", project: "demo" };
   const adapter = {
@@ -29,7 +29,7 @@ async function start(t) {
     async readPendingApprovals(id) { calls.push(["approvals", id]); return []; }
   };
   const nodeRuntimeService = { async read() { calls.push(["runtime"]); return { authority: "owner-native-desktop", health: "connected", submission: "native-composer", activity: "rollout-projection", featurePolicy: "owner-native" }; } };
-  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter, remoteMessageService, nodeRuntimeService });
+  const dashboard = createDashboardServer({ config: config(), adapter, local: localAdapter, remoteMessageService, nodeRuntimeService, terminalConversations });
   await dashboard.listen();
   t.after(() => dashboard.close());
   const origin = `http://127.0.0.1:${dashboard.server.address().port}`;
@@ -87,4 +87,12 @@ test("activity routes preserve explicit owner identity and local-only node expor
   assert.equal((await request("/api/node/activity/%3Bbad")).status, 400);
   assert.equal((await request("/api/node/activity/local-one", { method: "POST" })).status, 405);
   assert.deepEqual(calls, [["local-activity", "local-one"], ["draft", "local-one"], ["approvals", "local-one"], ["activity", "thread/one", "remote"]]);
+});
+
+test('terminal registry failure cannot take down native task management', async t => {
+  const { request } = await start(t, { list: async () => { throw Error('corrupt terminal registry'); } });
+  const response = await request('/api/tasks'), result = await response.json();
+  assert.equal(response.status, 200); assert.equal(result.status, 'connected');
+  assert.equal(result.tasks[0].id, 'thread/one'); assert.match(result.terminalError, /档案暂不可读取/);
+  assert.deepEqual(result.terminalConversations, []);
 });

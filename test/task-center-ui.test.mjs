@@ -63,7 +63,7 @@ test('cross-device assignment uses exact owner identity, revision and target; cr
   assert.equal(await controller.submit(), true);
   const writes = calls.filter(call => call.method === 'POST'); assert.equal(writes.length, 1);
   assert.deepEqual(writes[0].body, { type: 'assign', ownerDeviceId: 'mac', scopeId: 'scope', id: 'one', expectedRevision: 'revision-1',
-    requestId: 'uuid-1', assignedDeviceId: 'win', assignedThreadId: thread });
+    requestId: 'uuid-1', assignedProvider: 'codex', assignedDeviceId: 'win', assignedThreadId: thread });
   assert.equal(writes[0].path, '/api/task-center/actions');
   assert.match(controller.getState().notice, /Windows.*保持暂停/);
 });
@@ -146,7 +146,7 @@ test('unconfirmed delivery reservations remain review-only for all management op
   const reserved = catalogRows(data)[0];
   assert.equal(itemStatus(reserved), 'review'); assert.equal(statusLabel(reserved), '待核对');
   assert.equal(itemStatus({ ...reserved, done: true, executionState: 'delivered' }), 'review');
-  assert.deepEqual(taskDestination(reserved), { deviceId: 'win', threadId: thread });
+  assert.deepEqual(taskDestination(reserved), { provider: 'codex', deviceId: 'win', threadId: thread });
   assert.equal(filterRows(catalogRows(data), { status: 'assigned' }).length, 0);
   assert.equal(filterRows(catalogRows(data), { status: 'review' }).length, 1);
   const { controller, calls } = await setup(() => data);

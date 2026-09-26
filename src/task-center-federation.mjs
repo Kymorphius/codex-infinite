@@ -1,4 +1,4 @@
-import { normalizeTaskCenterAction, taskCenterError, taskKey } from './task-center-contract.mjs';
+import { normalizeTaskCenterAction, taskCenterError, taskKey, taskProvider } from './task-center-contract.mjs';
 
 function snapshotFor(value, device) {
   if (value?.version !== 1 || value.device?.id !== device.id || !Array.isArray(value.items) || value.items.length > 20000) {
@@ -13,9 +13,11 @@ function snapshotFor(value, device) {
     const key = taskKey(device.id, item.scopeId, item.id);
     if (identities.has(key)) throw taskCenterError('INVALID_SNAPSHOT', '设备返回了重复任务身份', 502);
     identities.add(key);
-    return { ...item, key, ownerDeviceId: device.id };
+    const assignedProvider = item.assignedThreadId ? taskProvider(item.assignedProvider ?? 'codex') : null;
+    return { ...item, assignedProvider, key, ownerDeviceId: device.id };
   });
-  return { device, status: 'connected', updatedAt: value.updatedAt, items, message: null };
+  const supportedProviders = Array.isArray(value.supportedProviders) ? [...new Set(value.supportedProviders.map(taskProvider))] : ['codex'];
+  return { supportedProviders, device, status: 'connected', updatedAt: value.updatedAt, items, message: null };
 }
 
 export class TaskCenterFederation {
@@ -45,7 +47,7 @@ export class TaskCenterFederation {
       const previous = this.cache.get(id);
       this.failures.set(id, (this.failures.get(id) || 0) + 1);
       this.cache.set(id, { device: source.device, status: error.code === 'UNSUPPORTED_NODE' ? 'unsupported' : 'offline',
-        updatedAt: previous?.updatedAt || null, items: previous?.items || [],
+        supportedProviders: previous?.supportedProviders || ['codex'], updatedAt: previous?.updatedAt || null, items: previous?.items || [],
         message: error.code === 'UNSUPPORTED_NODE' ? error.message : '设备暂不可读；保留上次任务，恢复连接后可管理' });
     }).finally(() => {
       this.pending.delete(id);
@@ -64,6 +66,7 @@ export class TaskCenterFederation {
   async apply(input) {
     const action = normalizeTaskCenterAction(input), source = this.source(action.ownerDeviceId), id = source.device.id;
     await this.pending.get(id);
+    if (action.assignedProvider === 'terminal' && id !== this.localDevice.id) throw taskCenterError('UNSUPPORTED_PROVIDER', '终端会话目前只支持领取本机来源的任务；远端任务保持不变', 409);
     this.generations.set(id, (this.generations.get(id) || 0) + 1);
     try {
       const result = await source.adapter.apply(action);
@@ -75,7 +78,7 @@ export class TaskCenterFederation {
         const validated = snapshotFor({ version: 1, device: source.device, items: [result.item] }, source.device);
         items.push(validated.items[0]);
       }
-      this.cache.set(id, { device: source.device, status: 'connected', items, updatedAt: new Date(this.clock()).toISOString(), message: null });
+      this.cache.set(id, { supportedProviders: previous?.supportedProviders || ['codex'], device: source.device, status: 'connected', items, updatedAt: new Date(this.clock()).toISOString(), message: null });
       this.nextReads.delete(id);
       // Return the confirmed write immediately; the next read refreshes the directory.
       // Waiting for a second SSH read can outlive the native delivery reservation waiter.

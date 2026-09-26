@@ -1,6 +1,6 @@
 // Native menu integration owns no React nodes and never changes native menu actions.
 export function installNativeProjectPathMenu() {
-  const VERSION = '2026-09-23.3';
+  const VERSION = '2026-09-26.terminal-conversations';
   const KEY = '__codexControlConsoleProjectPathMenu';
   if (window[KEY]?.version === VERSION && window[KEY]?.ready) return;
   window[KEY]?.dispose();
@@ -25,7 +25,7 @@ export function installNativeProjectPathMenu() {
           if (typeof dependency.memoizedValue?.formatMessage === 'function') { formatter = dependency.memoizedValue.formatMessage; break; }
         }
       }
-      if (group?.projectId === id && group.projectKind === 'local') project = { id, sourceDirectories: paths(group.rootPaths) };
+      if (group?.projectId === id && group.projectKind === 'local') project = { id, hostId: group.hostId || 'local', sourceDirectories: paths(group.rootPaths) };
       const gizmo = props.project?.gizmo || props.project?.project?.gizmo;
       if (gizmo?.id === id && /^g-p-[a-zA-Z0-9-]+$/.test(id)) project = { id, sourceDirectories: [], cloud: true, link: 'https://chatgpt.com/g/' + encodeURIComponent(gizmo.short_url || id) + '/project' };
       if (project && menu && formatter) return { ...project, name: group?.label || group?.name || row.textContent?.trim(), menu, formatter };
@@ -93,6 +93,14 @@ export function installNativeProjectPathMenu() {
     return [{ id: 'ccc-open-in-project', label: '在项目中打开', enabled: !remote && typeof window.__cccProjectSearchActions?.openInProject === 'function',
       toolTip: remote ? '请在 ' + project.device.name + ' 上定位项目' : '在项目分区中定位，并打开第一个会话' }];
   }
+  function terminalItems(project) {
+    if (project.cloud || (project.hostId && project.hostId !== 'local') || project.device?.kind === 'remote-codex' || !project.sourceDirectories?.length || !window.__cccTerminalConversations) return [];
+    return ['claude', 'shell'].map(kind => {
+      const label = kind === 'claude' ? '新建 Claude 会话' : '新建 Shell 会话';
+      const entries = project.sourceDirectories.map((path, index) => ({ id: 'ccc-terminal-create:' + kind + ':' + index, label: path, enabled: true }));
+      return entries.length === 1 ? { ...entries[0], label } : { id: 'ccc-terminal-create:' + kind, label, submenu: entries };
+    });
+  }
   async function show(project, token) {
     let items = [];
     if (project.menu) {
@@ -101,12 +109,14 @@ export function installNativeProjectPathMenu() {
       if (!Array.isArray(items) || !items.some(entry => entry.id === 'edit-project') || !items.some(entry => entry.id === (project.cloud ? 'delete-chatgpt-project' : 'remove-project'))) throw new Error('Unsupported project menu');
     }
     if (token !== generation) return;
-    const nativeItems = [...locateItems(project), ...(window.__cccProjectChecklist ? [{ id: 'ccc-project-checklist', label: '任务清单', enabled: true }] : []), ...folderItems(project), ...copyItems(project), ...(items.length ? [{ type: 'separator', label: '' }, ...serialize(items, project.formatter)] : [])];
+    const nativeItems = [...locateItems(project), ...terminalItems(project), ...(window.__cccProjectChecklist ? [{ id: 'ccc-project-checklist', label: '任务清单', enabled: true }] : []), ...folderItems(project), ...copyItems(project), ...(items.length ? [{ type: 'separator', label: '' }, ...serialize(items, project.formatter)] : [])];
     project.menu?.onOpenChange?.(true);
     let selection;
     try { selection = await original.call(bridge, nativeItems); }
     finally { project.menu?.onOpenChange?.(false); }
     if (token !== generation) return;
+    const terminal = /^ccc-terminal-create:(claude|shell):([0-9]+)$/.exec(selection?.id || '');
+    if (terminal) { const cwd = project.sourceDirectories?.[Number(terminal[2])]; if (cwd) await window.__cccTerminalConversations?.create(project, cwd, terminal[1]); return; }
     if (selection?.id === 'ccc-open-in-project') { window.__cccProjectSearchActions?.openInProject(project); return; }
     const folderIndex = (project.sourceDirectories || []).findIndex((_, index) => selection?.id === 'ccc-open-project-folder:' + index);
     if (folderIndex >= 0) {

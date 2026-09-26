@@ -5,6 +5,11 @@ const ID = /^[a-zA-Z0-9-]{1,100}$/;
 const DEVICE = /^[a-zA-Z0-9:._-]{1,200}$/;
 const HASH = /^[0-9a-f]{64}$/;
 const THREAD = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const TASK_PROVIDERS = Object.freeze(['codex', 'terminal']);
+export function taskProvider(value = 'codex') {
+  if (!TASK_PROVIDERS.includes(value)) throw taskCenterError('INVALID_PROVIDER', '无效会话类型');
+  return value;
+}
 export const TASK_CENTER_ACTIONS = Object.freeze(['create', 'edit', 'assign', 'return', 'complete', 'reopen', 'delete', 'delivered', 'verify-delivery', 'release-delivery']);
 export const GENERAL_TASK_SCOPE_ID = createHash('sha256').update('ccc:general-inbox:v1').digest('hex');
 
@@ -24,6 +29,7 @@ export function validateTaskScopeId(scopeId) {
 }
 export function validateTaskMetadata(value) {
   const result = {};
+  if (Object.hasOwn(value, 'assignedProvider')) result.assignedProvider = value.assignedProvider === null ? null : taskProvider(value.assignedProvider);
   if (Object.hasOwn(value, 'assignedDeviceId')) {
     if (value.assignedDeviceId !== null && (typeof value.assignedDeviceId !== 'string' || !DEVICE.test(value.assignedDeviceId))) throw taskCenterError('INVALID_DEVICE', '无效任务设备');
     result.assignedDeviceId = value.assignedDeviceId;
@@ -37,9 +43,9 @@ export function validateTaskMetadata(value) {
     if (reservation !== null && (!reservation || typeof reservation !== 'object' || typeof reservation.token !== 'string' || !THREAD.test(reservation.token) ||
       typeof reservation.requestId !== 'string' || !ID.test(reservation.requestId) || typeof reservation.assignedDeviceId !== 'string' || !DEVICE.test(reservation.assignedDeviceId) ||
       (reservation.assignedThreadId !== null && (typeof reservation.assignedThreadId !== 'string' || !THREAD.test(reservation.assignedThreadId))) ||
-      Object.keys(reservation).some(key => !['token', 'requestId', 'assignedDeviceId', 'assignedThreadId', 'createdAt'].includes(key)) ||
+      Object.keys(reservation).some(key => !['token', 'requestId', 'assignedDeviceId', 'assignedThreadId', 'assignedProvider', 'createdAt'].includes(key)) ||
       typeof reservation.createdAt !== 'string' || !Number.isFinite(Date.parse(reservation.createdAt)))) throw taskCenterError('INVALID_RESERVATION', '无效任务交付预占');
-    result.deliveryReservation = reservation;
+    result.deliveryReservation = reservation === null ? null : { ...reservation, assignedProvider: taskProvider(reservation.assignedProvider) };
   }
   return result;
 }
@@ -64,6 +70,7 @@ export function normalizeTaskCenterAction(value) {
   if (value.type === 'assign' || value.type === 'verify-delivery' || (value.type === 'delivered' && (Object.hasOwn(value, 'assignedDeviceId') || Object.hasOwn(value, 'assignedThreadId')))) {
     if (typeof value.assignedDeviceId !== 'string' || !DEVICE.test(value.assignedDeviceId)) throw taskCenterError('INVALID_DEVICE', '无效目标设备');
     if (!(value.type === 'verify-delivery' && value.assignedThreadId === null) && (typeof value.assignedThreadId !== 'string' || !THREAD.test(value.assignedThreadId))) throw taskCenterError('INVALID_THREAD', '无效目标会话');
+    action.assignedProvider = taskProvider(value.assignedProvider);
     action.assignedDeviceId = value.assignedDeviceId;
     action.assignedThreadId = value.assignedThreadId?.toLowerCase() || null;
   }
@@ -75,14 +82,14 @@ export function normalizeTaskCenterAction(value) {
 }
 
 export function changeTaskItem(previous, action, now) {
-  const item = previous ? { ...previous, updatedAt: now } : { id: action.id, text: action.text, done: false, assignedThreadId: null, assignedDeviceId: null, executionState: null, createdAt: now, createdAtEstimated: false, updatedAt: now };
+  const item = previous ? { ...previous, updatedAt: now } : { id: action.id, text: action.text, done: false, assignedThreadId: null, assignedDeviceId: null, assignedProvider: null, executionState: null, createdAt: now, createdAtEstimated: false, updatedAt: now };
   if (Object.hasOwn(action, 'text')) {
     item.text = action.text;
     const input = action.input || previous?.input;
     if (input) item.input = taskInputAfterTextEdit(input, null, action.text);
   }
-  if (action.assignedThreadId) Object.assign(item, { assignedDeviceId: action.assignedDeviceId, assignedThreadId: action.assignedThreadId, executionState: null, done: false });
-  if (action.type === 'return') Object.assign(item, { assignedDeviceId: null, assignedThreadId: null, executionState: null, done: false });
+  if (action.assignedThreadId) Object.assign(item, { assignedProvider: taskProvider(action.assignedProvider), assignedDeviceId: action.assignedDeviceId, assignedThreadId: action.assignedThreadId, executionState: null, done: false });
+  if (action.type === 'return') Object.assign(item, { assignedProvider: null, assignedDeviceId: null, assignedThreadId: null, executionState: null, done: false });
   if (action.type === 'complete') item.done = true;
   if (action.type === 'reopen') Object.assign(item, { done: false, executionState: null });
   if (action.type === 'release-delivery') delete item.deliveryReservation;
@@ -98,10 +105,11 @@ export function taskCenterChecklistItem(item, ownerDeviceId, scopeId) {
   return {
     key: taskKey(ownerDeviceId, scopeId, item.id), ownerDeviceId, scopeId, id: item.id, source: 'checklist',
     text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null,
+    assignedProvider: item.assignedThreadId ? taskProvider(item.assignedProvider ?? 'codex') : null,
     assignedDeviceId: item.assignedThreadId ? item.assignedDeviceId || ownerDeviceId : null,
     executionState: item.executionState || null, createdAt: item.createdAt || null, updatedAt: item.updatedAt || null,
     revision: taskRevision(item), attachmentCount: (item.input || []).filter(part => part.type !== 'text').length,
-    ...(item.deliveryReservation ? { deliveryReservation: { ...item.deliveryReservation } } : {}),
+    ...(item.deliveryReservation ? { deliveryReservation: { ...item.deliveryReservation, assignedProvider: taskProvider(item.deliveryReservation.assignedProvider) } } : {}),
     ...(item.input ? { input: item.input } : {})
   };
 }

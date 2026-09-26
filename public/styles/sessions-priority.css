@@ -94,3 +94,10 @@
 .priority-score span { margin-top: 3px; color: #77777c; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); font-weight: 600; }
 .priority-score small { margin-top: 5px; color: #a0a0a5; font-size: var(--native-ui-meta-size); line-height: var(--native-ui-meta-line); white-space: nowrap; }
 .priority-open { justify-self: end; }
+
+.terminal-session-actions { position: relative; flex: 0 0 auto; font-size: 12px; }
+.terminal-session-actions summary { cursor: pointer; padding: 6px 9px; border-radius: 9px; border: 1px solid var(--border); }
+.terminal-session-actions[open] { display: flex; flex-wrap: wrap; gap: 6px; max-width: 260px; }
+.terminal-session-actions input { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: inherit; }
+.terminal-session-actions button { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: inherit; }
+.terminal-archives { margin-top: 18px; }

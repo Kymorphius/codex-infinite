@@ -1,3 +1,4 @@
+import { createTerminalManagement } from './terminal-management.js';
 import { isLocalTask } from "../../core/tasks.js";
 import { SessionDisclosureState, summarizeSessionDevice } from "./disclosure.js";
 import { deviceHostLabel, deviceRoleLabel, filterSessions, groupSessionsByDevice, provisionalRemoteTaskReference, resolveRemoteTaskReference } from "./model.js";
@@ -5,7 +6,6 @@ import { createRemoteConversation } from "./remote-conversation.js";
 import { createProjectCopyControl } from "./project-copy.js";
 import { createConversationTabs } from "./conversation-tabs.js";
 import { createModelBulkControl } from "./model-bulk.js";
-import { localTerminalReference } from "../projects/model.js";
 
 export function createSessionsFeature({ state, $, formatDate, statusLabel, requestOpen, onOpenTerminalReference, fetchImpl = fetch }) {
   const panel = $('[data-module-panel="sessions"]');
@@ -26,6 +26,7 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
   const filter = { query: "", status: "all" };
   const disclosure = new SessionDisclosureState();
   let visibleDevices = [];
+  const terminalManagement = createTerminalManagement({ state, panel, render, fetchImpl });
 
   function sessionRow(task) {
     const row = document.createElement("article");
@@ -38,13 +39,13 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     const status = document.createElement("span");
     status.className = "session-status";
     status.dataset.status = task.boardStatus || "pending";
-    status.textContent = statusLabel(task);
+    status.textContent = task.provider === 'terminal' ? (task.terminalConversation?.status === 'running' ? '已连接' : '已停止') : statusLabel(task);
     const title = document.createElement("h4");
     title.textContent = task.title;
     heading.append(status, title);
     const meta = document.createElement("div");
     meta.className = "session-row-meta";
-    const details = [task.model || "模型未记录", task.reasoningEffort ? `推理 ${task.reasoningEffort}` : null, `更新 ${formatDate(task.updatedAt)}`].filter(Boolean);
+    const details = [task.provider === 'terminal' ? (task.terminalConversation?.kind === 'claude' ? 'Claude CLI' : 'Shell') : task.model || '模型未记录', task.reasoningEffort ? `推理 ${task.reasoningEffort}` : null, `更新 ${formatDate(task.updatedAt)}`].filter(Boolean);
     for (const text of details) {
       const item = document.createElement("span");
       item.textContent = text;
@@ -55,9 +56,10 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     open.type = "button";
     open.className = "task-open session-open";
     const local = isLocalTask(task);
-    open.textContent = local ? "打开原生对话" : "打开远端对话";
+    open.textContent = task.provider === 'terminal' ? '打开会话' : local ? '打开原生对话' : '打开远端对话';
     open.addEventListener("click", () => local ? requestOpen(task) : conversationTabs.open(task));
     row.append(main, open);
+    if (task.provider === 'terminal' && task.terminalConversation) row.append(terminalManagement.controls(task.terminalConversation));
     return row;
   }
 
@@ -85,14 +87,6 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     }
     const actions = document.createElement("div");
     actions.className = "session-project-actions";
-    const terminalReference = localTerminalReference({ deviceKind: device.kind, status: device.status, cwd: group.directory, projectName: group.project });
-    if (terminalReference && typeof onOpenTerminalReference === "function") {
-      const terminal = document.createElement("button");
-      terminal.type = "button"; terminal.className = "task-open session-project-terminal"; terminal.textContent = "终端会话";
-      terminal.setAttribute("aria-label", `在 ${group.project} 打开终端会话`);
-      terminal.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); onOpenTerminalReference(terminalReference); });
-      actions.append(terminal);
-    }
     const copy = projectCopy.button(device, group);
     if (copy) actions.append(copy);
     actions.append(stats);
@@ -164,7 +158,9 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
     return card;
   }
 
-  function render() {
+  function render(options) {
+    if (terminalManagement.deferRender(options)) return;
+    terminalManagement.renderArchives();
     modelBulk.render();
     const tasks = filterSessions(state.tasks, filter);
     visibleDevices = groupSessionsByDevice(state.devices, tasks);
@@ -193,11 +189,11 @@ export function createSessionsFeature({ state, $, formatDate, statusLabel, reque
 
   function bind() {
     modelBulk.bind();
-    search.addEventListener("input", () => { filter.query = search.value.trim().slice(0, 200); render(); });
-    statusFilter.addEventListener("change", () => { filter.status = statusFilter.value; render(); });
-    clearFilter.addEventListener("click", () => { search.value = ""; statusFilter.value = "all"; filter.query = ""; filter.status = "all"; render(); search.focus(); });
+    search.addEventListener("input", () => { filter.query = search.value.trim().slice(0, 200); render({ force: true }); });
+    statusFilter.addEventListener("change", () => { filter.status = statusFilter.value; render({ force: true }); });
+    clearFilter.addEventListener("click", () => { search.value = ""; statusFilter.value = "all"; filter.query = ""; filter.status = "all"; render({ force: true }); search.focus(); });
     for (const button of panel.querySelectorAll("[data-session-disclosure]")) {
-      button.addEventListener("click", () => { disclosure.setAll(visibleDevices, button.dataset.sessionDisclosure === "expand"); render(); });
+      button.addEventListener("click", () => { disclosure.setAll(visibleDevices, button.dataset.sessionDisclosure === "expand"); render({ force: true }); });
     }
     remoteConversation.bind();
     conversationTabs.bind();

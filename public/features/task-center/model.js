@@ -42,10 +42,10 @@ export function filterRows(rows, { device = '', query = '', status = '' } = {}) 
     && (!needle || [item.text, item.deviceName, item.scopeName, item.assignedThreadTitle].some(value => String(value || '').toLocaleLowerCase('zh-CN').includes(needle))));
 }
 
-export const sessionKey = task => JSON.stringify([task.device?.id, task.id]);
+export const sessionKey = task => JSON.stringify([task.provider ?? 'codex', task.device?.id, task.id]);
 
 export function taskDestination(item) {
-  return { deviceId: item.deliveryReservation?.assignedDeviceId || item.assignedDeviceId || item.ownerDeviceId,
+  return { provider: item.deliveryReservation?.assignedProvider ?? item.assignedProvider ?? 'codex', deviceId: item.deliveryReservation?.assignedDeviceId || item.assignedDeviceId || item.ownerDeviceId,
     threadId: item.deliveryReservation?.assignedThreadId || item.assignedThreadId };
 }
 
@@ -54,10 +54,14 @@ export function assignmentTargets(tasks = [], catalog) {
   const seen = new Set();
   return tasks.filter(task => {
     const device = devices.get(task.device?.id);
-    if (!uuidPattern.test(task.id || '') || !device || device.status !== 'connected'
+    if (!['codex', 'terminal'].includes(task.provider ?? 'codex') || task.archived || !uuidPattern.test(task.id || '') || !device || device.status !== 'connected'
       || (task.device.status && task.device.status !== 'connected') || seen.has(sessionKey(task))) return false;
     seen.add(sessionKey(task)); return true;
   }).map(task => ({ ...task, key: sessionKey(task), deviceName: devices.get(task.device.id).device.name || task.device.id }));
+}
+
+export function matchesTaskDestination(task, destination) {
+  return task.id === destination.threadId && task.device?.id === destination.deviceId && (task.provider ?? 'codex') === destination.provider;
 }
 
 export function actionIssue(item, type, stale = false) {

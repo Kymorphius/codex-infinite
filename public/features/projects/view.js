@@ -35,10 +35,12 @@ export function createProjectView(documentRef = document) {
         const row = documentRef.createElement('p'), label = documentRef.createElement('span');
         row.className = 'project-path-row'; label.textContent = path; row.append(label);
         if (terminalDirectories.includes(path)) {
-          const button = documentRef.createElement('button');
-          button.type = 'button'; button.className = 'button terminal-project'; button.textContent = '终端会话';
-          button.dataset.projectAction = 'terminal'; button.dataset.cwd = path; button.disabled = busy;
-          button.setAttribute('aria-label', `在 ${path} 打开终端会话`); button.title = `工作目录：${path}`; row.append(button);
+          for (const [action, label] of [['terminal', '新建 Claude 会话'], ['shell', '新建 Shell 会话']]) {
+            const button = documentRef.createElement('button');
+            button.type = 'button'; button.className = 'button terminal-project'; button.textContent = label;
+            button.dataset.projectAction = action; button.dataset.cwd = path; button.disabled = busy;
+            button.setAttribute('aria-label', `${label} · ${path}`); button.title = `工作目录：${path}`; row.append(button);
+          }
         }
         return row;
       }));

@@ -25,7 +25,7 @@ export class TaskCenterChecklistProjection {
     const scopeId = scopeFor(projectKey), general = projectKey === GENERAL, items = [];
     for (const group of snapshot.devices || []) {
       for (const item of group.items || []) {
-        if (item.source !== 'checklist') continue;
+        if (item.source !== 'checklist' || (item.assignedThreadId && (item.assignedProvider ?? 'codex') !== 'codex')) continue;
         const local = item.ownerDeviceId === this.localDevice.id;
         const target = item.assignedDeviceId || item.ownerDeviceId;
         if (general ? (item.executionState === 'delivered' || (item.assignedThreadId && target !== this.localDevice.id)) : (!local || item.scopeId !== scopeId)) continue;
@@ -48,7 +48,7 @@ export class TaskCenterChecklistProjection {
     const ref = action.sourceRef || (known && { ownerDeviceId: known.ownerDeviceId, scopeId: known.scopeId, id: known.id });
     if (!ref) {
       if (String(action.id).startsWith('federated-') || !action.creation || action.type !== 'upsert') throw Object.assign(Error('任务缺少来源版本，草稿已保留；请刷新清单后重新保存'), { code: 'REVISION_CONFLICT', statusCode: 409 });
-      await this.store.apply({ ...action, ...(action.assignedThreadId ? { assignedDeviceId: this.localDevice.id } : {}) });
+      await this.store.apply({ ...action, ...(action.assignedThreadId ? { assignedProvider: action.assignedProvider ?? 'codex', assignedDeviceId: this.localDevice.id } : {}) });
       const item = (await this.store.read(action.projectKey)).items.find(value => value.id === action.id);
       const projected = item && taskCenterChecklistItem(item, this.localDevice.id, scopeFor(action.projectKey));
       if (projected) this.refs.set(mapKey, projected);
@@ -65,7 +65,7 @@ export class TaskCenterChecklistProjection {
     let type = action.type;
     if (type === 'upsert') {
       if (action.executionState === 'delivered') type = 'delivered';
-      else if ((action.assignedThreadId || null) !== (known?.assignedThreadId || null)) type = action.assignedThreadId ? 'assign' : 'return';
+      else if ((action.assignedThreadId || null) !== (known?.assignedThreadId || null) || (action.assignedThreadId && (action.assignedProvider ?? 'codex') !== (known?.assignedProvider ?? 'codex'))) type = action.assignedThreadId ? 'assign' : 'return';
       else if (action.done !== known?.done) type = action.done ? 'complete' : 'reopen';
       else type = 'edit';
     }
@@ -77,6 +77,7 @@ export class TaskCenterChecklistProjection {
       else if (this.images?.originalInput && known) payload.input = this.images.originalInput(known, action.input);
     }
     if (['assign', 'delivered', 'verify-delivery'].includes(type)) {
+      payload.assignedProvider = action.assignedProvider ?? 'codex';
       payload.assignedThreadId = action.assignedThreadId || null;
       payload.assignedDeviceId = this.localDevice.id;
     }

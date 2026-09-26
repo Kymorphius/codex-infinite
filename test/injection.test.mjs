@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
+import { buildNativeProviderNavigationSource } from "../src/native-terminal-navigation.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "../src/native-entry-probe.mjs";
 import {
   buildInjectionScript,
@@ -38,7 +39,8 @@ test("native entry anchor lookup retains its original label selection", () => {
 test("outer injection version tracks native tabs source so recent menu changes replace an old installation", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831");
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
-  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-24\\.board-below-checklist1\\.tabs-${digest}"`));
+  const providerDigest = createHash("sha256").update(buildNativeProviderNavigationSource()).digest("hex").slice(0, 12);
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-26\\.managed-terminal\\.tabs-${digest}\\.provider-${providerDigest}"`));
   assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);
 });
@@ -68,12 +70,12 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /currentFrame\.dispatchEvent\(new Event\(FRAME_READY_TYPE\)\)/);
   assert.match(source, /sessionStorage\.setItem\(FRAME_RECOVERY_KEY/);
   assert.match(source, /data-codex-control-console-frame-recovery-request/);
-  assert.match(source, /requestEmbeddedFramePreparation\(module\)/);
+  assert.match(source, /requestEmbeddedFramePreparation\(module, terminalTarget\)/);
   assert.doesNotMatch(source, /location\.reload\(\)/);
   assert.match(source, /if \(pendingFrameRecovery\)/);
   assert.match(source, /currentFrame\(\) !== openingFrame/);
   assert.match(source, /Boolean\(nativeAnchor\(\)\)/);
-  assert.match(source, /openWorkspace\(recovery\.module, '正在恢复控制台…'\)/);
+  assert.match(source, /openWorkspace\(recovery\.module, '正在恢复会话…', recovery\.module !== 'terminal'\)/);
   assert.match(source, /url\.searchParams\.set\('theme', nativeTheme\(\)\)/);
   assert.match(source, /url\.searchParams\.set\('embedded', 'native'\)/);
   assert.match(source, /prefers-color-scheme: dark/);
@@ -118,7 +120,7 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, /data-app-action-sidebar-thread-id/);
   assert.match(source, /setTimeout\(restoreWorkspace, 0\)/);
   assert.match(source, /__codexControlConsoleNativeThreadListener/);
-  assert.match(source, /\['console', 'sessions', 'priority', 'projects', 'conversations'\]\.includes\(module\) \? module : 'board'/);
+  assert.match(source, /\['console', 'sessions', 'priority', 'projects', 'conversations', 'terminal'\]\.includes\(module\) \? module : 'board'/);
   assert.match(source, /__codexControlConsoleInjected/);
   assert.doesNotMatch(source, /__codexControlConsoleSetProjectOrder/);
   assert.doesNotMatch(source, /data-codex-control-console-project-rank/);

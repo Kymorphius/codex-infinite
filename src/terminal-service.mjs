@@ -37,14 +37,16 @@ export class TerminalService {
     return entry;
   }
 
-  create(input = {}) {
-    const creation = this.createSession(input);
+  create(input = {}) { return this.createManaged(input); }
+
+  createManaged(input = {}, launch = {}) {
+    const creation = this.createSession(input, launch);
     this.creations.add(creation);
     creation.then(() => this.creations.delete(creation), () => this.creations.delete(creation));
     return creation;
   }
 
-  async createSession(input) {
+  async createSession(input, launch = {}) {
     if (this.disposed) throw terminalError(503, '终端服务已停止');
     const options = terminalCreateInput(input, this.defaultCwd);
     if (this.sessions.size + this.pending >= TERMINAL_LIMITS.sessions) throw terminalError(429, '最多保留 8 个终端，请先关闭不用的终端');
@@ -52,7 +54,7 @@ export class TerminalService {
     try {
       await this.validateCwd(options.cwd);
       if (this.disposed) throw terminalError(503, '终端服务已停止');
-      const pty = await this.spawnProcess({ ...options, userHome: this.userHome });
+      const pty = await this.spawnProcess({ ...options, ...launch, userHome: this.userHome });
       if (this.disposed) { await pty.kill(); throw terminalError(503, '终端服务已停止'); }
       const entry = { ...options, id: randomUUID(), title: options.kind === 'claude' ? 'Claude CLI' : '终端',
         status: 'running', exitCode: null, replayTruncated: false, replay: Buffer.alloc(0), pty, writer: null, subscriptions: [] };

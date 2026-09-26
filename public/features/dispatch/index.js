@@ -1,5 +1,5 @@
 import { requestJson } from "../../core/transport.js";
-import { isLocalTask } from "../../core/tasks.js";
+import { isNativeLocalTask as isLocalTask } from "../../core/tasks.js";
 import { createDispatchDetails, scheduleRelativeLabel } from "./details.js";
 import { createPersonalPanelBoard } from './personal-panel.js';
 import { createTaskCenter } from '../task-center/index.js';
@@ -58,7 +58,7 @@ export function createDispatchFeature({ state, $, formatDate, showToast, request
   const taskCenter = createTaskCenter({ $, state, formatDate, requestOpen });
 
   function updateThreadSelector() {
-    const tasks = state.tasks.filter((task) => isLocalTask(task) && task.project === projectSelect.value);
+    const tasks = state.tasks.filter((task) => (task.provider !== 'terminal' && isLocalTask(task)) && task.project === projectSelect.value);
     threadSelect.replaceChildren();
     if (!tasks.length) {
       threadSelect.append(new Option(projectSelect.value ? "该项目没有可用对话" : "先选择项目", ""));

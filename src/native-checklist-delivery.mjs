@@ -17,7 +17,7 @@ export function createChecklistDeliveryBridge({ readItems, enqueue, signal }) {
   }
   return {
     prepare(id, threadId, text, request, expectedRevision) {
-      const item = readItems().find(value => value.id === id && (text === null || value.text === text) && !value.done && value.executionState !== 'delivered' && value.assignedThreadId === threadId);
+      const item = readItems().find(value => (value.assignedProvider ?? 'codex') === 'codex' && value.id === id && (text === null || value.text === text) && !value.done && value.executionState !== 'delivered' && value.assignedThreadId === threadId);
       if (!item || item.readOnly) return Promise.reject(new Error(item?.attachmentError || '任务来源未连接或状态已变化，请刷新后重试'));
       if (!item.sourceRef) return Promise.reject(new Error('任务尚未保存到来源设备，请同步后再入队'));
       if (expectedRevision && item.expectedRevision !== expectedRevision) return Promise.reject(Object.assign(new Error('任务状态已变化，请刷新后领取'), { code: 'REVISION_CONFLICT' }));

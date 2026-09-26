@@ -19,6 +19,7 @@ export function formatTokens(value) {
 }
 
 export function taskStatusLabel(task) {
+  if (task.provider === 'terminal') return task.terminalConversation?.status === 'running' ? '已连接' : '已停止';
   if (task.status === "active") return "进行中";
   if (task.status === "completed") return "已完成";
   if (task.status === "error" || task.status === "interrupted") return "异常";

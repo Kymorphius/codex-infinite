@@ -15,12 +15,13 @@
             <div class="terminal-conversation">
               <div class="terminal-session-bar hidden" data-testid="terminal-session-bar">
                 <div class="terminal-session-meta"><div><strong data-testid="terminal-session-title">终端会话</strong><span data-testid="terminal-status" role="status"></span></div><code data-testid="terminal-path"></code></div>
-                <button class="quiet-button hidden" type="button" data-terminal-reconnect>重连</button>
+                <button class="quiet-button hidden" type="button" data-terminal-start>启动会话</button><button class="quiet-button hidden" type="button" data-terminal-reconnect>重连</button>
                 <button class="quiet-button terminal-close" type="button" data-terminal-close aria-label="关闭终端" title="关闭终端">×</button>
               </div>
               <p class="terminal-replay-note hidden" data-testid="terminal-replay-note">较早的输出已超出保留范围；当前程序仍可继续使用。</p>
               <div class="terminal-empty" data-testid="terminal-empty"><span class="terminal-empty-symbol" aria-hidden="true">›_</span><h2>完整终端，熟悉的会话</h2><p data-testid="terminal-empty-message">从右上角新建会话，打开终端或原生 Claude CLI。</p><button class="quiet-button" type="button" data-terminal-refresh>刷新会话</button></div>
               <div class="terminal-viewport hidden" data-testid="terminal-viewport"></div>
+              <section class="terminal-task-panel hidden" data-terminal-task-panel aria-label="共享会话待办"><header><strong>会话任务</strong><button class="quiet-button" type="button" data-terminal-task-dismiss aria-label="关闭会话待办">×</button></header><p data-terminal-task-message role="status"></p><div data-terminal-task-list></div></section>
               <form class="terminal-composer hidden" data-testid="terminal-composer">
                 <div class="terminal-composer-box">
                   <label class="sr-only" for="terminal-composer-input">向当前终端输入</label>
@@ -33,10 +34,12 @@
                         <button class="terminal-same-directory" type="button" data-terminal-same-directory title="保留当前会话，在同一工作目录新建 Shell">同目录新建 Shell</button>
                       </div>
                     </details>
-                    <div class="terminal-composer-pills"><button type="button" data-terminal-focus title="直接使用完整终端键盘">操作终端</button><button type="button" data-terminal-paste title="只粘贴文字，不发送 Enter">仅粘贴</button><button type="button" data-terminal-key="interrupt" title="向当前终端发送 Ctrl+C">打断</button></div>
+                    <div class="terminal-composer-pills hidden" data-terminal-task-controls><button type="button" data-terminal-task-save>存待办</button><button type="button" data-terminal-task-todos>待办 0</button><button type="button" data-terminal-task-claim>领任务 0</button></div>
+                    <div class="terminal-composer-pills" data-terminal-direct-controls><button type="button" data-terminal-focus title="直接使用完整终端键盘">操作终端</button><button type="button" data-terminal-paste title="只粘贴文字，不发送 Enter">仅粘贴</button><button type="button" data-terminal-key="interrupt" title="向当前终端发送 Ctrl+C">打断</button></div>
                     <div class="terminal-composer-right"><span class="terminal-session-kind" data-testid="terminal-session-kind" title="当前会话类型">Claude CLI</span><button class="terminal-send" type="submit" data-terminal-send aria-label="发送到终端" title="发送到终端"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4m-7 7 7-7 7 7"/></svg></button></div>
                   </div>
                 </div>
+                <p class="terminal-task-notice hidden" data-terminal-task-notice role="status"></p>
                 <div class="terminal-composer-hint" id="terminal-composer-hint" data-testid="terminal-composer-hint">Enter 发送 · Shift+Enter 换行</div>
               </form>
             </div>

@@ -56,7 +56,7 @@ test('project manager retains its route across tabs and frame recovery', () => {
   assert.doesNotThrow(() => new Function(source));
   assert.match(source, /module === 'projects'\) url.pathname = '\/projects.html'/);
   assert.match(source, /openWorkspace\('projects'\)/);
-  assert.match(source, /'priority', 'projects'\]\.includes\(value.module\)/);
+  assert.match(source, /'priority', 'projects', 'terminal'\]\.includes\(value.module\)/);
   assert.match(source, /const modules = \['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'\]/);
   assert.match(source, /modules\.includes\(input\?\.consoleModule\)/);
   assert.match(source, /module === 'projects' \? '项目管理'/);

@@ -44,17 +44,20 @@ export function shouldSubmitTerminalDraft(event, composing = false) {
   return event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode !== 229 && !composing;
 }
 
-export function createTerminalComposer({ getView, onChange = () => {} }) {
+export function createTerminalComposer({ getView, onChange = () => {}, storage, storageKey = id => `terminal-draft:${id}` }) {
   const drafts = new Map();
   const revisions = new Map();
   const pending = new Set();
   let selectedId = "";
   const draft = () => drafts.get(selectedId) || "";
+  function persist(id, value) {
+    try { if (value) storage?.setItem(storageKey(id), value); else storage?.removeItem(storageKey(id)); } catch { /* Drafts remain available in memory. */ }
+  }
   return {
     draft,
-    select(id) { selectedId = id; onChange(); },
-    setDraft(text) { if (selectedId) { drafts.set(selectedId, text); revisions.set(selectedId, (revisions.get(selectedId) || 0) + 1); } onChange(); },
-    forget(id) { drafts.delete(id); revisions.delete(id); },
+    select(id) { selectedId = id; if (id && !drafts.has(id)) { try { drafts.set(id, storage?.getItem(storageKey(id)) || ''); } catch { /* Storage is optional. */ } } onChange(); },
+    setDraft(text) { if (selectedId) { drafts.set(selectedId, text); persist(selectedId, text); revisions.set(selectedId, (revisions.get(selectedId) || 0) + 1); } onChange(); },
+    forget(id) { drafts.delete(id); revisions.delete(id); persist(id, ''); },
     clear() { drafts.clear(); revisions.clear(); },
     snapshot() {
       const state = getView(selectedId)?.snapshot();
@@ -73,7 +76,7 @@ export function createTerminalComposer({ getView, onChange = () => {} }) {
       onChange();
       try {
         const result = await view.pasteText(text, { submit });
-        if (result.ok && drafts.get(id) === text && revisions.get(id) === revision) drafts.delete(id);
+        if (result.ok && drafts.get(id) === text && revisions.get(id) === revision) { drafts.delete(id); persist(id, ''); }
         return result;
       } catch (error) {
         return { ok: false, message: terminalMessage(error, "未能发送到终端，草稿已保留。请查看终端后重试。") };

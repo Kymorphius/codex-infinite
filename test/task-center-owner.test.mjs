@@ -142,7 +142,7 @@ test('new-thread delivered acknowledgement atomically records content and verifi
   const item = (await owner.apply(createAction())).item;
   const reserved = await reserve(owner, item, { assignedDeviceId: 'mac', assignedThreadId: null });
   const delivered = (await owner.apply(confirmation(reserved, { assignedDeviceId: 'mac', assignedThreadId: OTHER_THREAD, text: '实际发送内容', input: [{ type: 'text', text: '过时输入' }] }))).item;
-  assert.deepEqual(checked, [{ deviceId: 'mac', threadId: null }, { deviceId: 'mac', threadId: OTHER_THREAD }]);
+  assert.deepEqual(checked, [{ provider: 'codex', deviceId: 'mac', threadId: null }, { provider: 'codex', deviceId: 'mac', threadId: OTHER_THREAD }]);
   assert.equal(delivered.assignedThreadId, OTHER_THREAD); assert.equal(delivered.text, '实际发送内容');
   assert.deepEqual(delivered.input, [{ type: 'text', text: '实际发送内容' }]);
   assert.equal(delivered.done, false); assert.equal(delivered.executionState, 'delivered');

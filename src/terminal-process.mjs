@@ -23,13 +23,18 @@ export async function validateTerminalCwd(cwd) {
   return cwd;
 }
 
-export function terminalLaunch({ kind, env = process.env, platform = process.platform } = {}) {
+export function terminalLaunch({ kind, claudeSessionId, resume = false, env = process.env, platform = process.platform } = {}) {
+  if (claudeSessionId !== undefined && (typeof claudeSessionId !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(claudeSessionId))) {
+    throw terminalError(400, 'Claude 会话标识无效');
+  }
+  const command = claudeSessionId ? `claude ${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : 'claude';
   if (platform === 'win32') {
     const shell = env.COMSPEC || path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
-    return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', 'claude'] : ['/d'] };
+    return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', command] : ['/d'] };
   }
   const shell = path.isAbsolute(env.SHELL || '') ? env.SHELL : (platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-  return { shell, args: kind === 'claude' ? ['-lic', 'claude'] : ['-l'] };
+  return { shell, args: kind === 'claude' ? ['-lic', command] : ['-l'] };
 }
 
 // Only processes descended from this adapter's PTY are eligible for cleanup.
@@ -63,11 +68,12 @@ export async function killTerminalProcess(pty, { platform = process.platform, ex
   try { pty.kill('SIGKILL'); } catch {}
 }
 
-export async function spawnTerminalProcess({ cwd, kind, cols, rows, userHome = os.homedir(), env = process.env } = {}) {
+export async function spawnTerminalProcess({ cwd, kind, cols, rows, claudeSessionId, resume,
+  userHome = os.homedir(), env = process.env } = {}) {
   let library;
   try { library = await import('node-pty'); }
   catch { throw terminalError(503, '终端组件不可用，请重新安装本机依赖后重试'); }
-  const { shell, args } = terminalLaunch({ kind, env });
+  const { shell, args } = terminalLaunch({ kind, claudeSessionId, resume, env });
   let pty;
   try {
     pty = (library.spawn || library.default.spawn)(shell, args, {

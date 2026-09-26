@@ -32,7 +32,7 @@ export function createConsoleFeature({ state, $, formatDate, statusLabel, reques
     open.type = "button";
     open.className = "task-open";
     const local = isLocalTask(task);
-    open.textContent = local ? "在 Codex 中打开" : "由远端节点打开";
+    open.textContent = task.provider === 'terminal' ? '打开会话' : local ? "在 Codex 中打开" : "由远端节点打开";
     open.disabled = !local;
     if (local) open.addEventListener("click", () => requestOpen(task));
     card.append(main, open);

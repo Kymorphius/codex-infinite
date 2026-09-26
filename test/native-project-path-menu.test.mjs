@@ -202,3 +202,21 @@ test('search and native menus share native project checklist identity', async ()
   h.capture('data-project-search-id', '["local","server"]'); await flush();
   assert.equal(opened[0].key, 'p');
 });
+
+test('project menu creates a managed provider conversation in the exact selected native root', async () => {
+  const h = harness({ selection: 'ccc-terminal-create:claude:1', roots: ['/one', '/two'] }), created = [];
+  h.context.window.__cccTerminalConversations = { create: (...args) => created.push(args) };
+  h.capture(); await flush();
+  const entry = h.calls[0].find(item => item.id === 'ccc-terminal-create:claude');
+  assert.equal(entry.label, '新建 Claude 会话'); assert.equal(entry.submenu[1].label, '/two');
+  assert.equal(created[0][0].id, 'p'); assert.equal(created[0][1], '/two'); assert.equal(created[0][2], 'claude');
+  assert.equal(h.selected(), 0); assert.deepEqual(h.writes, []);
+});
+
+test('remote and pathless projects do not advertise local terminal creation', async () => {
+  const h = harness({ roots: [] }); h.context.window.__cccTerminalConversations = { create() { throw Error('must not create'); } };
+  h.capture(); await flush(); assert.equal(h.calls[0].some(item => item.id?.startsWith('ccc-terminal-create')), false);
+  vm.runInContext(buildNativeProjectPathMenuScript([{ id: 'p', searchKey: 'remote-key', sourceDirectories: ['/remote'], device: { kind: 'remote-codex', name: 'remote' } }]), h.context);
+  h.capture('data-project-search-id', 'remote-key'); await flush();
+  assert.equal(h.calls.at(-1).some(item => item.id?.startsWith('ccc-terminal-create')), false);
+});

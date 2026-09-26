@@ -4,7 +4,7 @@ import { createDomServices } from "./core/dom.js";
 import { formatDate, formatDuration, formatTokens, taskStatusLabel } from "./core/format.js";
 import { announceEmbeddedReady, createNavigation } from "./core/navigation.js";
 import { createAdaptiveRefreshScheduler, taskRefreshDelay } from "./core/refresh-policy.js";
-import { createAppState, MODULES } from "./core/state.js";
+import { createAppState, initialAppModule, MODULES } from "./core/state.js";
 import { createTaskSource } from "./core/tasks.js";
 import { createConsoleFeature } from "./features/console/index.js";
 import { createContextFeature } from "./features/context/index.js";
@@ -21,7 +21,7 @@ import { createTerminalFeature } from "./features/terminal/index.js";
 
 (() => {
   announceEmbeddedReady();
-  const requestedModule = new URLSearchParams(location.search).get("module");
+  const requestedModule = initialAppModule(location.search);
   const state = createAppState(requestedModule);
   const { $, setScopedState, showToast } = createDomServices();
   installRestartButton({ button: document.querySelector('[data-action="restart"]'), showToast });

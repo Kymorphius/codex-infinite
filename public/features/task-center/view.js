@@ -1,4 +1,4 @@
-import { actionIssue, DELIVERY_REVIEW_MESSAGE, DEVICE_LABELS, statusLabel, taskDestination } from './model.js';
+import { actionIssue, DELIVERY_REVIEW_MESSAGE, DEVICE_LABELS, statusLabel, taskDestination, matchesTaskDestination } from './model.js';
 import { createEditorView } from './editor.js';
 
 export function createTaskCenterView({ root, documentRef = document, controller, requestOpen, tasks = () => [], formatDate }) {
@@ -23,9 +23,9 @@ export function createTaskCenterView({ root, documentRef = document, controller,
     if (item.attachmentCount) meta.append(node('span', '', `${item.attachmentCount} 个附件`));
     const text = node('p', 'task-center-text', item.text);
     main.append(meta, text);
-    const { deviceId, threadId } = taskDestination(item);
+    const destination = taskDestination(item), { deviceId, threadId } = destination;
     if (threadId) {
-      const target = tasks().find(task => task.id === threadId && task.device?.id === deviceId);
+      const target = tasks().find(task => matchesTaskDestination(task, destination));
       const targetName = state.catalog.devices.find(entry => entry.device.id === deviceId)?.device.name || deviceId;
       main.append(node('p', 'task-center-assignment', `${targetName} · ${target?.title || item.assignedThreadTitle || threadId.slice(0, 8)}`));
     }
@@ -66,7 +66,7 @@ export function createTaskCenterView({ root, documentRef = document, controller,
       })); health.hidden = !health.childNodes.length;
     }
     const rowSignatures = state.visible.map(item => [item.key, JSON.stringify([item, state.stale, state.pending,
-      tasks().find(task => task.id === taskDestination(item).threadId && task.device?.id === taskDestination(item).deviceId)?.title])]);
+      tasks().find(task => matchesTaskDestination(task, taskDestination(item)))?.title])]);
     const signature = JSON.stringify(rowSignatures);
     if (signature !== listSignature) {
       listSignature = signature;
@@ -108,7 +108,7 @@ export function createTaskCenterView({ root, documentRef = document, controller,
       if (type !== 'open') return controller.edit(type, key);
       const item = controller.getState().rows.find(row => row.key === key); if (!item?.connected) return;
       const destination = taskDestination(item);
-      const target = tasks().find(task => task.id === destination.threadId && task.device?.id === destination.deviceId);
+      const target = tasks().find(task => matchesTaskDestination(task, destination));
       if (target) requestOpen(target);
       else { setText($('[data-task-center-feedback]'), '目标会话暂不可用，请刷新会话目录后重试。'); $('[data-task-center-feedback]').hidden = false; }
     });

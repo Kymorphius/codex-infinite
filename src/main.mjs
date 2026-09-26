@@ -1,4 +1,6 @@
 import { TerminalService } from './terminal-service.mjs';
+import { TerminalConversationService } from './terminal-conversation-service.mjs';
+import { createTerminalProjectValidator } from './terminal-project-adapter.mjs';
 import { attachTerminalWebSocket } from './terminal-websocket.mjs';
 import { NativeExperimentAdapter } from './native-experiment-adapter.mjs';
 import { ExperimentService } from './experiment-service.mjs';
@@ -214,13 +216,15 @@ export async function run() {
   let nativeOwnerInjector = null;
   const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
   const terminalService = new TerminalService({ userHome: config.userHome, defaultCwd: config.userHome });
+  const terminalConversations = new TerminalConversationService({ terminalService, deviceId: config.nodeDevice.id,
+    filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter) });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
-  const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers });
+  const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers, terminalConversations });
   const personalPanelTaskAdapter = new PersonalPanelTaskAdapter({ scriptPath: config.personalPanelTaskBridgePath });
-  const dashboard = createDashboardServer({ config, terminalService, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const dashboard = createDashboardServer({ config, terminalService, terminalConversations, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
   const detachTerminal = attachTerminalWebSocket({ server: dashboard.server, service: terminalService, dashboardOrigin: config.dashboardOrigin });
   try {
     await dashboard.listen();

@@ -57,3 +57,11 @@ test('embedded terminal opens require the exact parent origin and never use Code
   assert.deepEqual(activated, ['terminal']);
   assert.equal(state.module, 'terminal');
 });
+
+test('managed terminal task opening uses provider reference and cannot call native Codex openTask', () => {
+  const posts = [], parent = { postMessage: (message, origin) => posts.push({ message, origin }) };
+  const windowRef = { parent };
+  const navigation = createNavigation({ state: { module: 'board' }, modules: {}, $() {}, showToast() {}, onActivate() {}, onRefresh() {}, documentRef: {}, windowRef });
+  navigation.requestOpen({ id: 'stable-id', provider: 'terminal', device: { id: 'local' }, title: 'Private title' });
+  assert.deepEqual(posts, [{ origin: 'app://-', message: { type: 'codex-control-console-open-terminal-conversation', reference: { provider: 'terminal', conversationId: 'stable-id', deviceId: 'local' } } }]);
+});

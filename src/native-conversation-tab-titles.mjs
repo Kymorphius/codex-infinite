@@ -25,11 +25,11 @@ export function createNativeConversationTabTitlePolicy(storage) {
 export function createNativeConversationTabNormalizer(storage, clean, uuid) {
   const titles = createNativeConversationTabTitlePolicy(storage);
   return tab => {
-    const kind = tab?.kind === 'remote' ? 'remote' : tab?.kind === 'local' ? 'local' : tab?.kind === 'chatgpt' ? 'chatgpt' : null;
-    const id = clean(tab?.id, 160), deviceId = kind === 'remote' ? clean(tab?.deviceId, 120) : 'local';
+    const kind = ['remote', 'local', 'chatgpt', 'terminal'].includes(tab?.kind) ? tab.kind : null;
+    const id = clean(tab?.id, 160), deviceId = kind === 'remote' || kind === 'terminal' ? clean(tab?.deviceId, 120) : 'local';
     if (!kind || !id || !deviceId || (kind !== 'remote' && !uuid.test(id))) return null;
     const normalizedId = kind === 'remote' ? id : id.toLowerCase();
-    return { kind, id: normalizedId, deviceId, title: titles.resolve(kind, normalizedId, clean(tab?.title, 160)), cwd: clean(tab?.cwd, 1024), deviceName: clean(tab?.deviceName, 80) };
+    return { kind, id: normalizedId, deviceId, title: titles.resolve(kind, normalizedId, clean(tab?.title, 160)), cwd: clean(tab?.cwd, 1024), deviceName: clean(tab?.deviceName, 80), ...(kind === 'terminal' ? { engine: tab.engine === 'claude' ? 'claude' : 'shell' } : {}) };
   };
 }
 

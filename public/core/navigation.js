@@ -32,6 +32,12 @@ export function createNavigation({ state, modules, $, showToast, onActivate, onR
   }
 
   function requestOpen(task) {
+    if (task.provider === 'terminal') {
+      const reference = { provider: 'terminal', conversationId: task.id, deviceId: task.device?.id };
+      if (windowRef.parent !== windowRef) windowRef.parent.postMessage({ type: 'codex-control-console-open-terminal-conversation', reference }, 'app://-');
+      else { onOpenTerminalConversation(reference); showModule('terminal'); }
+      return;
+    }
     if (windowRef.parent === windowRef) return showToast("请在 Codex 控制台中打开任务。");
     windowRef.parent.postMessage({ type: "codex-control-console-open-task", task: { id: task.id, title: task.title, device: task.device || null } }, "*");
     showToast("正在请求 Codex 打开任务…");
@@ -61,7 +67,7 @@ export function createNavigation({ state, modules, $, showToast, onActivate, onR
     windowRef.addEventListener("message", (event) => {
       if (event.data?.type === 'codex-control-console-open-terminal-conversation') {
         if (event.source !== windowRef.parent || event.origin !== 'app://-') return;
-        onOpenTerminalConversation(event.data.reference || {});
+        onOpenTerminalConversation(event.data.reference || event.data);
         showModule('terminal');
         return;
       }

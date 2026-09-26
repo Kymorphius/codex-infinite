@@ -7,15 +7,24 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
   let pendingFrameRecovery = (() => {
     try {
       const value = JSON.parse(sessionStorage.getItem(FRAME_RECOVERY_KEY) || 'null');
-      if (value && ['board', 'console', 'sessions', 'priority', 'projects'].includes(value.module) && Date.now() - Number(value.at) < 30000) return value;
+      if (value && ['board', 'console', 'sessions', 'priority', 'projects', 'terminal'].includes(value.module) && (value.module !== 'terminal' || validRecoveryTerminal(value.reference)) && Date.now() - Number(value.at) < 30000) return value;
       sessionStorage.removeItem(FRAME_RECOVERY_KEY);
     } catch { try { sessionStorage.removeItem(FRAME_RECOVERY_KEY); } catch {} }
     return null;
   })();
 
-  function requestEmbeddedFramePreparation(module) {
+  function validRecoveryTerminal(reference) {
+    return reference?.provider === 'terminal' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference?.conversationId || '');
+  }
+
+  function frameRecoveryRecord(module, reference) {
+    if (module === 'terminal' && validRecoveryTerminal(reference)) return { module, reference, at: Date.now() };
+    return { module: ['board', 'console', 'sessions', 'priority', 'projects'].includes(module) ? module : 'board', at: Date.now() };
+  }
+
+  function requestEmbeddedFramePreparation(module, reference = null) {
     if (window.__codexControlConsoleCspDocumentPrepared) return false;
-    const recovery = { module: ['board', 'console', 'sessions', 'priority', 'projects'].includes(module) ? module : 'board', at: Date.now() };
+    const recovery = frameRecoveryRecord(module, reference);
     try {
       sessionStorage.setItem(FRAME_RECOVERY_KEY, JSON.stringify(recovery));
       pendingFrameRecovery = recovery;
@@ -24,7 +33,7 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
     return true;
   }
 
-  function monitorEmbeddedFrame(openingFrame, currentFrame, loading, module) {
+  function monitorEmbeddedFrame(openingFrame, currentFrame, loading, module, reference = null) {
     openingFrame.addEventListener('load', () => {
       if (loading.isConnected) loading.textContent = '正在连接控制台…';
     }, { once: true });
@@ -34,7 +43,7 @@ export function buildEmbeddedFrameRecoveryInjectionSource() {
         if (loading.isConnected) loading.textContent = '控制台仍被浏览器拦截，请重启专用外壳。';
         return;
       }
-      const recovery = { module: ['board', 'console', 'sessions', 'priority', 'projects'].includes(module) ? module : 'board', at: Date.now() };
+      const recovery = frameRecoveryRecord(module, reference);
       try {
         sessionStorage.setItem(FRAME_RECOVERY_KEY, JSON.stringify(recovery));
         pendingFrameRecovery = recovery;

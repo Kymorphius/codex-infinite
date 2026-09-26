@@ -31,7 +31,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   function persist() { try { localStorage.setItem(KEY, JSON.stringify(pending)); storageError = ''; } catch { storageError = '任务尚未保存到草稿，请勿关闭窗口'; } }
   let taskPaste = null, taskModel = null, focusTaskId = null;
   function showPastedImages() { taskPaste?.render(pasted, add, loaded === project?.key); }
-  const metadata = item => ({ ...(item.sourceRef ? { sourceRef: item.sourceRef, expectedRevision: item.expectedRevision, readOnly: item.readOnly, sourceConnected: item.sourceConnected, ...(item.attachmentError ? { attachmentError: item.attachmentError } : {}) } : {}), ...(item.assignedDeviceId ? { assignedDeviceId: item.assignedDeviceId } : {}), ...(item.executionState ? { executionState: item.executionState } : {}), ...(item.reservationToken ? { reservationToken: item.reservationToken } : {}), ...(item.deliveryReservation ? { deliveryReservation: item.deliveryReservation } : {}) });
+  const metadata = item => ({ ...(item.assignedProvider ? { assignedProvider: item.assignedProvider } : {}), ...(item.sourceRef ? { sourceRef: item.sourceRef, expectedRevision: item.expectedRevision, readOnly: item.readOnly, sourceConnected: item.sourceConnected, ...(item.attachmentError ? { attachmentError: item.attachmentError } : {}) } : {}), ...(item.assignedDeviceId ? { assignedDeviceId: item.assignedDeviceId } : {}), ...(item.executionState ? { executionState: item.executionState } : {}), ...(item.reservationToken ? { reservationToken: item.reservationToken } : {}), ...(item.deliveryReservation ? { deliveryReservation: item.deliveryReservation } : {}) });
   function view(projectKey = project?.key, source = items) {
     const result = source.map(item => ({ id: item.id, text: item.text, done: item.done, assignedThreadId: item.assignedThreadId || null, ...readTime(item), ...(Array.isArray(item.input) ? { input: item.input } : {}), ...metadata(item) }));
     for (const action of pending.filter(value => !value.conflict && value.projectKey === projectKey && !['verify-delivery', 'release-delivery'].includes(value.type))) {
@@ -150,7 +150,7 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
     openClaimableForNewThread() { this.open({ key: GENERAL_KEY, general: true, claimNewThread: true, name: '直接编辑任务内容；点击领取会填入新任务输入框并发送，创建新会话。' }); },
     completeAssignedTask(id, threadId, text, reservation = {}) {
       if (!threadId || typeof text !== 'string') return false;
-      const item = view(GENERAL_KEY, generalItems).find(value => value.id === id && !value.done && value.executionState !== 'delivered' && value.assignedThreadId === threadId && value.text === text);
+      const item = view(GENERAL_KEY, generalItems).find(value => value.id === id && (value.assignedProvider ?? 'codex') === 'codex' && !value.done && value.executionState !== 'delivered' && value.assignedThreadId === threadId && value.text === text);
       if (!item) return false;
       const requestId = act('upsert', { ...item, ...reservation, done: false, executionState: 'delivered' }, GENERAL_KEY);
       if (!requestId || storageError) { pending = pending.filter(action => action.requestId !== requestId); render(); return false; }

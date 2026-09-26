@@ -3,7 +3,7 @@ export const MODULES = Object.freeze({
   generators: { title: "发生器", caption: "手动或定时触发一组预设任务" },
   "jev-routing": { title: "自动分流", caption: "Jev 判断任务档位，模型与推理强度由你映射" },
   console: { title: "控制台", caption: "只读本机任务记录" },
-  sessions: { title: "会话中心", caption: "按工作目录查看原生 Codex 会话" },
+  sessions: { title: "会话中心", caption: "管理项目中的 Codex、Claude 与终端会话" },
   terminal: { title: "终端会话", caption: "完整终端 · 会话输入控制台" },
   context: { title: "上下文状态", caption: "普通会话使用模型默认窗口；需要时按会话扩展" },
   usage: { title: "用量", caption: "查看 Codex 账号额度与重置时间" },
@@ -25,4 +25,10 @@ export function createAppState(requestedModule = "board") {
       editor: { open: false, mode: "edit", key: "", item: null, pending: null }
     }
   };
+}
+
+export function initialAppModule(search) {
+  const params = new URLSearchParams(search), requested = params.get('module');
+  return requested === 'terminal' && params.get('view') !== 'conversation' && !params.has('conversationId') && !params.has('session')
+    ? 'sessions' : requested;
 }

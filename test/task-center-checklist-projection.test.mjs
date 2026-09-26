@@ -53,7 +53,7 @@ test('remote deletes route to source identity with CAS and cannot create a local
 test('claim and latest editor content use one versioned assignment while returns preserve the source', async () => {
   const h = fixture([item('windows')]), [task] = (await h.projection.read(GENERAL)).items;
   await h.projection.apply({ ...task, type: 'upsert', assignedThreadId: thread, text: '编辑后领取', requestId: 'claim' });
-  assert.deepEqual(h.mutations[0], { ...task.sourceRef, requestId: 'claim', expectedRevision: task.expectedRevision, type: 'assign', text: '编辑后领取', assignedDeviceId: 'mac', assignedThreadId: thread });
+  assert.deepEqual(h.mutations[0], { ...task.sourceRef, requestId: 'claim', expectedRevision: task.expectedRevision, type: 'assign', text: '编辑后领取', assignedProvider: 'codex', assignedDeviceId: 'mac', assignedThreadId: thread });
   h.snapshot.devices[1].items[0] = { ...item('windows'), assignedThreadId: thread, assignedDeviceId: 'mac' };
   const [assigned] = (await h.projection.read(GENERAL)).items;
   await h.projection.apply({ ...assigned, type: 'upsert', assignedThreadId: null, requestId: 'return' });

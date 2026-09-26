@@ -4,19 +4,22 @@
 
 Codex Control Console is a loopback-only companion embedded into a dedicated Codex desktop profile. It indexes shared native sessions, opens native conversations, schedules work, exposes context controls, ranks projects, and bridges Zotero without becoming a second chat system.
 
-The embedded local terminal is a separate PTY capability for interactive shells
-and native Claude CLI. The console owns only terminal processes it starts, with
-bounded memory-only output and exact-origin local transport. Terminal sessions
-are not Codex conversation records and do not enter the native session index.
-The terminal conversation composer is a second input surface for the same PTY,
-not a model API client. It uses xterm paste modes and a connection-bound submit
-operation, while direct terminal keyboard input remains fully interactive.
-Drafts belong to individual terminal IDs in page memory; no Codex controls or
-task queues are reused without a terminal-specific implementation.
-Project catalog and session-directory entries pass an explicit `terminal`
-reference with an exact local cwd to the terminal workspace. Session deep links
-resolve only existing PTY IDs, with latest-reference-wins loading; missing IDs
-remain explicit errors. Terminal IDs never go through native Codex task routes.
+Managed terminal conversations are a first-class conversation provider alongside
+native Codex and ChatGPT. The local provider owns persistent conversation metadata
+and explicit project references under wrapperCodexHome. Native project/sidebar and
+conversation-tab modules project these records without writing native databases.
+The existing main-area host displays a single terminal conversation and composer;
+there is no nested terminal management workspace in this view.
+
+Stable conversation IDs are separate from transient PTY IDs. Opening a record does
+not start a process. Creating or explicitly starting does; closing a tab and
+archiving do not stop it. Shell output remains bounded in memory. Claude uses its
+own stable CLI session ID and only resumes a verified transcript. The full terminal
+and composer share the same single-controller exact-origin transport.
+
+TaskCenter remains the only todo authority. Assignment identity includes provider,
+physical device and conversation ID. Terminal claims require manual input and never
+enter native Codex queue delivery, model settings or native thread routes.
 
 The following are invariants:
 

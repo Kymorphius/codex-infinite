@@ -78,14 +78,34 @@ body:has(.terminal-panel:not(.hidden)) .content { flex: 1; width: 100%; min-heig
 .terminal-key-grid > button:hover:not(:disabled) { background: #484848; }
 .terminal-keys-menu > .terminal-same-directory { border: 0; border-top: 1px solid #484848; border-radius: 0; padding: 11px 0 0; background: transparent; color: #e9e9e9; text-align: left; }
 .terminal-keys-menu > .terminal-same-directory:hover:not(:disabled) { color: #e5b532; }
-.terminal-composer-hint { height: 0; overflow: hidden; padding-inline: 12px; color: #97979f; font-size: 10px; line-height: 15px; }
-.terminal-composer:focus-within .terminal-composer-hint { height: 17px; padding-top: 2px; }
+.terminal-composer-hint { height: 17px; overflow: hidden; padding: 2px 12px 0; color: #97979f; font-size: 10px; line-height: 15px; visibility: hidden; }
+.terminal-composer:focus-within .terminal-composer-hint { visibility: visible; }
 .terminal-confirm { max-width: 420px; width: calc(100% - 40px); padding: 24px; border: 1px solid var(--native-ui-border, #ddd); border-radius: 14px; color: var(--native-ui-text, #222); background: var(--native-ui-surface, #fff); box-shadow: 0 20px 90px #0005; }
 .terminal-confirm::backdrop { background: #0006; }
 .terminal-confirm h3 { margin: 0 0 12px; font-size: 17px; }
 .terminal-confirm p { font-size: 13px; line-height: 1.6; color: var(--native-ui-text-secondary, #777); }
 .terminal-confirm code { display: block; overflow-wrap: anywhere; font-size: 12px; }
 .terminal-confirm > div { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+.terminal-conversation-view .workspace-tabbar, .terminal-conversation-view .module-nav, .terminal-conversation-view .topbar,
+.terminal-conversation-view .terminal-heading, .terminal-conversation-view .terminal-sidebar { display: none !important; }
+.terminal-conversation-view .terminal-workspace { display: flex; flex-direction: column; }
+.terminal-conversation-view .terminal-conversation { flex: 1; }
+.terminal-conversation-view .terminal-session-bar { padding: 7px 18px; }
+.terminal-conversation-view .terminal-session-meta strong { font-size: 12px; font-weight: 500; }
+.terminal-conversation-view .terminal-composer { width: 100%; max-width: 1080px; align-self: center; padding: 12px 22px 18px; }
+.terminal-conversation-view .terminal-composer-box { border-radius: 27px; padding: 17px 17px 13px; }
+.terminal-managed .terminal-keys-menu [data-terminal-direct-controls] { flex-wrap: wrap; overflow: visible; }
+.terminal-task-panel { flex: 0 1 auto; max-height: 42%; min-height: 0; overflow: auto; margin: 8px 18px 0; padding: 12px 16px; border: 1px solid #444; border-radius: 16px; background: #252527; color: #eee; font-size: 13px; }
+.terminal-task-panel header { display: flex; align-items: center; justify-content: space-between; }
+.terminal-task-panel header strong { font-weight: 500; }
+.terminal-task-panel header button { color: #ccc; }
+.terminal-task-panel [data-terminal-task-message], .terminal-task-notice { color: #bdb8ad; font-size: 12px; line-height: 1.5; }
+.terminal-task-notice { margin: 6px 12px 0; }
+.terminal-task-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 0; border-top: 1px solid #3c3c40; }
+.terminal-task-row p { flex: 1; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.terminal-task-row > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.terminal-task-row button { padding: 4px 9px; border: 1px solid #525258; border-radius: 999px; background: transparent; color: #eee; cursor: pointer; }
+.terminal-task-row button:disabled { opacity: .4; cursor: default; }
 @media (max-width: 760px) {
   .terminal-workspace { display: flex; flex-direction: column; }
   .terminal-sidebar { flex: 0 0 auto; padding: 5px 6px; background: #171719; }
@@ -100,6 +120,9 @@ body:has(.terminal-panel:not(.hidden)) .content { flex: 1; width: 100%; min-heig
   .terminal-session-kind { min-width: 86px; padding-inline: 10px; font-size: 11px; }
   .terminal-composer-right { gap: 8px; }
   .terminal-composer-pills > button { padding-inline: 9px; }
+  .terminal-conversation-view .terminal-composer { padding: 9px 10px 12px; }
+  .terminal-conversation-view .terminal-composer-box { padding: 13px 11px 11px; }
+  .terminal-conversation-view .terminal-session-bar { padding-inline: 10px; }
 }
 @media (max-height: 520px) {
   .terminal-heading { display: none; }

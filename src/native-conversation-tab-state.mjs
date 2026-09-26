@@ -12,19 +12,20 @@ function boundedText(value, maxLength) {
 }
 
 export function normalizeNativeConversationTab(tab = {}) {
-  const kind = tab.kind === "remote" ? "remote" : tab.kind === "local" ? "local" : tab.kind === "chatgpt" ? "chatgpt" : null;
+  const kind = ["remote", "local", "chatgpt", "terminal"].includes(tab.kind) ? tab.kind : null;
   const id = boundedText(tab.id, 160);
   if (!kind || !id || (kind !== "remote" && !UUID.test(id))) return null;
-  const deviceId = kind === "remote" ? boundedText(tab.deviceId, 120) : "local";
+  const deviceId = kind === "remote" || kind === "terminal" ? boundedText(tab.deviceId, 120) : "local";
   if (!deviceId) return null;
   return Object.freeze({
-    key: kind === "local" ? `local:${id.toLowerCase()}` : kind === "chatgpt" ? `chatgpt:${id.toLowerCase()}` : `remote:${encodeURIComponent(deviceId)}/${encodeURIComponent(id)}`,
+    key: kind === "local" ? `local:${id.toLowerCase()}` : kind === "chatgpt" ? `chatgpt:${id.toLowerCase()}` : `${kind}:${encodeURIComponent(deviceId)}/${encodeURIComponent(kind === "terminal" ? id.toLowerCase() : id)}`,
     kind,
     id: kind === "remote" ? id : id.toLowerCase(),
     deviceId,
     title: boundedText(tab.title, 160) || "未命名会话",
     cwd: boundedText(tab.cwd, 1024),
-    deviceName: boundedText(tab.deviceName, 80)
+    deviceName: boundedText(tab.deviceName, 80),
+    ...(kind === "terminal" ? { engine: tab.engine === "claude" ? "claude" : "shell" } : {})
   });
 }
 
