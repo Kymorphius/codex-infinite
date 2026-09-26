@@ -11,7 +11,7 @@ export function formatNativeJevTurnChoice(value = {}) {
   const tier = tiers[value.tier] || String(value.tier || "").trim();
   const model = String(value.model || "").trim().replace(/^gpt-/i, "GPT-").replace(/-(luna|terra|sol|astra)$/i, (_, name) => ` ${name[0].toUpperCase()}${name.slice(1).toLowerCase()}`).replace(/^GPT-reserve$/, "GPT-Reserve");
   const effort = String(value.effort || "").trim();
-  return tier && model && effort ? `Jev · ${tier} · ${model} · ${formatNativeJevEffort(effort)}${value.source === "dimensions" ? " · 六维" : value.fallback ? " · 兜底" : value.lowConfidence ? " · 低置信度" : ""}` : "";
+  return tier && model && effort ? `Jev · ${tier} · ${model} · ${formatNativeJevEffort(effort)}${value.source === "inherited" ? " · 沿用" : value.source === "dimensions" ? " · 六维" : value.fallback ? " · 兜底" : value.lowConfidence ? " · 低置信度" : ""}` : "";
 }
 
 export function formatNativeJevModelChange(value = {}) {
@@ -25,6 +25,7 @@ export function formatNativeJevModelChange(value = {}) {
     const dimensionConfidence = Number.isFinite(value.dimensionConfidence) ? value.dimensionConfidence.toFixed(2) : "—";
     return `模型已设置为 ${model}，推理强度 ${formatNativeJevEffort(effort)}，Jev 置信度 ${confidence}；六维判断 ${dimensionScore}，维度平均置信度 ${dimensionConfidence}。`;
   }
+  if (value.source === "inherited") return `模型已沿用为 ${model}，推理强度 ${formatNativeJevEffort(effort)}，上一轮置信度 ${confidence}。`;
   return `模型已设置为 ${model}，推理强度 ${formatNativeJevEffort(effort)}，置信度 ${confidence}${value.fallback ? "（兜底）" : value.lowConfidence ? "（低置信度）" : ""}。`;
 }
 
@@ -71,7 +72,7 @@ export function normalizeNativeJevRoutingSnapshot(snapshot = {}) {
   const receipts = (Array.isArray(snapshot.receipts) ? snapshot.receipts : []).flatMap((value) => {
     const threadId = String(value?.threadId || "").toLowerCase(), turnId = String(value?.turnId || "").toLowerCase();
     if (!THREAD_ID_PATTERN.test(threadId) || !THREAD_ID_PATTERN.test(turnId) || !ROUTE_MODELS.has(value?.model) || !ROUTE_EFFORTS.has(value?.effort)) return [];
-    return [{ threadId, turnId, tier: String(value?.tier || "").slice(0, 24), model: value.model, effort: value.effort, confidence: Number.isFinite(value?.confidence) ? value.confidence : null, lowConfidence: value?.lowConfidence === true, fallback: value?.fallback === true, source: ["jev", "dimensions", "fallback"].includes(value?.source) ? value.source : null, dimensionScore: Number.isFinite(value?.dimensionScore) && value.dimensionScore >= 0 && value.dimensionScore <= 30 ? value.dimensionScore : null, dimensionConfidence: Number.isFinite(value?.dimensionConfidence) && value.dimensionConfidence >= 0 && value.dimensionConfidence <= 1 ? value.dimensionConfidence : null, reason: String(value?.reason || "").slice(0, 500), routedAt: String(value?.routedAt || "").slice(0, 64) }];
+    return [{ threadId, turnId, tier: String(value?.tier || "").slice(0, 24), model: value.model, effort: value.effort, confidence: Number.isFinite(value?.confidence) ? value.confidence : null, lowConfidence: value?.lowConfidence === true, fallback: value?.fallback === true, source: ["jev", "dimensions", "fallback", "inherited"].includes(value?.source) ? value.source : null, dimensionScore: Number.isFinite(value?.dimensionScore) && value.dimensionScore >= 0 && value.dimensionScore <= 30 ? value.dimensionScore : null, dimensionConfidence: Number.isFinite(value?.dimensionConfidence) && value.dimensionConfidence >= 0 && value.dimensionConfidence <= 1 ? value.dimensionConfidence : null, reason: String(value?.reason || "").slice(0, 500), routedAt: String(value?.routedAt || "").slice(0, 64) }];
   }).slice(-512);
   return { enabled: config.enabled !== false, available: snapshot.available === true, transportMode: config.transportMode === "native" ? "native" : "router", fallbackTier: typeof config.fallbackTier === "string" ? config.fallbackTier : "everyday", mappings, threadOverrides, receipts };
 }

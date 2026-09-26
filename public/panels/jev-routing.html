@@ -15,10 +15,10 @@
 
             <form class="composer-card jev-config-form" data-testid="jev-config-form">
               <div class="section-heading"><div><p class="eyebrow">SHARED ROUTING MAP</p><h2>档位映射</h2><p class="muted">这里保存的规则会同时被加强版和 Router 控制中心读取。</p></div></div>
-              <label class="jev-native-toggle"><span><strong>原生对话自动分流</strong><small>默认开启；新任务和已有对话的每一轮都会先由 Jev 选模型和强度。</small></span><input type="checkbox" name="enabled"></label>
+              <label class="jev-native-toggle"><span><strong>原生对话自动分流</strong><small>默认开启；路由模式覆盖新任务和已有对话，原生模式在会话建立后生效。</small></span><input type="checkbox" name="enabled"></label>
               <fieldset class="jev-transport-options">
                 <legend>选好模型后怎么发送</legend>
-                <label><input type="radio" name="transportMode" value="native"><span><strong>Jev 原生</strong><small>只让 Jev 选择模型和强度，随后交回 Codex 原生通道发送。</small></span></label>
+                <label><input type="radio" name="transportMode" value="native"><span><strong>Jev 原生</strong><small>已有会话先由 Jev 选择模型和强度，再交回 Codex 原生通道发送；新聊天首轮仍使用原生模型。</small></span></label>
                 <label><input type="radio" name="transportMode" value="router"><span><strong>Jev 路由</strong><small>由 Jev 为加强版的所有对话统一选择路线，也适用于以前创建的会话。</small></span></label>
               </fieldset>
               <div class="jev-mapping-list" data-jev-mappings></div>

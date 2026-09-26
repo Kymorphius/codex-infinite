@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -32,6 +33,15 @@ function hybridResponse(choice, confidence, scores = [2, 2, 2, 1, 2, 2]) {
     ...Object.fromEntries(["complexity", "scope", "reasoning", "risk", "context", "iteration"].map((name, index) => [name, { type: "score", score: scores[index], confidence: 0.8 }])),
   } });
 }
+
+test("an early-exiting Jev process falls back without crashing the enhanced console", async () => {
+  const config = defaultJevRoutingConfig();
+  const service = new JevRoutingService({ jevPath: process.execPath, exists: () => true,
+    spawnImpl: () => spawn(process.execPath, ["-e", "process.exit(0)"], { stdio: ["pipe", "pipe", "pipe"] }) });
+  const result = await service.classify("x".repeat(128 * 1024), config);
+  assert.equal(result.tier, config.fallbackTier);
+  assert.equal(result.source, "fallback");
+});
 
 function responseRecorder() {
   return { writeHead(code) { this.code = code; }, end(body) { this.body = JSON.parse(body); } };
@@ -225,6 +235,20 @@ test("router receipts are read back as bounded exact-turn choices", async (t) =>
   await fs.writeFile(path.join(directory, `${threadId}.json`), JSON.stringify({ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }));
   await fs.writeFile(path.join(directory, "not-a-receipt.json"), "{}");
   assert.deepEqual(await readJevRoutingReceipts(directory), [{ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", confidence: 0.88, lowConfidence: false, fallback: false, source: null, dimensionScore: null, dimensionConfidence: null, reason: "router choice", routedAt: "2026-09-21T00:00:00.000Z" }]);
+  await fs.writeFile(path.join(directory, `${threadId}.json`), JSON.stringify({ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high", source: "inherited" }));
+  assert.equal((await readJevRoutingReceipts(directory))[0].source, "inherited");
+});
+
+test("receipt snapshot cache refreshes when Router atomically adds a receipt", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "jev-routing-cache-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const config = defaultJevRoutingConfig();
+  const service = new JevRoutingService({ receiptDirectory: directory, store: { async read() { return config; } }, jevPath: process.execPath });
+  assert.equal((await service.snapshot()).receipts.length, 0);
+  const threadId = "01a0bf0e-f99d-7712-ada7-4a676030e96b";
+  const turnId = "01a0bf10-1497-7263-a1ca-4ea079c001de";
+  await fs.writeFile(path.join(directory, `${threadId}.json`), JSON.stringify({ threadId, turnId, tier: "deep", model: "gpt-5.6-sol", effort: "high" }));
+  assert.equal((await service.snapshot()).receipts[0]?.turnId, turnId);
 });
 
 test("native dispatcher starts a durable thread with routed model and effort", async () => {

@@ -45,10 +45,13 @@ function runtime({ classification } = {}) {
   return { context, window };
 }
 
-function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = false } = {}) {
+function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = false, transportMode = "router" } = {}) {
   const thread = { getAttribute(name) { return name === "data-above-composer-conversation-id" ? threadId : null; } };
   const editor = { innerText: "Route this composer turn", closest(selector) { return selector.includes("data-codex-composer") ? this : null; } };
   const documentListeners = new Map();
+  let historyWrites = 0;
+  const history = new Map();
+  const localStorage = { getItem(key) { return history.get(key) ?? null; }, setItem(key, value) { historyWrites += 1; history.set(key, value); } };
   let sends = 0;
   let sendVisible = true;
   let turnVisible = false;
@@ -88,7 +91,7 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
   const send = {
     disabled: false,
     closest(selector) { return selector.includes("aria-label") ? this : null; },
-    click() { sends += 1; turnVisible = true; documentListeners.get("click")?.({ target: this, preventDefault() {}, stopImmediatePropagation() {} }); }
+    click() { let prevented = false; documentListeners.get("click")?.({ target: this, preventDefault() { prevented = true; }, stopImmediatePropagation() {} }); if (!prevented) { sends += 1; turnVisible = true; } }
   };
   const document = {
     querySelector(selector) {
@@ -122,11 +125,11 @@ function composerRuntime({ delayedSendRecovery = false, modelChangeNotice = fals
     const request = JSON.parse(payload);
     queueMicrotask(() => window.__codexControlConsoleResolveJevRouting({ id: request.id, kind: request.kind, ok: true, classification: { tier: "complex", model: "gpt-5.6-sol", effort: "high", confidence: 0.9, fallback: false } }));
   };
-  const context = { window, document, setInterval() { throw new Error("interval refresh must not be installed"); }, clearInterval() {}, setTimeout, clearTimeout, requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {}, queueMicrotask, Date, Map, Set, JSON, Object, Number, String, Array, RegExp };
+  const context = { window, document, localStorage, setInterval() { throw new Error("interval refresh must not be installed"); }, clearInterval() {}, setTimeout, clearTimeout, requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {}, queueMicrotask, Date, Map, Set, JSON, Object, Number, String, Array, RegExp };
   vm.runInNewContext(buildNativeJevRoutingInjectionScript(), context);
-  vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } } }), context);
+  vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, transportMode, fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } } }), context);
   const mutate = (records) => Array.from(window.__codexControlConsoleMutationSubscribers)[0]?.(records);
-  return { applied, badge: () => badge, context, documentListeners, editor, mutate, notice, noticeTail, noticeText, send, sends: () => sends, turn, window };
+  return { applied, badge: () => badge, context, documentListeners, editor, historyWrites: () => historyWrites, mutate, notice, noticeTail, noticeText, send, sends: () => sends, turn, window };
 }
 
 test("native Jev binding accepts only bounded classify, toggle, and mapping requests", async () => {
@@ -170,6 +173,7 @@ test("turn choice labels and pending-turn matching stay bounded and deterministi
   assert.equal(formatNativeJevTurnChoice({ tier: "complex", model: "gpt-5.6-sol", effort: "medium" }), "Jev · 复杂 · GPT-5.6 Sol · 中");
   assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", lowConfidence: true }), "Jev · 深度 · GPT-5.6 Sol · 高 · 低置信度");
   assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", lowConfidence: true, source: "dimensions" }), "Jev · 深度 · GPT-5.6 Sol · 高 · 六维");
+  assert.equal(formatNativeJevTurnChoice({ tier: "deep", model: "gpt-5.6-sol", effort: "high", source: "inherited" }), "Jev · 深度 · GPT-5.6 Sol · 高 · 沿用");
   assert.equal(formatNativeJevTurnChoice({ tier: "everyday", model: "gpt-5.6-terra", effort: "low", fallback: true }), "Jev · 日常 · GPT-5.6 Terra · 轻度 · 兜底");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.9 }), "模型已设置为 GPT-5.6 Sol，推理强度 高，置信度 0.90。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-6-sol", effort: "medium", confidence: 0.9 }), "模型已设置为 GPT-6 Sol，推理强度 中，置信度 0.90。");
@@ -177,6 +181,7 @@ test("turn choice labels and pending-turn matching stay bounded and deterministi
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.18, lowConfidence: true }), "模型已设置为 GPT-5.6 Sol，推理强度 高，置信度 0.18（低置信度）。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.18, source: "dimensions", dimensionScore: 24, dimensionConfidence: 0.8 }), "模型已设置为 GPT-5.6 Sol，推理强度 高，Jev 置信度 0.18；六维判断 24/30，维度平均置信度 0.80。");
   assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-terra", effort: "medium", confidence: 0.18, fallback: true }), "模型已设置为 GPT-5.6 Terra，推理强度 中，置信度 0.18（兜底）。");
+  assert.equal(formatNativeJevModelChange({ model: "gpt-5.6-sol", effort: "high", confidence: 0.9, source: "inherited" }), "模型已沿用为 GPT-5.6 Sol，推理强度 高，上一轮置信度 0.90。");
   const candidates = [{ id: first, userText: "same" }, { id: second, userText: "same" }];
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first], []), second);
   assert.equal(selectNativeJevRoutingTurn(candidates, "same", [first, second], []), null);
@@ -215,12 +220,40 @@ test("composer input is not captured and native sending remains authoritative", 
   assert.equal(harness.window.__codexControlConsoleJevRoutingDiagnostics.refreshMode, "shared-mutation-events");
 });
 
+test("native mode applies the chosen model before releasing one composer send", async () => {
+  const harness = composerRuntime({ transportMode: "native" });
+  assert.equal(harness.documentListeners.has("click"), true);
+  assert.equal(harness.documentListeners.has("keydown"), true);
+  harness.send.click();
+  assert.equal(harness.sends(), 0);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(harness.applied.length, 1);
+  assert.equal(harness.applied[0].id, threadId);
+  assert.equal(harness.applied[0].changes.model, "gpt-5.6-sol");
+  assert.equal(harness.applied[0].changes.reasoningEffort, "high");
+  assert.equal(harness.sends(), 1);
+  assert.equal(harness.badge()?.textContent, "Jev · 复杂 · GPT-5.6 Sol · 高");
+});
+
+test("native Enter submission routes once and releases one native send", async () => {
+  const harness = composerRuntime({ transportMode: "native" });
+  let prevented = false;
+  harness.documentListeners.get("keydown")({ key: "Enter", target: harness.editor, shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, isComposing: false, preventDefault() { prevented = true; }, stopImmediatePropagation() {} });
+  assert.equal(prevented, true);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(harness.applied.length, 1);
+  assert.equal(harness.sends(), 1);
+});
+
 test("an exact router receipt decorates its matching native turn", () => {
   const harness = composerRuntime();
   harness.send.click();
   vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, transportMode: "router", fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } }, receipts: [{ threadId, turnId: "01a0bf10-1497-7263-a1ca-4ea079c001de", tier: "complex", model: "gpt-5.6-sol", effort: "high", confidence: 0.9, fallback: false, lowConfidence: false, reason: "actual router choice" }] }), harness.context);
   assert.equal(harness.badge()?.textContent, "Jev · 复杂 · GPT-5.6 Sol · 高");
   assert.match(harness.badge()?.title || "", /置信度 0\.90/);
+  const writes = harness.historyWrites();
+  vm.runInNewContext(buildNativeJevRoutingSnapshotScript({ available: true, config: { enabled: true, transportMode: "router", fallbackTier: "everyday", mappings: { everyday: { model: "gpt-5.6-terra", effort: "medium" } } }, receipts: [{ threadId, turnId: "01a0bf10-1497-7263-a1ca-4ea079c001de", tier: "complex", model: "gpt-5.6-sol", effort: "high", confidence: 0.9, fallback: false, lowConfidence: false, reason: "actual router choice" }] }), harness.context);
+  assert.equal(harness.historyWrites(), writes);
 });
 
 test("native Jev source installs the visible default-on switch", () => {
@@ -275,8 +308,9 @@ test("native Jev source installs the visible default-on switch", () => {
   assert.match(source, /'color', '#62bd84'/);
   assert.match(source, /arrow\.style\.setProperty\('color', '#62bd84'/);
   assert.match(source, /__codexControlConsoleRouteNativeTurn/);
-  assert.doesNotMatch(source, /document\.addEventListener\('keydown', interceptComposerKeydown/);
-  assert.doesNotMatch(source, /document\.addEventListener\('click', interceptComposerClick/);
+  assert.match(source, /document\.addEventListener\('keydown', interceptComposerKeydown, true\)/);
+  assert.match(source, /document\.addEventListener\('click', interceptComposerClick, true\)/);
+  assert.match(source, /policy\.transportMode === 'native' && policy\.available/);
   assert.doesNotMatch(selectNativeJevRoutingTurn.toString(), /THREAD_ID_PATTERN/);
   assert.match(source, new RegExp(NATIVE_JEV_ROUTING_BINDING));
 });

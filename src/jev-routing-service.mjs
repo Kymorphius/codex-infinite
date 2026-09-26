@@ -21,7 +21,7 @@ export function normalizeJevRoutingReceipt(value) {
     confidence: Number.isFinite(value?.confidence) ? value.confidence : null,
     lowConfidence: value?.lowConfidence === true,
     fallback: value?.fallback === true,
-    source: ["jev", "dimensions", "fallback"].includes(value?.source) ? value.source : null,
+    source: ["jev", "dimensions", "fallback", "inherited"].includes(value?.source) ? value.source : null,
     dimensionScore: Number.isFinite(value?.dimensionScore) && value.dimensionScore >= 0 && value.dimensionScore <= 30 ? value.dimensionScore : null,
     dimensionConfidence: Number.isFinite(value?.dimensionConfidence) && value.dimensionConfidence >= 0 && value.dimensionConfidence <= 1 ? value.dimensionConfidence : null,
     reason: String(value?.reason || "").slice(0, 500),
@@ -75,6 +75,7 @@ function collect(child, input, timeoutMs) {
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk); });
     child.stderr?.on("data", (chunk) => { stderr = append(stderr, chunk); });
+    child.stdin?.on("error", (error) => finish(error));
     child.once("error", (error) => finish(error));
     child.once("close", (code) => finish(null, { code, stdout, stderr }));
     child.stdin?.end(input);
@@ -84,6 +85,7 @@ function collect(child, input, timeoutMs) {
 export class JevRoutingService {
   constructor({ store, threadStore = null, transportManager = null, receiptDirectory = null, jevPath, taskDispatcher, spawnImpl = spawn, exists = fs.existsSync, timeoutMs = 20_000, platform = process.platform } = {}) {
     Object.assign(this, { store, threadStore, transportManager, receiptDirectory, jevPath, taskDispatcher, spawnImpl, exists, timeoutMs, platform });
+    this.receiptCache = null;
   }
 
   async initialize() { return this.transportManager?.apply?.((await this.store.read()).transportMode); }
@@ -92,7 +94,15 @@ export class JevRoutingService {
     const threadState = await this.threadStore?.read?.();
     const config = await this.store.read();
     await this.transportManager?.apply?.(config.transportMode);
-    return { config, threadOverrides: threadState?.overrides || {}, receipts: await readJevRoutingReceipts(this.receiptDirectory), transport: this.transportManager?.status?.() || null, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
+    let directoryVersion = "missing";
+    if (this.receiptDirectory) {
+      try { directoryVersion = (await fs.promises.stat(this.receiptDirectory, { bigint: true })).mtimeNs.toString(); }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
+    if (!this.receiptCache || this.receiptCache.directoryVersion !== directoryVersion || Date.now() - this.receiptCache.loadedAt > 60_000) {
+      this.receiptCache = { directoryVersion, loadedAt: Date.now(), receipts: await readJevRoutingReceipts(this.receiptDirectory) };
+    }
+    return { config, threadOverrides: threadState?.overrides || {}, receipts: this.receiptCache.receipts, transport: this.transportManager?.status?.() || null, available: Boolean(this.jevPath && this.exists(this.jevPath)) };
   }
 
   async update(value) {

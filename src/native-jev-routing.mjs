@@ -27,7 +27,7 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-25.hybrid-route1') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-26.route-hardening1') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
@@ -39,7 +39,7 @@ export function buildNativeJevRoutingInjectionScript() {
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-choice]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-25.hybrid-route1';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-26.route-hardening1';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatNativeJevEffort=${formatNativeJevEffort.toString()};
@@ -55,13 +55,17 @@ export function buildNativeJevRoutingInjectionScript() {
   let sequence = 0;
   let togglePending = false;
   let submissionPending = false;
+  let inputCaptureInstalled = false;
   let bypassNextComposerClick = false;
   let bypassNativeTurn = null;
   let pendingTurnChoices = [];
   let pendingTurnRetry = null;
+  let lastReceiptSnapshotSignature = null;
+  let lastHistorySerialized = null;
   const pending = new Map();
   let turnChoices = [];
   try { const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); if (Array.isArray(saved)) turnChoices = saved.slice(-512); } catch {}
+  lastHistorySerialized = JSON.stringify(turnChoices);
 
   function request(kind, body, timeoutMs) {
     const bindingFn = window[${binding}];
@@ -121,7 +125,9 @@ export function buildNativeJevRoutingInjectionScript() {
 
   function persistTurnChoices() {
     turnChoices = turnChoices.filter((item) => UUID.test(String(item?.threadId || '')) && UUID.test(String(item?.turnId || '')) && formatTurnChoice(item)).slice(-512);
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(turnChoices)); } catch {}
+    const serialized = JSON.stringify(turnChoices);
+    if (serialized === lastHistorySerialized) return;
+    try { localStorage.setItem(HISTORY_KEY, serialized); lastHistorySerialized = serialized; } catch {}
   }
 
   function queueTurnChoice(threadId, prompt, beforeIds, classification) {
@@ -183,6 +189,7 @@ export function buildNativeJevRoutingInjectionScript() {
     if (submissionPending || !threadId || !editor) return;
     const prompt = String(editor.innerText || editor.textContent || '').trim();
     const beforeIds = visibleTurns().map((item) => item.id);
+    let appliedClassification = null;
     submissionPending = true; installButtons();
     try {
       const classification = prompt ? (await request('classify', { prompt }, 22000)).classification : fallbackClassification('当前轮次没有文本，已使用兜底档位');
@@ -191,14 +198,15 @@ export function buildNativeJevRoutingInjectionScript() {
       if (typeof apply !== 'function') throw new Error('原生会话设置桥接不可用');
       await apply(threadId, { model: classification.model, reasoningEffort: classification.effort });
       window.__codexControlConsoleLastJevRouting = { ok: true, threadId, ...classification, appliedAt: new Date().toISOString() };
-      queueTurnChoice(threadId, prompt, beforeIds, classification);
+      appliedClassification = classification;
       if (window.electronBridge?.sendMessageFromView?.__codexControlTurboWrapped) bypassNativeTurn = { threadId, expiresAt: Date.now() + 30000 };
     } catch (error) {
       window.__codexControlConsoleLastJevRouting = { ok: false, threadId, message: String(error?.message || error), appliedAt: new Date().toISOString() };
     } finally {
-      submissionPending = false; installButtons();
       const sent = await releaseSend(nativeSendButton, (send) => { bypassNextComposerClick = true; send.click(); if (bypassNextComposerClick) queueMicrotask(() => { bypassNextComposerClick = false; }); }, (ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+      if (sent && appliedClassification) queueTurnChoice(threadId, prompt, beforeIds, appliedClassification);
       if (!sent) window.__codexControlConsoleLastJevRouting = { ...(window.__codexControlConsoleLastJevRouting || {}), ok: false, message: 'Jev 已完成选择，但原生发送按钮在 5 秒内没有恢复可用' };
+      submissionPending = false; installButtons();
     }
   }
 
@@ -207,15 +215,28 @@ export function buildNativeJevRoutingInjectionScript() {
     if (!send) return;
     if (bypassNextComposerClick) { bypassNextComposerClick = false; return; }
     const threadId = currentThreadId();
-    if (!effectiveEnabled(threadId)) return;
+    if (policy.transportMode !== 'native' || !threadId || !effectiveEnabled(threadId) || !document.querySelector('[data-codex-composer="true"][contenteditable="true"]')) return;
     event.preventDefault(); event.stopImmediatePropagation(); void routeComposerSubmission();
   }
 
   function interceptComposerKeydown(event) {
     if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.isComposing || !event.target?.closest?.('[data-codex-composer="true"][contenteditable="true"]')) return;
     const send = nativeSendButton(), threadId = currentThreadId();
-    if (!send || send.disabled || !effectiveEnabled(threadId)) return;
+    if (!send || send.disabled || policy.transportMode !== 'native' || !threadId || !effectiveEnabled(threadId)) return;
     event.preventDefault(); event.stopImmediatePropagation(); void routeComposerSubmission();
+  }
+
+  function syncNativeInputCapture() {
+    const needed = policy.transportMode === 'native' && policy.available;
+    if (needed === inputCaptureInstalled) return;
+    if (needed) {
+      document.addEventListener('click', interceptComposerClick, true);
+      document.addEventListener('keydown', interceptComposerKeydown, true);
+    } else {
+      document.removeEventListener('click', interceptComposerClick, true);
+      document.removeEventListener('keydown', interceptComposerKeydown, true);
+    }
+    inputCaptureInstalled = needed;
   }
 
   function transform(message, classification) {
@@ -245,13 +266,19 @@ ${buildNativeJevRoutingPanelSource()}
   function applySnapshot(snapshot) {
     const value = snapshot || {};
     const config = value.config || value;
-    policy = { enabled: config?.enabled !== false, available: value?.available === true || policy.available, transportMode: config?.transportMode === 'native' ? 'native' : 'router', fallbackTier: String(config?.fallbackTier || 'everyday'), mappings: config?.mappings && typeof config.mappings === 'object' ? config.mappings : {}, threadOverrides: value?.threadOverrides && typeof value.threadOverrides === 'object' ? value.threadOverrides : {}, receipts: Array.isArray(value?.receipts) ? value.receipts : [] };
+    policy = { enabled: config?.enabled !== false, available: typeof value?.available === 'boolean' ? value.available : policy.available, transportMode: config?.transportMode === 'native' ? 'native' : 'router', fallbackTier: String(config?.fallbackTier || 'everyday'), mappings: config?.mappings && typeof config.mappings === 'object' ? config.mappings : {}, threadOverrides: value?.threadOverrides && typeof value.threadOverrides === 'object' ? value.threadOverrides : {}, receipts: Array.isArray(value?.receipts) ? value.receipts : [] };
+    syncNativeInputCapture();
+    const receiptSignature = JSON.stringify(policy.receipts);
+    if (receiptSignature === lastReceiptSnapshotSignature) return;
+    lastReceiptSnapshotSignature = receiptSignature;
+    const choicesByTurn = new Map(turnChoices.map((item) => [item.threadId + ':' + item.turnId, item]));
     for (const receipt of policy.receipts) {
       if (!UUID.test(String(receipt?.threadId || '')) || !UUID.test(String(receipt?.turnId || '')) || !formatTurnChoice(receipt)) continue;
       const choice = { ...receipt, appliedAt: receipt.routedAt || new Date().toISOString() };
-      turnChoices = turnChoices.filter((item) => item.threadId !== choice.threadId || item.turnId !== choice.turnId);
-      turnChoices.push(choice);
+      const key = choice.threadId + ':' + choice.turnId;
+      choicesByTurn.delete(key); choicesByTurn.set(key, choice);
     }
+    turnChoices = [...choicesByTurn.values()].slice(-512);
     persistTurnChoices();
   }
   function installButtons() {
@@ -276,7 +303,7 @@ ${buildNativeJevRoutingPanelSource()}
     const threadId = currentThreadId(); const permission = document.querySelector('[data-composer-navigation-target="permissions"]'); const composerHost = permission?.parentElement;
     let current = document.querySelector('[data-codex-control-console-native-jev-current]'), choice = document.querySelector('[data-codex-control-console-native-jev-choice]');
     reconcileTurnChoices(); decorateTurnChoices();
-    const active = effectiveEnabled(threadId); renderNativeModelControl(active, threadId);
+    const active = effectiveEnabled(threadId); renderNativeModelControl(active && (policy.transportMode !== 'native' || Boolean(threadId)), threadId);
     if (!composerHost) { current?.remove(); choice?.remove(); return; }
     if (!current) {
       current = document.createElement('button'); current.type = 'button'; current.setAttribute('data-codex-control-console-native-jev-current', '');
@@ -295,9 +322,8 @@ ${buildNativeJevRoutingPanelSource()}
     if (anchor.nextElementSibling !== current) anchor.after(current);
     if (choice && current.nextElementSibling !== choice) current.after(choice);
   }
-  // Sending remains entirely native. Jev routing now happens after the
-  // authenticated request reaches Codex Router, and exact turn receipts flow
-  // back through snapshots for display only.
+  // Router mode uses the authenticated gateway. Native mode captures an
+  // existing conversation's composer send, applies its settings, then releases it.
   window.__codexControlConsoleRouteNativeTurn = async (message) => message;
 
   window.__codexControlConsoleSetJevRouting = (value) => {
@@ -307,7 +333,11 @@ ${buildNativeJevRoutingPanelSource()}
   };
   installButtons();
   window.__codexControlConsoleJevRoutingMutationCleanup = installMutationRefresh({ install: installButtons, findModelChangeNotices: genericModelChangeNotices, hostWindow: window });
-  window.__codexControlConsoleJevRoutingInputCleanup = () => {};
+  window.__codexControlConsoleJevRoutingInputCleanup = () => {
+    document.removeEventListener('click', interceptComposerClick, true);
+    document.removeEventListener('keydown', interceptComposerKeydown, true);
+    inputCaptureInstalled = false;
+  };
   window.__codexControlConsoleJevRoutingDiagnostics = { refreshMode: 'shared-mutation-events' };
   window.addEventListener('beforeunload', () => { pendingTurnRetry && clearTimeout(pendingTurnRetry); window.__codexControlConsoleJevRoutingMutationCleanup?.(); window.__codexControlConsoleJevRoutingInputCleanup?.(); for (const waiter of pending.values()) { clearTimeout(waiter.timeout); waiter.reject(new Error('页面已关闭')); } pending.clear(); }, { once: true });
 })()`;

@@ -51,3 +51,20 @@ test("incomplete or uncertain dimensions never masquerade as a reliable route", 
   assert.equal(resolveJevHybridAnswer(response("quick", 0.4, [3, 3, 3, 3, 3, 3], 0.2), settings).tier, "everyday");
   assert.equal(resolveJevHybridAnswer(incomplete, { ...settings, minConfidence: 0.3 }).tier, "quick");
 });
+
+test("uncertain risk cannot justify a high-risk escalation or an uncertain six-dimension route", () => {
+  const confident = response("instant", 0.99, [4, 4, 4, 4, 4, 4], 1);
+  confident.answers.risk.confidence = 0.2;
+  const choice = resolveJevHybridAnswer(confident, settings);
+  assert.equal(choice.tier, "instant");
+  assert.equal(choice.source, "jev");
+  assert.equal(choice.dimensionConfidences.risk, 0.2);
+  confident.answers.tier.confidence = 0.4;
+  assert.equal(resolveJevHybridAnswer(confident, settings).source, "fallback");
+});
+
+test("six dimensions exactly on the confidence threshold are accepted", () => {
+  const result = resolveJevHybridAnswer(response("instant", 0.4, [4, 4, 4, 4, 4, 4], 0.55), settings);
+  assert.equal(result.source, "dimensions");
+  assert.equal(result.tier, "deep");
+});

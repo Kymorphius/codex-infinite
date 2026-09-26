@@ -31,18 +31,19 @@ export function jevHybridRequest(prompt, tierDescriptions) {
 
 function dimensionData(answers) {
   const scores = {};
-  const confidences = [];
+  const confidences = {};
   for (const name of JEV_DIMENSIONS) {
     const answer = answers?.[name];
     const score = answer?.score;
     const confidence = answer?.confidence;
     if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 5 || typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) return null;
     scores[name] = score;
-    confidences.push(confidence);
+    confidences[name] = confidence;
   }
   const maximum = 5 * Object.values(WEIGHTS).reduce((sum, weight) => sum + weight, 0);
   const score = Math.round(30 * JEV_DIMENSIONS.reduce((sum, name) => sum + scores[name] * WEIGHTS[name], 0) / maximum);
-  return { scores, score, confidence: confidences.reduce((sum, value) => sum + value, 0) / confidences.length };
+  const confidenceSum = JEV_DIMENSIONS.reduce((sum, name) => sum + confidences[name], 0);
+  return { scores, score, confidences, confidence: confidenceSum / JEV_DIMENSIONS.length, confidenceSum };
 }
 
 function tierFromScore(score, tiers) {
@@ -59,9 +60,15 @@ export function resolveJevHybridAnswer(payload, { tiers, minConfidence, fallback
   const confidence = typeof rawConfidence === "number" && rawConfidence >= 0 && rawConfidence <= 1 ? rawConfidence : null;
   const dimensions = dimensionData(answers);
   const dimensionTier = dimensions ? tierFromScore(dimensions.score, tiers) : null;
-  const reliableDimensions = dimensions && dimensions.confidence >= 0.55;
+  // Compare the sum so six exact 0.55 values satisfy the inclusive boundary.
+  // A strong average must not conceal uncertainty in the dimension that drives a route.
+  const reliableDimensions = dimensions && dimensions.confidenceSum + 1e-10 >= 0.55 * JEV_DIMENSIONS.length &&
+    JEV_DIMENSIONS.every((name) => dimensions.confidences[name] >= 0.45);
   const confidentChoice = classifiedTier && confidence !== null && confidence >= minConfidence;
-  const riskConflict = confidentChoice && reliableDimensions && dimensions.scores.risk >= 4 && dimensions.scores.scope >= 3 && dimensions.confidence >= 0.65 && tiers.indexOf(dimensionTier) - tiers.indexOf(classifiedTier) >= 2;
+  const riskConflict = confidentChoice && reliableDimensions && dimensions.scores.risk >= 4 && dimensions.scores.scope >= 3 &&
+    dimensions.confidences.risk >= 0.65 && dimensions.confidences.scope >= 0.65 &&
+    dimensions.confidenceSum + 1e-10 >= 0.65 * JEV_DIMENSIONS.length &&
+    tiers.indexOf(dimensionTier) - tiers.indexOf(classifiedTier) >= 2;
   const source = riskConflict || (!confidentChoice && reliableDimensions) ? "dimensions" : confidentChoice ? "jev" : "fallback";
   const tier = source === "dimensions" ? dimensionTier : source === "jev" ? classifiedTier : fallbackTier;
   return {
@@ -74,6 +81,7 @@ export function resolveJevHybridAnswer(payload, { tiers, minConfidence, fallback
     dimensionTier,
     dimensionScore: dimensions?.score ?? null,
     dimensionConfidence: dimensions?.confidence ?? null,
+    dimensionConfidences: dimensions?.confidences ?? null,
     dimensions: dimensions?.scores ?? null,
     reason: source === "dimensions"
       ? `Six-dimension score ${dimensions.score}/30 selected ${tier}${riskConflict ? " for a high-risk conflict" : " because the Jev tier was uncertain"}.`
