@@ -1,6 +1,6 @@
 # Git 项目跨设备同步
 
-- Status: implementing a bounded first release; task handoff remains proposed
+- Status: first release implemented, tested and deployed on Air, Pro and Windows; stages 2–4 remain proposed
 - Date: 2026-09-26
 
 ## 目的与现状
@@ -43,3 +43,15 @@
 ## 验收
 
 真实临时 Git 仓库验证往返快进、相同提交、无关历史、分叉、脏树、未跟踪文件、过期预检、源/目标变化、重复执行；确认目标本机 Git 配置与 ignored 文件不变。测试未知目录、符号链接、worktree、活动任务和凭据文件拒绝。HTTP 验证 exact origin、签名/防重放、无 bundle 浏览器泄漏；UI 验证方向、变更选择失效和失败可见。运行 npm run check 与 npm test，并在实际页面走完预检、同步、读回流程；跨物理设备验证须单独记录，不能以本机两仓库代替。
+
+## 首版交付证据（2026-09-26）
+
+- 实现提交：`49b2332`。基于提交 `441e356` 加本次完整变更生成独立发布快照，`npm run check` 通过（572 个语法检查文件、608 个结构检查文件）；`npm test` 1059/1059 通过、0 跳过。共享工作区同时存在另一会话的 Turbo 变更，其阶段性全量运行出现 7 个 Turbo 测试失败，未把这些未完成变更算成本功能的发布验证。
+- Windows 真实 Node/Git 环境的 23 项 Git 同步与安全用例通过、0 跳过，包括符号链接路径、工作树、凭据历史、属性过滤器、目标本机配置、ignored 文件和 hooks 保留。Windows 文件内容断言兼容正常 CRLF；未修改设备 Git 配置或同步引擎换行规则。
+- 本机真实页面完成两个临时仓库的正向、反向预检与确认同步。页面显示同步已确认，独立读回两端提交和内容一致；目标本机 ignored 文件及 Git 配置保留。
+- Air ↔ Windows 使用真实 SSH 与签名 HTTP 通道、当前协调服务和两端 Git adapter 完成临时项目往返。正向目标 HEAD 为 `239448e851f0c58a02217cb322435cad9da73c63`；Windows 新增提交后反向同步，两端 HEAD 均为 `b491a372ca71a5fac868d10df1e81797bb3dfbc9`，两端工作区洁净，各自配置哈希及 ignored 内容不变。使用独立临时项目 allowlist 与密钥，不改用户项目或原生项目登记；临时服务、目录和密钥全部清理。
+- Pro、Windows 各按清单部署 20 个源文件和页面文件，先核验原文件、备份，再逐文件写入与 SHA 读回；配置、身份、凭据、原生运行数据保持各机独立。各节点 17 个 JS/MJS 语法检查、10 个新服务模块 import 和 6 个页面资源读回通过。控制台重载期间原生 Codex/ChatGPT 进程保留。
+- 随后的并发 Turbo 部署仅更新两台组合入口 `main.mjs`；只读比较确认本次同步的导入、实例创建和服务注入均保留，其余 19 个文件仍匹配发布清单。再次经真实签名接口读取 Pro 15 个项目、Windows 44 个项目成功。
+- Air 正式项目同步页面实际显示 3/3 台设备可用：Air 37、Pro 15、Windows 44 个项目，源/目标选择可用。未对用户的真实项目擅自选择同步方向或执行覆盖。
+
+首版完成的是已有项目副本之间的已提交代码同步。未验证或宣称会话、任务、运行进程已经交接；阶段 2–4 仍按上面的独立验收边界推进。
