@@ -28,6 +28,17 @@ test('usage reader closes app server after a read', async () => {
   assert.equal(closed, true);
 });
 
+test('invalid usage percentages stay unknown and failed reads close the app server', async () => {
+  for (const usedPercent of [null, true, false, '', ' ', [], {}, Infinity]) {
+    assert.deepEqual(normalizeAccountUsage({ rateLimits: { primary: { usedPercent } } }), { windows: [] });
+  }
+  assert.equal(normalizeAccountUsage({ rateLimits: { primary: { usedPercent: 0 } } }).windows[0].usedPercent, 0);
+  let closed = false;
+  const reader = new AccountUsageReader({ clientFactory: () => ({ initialize: async () => {}, request: async () => { throw Error('offline'); }, close: () => { closed = true; } }) });
+  await assert.rejects(reader.read(), /offline/);
+  assert.equal(closed, true);
+});
+
 test('usage HTTP endpoint is read-only and returns normalized data', async (t) => {
   const handler = createAccountUsageHttpHandler({ reader: { read: async () => ({ windows: [{ usedPercent: 5 }] }) } });
   const server = http.createServer((request, response) => handler(request, response, new URL(request.url, 'http://127.0.0.1')));

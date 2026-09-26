@@ -5,11 +5,29 @@ import {
   applyNativeTurboAction,
   buildNativeTurboInjectionScript,
   buildNativeTurboSnapshotScript,
+  normalizeTurboPolicy,
   NATIVE_TURBO_BINDING,
   parseNativeTurboAction
 } from "../src/native-turbo-injection.mjs";
 
 const threadId = "01a04445-8d03-7243-a4d3-181180bb626d";
+
+test("native quota snapshots default to 10 percent and expose only bounded status metadata", () => {
+  const defaults = normalizeTurboPolicy();
+  assert.equal(defaults.autoDisableOnLowQuota, true); assert.equal(defaults.quotaRemainingThreshold, 10); assert.equal(defaults.quotaStatus, null);
+  const supplied = { autoDisableOnLowQuota:false, quotaRemainingThreshold:0, quotaStatus:{
+    state:"triggered", remainingPercent:9.5, thresholdPercent:10, lastCheckedAt:"2026-09-26T01:00:00.000Z",
+    lastTriggeredAt:"2026-09-26T01:00:00.000Z", accountId:"private-account", token:"private-token"
+  } };
+  const snapshot = normalizeTurboPolicy(supplied);
+  assert.equal(snapshot.autoDisableOnLowQuota, false); assert.equal(snapshot.quotaRemainingThreshold, 0);
+  assert.deepEqual(snapshot.quotaStatus, { state:"triggered",remainingPercent:9.5,thresholdPercent:10,lastCheckedAt:"2026-09-26T01:00:00.000Z",lastTriggeredAt:"2026-09-26T01:00:00.000Z" });
+  assert.doesNotMatch(buildNativeTurboSnapshotScript(supplied), /private-account|private-token/);
+  for (const value of [-1, 101, 9.5, "10", null]) assert.equal(normalizeTurboPolicy({ quotaRemainingThreshold:value }).quotaRemainingThreshold, 10);
+  assert.equal(normalizeTurboPolicy({ quotaRemainingThreshold:100 }).quotaRemainingThreshold, 100);
+  assert.equal(normalizeTurboPolicy({ quotaStatus:{ state:"unexpected" } }).quotaStatus, null);
+  assert.deepEqual(normalizeTurboPolicy({ quotaStatus:{ state:"unknown", remainingPercent:Infinity, thresholdPercent:-1, lastCheckedAt:"invalid", lastTriggeredAt:"x".repeat(1000) } }).quotaStatus, { state:"unknown",remainingPercent:null,thresholdPercent:10 });
+});
 
 function runtime({ respondToResume = true } = {}) {
   const sent = [];
@@ -33,6 +51,18 @@ function runtime({ respondToResume = true } = {}) {
   const respond = (id, result = {}, error) => { for (const listener of listeners.get("message") || []) listener({ data: { type: "mcp-response", hostId: "local", message: { id, result, error } } }); };
   return { context, window, sent, respond, storage };
 }
+
+test("native runtime receives quota settings and refreshes trigger status without account data", () => {
+  const { context, window } = runtime();
+  assert.equal(window.__codexControlConsoleTurboVersion, "2026-09-26.quota-trigger1");
+  const snapshot = vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled:false,autoDisableOnLowQuota:true,quotaRemainingThreshold:25,quotaStatus:{ state:"triggered",remainingPercent:20,thresholdPercent:25,accountId:"private" } }), context);
+  assert.equal(snapshot.autoDisableOnLowQuota, true); assert.equal(snapshot.quotaRemainingThreshold, 25);
+  assert.equal(snapshot.quotaStatus.state, "triggered"); assert.equal(snapshot.quotaStatus.remainingPercent, 20);
+  assert.equal(snapshot.quotaStatus.accountId, undefined);
+  const direct = window.__codexControlConsoleSetTurboPolicy({ autoDisableOnLowQuota:false,quotaRemainingThreshold:100,quotaStatus:{ state:"healthy",remainingPercent:101,thresholdPercent:100,accountId:"private" } });
+  assert.equal(direct.autoDisableOnLowQuota, false); assert.equal(direct.quotaRemainingThreshold, 100);
+  assert.equal(direct.quotaStatus.remainingPercent, null); assert.equal(direct.quotaStatus.accountId, undefined);
+});
 
 test("Turbo clones turn/start and applies model maximum plus Fast without changing sticky settings", async () => {
   const { context, window, sent } = runtime();

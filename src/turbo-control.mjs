@@ -1,7 +1,8 @@
 import { httpError } from "./http-utils.mjs";
 import { TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
+import { evaluateTurboQuota, isTurboQuotaThreshold, normalizeTurboQuotaSettings } from "./turbo-quota-policy.mjs";
 
-export const TURBO_POLICY_FIELDS = Object.freeze(["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "accessMode", "deviceIds"]);
+export const TURBO_POLICY_FIELDS = Object.freeze(["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "autoDisableOnLowQuota", "quotaRemainingThreshold", "accessMode", "deviceIds"]);
 
 function projectPolicy(policy = {}) {
   return Object.freeze({
@@ -11,6 +12,7 @@ function projectPolicy(policy = {}) {
     fast: policy.fast !== false,
     millionContext: policy.millionContext === true,
     autoDisableGlobalRouting: policy.autoDisableGlobalRouting === true,
+    ...normalizeTurboQuotaSettings(policy),
     accessMode: TURBO_ACCESS_MODES.includes(policy.accessMode) ? policy.accessMode : "preserve",
     deviceIds: Object.freeze(Array.isArray(policy.deviceIds) ? [...policy.deviceIds] : [])
   });
@@ -28,6 +30,8 @@ export function validateTurboChange(input = {}, { allowRequestId = true } = {}) 
   if (Object.hasOwn(input, "fast") && typeof input.fast !== "boolean") throw httpError(400, "Turbo 推理速度设置必须是布尔值");
   if (Object.hasOwn(input, "millionContext") && typeof input.millionContext !== "boolean") throw httpError(400, "Turbo 百万上下文设置必须是布尔值");
   if (Object.hasOwn(input, "autoDisableGlobalRouting") && typeof input.autoDisableGlobalRouting !== "boolean") throw httpError(400, "Turbo 自动关闭全局路由设置必须是布尔值");
+  if (Object.hasOwn(input, "autoDisableOnLowQuota") && typeof input.autoDisableOnLowQuota !== "boolean") throw httpError(400, "Turbo 额度自动关闭设置必须是布尔值");
+  if (Object.hasOwn(input, "quotaRemainingThreshold") && !isTurboQuotaThreshold(input.quotaRemainingThreshold)) throw httpError(400, "Turbo 剩余额度阈值必须是 0 到 100 的整数");
   if (Object.hasOwn(input, "accessMode") && !TURBO_ACCESS_MODES.includes(input.accessMode)) throw httpError(400, "Turbo 访问权限无效");
   if (Object.hasOwn(input, "deviceIds") && (!Array.isArray(input.deviceIds) || input.deviceIds.length > 32 || input.deviceIds.some((id) => typeof id !== "string" || !/^[A-Za-z0-9_.:-]{1,80}$/.test(id)))) throw httpError(400, "Turbo 设备范围无效");
   if (Object.hasOwn(input, "requestId") && (typeof input.requestId !== "string" || !/^[A-Za-z0-9_-]{16,128}$/.test(input.requestId))) throw httpError(400, "Turbo 请求标识无效");
@@ -55,11 +59,13 @@ export class TurboCoordinator {
     this.lastNodes = [];
     this.operationQueue = Promise.resolve();
     this.pendingOperations = 0;
+    this.policyRevision = 0;
+    this.quotaStatusProvider = null;
   }
 
   read() {
     const policy = this.localService.snapshot();
-    return Object.freeze({ ...projectPolicy(policy), active: policy.active === true, modelEfforts: policy.modelEfforts || [], modelOptions: policy.modelOptions || [], devices: policy.devices || [], updatedAt: policy.updatedAt, nodes: Object.freeze([...this.lastNodes]) });
+    return Object.freeze({ ...projectPolicy(policy), active: policy.active === true, modelEfforts: policy.modelEfforts || [], modelOptions: policy.modelOptions || [], devices: policy.devices || [], updatedAt: policy.updatedAt, nodes: Object.freeze([...this.lastNodes]), quotaStatus: this.quotaStatusProvider?.() || null });
   }
 
   async setEnabled(enabled) {
@@ -88,11 +94,23 @@ export class TurboCoordinator {
 
   async saveLocal(change) {
     const local = await this.localService.update(validateTurboChange(change, { allowRequestId: false }));
+    this.policyRevision += 1;
     const effectivePolicy = projectPolicy(local);
     if (effectivePolicy.enabled && effectivePolicy.autoDisableGlobalRouting) await this.routingService?.setEnabled?.(false);
     const localResult = { id: this.localNode?.id || "local", name: this.localNode?.name || "本机", status: "applied", policy: effectivePolicy };
     this.lastNodes = Object.freeze([Object.freeze(localResult)]);
     return Object.freeze({ ...effectivePolicy, operation: "save", updatedAt: local.updatedAt, converged: true, nodes: this.lastNodes });
+  }
+
+  disableForQuota(usage, { observedAt, expectedRevision, isCurrent = () => true, now = Date.now } = {}) {
+    return this.runOperation(async () => {
+      const timestamp = now();
+      if (!isCurrent() || expectedRevision !== this.policyRevision || !Number.isFinite(observedAt) || observedAt > timestamp || timestamp - observedAt > 120_000) return { state: 'superseded' };
+      const decision = evaluateTurboQuota(this.localService.snapshot(), usage, timestamp);
+      if (decision.state !== 'low') return decision;
+      await this.saveLocal({ enabled: false });
+      return { ...decision, state: 'triggered', lastTriggeredAt: new Date(timestamp).toISOString() };
+    });
   }
 
   sync(change) {

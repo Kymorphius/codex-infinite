@@ -23,21 +23,25 @@ test("peer Turbo switch uses the signed owner path and bounded boolean contract"
   const spawnImpl = (_command, args) => {
     const child = new EventEmitter(); child.stdin = new PassThrough(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); child.kill = () => {};
     let body = ""; child.stdin.on("data", (chunk) => { body += chunk.toString(); });
-    child.stdin.on("finish", () => { child.stdout.end(JSON.stringify({ status: "ok", accepted: true, enabled: true, model: "gpt-5.6-luna", reasoningEffort: "max", fast: false, millionContext: true, autoDisableGlobalRouting: true, accessMode: "workspace", deviceIds: ["forest-mac"] })); queueMicrotask(() => child.emit("close", 0)); });
+    child.stdin.on("finish", () => { child.stdout.end(JSON.stringify({ status: "ok", accepted: true, enabled: true, model: "gpt-5.6-luna", reasoningEffort: "max", fast: false, millionContext: true, autoDisableGlobalRouting: true, autoDisableOnLowQuota: false, quotaRemainingThreshold: 20, accessMode: "workspace", deviceIds: ["forest-mac"] })); queueMicrotask(() => child.emit("close", 0)); });
     invocation = { args, body: () => body }; return child;
   };
   const adapter = new SshPeerAdapter({ peer, actionKeyPath: keyPath, spawnImpl, logger: { warn() {} } });
-  const result = await adapter.updateTurbo({ enabled: true, model: "gpt-5.6-luna", reasoningEffort: "max", fast: false, millionContext: true, autoDisableGlobalRouting: true, accessMode: "workspace", deviceIds: ["forest-mac"] });
+  const result = await adapter.updateTurbo({ enabled: true, model: "gpt-5.6-luna", reasoningEffort: "max", fast: false, millionContext: true, autoDisableGlobalRouting: true, autoDisableOnLowQuota: false, quotaRemainingThreshold: 20, accessMode: "workspace", deviceIds: ["forest-mac"] });
   assert.equal(result.enabled, true);
   assert.equal(result.millionContext, true);
   assert.equal(result.model, "gpt-5.6-luna");
   assert.equal(result.fast, false);
   assert.equal(result.autoDisableGlobalRouting, true);
+  assert.equal(result.autoDisableOnLowQuota, false);
+  assert.equal(result.quotaRemainingThreshold, 20);
   assert.deepEqual(result.deviceIds, ["forest-mac"]);
   assert.ok(invocation.args.includes("http://127.0.0.1:47831/api/node/actions/turbo"));
   assert.equal(JSON.parse(invocation.body()).enabled, true);
   assert.equal(JSON.parse(invocation.body()).millionContext, true);
   assert.equal(JSON.parse(invocation.body()).autoDisableGlobalRouting, true);
+  assert.equal(JSON.parse(invocation.body()).autoDisableOnLowQuota, false);
+  assert.equal(JSON.parse(invocation.body()).quotaRemainingThreshold, 20);
   assert.equal(JSON.parse(invocation.body()).accessMode, "workspace");
   const headers = Object.fromEntries(Object.values(ACTION_HEADERS).map((name) => [name, invocation.args.find((arg) => arg.startsWith(`${name}:`)).slice(name.length + 1)]));
   assert.equal(verifyPeerAction({ key: Buffer.alloc(32, 10), method: "POST", path: "/api/node/actions/turbo", headers, body: Buffer.from(invocation.body()), replayWindow: new NonceReplayWindow() }).ok, true);
@@ -45,7 +49,7 @@ test("peer Turbo switch uses the signed owner path and bounded boolean contract"
 
 test("peer Turbo rejects action metadata and malformed policy before transport", async () => {
   const adapter = new SshPeerAdapter({ peer, actionKeyPath: "/never-read", spawnImpl() { assert.fail("invalid policy must not reach transport"); } });
-  for (const change of [{ autoDisableGlobalRouting: "yes" }, { model: 42 }, { deviceIds: [42] }, { enabled: true, operation: "sync" }, { enabled: true, requestId: "valid-request-id" }]) {
+  for (const change of [{ autoDisableGlobalRouting: "yes" }, { autoDisableOnLowQuota: "yes" }, { quotaRemainingThreshold: "10" }, { quotaRemainingThreshold: 101 }, { quotaRemainingThreshold: -1 }, { quotaRemainingThreshold: 10.5 }, { model: 42 }, { deviceIds: [42] }, { enabled: true, operation: "sync" }, { enabled: true, requestId: "valid-request-id" }]) {
     await assert.rejects(adapter.updateTurbo(change), { statusCode: 400 });
   }
 });
@@ -55,7 +59,15 @@ test("peer Turbo distinguishes owner rejection, incomplete confirmation, and tra
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const keyPath = path.join(directory, "peer.key");
   await fs.writeFile(keyPath, Buffer.alloc(32, 12).toString("base64"), { mode: 0o600 });
+  const completePolicy = { status: "ok", accepted: true, enabled: true, model: null, reasoningEffort: "maximum", fast: true,
+    millionContext: false, autoDisableGlobalRouting: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, accessMode: "preserve", deviceIds: [] };
+  const missingThreshold = { ...completePolicy }; delete missingThreshold.quotaRemainingThreshold;
+  const missingTrigger = { ...completePolicy }; delete missingTrigger.autoDisableOnLowQuota;
   for (const [payload, exitCode, code] of [
+    [missingThreshold, 0, "TURBO_PEER_RESPONSE_INVALID"],
+    [missingTrigger, 0, "TURBO_PEER_RESPONSE_INVALID"],
+    [{ ...completePolicy, quotaRemainingThreshold: 101 }, 0, "TURBO_PEER_RESPONSE_INVALID"],
+    [{ ...completePolicy, autoDisableOnLowQuota: "true" }, 0, "TURBO_PEER_RESPONSE_INVALID"],
     [{ status: "error", code: "TURBO_PEER_BUSY", message: "arbitrary remote error" }, 0, "TURBO_PEER_BUSY"],
     [{ status: "error", message: "credential-path must never be returned" }, 0, "TURBO_PEER_REJECTED"],
     [{ status: "ok", accepted: true, enabled: true, millionContext: false }, 0, "TURBO_PEER_RESPONSE_INVALID"],

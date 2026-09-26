@@ -143,3 +143,67 @@ test('editing after a successful save marks the form unsaved and preserves unava
   assert.equal(r.find('[data-turbo-device-results]').textContent, '');
   assert.equal(r.find('[data-turbo-device="local"]').disabled, true);
 });
+
+test('quota trigger defaults to remaining 10 percent and both actions carry its configuration', () => {
+  const r = runtime();
+  const trigger = r.find('input[name="autoDisableOnLowQuota"]'), threshold = r.find('input[name="quotaRemainingThreshold"]');
+  assert.equal(trigger.checked, true); assert.equal(threshold.value, '10'); assert.equal(threshold.disabled, false);
+  assert.equal(threshold.min, '0'); assert.equal(threshold.max, '100'); assert.equal(threshold.step, '1');
+  assert.match(r.find(panelSelector).textContent, /本机账号任一额度窗口剩余不高于阈值/);
+  assert.match(r.find(panelSelector).textContent, /额度恢复后不会自动开启/);
+  r.submit();
+  assert.equal(r.requests[0].action.autoDisableOnLowQuota, true);
+  assert.equal(r.requests[0].action.quotaRemainingThreshold, 10);
+  assert.equal(trigger.disabled, true); assert.equal(threshold.disabled, true);
+  r.context.policy = { ...r.context.policy, quotaRemainingThreshold:50 };
+  r.complete({ operation:'save',nodes:[{ id:'local',status:'applied' }] });
+  assert.equal(threshold.value, '10'); assert.equal(threshold.disabled, false);
+  threshold.value = '25'; threshold.fire('input');
+  assert.match(r.find('[role="status"]').textContent, /尚未保存/);
+  r.find('[data-turbo-operation="sync"]').click();
+  assert.equal(r.requests[1].action.quotaRemainingThreshold, 25);
+  assert.equal(r.requests[1].action.autoDisableOnLowQuota, true);
+});
+
+test('quota trigger switch controls its input without losing the saved threshold', () => {
+  const r = runtime({ autoDisableOnLowQuota:false, quotaRemainingThreshold:0 });
+  const trigger = r.find('input[name="autoDisableOnLowQuota"]'), threshold = r.find('input[name="quotaRemainingThreshold"]');
+  assert.equal(trigger.checked, false); assert.equal(threshold.value, '0'); assert.equal(threshold.disabled, true);
+  trigger.checked = true; r.find('form').fire('change');
+  assert.equal(threshold.disabled, false);
+  trigger.checked = false; r.find('form').fire('change');
+  assert.equal(threshold.disabled, true);
+  r.submit();
+  assert.equal(r.requests[0].action.autoDisableOnLowQuota, false); assert.equal(r.requests[0].action.quotaRemainingThreshold, 0);
+});
+
+test('quota threshold rejects invalid input before either action and accepts inclusive boundaries', () => {
+  for (const operation of ['save','sync']) {
+    for (const value of ['', ' ', '-1', '101', '9.5', 'invalid']) {
+      const r = runtime(); r.find('input[name="quotaRemainingThreshold"]').value = value;
+      if (operation === 'save') r.submit(); else r.find('[data-turbo-operation="sync"]').click();
+      assert.equal(r.requests.length, 0, operation + ':' + value);
+      assert.match(r.find('[role="status"]').textContent, /0 到 100 的整数/);
+    }
+  }
+  for (const value of ['0','100']) {
+    const r = runtime(); r.find('input[name="quotaRemainingThreshold"]').value = value; r.submit();
+    assert.equal(r.requests[0].action.quotaRemainingThreshold, Number(value));
+  }
+});
+
+test('live quota status refreshes in an open panel without overwriting unsaved settings', () => {
+  const r = runtime({ autoDisableOnLowQuota:true, quotaRemainingThreshold:10 });
+  const status = r.find('[data-turbo-quota-status]'), threshold = r.find('input[name="quotaRemainingThreshold"]');
+  assert.match(status.textContent, /暂时无法读取本机账号额度/);
+  threshold.value = '20'; threshold.fire('input');
+  r.context.policy.quotaStatus = { state:'healthy',remainingPercent:32,thresholdPercent:10 }; r.refresh();
+  assert.match(status.textContent, /最低剩余额度 32%；触发阈值 10%/);
+  r.context.policy = { ...r.context.policy, enabled:false,quotaStatus:{ state:'triggered',remainingPercent:10,thresholdPercent:10 } }; r.refresh();
+  assert.match(status.textContent, /10%，已达到 10% 阈值，Turbo 已自动关闭/);
+  assert.equal(threshold.value, '20'); assert.match(r.find('[role="status"]').textContent, /尚未保存/);
+  r.context.policy.quotaStatus = { state:'inactive',remainingPercent:null,thresholdPercent:10 }; r.refresh();
+  assert.match(status.textContent, /额度监测暂停/);
+  r.context.policy.quotaStatus = { state:'disabled',remainingPercent:null,thresholdPercent:10 }; r.refresh();
+  assert.match(status.textContent, /额度自动关闭已停用/);
+});

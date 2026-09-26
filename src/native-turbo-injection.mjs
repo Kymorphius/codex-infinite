@@ -12,6 +12,19 @@ export const NATIVE_TURBO_BINDING = "__codexControlConsoleToggleTurbo";
 
 export { parseNativeTurboAction, applyNativeTurboAction, respondToNativeTurboBinding } from "./native-turbo-actions.mjs";
 
+export function normalizeNativeTurboQuotaStatus(value) {
+  if (!value || typeof value !== "object" || !["disabled", "inactive", "unknown", "healthy", "triggered"].includes(value.state)) return null;
+  const status = {
+    state: value.state,
+    remainingPercent: Number.isFinite(value.remainingPercent) && value.remainingPercent >= 0 && value.remainingPercent <= 100 ? value.remainingPercent : null,
+    thresholdPercent: Number.isInteger(value.thresholdPercent) && value.thresholdPercent >= 0 && value.thresholdPercent <= 100 ? value.thresholdPercent : 10
+  };
+  for (const key of ["lastCheckedAt", "lastTriggeredAt"]) {
+    if (typeof value[key] === "string" && value[key].length <= 40 && Number.isFinite(Date.parse(value[key]))) status[key] = value[key];
+  }
+  return status;
+}
+
 export function normalizeTurboPolicy(policy = {}) {
   policy = policy && typeof policy === "object" ? policy : {};
   const modelEfforts = highestModelEfforts((Array.isArray(policy.modelEfforts) ? policy.modelEfforts : []).map((item) => ({
@@ -25,6 +38,9 @@ export function normalizeTurboPolicy(policy = {}) {
     enabled: policy.enabled === true, active: policy.active !== false, model: typeof policy.model === "string" ? policy.model : null,
     reasoningEffort: TURBO_REASONING_MODES.includes(policy.reasoningEffort) ? policy.reasoningEffort : "maximum",
     fast: policy.fast !== false, millionContext: policy.millionContext === true, autoDisableGlobalRouting: policy.autoDisableGlobalRouting === true,
+    autoDisableOnLowQuota: policy.autoDisableOnLowQuota !== false,
+    quotaRemainingThreshold: Number.isInteger(policy.quotaRemainingThreshold) && policy.quotaRemainingThreshold >= 0 && policy.quotaRemainingThreshold <= 100 ? policy.quotaRemainingThreshold : 10,
+    quotaStatus: normalizeNativeTurboQuotaStatus(policy.quotaStatus),
     accessMode: TURBO_ACCESS_MODES.includes(policy.accessMode) ? policy.accessMode : "preserve",
     deviceIds: Array.isArray(policy.deviceIds) ? policy.deviceIds.slice(0, 32).map(String) : [], modelEfforts, modelOptions, devices
   };
@@ -35,7 +51,7 @@ export function buildNativeTurboInjectionScript() {
   const enforcementSource = buildNativeTurboEnforcementSource();
   const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-26.save-sync1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-26.quota-trigger1') return;
   window.__codexControlConsoleTurboTurnCleanup?.();
   window.__codexControlConsoleTurboNewChatCleanup?.();
   if (window.__codexControlConsoleTurboInstallTimer) clearInterval(window.__codexControlConsoleTurboInstallTimer);
@@ -47,9 +63,10 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-26.save-sync1';
+  window.__codexControlConsoleTurboVersion = '2026-09-26.quota-trigger1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
-  let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
+  const normalizeTurboQuotaStatus = ${normalizeNativeTurboQuotaStatus.toString()};
+  let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, quotaStatus: null, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
   let installTimer = null;
   let pending = false;
   let requestSequence = 0;
@@ -203,6 +220,9 @@ export function buildNativeTurboInjectionScript() {
       fast: value?.fast !== false,
       millionContext: value?.millionContext === true,
       autoDisableGlobalRouting: value?.autoDisableGlobalRouting === true,
+      autoDisableOnLowQuota: value?.autoDisableOnLowQuota !== false,
+      quotaRemainingThreshold: Number.isInteger(value?.quotaRemainingThreshold) && value.quotaRemainingThreshold >= 0 && value.quotaRemainingThreshold <= 100 ? value.quotaRemainingThreshold : 10,
+      quotaStatus: normalizeTurboQuotaStatus(value?.quotaStatus),
       accessMode: typeof value?.accessMode === 'string' ? value.accessMode : 'preserve',
       deviceIds: Array.isArray(value?.deviceIds) ? value.deviceIds.map(String) : [],
       efforts: new Map((Array.isArray(value?.modelEfforts) ? value.modelEfforts : []).map((item) => [String(item.model), String(item.effort)])),
@@ -211,7 +231,7 @@ export function buildNativeTurboInjectionScript() {
     };
     if (!state.turboActionPending) pending = false;
     install();
-    return { enabled: policy.enabled, active: policy.active, model: policy.model, reasoningEffort: policy.reasoningEffort, fast: policy.fast, millionContext: policy.millionContext, autoDisableGlobalRouting: policy.autoDisableGlobalRouting, accessMode: policy.accessMode, deviceCount: policy.deviceIds.length, modelCount: policy.efforts.size };
+    return { enabled: policy.enabled, active: policy.active, model: policy.model, reasoningEffort: policy.reasoningEffort, fast: policy.fast, millionContext: policy.millionContext, autoDisableGlobalRouting: policy.autoDisableGlobalRouting, autoDisableOnLowQuota: policy.autoDisableOnLowQuota, quotaRemainingThreshold: policy.quotaRemainingThreshold, quotaStatus: policy.quotaStatus, accessMode: policy.accessMode, deviceCount: policy.deviceIds.length, modelCount: policy.efforts.size };
   };
   install();
   installTimer = setInterval(install, 1000);

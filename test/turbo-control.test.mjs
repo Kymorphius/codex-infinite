@@ -4,7 +4,7 @@ import { TURBO_POLICY_FIELDS, TurboCoordinator, validateTurboChange } from "../s
 
 const basePolicy = {
   enabled: true, model: "gpt-5.6-luna", reasoningEffort: "high", fast: false,
-  millionContext: true, autoDisableGlobalRouting: true, accessMode: "workspace", deviceIds: ["local"]
+  millionContext: true, autoDisableGlobalRouting: true, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, accessMode: "workspace", deviceIds: ["local"]
 };
 
 function localService(initial = {}) {
@@ -225,4 +225,27 @@ test("selecting the interlock while Turbo is active closes routing immediately",
   assert.deepEqual(routingChanges, [false]);
   await coordinator.update({ autoDisableGlobalRouting: false });
   assert.deepEqual(routingChanges, [false]);
+});
+
+test("quota settings validate the inclusive percentage range without coercion", () => {
+  for (const quotaRemainingThreshold of [0, 10, 100]) {
+    const change = { autoDisableOnLowQuota: false, quotaRemainingThreshold };
+    assert.deepEqual(validateTurboChange(change), change);
+  }
+  for (const autoDisableOnLowQuota of [0, 1, "true", null]) {
+    assert.throws(() => validateTurboChange({ autoDisableOnLowQuota }), /布尔值/);
+  }
+  for (const quotaRemainingThreshold of [-1, 101, 10.1, "10", null, NaN, Infinity]) {
+    assert.throws(() => validateTurboChange({ quotaRemainingThreshold }), /0 到 100/);
+  }
+});
+
+test("sync detects quota-trigger policy differences in peer acknowledgements", async () => {
+  const coordinator = new TurboCoordinator({ localService: localService(), peerAdapters: [
+    { peer: { id: "peer", name: "Peer" }, async updateTurbo(change) { return { ...change, autoDisableOnLowQuota: false, quotaRemainingThreshold: 20 }; } }
+  ] });
+  const result = await coordinator.sync({ quotaRemainingThreshold: 15 });
+  assert.equal(result.converged, false);
+  assert.equal(result.quotaRemainingThreshold, 15);
+  assert.deepEqual(result.nodes[1].mismatchedFields, ["autoDisableOnLowQuota", "quotaRemainingThreshold"]);
 });

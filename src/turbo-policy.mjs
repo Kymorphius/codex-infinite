@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isTurboQuotaThreshold, normalizeTurboQuotaSettings } from "./turbo-quota-policy.mjs";
 
 const EFFORT_ORDER = Object.freeze(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
 export const TURBO_ACCESS_MODES = Object.freeze(["preserve", "read-only", "workspace", "full-access"]);
@@ -43,6 +44,7 @@ function normalizeStoredPolicy(value = {}) {
     fast: value.fast !== false,
     millionContext: value.millionContext === true,
     autoDisableGlobalRouting: value.autoDisableGlobalRouting === true,
+    ...normalizeTurboQuotaSettings(value),
     accessMode: TURBO_ACCESS_MODES.includes(accessMode) ? accessMode : "preserve",
     deviceIds: Object.freeze(deviceIds),
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
@@ -116,7 +118,7 @@ export class TurboPolicyService {
   async update(change = {}) {
     if (!change || typeof change !== "object" || Array.isArray(change)) throw new Error("Turbo 设置无效");
     const keys = Object.keys(change);
-    const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "accessMode", "deviceIds"];
+    const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "autoDisableOnLowQuota", "quotaRemainingThreshold", "accessMode", "deviceIds"];
     if (!keys.length || keys.some((key) => !allowed.includes(key))) throw new Error("Turbo 设置无效");
     if (Object.hasOwn(change, "enabled") && typeof change.enabled !== "boolean") throw new Error("Turbo 开关必须是布尔值");
     if (Object.hasOwn(change, "model") && change.model !== null && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(String(change.model))) throw new Error("Turbo 模型无效");
@@ -124,9 +126,12 @@ export class TurboPolicyService {
     if (Object.hasOwn(change, "fast") && typeof change.fast !== "boolean") throw new Error("Turbo 推理速度设置必须是布尔值");
     if (Object.hasOwn(change, "millionContext") && typeof change.millionContext !== "boolean") throw new Error("Turbo 百万上下文设置必须是布尔值");
     if (Object.hasOwn(change, "autoDisableGlobalRouting") && typeof change.autoDisableGlobalRouting !== "boolean") throw new Error("Turbo 自动关闭全局路由设置必须是布尔值");
+    if (Object.hasOwn(change, "autoDisableOnLowQuota") && typeof change.autoDisableOnLowQuota !== "boolean") throw new Error("Turbo 额度自动关闭设置必须是布尔值");
+    if (Object.hasOwn(change, "quotaRemainingThreshold") && !isTurboQuotaThreshold(change.quotaRemainingThreshold)) throw new Error("Turbo 剩余额度阈值必须是 0 到 100 的整数");
     if (Object.hasOwn(change, "accessMode") && !TURBO_ACCESS_MODES.includes(change.accessMode)) throw new Error("Turbo 访问权限无效");
     if (Object.hasOwn(change, "deviceIds") && (!Array.isArray(change.deviceIds) || change.deviceIds.length > 32 || change.deviceIds.some((id) => !/^[A-Za-z0-9_.:-]{1,80}$/.test(String(id))))) throw new Error("Turbo 设备范围无效");
     const current = this.snapshot();
+    if (keys.length === 1 && change.enabled === false) return this.store.set({ ...current, enabled: false });
     const models = await (this.modelCatalog?.listOptions?.({ limit: 32 }) || []);
     const modelEfforts = highestModelEfforts(models);
     const model = Object.hasOwn(change, "model") ? change.model : current.model;
@@ -143,6 +148,8 @@ export class TurboPolicyService {
       fast: Object.hasOwn(change, "fast") ? change.fast : current.fast,
       millionContext: Object.hasOwn(change, "millionContext") ? change.millionContext : current.millionContext,
       autoDisableGlobalRouting: Object.hasOwn(change, "autoDisableGlobalRouting") ? change.autoDisableGlobalRouting : current.autoDisableGlobalRouting,
+      autoDisableOnLowQuota: Object.hasOwn(change, "autoDisableOnLowQuota") ? change.autoDisableOnLowQuota : current.autoDisableOnLowQuota,
+      quotaRemainingThreshold: Object.hasOwn(change, "quotaRemainingThreshold") ? change.quotaRemainingThreshold : current.quotaRemainingThreshold,
       accessMode: Object.hasOwn(change, "accessMode") ? change.accessMode : current.accessMode,
       deviceIds: Object.hasOwn(change, "deviceIds") ? change.deviceIds : current.deviceIds,
       modelOptions: normalizeTurboModelOptions(models),

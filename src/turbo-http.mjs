@@ -1,6 +1,7 @@
 import { assertExactMutationOrigin, assertJsonContentType, httpError, readJsonBody, readRequestBody, sendJson } from "./http-utils.mjs";
 import { loadActionKey, NonceReplayWindow, verifyPeerAction } from "./peer-action-auth.mjs";
 import { validateTurboChange } from "./turbo-control.mjs";
+import { normalizeTurboQuotaSettings } from "./turbo-quota-policy.mjs";
 
 const OWNER_PATH = "/api/node/actions/turbo";
 const BROWSER_ACTIONS = Object.freeze({ "/api/turbo": "update", "/api/turbo/save": "save", "/api/turbo/sync": "sync" });
@@ -13,6 +14,7 @@ function policyResponse(policy = {}) {
     fast: policy.fast !== false,
     millionContext: policy.millionContext === true,
     autoDisableGlobalRouting: policy.autoDisableGlobalRouting === true,
+    ...normalizeTurboQuotaSettings(policy),
     accessMode: typeof policy.accessMode === "string" ? policy.accessMode : "preserve",
     deviceIds: Array.isArray(policy.deviceIds) ? policy.deviceIds : [],
     updatedAt: policy.updatedAt || null

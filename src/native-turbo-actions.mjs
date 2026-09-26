@@ -1,11 +1,12 @@
 import { TURBO_ACCESS_MODES, TURBO_REASONING_MODES } from "./turbo-policy.mjs";
+import { isTurboQuotaThreshold } from "./turbo-quota-policy.mjs";
 
 export function parseNativeTurboAction(payload) {
   let value;
   try { value = JSON.parse(String(payload || "")); } catch { return null; }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const keys = Object.keys(value);
-  const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "accessMode", "deviceIds"];
+  const allowed = ["enabled", "model", "reasoningEffort", "fast", "millionContext", "autoDisableGlobalRouting", "autoDisableOnLowQuota", "quotaRemainingThreshold", "accessMode", "deviceIds"];
   if (!keys.length || keys.some((key) => !allowed.includes(key))) return null;
   if (Object.hasOwn(value, "enabled") && typeof value.enabled !== "boolean") return null;
   if (Object.hasOwn(value, "model") && value.model !== null && (typeof value.model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value.model))) return null;
@@ -13,6 +14,8 @@ export function parseNativeTurboAction(payload) {
   if (Object.hasOwn(value, "fast") && typeof value.fast !== "boolean") return null;
   if (Object.hasOwn(value, "millionContext") && typeof value.millionContext !== "boolean") return null;
   if (Object.hasOwn(value, "autoDisableGlobalRouting") && typeof value.autoDisableGlobalRouting !== "boolean") return null;
+  if (Object.hasOwn(value, "autoDisableOnLowQuota") && typeof value.autoDisableOnLowQuota !== "boolean") return null;
+  if (Object.hasOwn(value, "quotaRemainingThreshold") && !isTurboQuotaThreshold(value.quotaRemainingThreshold)) return null;
   if (Object.hasOwn(value, "accessMode") && !TURBO_ACCESS_MODES.includes(value.accessMode)) return null;
   if (Object.hasOwn(value, "deviceIds") && (!Array.isArray(value.deviceIds) || value.deviceIds.length > 32 || value.deviceIds.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(id)))) return null;
   const action = {};

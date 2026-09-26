@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { applyNativeTurboAction, buildNativeTurboActionSource, parseNativeTurboRequest, respondToNativeTurboBinding } from '../src/native-turbo-actions.mjs';
+import { applyNativeTurboAction, buildNativeTurboActionSource, parseNativeTurboAction, parseNativeTurboRequest, respondToNativeTurboBinding } from '../src/native-turbo-actions.mjs';
 import { buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript } from '../src/native-turbo-injection.mjs';
 
 const request = (operation, change = { fast: false }) => JSON.stringify({ operation, requestId: 'turbo-action-test-123', change });
@@ -66,4 +66,17 @@ test('pending request rejects duplicates and stale replies; snapshot updates can
   vm.runInNewContext(source, runtimeContext);
   vm.runInNewContext(buildNativeTurboSnapshotScript({ enabled: true }), runtimeContext);
   assert.equal(runtimeContext.pendingState(), true);
+});
+
+test('native quota settings accept boundaries and reject malformed triggers before dispatch', async () => {
+  for (const quotaRemainingThreshold of [0, 10, 100]) {
+    const change = { autoDisableOnLowQuota: false, quotaRemainingThreshold };
+    assert.deepEqual(parseNativeTurboAction(JSON.stringify(change)), change);
+    assert.deepEqual(parseNativeTurboRequest(request('save', change)).change, change);
+    assert.deepEqual(parseNativeTurboRequest(request('sync', change)).change, change);
+  }
+  for (const change of [{ autoDisableOnLowQuota: 'true' }, ...[-1, 101, 10.5, '10', null].map(quotaRemainingThreshold => ({ quotaRemainingThreshold }))]) {
+    assert.equal(parseNativeTurboAction(JSON.stringify(change)), null);
+    assert.equal(await applyNativeTurboAction(request('save', change), { save() { assert.fail('malformed settings must not dispatch'); } }), null);
+  }
 });

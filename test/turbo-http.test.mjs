@@ -25,10 +25,11 @@ test("Turbo browser and signed owner APIs keep distinct trust boundaries", async
   let enabled = false;
   let millionContext = false;
   let autoDisableGlobalRouting = false;
+  let quotaSettings = { autoDisableOnLowQuota: true, quotaRemainingThreshold: 10 };
   const routingChanges = [];
   const turboPolicyService = {
-    snapshot() { return { enabled, millionContext, autoDisableGlobalRouting, updatedAt: "2026-08-31T12:00:00Z" }; },
-    async update(change) { if (Object.hasOwn(change, "enabled")) enabled = change.enabled; if (Object.hasOwn(change, "millionContext")) millionContext = change.millionContext; if (Object.hasOwn(change, "autoDisableGlobalRouting")) autoDisableGlobalRouting = change.autoDisableGlobalRouting; return this.snapshot(); }
+    snapshot() { return { enabled, millionContext, autoDisableGlobalRouting, ...quotaSettings, updatedAt: "2026-08-31T12:00:00Z" }; },
+    async update(change) { if (Object.hasOwn(change, "enabled")) enabled = change.enabled; if (Object.hasOwn(change, "millionContext")) millionContext = change.millionContext; if (Object.hasOwn(change, "autoDisableGlobalRouting")) autoDisableGlobalRouting = change.autoDisableGlobalRouting; quotaSettings = { ...quotaSettings, ...Object.fromEntries(["autoDisableOnLowQuota", "quotaRemainingThreshold"].filter(key => Object.hasOwn(change, key)).map(key => [key, change[key]])) }; return this.snapshot(); }
   };
   const jevRoutingService = { async setEnabled(value) { routingChanges.push(value); } };
   const turboCoordinator = new TurboCoordinator({ localService: turboPolicyService, routingService: jevRoutingService });
@@ -50,7 +51,7 @@ test("Turbo browser and signed owner APIs keep distinct trust boundaries", async
   const ownerPath = "/api/node/actions/turbo";
   const timestamp = String(Date.now());
   const nonce = crypto.randomUUID();
-  const body = Buffer.from(JSON.stringify({ enabled: true, millionContext: false, autoDisableGlobalRouting: true, requestId: nonce }));
+  const body = Buffer.from(JSON.stringify({ enabled: true, millionContext: false, autoDisableGlobalRouting: true, autoDisableOnLowQuota: false, quotaRemainingThreshold: 25, requestId: nonce }));
   const signature = signPeerAction(key, { method: "POST", path: ownerPath, timestamp, nonce, body });
   const owner = await fetch(`${origin}${ownerPath}`, {
     method: "POST",
@@ -61,12 +62,14 @@ test("Turbo browser and signed owner APIs keep distinct trust boundaries", async
   const ownerPolicy = await owner.json();
   assert.equal(ownerPolicy.enabled, true);
   assert.equal(ownerPolicy.autoDisableGlobalRouting, true);
+  assert.equal(ownerPolicy.autoDisableOnLowQuota, false);
+  assert.equal(ownerPolicy.quotaRemainingThreshold, 25);
   assert.deepEqual(routingChanges, [false]);
 });
 
 test("browser save and sync use exact-origin policy-only routes and distinct scopes", async (t) => {
   let policy = { enabled: true, model: "gpt-5.6-luna", reasoningEffort: "high", fast: false,
-    millionContext: true, autoDisableGlobalRouting: false, accessMode: "workspace", deviceIds: ["local"] };
+    millionContext: true, autoDisableGlobalRouting: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, accessMode: "workspace", deviceIds: ["local"] };
   const saved = [], remote = [];
   const turboPolicyService = { snapshot: () => policy,
     async update(change) { saved.push(change); policy = { ...policy, ...change }; return policy; } };
@@ -86,19 +89,24 @@ test("browser save and sync use exact-origin policy-only routes and distinct sco
     assert.equal((await put(route, { fast: true, requestId: "request-id-12345678" })).status, 400);
     assert.equal((await put(route, {})).status, 400);
     assert.equal((await put(route, [])).status, 400);
+    for (const change of [{ autoDisableOnLowQuota: "true" }, ...[-1, 101, 10.5, "10", null].map(quotaRemainingThreshold => ({ quotaRemainingThreshold }))]) {
+      assert.equal((await put(route, change)).status, 400);
+    }
     assert.equal((await fetch(`${origin}/api/turbo/${route}`)).status, 405);
   }
   assert.equal(saved.length, 0);
   assert.equal(remote.length, 0);
-  const local = await put("save", { fast: true });
+  const local = await put("save", { fast: true, autoDisableOnLowQuota: false, quotaRemainingThreshold: 0 });
   assert.equal(local.status, 200);
   assert.equal((await local.json()).operation, "save");
-  assert.deepEqual(saved, [{ fast: true }]);
+  assert.deepEqual(saved, [{ fast: true, autoDisableOnLowQuota: false, quotaRemainingThreshold: 0 }]);
   assert.equal(remote.length, 0);
-  const synchronized = await put("sync", { fast: false });
+  const synchronized = await put("sync", { fast: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 100 });
   assert.equal(synchronized.status, 200);
   assert.equal((await synchronized.json()).operation, "sync");
   assert.deepEqual(remote, [policy]);
+  assert.equal(remote[0].autoDisableOnLowQuota, true);
+  assert.equal(remote[0].quotaRemainingThreshold, 100);
   assert.deepEqual(policy.deviceIds, ["local"]);
 });
 
@@ -150,16 +158,24 @@ test("signed owner writes reject a busy coordinator and remain local when accept
   assert.equal(policy.fast, true);
   releasePeer();
   assert.equal((await outgoing).converged, true);
-  const request = signedRequest({ fast: false });
+  for (const change of [{ autoDisableOnLowQuota: "true" }, { quotaRemainingThreshold: -1 }, { quotaRemainingThreshold: 101 }, { quotaRemainingThreshold: 10.5 }]) {
+    assert.equal((await fetch(url, signedRequest(change))).status, 400);
+  }
+  const request = signedRequest({ fast: false, autoDisableOnLowQuota: false, quotaRemainingThreshold: 30 });
   const accepted = await fetch(url, request);
   assert.equal(accepted.status, 202);
   const response = await accepted.json();
   assert.equal(response.fast, false);
+  assert.equal(response.autoDisableOnLowQuota, false);
+  assert.equal(response.quotaRemainingThreshold, 30);
   assert.equal(Object.hasOwn(response, "operation"), false);
   assert.equal(Object.hasOwn(response, "nodes"), false);
   assert.equal(peerCalls, 1);
   const duplicate = await fetch(url, request);
   assert.equal(duplicate.status, 202);
-  assert.equal((await duplicate.json()).duplicate, true);
+  const duplicatePolicy = await duplicate.json();
+  assert.equal(duplicatePolicy.duplicate, true);
+  assert.equal(duplicatePolicy.autoDisableOnLowQuota, false);
+  assert.equal(duplicatePolicy.quotaRemainingThreshold, 30);
   assert.equal(peerCalls, 1);
 });

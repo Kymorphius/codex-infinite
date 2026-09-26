@@ -32,11 +32,16 @@ export function buildNativeTurboSettingsSource() {
     if (!view) return;
     const action = state.turboActionPending;
     const result = state.turboActionResult;
-    const signature = JSON.stringify([action, result, view.validationError, view.modified]);
+    const signature = JSON.stringify([action, result, view.validationError, view.modified, view.allDevices.checked, view.autoDisableOnLowQuota.checked, policy.enabled, policy.active, policy.autoDisableOnLowQuota, policy.quotaRemainingThreshold, policy.quotaStatus]);
     if (view.signature === signature) return;
     view.signature = signature;
     for (const button of [view.save, view.sync]) { button.disabled = Boolean(action); button.style.opacity = action ? '.55' : '1'; button.style.cursor = action ? 'wait' : 'pointer'; }
-    for (const control of view.controls) control.disabled = Boolean(action) || (view.deviceInputs.includes(control) && view.allDevices.checked);
+    for (const control of view.controls) control.disabled = Boolean(action) || (view.deviceInputs.includes(control) && view.allDevices.checked) || (control === view.quotaThreshold && !view.autoDisableOnLowQuota.checked);
+    const quota = policy.quotaStatus;
+    const quotaState = quota?.state || (policy.autoDisableOnLowQuota === false ? 'disabled' : !policy.enabled || !policy.active ? 'inactive' : 'unknown');
+    const remaining = typeof quota?.remainingPercent === 'number' ? Math.round(quota.remainingPercent * 100) / 100 + '%' : '未知';
+    const threshold = quota?.thresholdPercent ?? policy.quotaRemainingThreshold ?? 10;
+    view.quotaStatus.textContent = quotaState === 'disabled' ? '额度自动关闭已停用。' : quotaState === 'inactive' ? 'Turbo 当前未在本机生效，额度监测暂停。' : quotaState === 'healthy' ? '本机账号最低剩余额度 ' + remaining + '；触发阈值 ' + threshold + '%。' : quotaState === 'triggered' ? '本机账号剩余额度 ' + remaining + '，已达到 ' + threshold + '% 阈值，Turbo 已自动关闭。' : '暂时无法读取本机账号额度，等待下次检查。';
     view.panel.setAttribute('aria-busy', action ? 'true' : 'false');
     view.results.replaceChildren();
     if (action) { view.status.textContent = action.operation === 'save' ? '正在保存到本机…' : '正在保存并同步到所有设备…'; return; }
@@ -63,7 +68,7 @@ export function buildNativeTurboSettingsSource() {
     const panel = document.createElement('div'); panel.setAttribute('data-codex-control-console-turbo-popover', ''); panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Turbo 设置');
     panel.style.cssText = 'position:fixed;z-index:2147483646;width:330px;max-height:min(640px,calc(100vh - 30px));overflow:auto;padding:15px;border:1px solid rgba(128,128,128,.28);border-radius:14px;background:rgb(35,35,37);color:#f2f2f2;box-shadow:0 16px 46px rgba(0,0,0,.38);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';
     const title = document.createElement('strong'); title.textContent = 'Turbo 策略'; title.style.cssText = 'display:block;margin-bottom:12px;font-size:14px';
-    const form = document.createElement('form'); form.style.cssText = 'display:grid;gap:10px';
+    const form = document.createElement('form'); form.noValidate = true; form.style.cssText = 'display:grid;gap:10px';
     const models = [{ value:'', label:'保持各会话原模型' }, ...policy.modelOptions.map((item) => ({ value:item.id, label:turboLabel(item.id) }))];
     if (policy.model && !models.some((item) => item.value === policy.model)) models.push({ value:policy.model, label:turboLabel(policy.model) });
     const modelSelect = addSelect(form, '模型', 'model', models, policy.model || '');
@@ -79,6 +84,11 @@ export function buildNativeTurboSettingsSource() {
     const fast = addSwitch(form, 'Fast 推理速度', '关闭后保持会话原速度', 'fast', policy.fast);
     const million = addSwitch(form, '百万上下文', '新一轮请求 1M', 'millionContext', policy.millionContext);
     const autoDisableGlobalRouting = addSwitch(form, '自动关闭全局路由', 'Turbo 开启时关闭 Jev 全局路由', 'autoDisableGlobalRouting', policy.autoDisableGlobalRouting);
+    const autoDisableOnLowQuota = addSwitch(form, '额度不足时自动关闭 Turbo', '本机账号任一额度窗口剩余不高于阈值时关闭', 'autoDisableOnLowQuota', policy.autoDisableOnLowQuota !== false);
+    const quotaLabel = document.createElement('label'); quotaLabel.textContent = '剩余额度阈值（%）'; quotaLabel.style.cssText = 'display:grid;gap:5px;font-size:12px;color:#b8b8bd';
+    const quotaThreshold = document.createElement('input'); quotaThreshold.type = 'number'; quotaThreshold.name = 'quotaRemainingThreshold'; quotaThreshold.min = '0'; quotaThreshold.max = '100'; quotaThreshold.step = '1'; quotaThreshold.value = String(policy.quotaRemainingThreshold ?? 10); quotaThreshold.setAttribute('aria-label', '剩余额度阈值（%）'); quotaThreshold.style.cssText = 'box-sizing:border-box;width:100%;height:34px;padding:0 9px;border:1px solid #505055;border-radius:8px;background:#2d2d30;color:#f4f4f5;font:12px inherit'; quotaLabel.append(quotaThreshold); form.append(quotaLabel);
+    const quotaStatus = document.createElement('div'); quotaStatus.setAttribute('data-turbo-quota-status', ''); quotaStatus.setAttribute('aria-live', 'polite'); quotaStatus.style.cssText = 'font-size:11px;color:#b8b8bd;line-height:1.5';
+    const quotaNote = document.createElement('small'); quotaNote.textContent = '仅自动关闭本机 Turbo；额度恢复后不会自动开启。'; quotaNote.style.cssText = 'font-size:11px;color:#a9a9ae;line-height:1.5'; form.append(quotaStatus, quotaNote);
     const allDevices = addSwitch(form, '应用于全部设备', '关闭后选择 Turbo 生效的设备', 'allDevices', !policy.deviceIds.length);
     const deviceBox = document.createElement('div'); deviceBox.style.cssText = 'display:grid;gap:6px;padding:8px;border:1px solid #45454a;border-radius:9px';
     const deviceInputs = policy.devices.map((device) => { const label = document.createElement('label'); label.style.cssText = 'display:flex;align-items:center;gap:7px;font-size:11px'; const input = document.createElement('input'); input.type='checkbox'; input.value=device.id; input.checked=!policy.deviceIds.length || policy.deviceIds.includes(device.id); input.disabled=allDevices.checked; input.style.accentColor='#d99a22'; input.setAttribute('data-turbo-device',device.id); const text=document.createElement('span'); text.textContent=device.name; label.append(input,text); deviceBox.append(label); return input; });
@@ -93,16 +103,19 @@ export function buildNativeTurboSettingsSource() {
       if (pending || state.turboActionPending) return;
       const targetIds = allDevices.checked ? [] : deviceInputs.filter((input) => input.checked).map((input) => input.value);
       if (!allDevices.checked && !targetIds.length) { turboSettingsView.validationError = '请至少选择一台生效设备，或开启“应用于全部设备”。'; renderTurboSettingsResult(); return; }
+      const quotaRemainingThreshold = Number(quotaThreshold.value);
+      if (!String(quotaThreshold.value).trim() || !Number.isInteger(quotaRemainingThreshold) || quotaRemainingThreshold < 0 || quotaRemainingThreshold > 100) { turboSettingsView.validationError = '剩余额度阈值请输入 0 到 100 的整数。'; renderTurboSettingsResult(); return; }
       turboSettingsView.validationError = ''; turboSettingsView.modified = false;
-      const action = { model:modelSelect.value || null, reasoningEffort:reasoningSelect.value, fast:fast.checked, millionContext:million.checked, autoDisableGlobalRouting:autoDisableGlobalRouting.checked, deviceIds:targetIds };
+      const action = { model:modelSelect.value || null, reasoningEffort:reasoningSelect.value, fast:fast.checked, millionContext:million.checked, autoDisableGlobalRouting:autoDisableGlobalRouting.checked, autoDisableOnLowQuota:autoDisableOnLowQuota.checked, quotaRemainingThreshold, deviceIds:targetIds };
       turboSend(action, operation); renderTurboSettingsResult();
     };
     form.addEventListener('submit', (event) => { event.preventDefault(); submit('save'); });
     sync.addEventListener('click', () => submit('sync'));
     form.addEventListener('change', () => { if (!state.turboActionPending) { turboSettingsView.modified = true; turboSettingsView.validationError = ''; renderTurboSettingsResult(); } });
+    quotaThreshold.addEventListener('input', () => { if (!state.turboActionPending) { turboSettingsView.modified = true; turboSettingsView.validationError = ''; renderTurboSettingsResult(); } });
     const outside = (event) => { if (!panel.contains(event.target) && event.target !== settingsButton) closeSettings(); };
     const escape = (event) => { if (event.key === 'Escape') closeSettings(); };
-    turboSettingsView = { panel, save, sync, status, results, outside, escape, controls:[modelSelect,reasoningSelect,fast,million,autoDisableGlobalRouting,allDevices,...deviceInputs], deviceInputs, allDevices, modified:false, validationError:'', signature:'' };
+    turboSettingsView = { panel, save, sync, status, results, quotaStatus, quotaThreshold, autoDisableOnLowQuota, outside, escape, controls:[modelSelect,reasoningSelect,fast,million,autoDisableGlobalRouting,autoDisableOnLowQuota,quotaThreshold,allDevices,...deviceInputs], deviceInputs, allDevices, modified:false, validationError:'', signature:'' };
     panel.append(title, form); document.body.append(panel); renderTurboSettingsResult(); const rect=settingsButton.getBoundingClientRect(); panel.style.top=Math.max(12,Math.min(window.innerHeight-panel.offsetHeight-12,rect.bottom+8))+'px'; panel.style.left=Math.max(12,Math.min(window.innerWidth-panel.offsetWidth-12,rect.right-panel.offsetWidth))+'px';
     setTimeout(() => { if (turboSettingsView?.panel !== panel) return; document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape); }, 0);
   }

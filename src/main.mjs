@@ -51,7 +51,7 @@ import { NativeDesktopRouter } from "./native-desktop-router.mjs";
 import { NativeOwnerInjector } from "./native-owner-injector.mjs";
 import { RouterTurnStateService } from "./router-turn-state-service.mjs";
 import { TurboPolicyService, TurboPolicyStore } from "./turbo-policy.mjs";
-import { TurboCoordinator } from "./turbo-control.mjs";
+import { createTurboRuntime } from "./turbo-runtime.mjs";
 import { NativeSidebarLabelService } from "./native-sidebar-labels.mjs";
 import { NativeRemoteSidebarService } from "./native-remote-sidebar.mjs";
 import { WindowsProjectCopyAdapter } from "./windows-project-copy-adapter.mjs";
@@ -189,7 +189,8 @@ export async function run() {
     taskDispatcher: jevTaskDispatcher
   });
   await jevRoutingService.initialize();
-  const turboCoordinator = new TurboCoordinator({ localService: turboPolicyService, peerAdapters, localNode: config.nodeDevice, routingService: jevRoutingService });
+  const turboRuntime = createTurboRuntime({ config, localService: turboPolicyService, peerAdapters, routingService: jevRoutingService });
+  const turboCoordinator = turboRuntime.coordinator;
   const dispatcher = new CodexCliDispatcher({
     codexPath: config.codexPath,
     codexHome: config.nativeCodexHome,
@@ -209,7 +210,7 @@ export async function run() {
   let injector;
   let nativeOwnerInjector = null;
   const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
-  const restartService = new RuntimeRestartService({ config, prepare: async () => { await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
+  const restartService = new RuntimeRestartService({ config, prepare: async () => { turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
@@ -224,7 +225,7 @@ export async function run() {
       cdpOrigin: config.cdpOrigin,
       dashboardUrl: config.dashboardOrigin,
       contextWindowStore,
-      turboPolicyProvider: turboPolicyService,
+      turboPolicyProvider: turboRuntime.policyProvider,
       turboController: turboCoordinator,
       jevRoutingService,
       sidebarLabelProvider: sidebarLabelService,
@@ -239,10 +240,11 @@ export async function run() {
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
-      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboPolicyService, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
+      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboRuntime.policyProvider, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
       await nativeOwnerInjector.start();
     }
     scheduler.start();
+    void turboRuntime.start();
     console.log(`[codex-control-console] dashboard listening at ${config.dashboardOrigin}`);
     console.log(`[codex-control-console] CDP ${codex.mode} on ${config.cdpOrigin}`);
     console.log(`[codex-control-console] dedicated profile: ${config.profileDirectory}`);
@@ -250,6 +252,7 @@ export async function run() {
     console.log("[codex-control-console] regular-chat context: model default");
     console.log(`[codex-control-console] per-thread extended context request: ${wrapper.requestedContextWindow}`);
   } catch (error) {
+    turboRuntime.stop();
     await sentMessageSearchService.index?.close();
     zoteroAdapter.close();
     await dashboard.close();
@@ -257,6 +260,7 @@ export async function run() {
   }
 
   const shutdown = async () => {
+    turboRuntime.stop();
     jevTaskDispatcher.close();
     await injector.stop();
     await nativeOwnerInjector?.stop();

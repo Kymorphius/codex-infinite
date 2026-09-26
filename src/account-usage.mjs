@@ -3,7 +3,7 @@ import { AppServerClient } from './app-server-client.mjs';
 function normalizedWindow(kind, value) {
   if (!value || typeof value !== 'object') return null;
   const rawUsedPercent = value.usedPercent ?? value.used_percent;
-  if (rawUsedPercent == null) return null;
+  if (rawUsedPercent == null || !['number', 'string'].includes(typeof rawUsedPercent) || (typeof rawUsedPercent === 'string' && !rawUsedPercent.trim())) return null;
   const usedPercent = Number(rawUsedPercent);
   if (!Number.isFinite(usedPercent) || usedPercent < 0 || usedPercent > 100) return null;
   const duration = Number(value.windowDurationMins ?? value.window_duration_mins);
