@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { buildNativeProviderNavigationSource } from '../src/native-terminal-navigation.mjs';
+import { buildNativeProviderNavigationSource, nativeTerminalHost } from '../src/native-terminal-navigation.mjs';
 import { terminalConversationTab, createNativeTerminalTabController } from '../src/native-terminal-tabs.mjs';
 import { normalizeNativeConversationTab, NativeConversationTabState } from '../src/native-conversation-tab-state.mjs';
 import { createNativeConversationTabNormalizer } from '../src/native-conversation-tab-titles.mjs';
@@ -98,4 +98,13 @@ test('CSP recovery persists the latest stable terminal target, validates it and 
   context.recovery.cancel(); assert.equal(data.size, 0);
   context.recovery.prepare('terminal', { provider: 'terminal', conversationId: 'invalid' });
   assert.equal(JSON.parse([...data.values()][0]).module, 'board');
+});
+
+test('native terminal takes the enclosing focus area so the ChatGPT mode toggle is covered', () => {
+  const area = { isConnected: true, getBoundingClientRect: () => ({ width: 718, height: 676 }) };
+  const main = found => ({ closest: selector => selector === '[data-app-shell-focus-area="main"]' ? found : null });
+  const home = main(area); assert.equal(nativeTerminalHost(() => home), area);
+  const bare = main(null); assert.equal(nativeTerminalHost(() => bare), bare);
+  const narrow = main({ ...area, getBoundingClientRect: () => ({ width: 200, height: 676 }) }); assert.equal(nativeTerminalHost(() => narrow), narrow);
+  const body = {}; assert.equal(nativeTerminalHost(() => body), body);
 });

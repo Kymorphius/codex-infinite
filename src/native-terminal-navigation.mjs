@@ -1,8 +1,17 @@
 import { buildNativeTerminalProviderSource } from './native-terminal-provider.mjs';
 
+// ChatGPT 26 narrows role=main to the home composer; its mode toggle (聊天/工作) and
+// thread headers are siblings. Terminal conversations own the whole focus area.
+export function nativeTerminalHost(fallback) {
+  const main = fallback(), area = main?.closest?.('[data-app-shell-focus-area="main"]');
+  const rect = area?.isConnected ? area.getBoundingClientRect() : null;
+  return rect && rect.width > 260 && rect.height > 180 ? area : main;
+}
+
 export function buildNativeProviderNavigationSource() {
   return `
 ${buildNativeTerminalProviderSource()}
+${nativeTerminalHost}
   let terminalTarget = null, terminalNavigationVersion = 0;
   function cancelTerminalNavigation() { terminalTarget = null; terminalNavigationVersion++; }
   function terminalReference(reference) {
@@ -19,7 +28,7 @@ ${buildNativeTerminalProviderSource()}
     terminalTarget = { ...target, deviceId: record.deviceId };
     window.__codexControlConsoleConversationTabs?.openTerminal?.(terminalConversationTab(record));
     window.__cccTerminalConversations?.select(record.id);
-    if (window.__cccOpenNativeTerminal) { restoreWorkspace(); return window.__cccOpenNativeTerminal(record, workspaceCandidate()); }
+    if (window.__cccOpenNativeTerminal) { restoreWorkspace(); return window.__cccOpenNativeTerminal(record, nativeTerminalHost(workspaceCandidate)); }
     openWorkspace('terminal', '正在打开会话…', false);
     const activeFrame = frame; if (!activeFrame?.contentWindow) return true;
     const send = () => {
