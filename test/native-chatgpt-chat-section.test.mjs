@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { NATIVE_SECTION_ORDER, NATIVE_SIDEBAR_ORDER } from "../src/native-sidebar-order.mjs";
 import {
+  nativeSidebarFlexItem,
   buildNativeChatgptChatSectionInjectionScript,
   classifyNativeChatgptRecentTarget,
   nativeChatgptConversationTrigger
@@ -36,11 +38,12 @@ test("ChatGPT chat section projects cloud work into a separate top-level section
   assert.match(source, /label\(section, '聊天'\)/);
   assert.match(source, /key === 'Projects'.*label\(section, '项目'\)/s);
   assert.match(source, /key === '项目（聊天）'.*label\(section, '聊天 项目'\)/s);
-  assert.match(source, /\['Projects', 40\]/);
-  assert.match(source, /\['待整理', 50\]/);
-  assert.match(source, /\['云工作', 70\]/);
-  assert.match(source, /\['项目（聊天）', 75\]/);
-  assert.match(source, /\['Recents', 80\]/);
+  assert.ok(source.includes(JSON.stringify(NATIVE_SECTION_ORDER)));
+  assert.match(source, /\["Projects",30\]/);
+  assert.match(source, /\["待整理",43\]/);
+  assert.match(source, /\["云工作",52\]/);
+  assert.match(source, /\["项目（聊天）",51\]/);
+  assert.match(source, /\["Recents",50\]/);
   assert.match(source, /data-codex-control-console-section-order/);
   assert.match(source, /wrapper\.style\.order/);
   assert.match(source, /data-sidebar-chatgpt-conversation-key/);
@@ -102,6 +105,25 @@ test("ChatGPT chat section projects cloud work into a separate top-level section
 
 test('native pinned section precedes search and other sidebar sections', () => {
   const source = buildNativeChatgptChatSectionInjectionScript();
-  assert.ok(source.includes("['Pinned', 1]"));
-  assert.ok(source.includes("['置顶', 1]"));
+  assert.ok(source.includes('["Pinned",20]'));
+  assert.ok(source.includes('["置顶",20]'));
+});
+
+test("section order lands on the sidebar flex item even when ChatGPT adds a wrapper", () => {
+  const node = (display, scroll = false) => ({ display, matches: selector => scroll && selector === "[data-app-action-sidebar-scroll]" });
+  const scroller = node("flex", true), contents = node("contents"), dropTarget = node("block"), container = node("block"), section = node("block");
+  contents.parentElement = scroller; dropTarget.parentElement = contents; container.parentElement = dropTarget; section.parentElement = container;
+  const style = value => ({ display: value.display });
+  assert.equal(nativeSidebarFlexItem(section, style), dropTarget, "Recents is wrapped by a drop target");
+  const direct = node("block"); direct.parentElement = scroller; const plain = node("block"); plain.parentElement = direct;
+  assert.equal(nativeSidebarFlexItem(plain, style), direct);
+  assert.equal(nativeSidebarFlexItem(null, style), null);
+});
+
+test("sidebar groups run search, attention, projects, user sections, then ChatGPT", () => {
+  const o = NATIVE_SIDEBAR_ORDER;
+  const sequence = [o.projectSearch, o.sentMessageSearch, o.pinned, o.review, o.active, o.codex, o.history, o.projects, o.newProjects, o.remote,
+    ...NATIVE_SECTION_ORDER.filter(([name]) => ["现在", "等待", "本周", "待整理", "临时"].includes(name)).map(([, value]) => value), o.userSection, o.chats, o.chatProjects, o.cloud];
+  assert.deepEqual(sequence, [...sequence].sort((a, b) => a - b));
+  assert.equal(new Set(sequence).size, sequence.length);
 });

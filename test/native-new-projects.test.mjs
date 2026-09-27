@@ -49,7 +49,7 @@ test('additional project view preserves native rows, disclosure navigates same t
 });
 test('empty category is rendered with native heading classes and no custom background', () => {
   const h = harness(); h.run(); h.set([]);
-  assert.ok(all(h.parent).some(node => node.textContent === '暂无新项目'));
+  assert.ok(!all(h.parent).some(node => node.textContent === '暂无新项目'), 'empty category keeps only its heading');
   assert.ok(all(h.parent).some(node => node.className === 'native-heading'));
   assert.doesNotMatch(buildNativeNewProjectsInjectionScript(), /background:|innerHTML|cloneNode/);
   assert.equal(all(h.parent).find(node => node.textContent === '新项目').parentElement.tag, 'button');

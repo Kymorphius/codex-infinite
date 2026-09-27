@@ -17,7 +17,7 @@ test('empty pinned entry uses native styles and gives way to real native pins wi
   let sections = [native], update;
   const context = vm.createContext({ window: {}, document: { documentElement: parent, querySelectorAll: selector => selector.startsWith('section') ? sections : [], createElement: () => new Node() }, MutationObserver: class { constructor(fn) { update = fn; } observe() {} disconnect() {} }, requestAnimationFrame: fn => fn() });
   vm.runInContext(buildNativePinnedEmptyInjectionScript(), context);
-  assert.equal(parent.children[0].style.order, '1'); assert.equal(parent.children.length, 2); assert.equal(parent.children[0].children[0].className, 'native-section');
+  assert.equal(parent.children[0].style.order, '20'); assert.equal(parent.children[0].children[0].children.length, 1, 'empty pin keeps only its heading'); assert.equal(parent.children.length, 2); assert.equal(parent.children[0].children[0].className, 'native-section');
   assert.equal(parent.children[0].children[0].children[0].children[0].textContent, '置顶');
   update(); assert.equal(parent.children.length, 2);
   sections = [pinned, native]; update(); assert.equal(parent.children.length, 1); assert.equal(wrapper.children[0], native);

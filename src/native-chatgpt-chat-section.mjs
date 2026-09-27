@@ -1,3 +1,5 @@
+import { NATIVE_SECTION_ORDER, NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
+
 export function classifyNativeChatgptRecentTarget(target) {
   if (target?.source === "codex" || target?.conversation?.conversation_origin === "tpp") return "cloud-work";
   if (target?.source === "chatgpt" && target?.projectId) return "project-chat";
@@ -10,10 +12,19 @@ export function nativeChatgptConversationTrigger(row) {
   return row.querySelector?.(":scope > a,:scope > button,:scope > [role=\"button\"]") || null;
 }
 
+// ChatGPT 26 wraps some sections (Recents) in an extra drop-target node; the flex
+// item is the ancestor whose parent is the sidebar scroller or a display:contents box.
+export function nativeSidebarFlexItem(section, getStyle = getComputedStyle) {
+  let node = section?.parentElement;
+  while (node?.parentElement && !node.parentElement.matches('[data-app-action-sidebar-scroll]')
+    && getStyle(node.parentElement).display !== 'contents') node = node.parentElement;
+  return node || null;
+}
+
 export function buildNativeChatgptChatSectionInjectionScript() {
   const conversationTriggerSource = nativeChatgptConversationTrigger.toString();
   return `(() => {
-  const VERSION = '2026-09-16.1';
+  const VERSION = '2026-09-28.sidebar-groups';
   const SECTION_SELECTOR = 'section[data-app-action-sidebar-section-heading="Recents"]';
   const CLOUD_SECTION_SELECTOR = 'section[data-app-action-sidebar-section-heading="云工作"]';
   const CLOUD_CACHE_KEY = 'codex-control-console.cloud-work.v1';
@@ -33,10 +44,9 @@ export function buildNativeChatgptChatSectionInjectionScript() {
   const LOADING_WRAP_STYLE_MARKER = 'data-codex-control-console-loading-wrap-style';
   const ROW_CLASSIFICATION_MARKER = 'data-codex-control-console-chat-classification';
   const CLASSIFICATION_STYLE_MARKER = 'data-codex-control-console-chat-classification-style';
-  const SECTION_ORDER = new Map([
-    ['Pinned', 1], ['置顶', 1], ['已置顶', 1], ['现在', 10], ['等待', 20], ['本周', 30], ['Projects', 40],
-    ['待整理', 50], ['临时', 60], ['云工作', 70], ['项目（聊天）', 75], ['Recents', 80]
-  ]);
+  const SECTION_ORDER = new Map(${JSON.stringify(NATIVE_SECTION_ORDER)});
+  const USER_SECTION_ORDER = ${NATIVE_SIDEBAR_ORDER.userSection};
+  const flexItem = ${nativeSidebarFlexItem.toString()};
   const classifyRecentTarget = ${classifyNativeChatgptRecentTarget.toString()};
   const conversationTrigger = ${conversationTriggerSource};
   let classificationStyle = document.querySelector('style[' + CLASSIFICATION_STYLE_MARKER + ']');
@@ -243,9 +253,9 @@ export function buildNativeChatgptChatSectionInjectionScript() {
   function apply() {
     for (const section of document.querySelectorAll('section[data-app-action-sidebar-section-heading]')) {
       const key = section.getAttribute('data-app-action-sidebar-section-heading') || '';
-      const wrapper = section.parentElement;
+      const wrapper = flexItem(section);
       if (wrapper && !wrapper.hasAttribute(ORDER_MARKER)) wrapper.setAttribute(ORDER_MARKER, wrapper.style.order || '');
-      const order = String(SECTION_ORDER.get(key) || 90);
+      const order = String(SECTION_ORDER.get(key) || USER_SECTION_ORDER);
       if (wrapper && wrapper.style.order !== order) wrapper.style.order = order;
       if (key === 'Projects') label(section, '项目');
       if (key === '项目（聊天）') label(section, '聊天 项目');

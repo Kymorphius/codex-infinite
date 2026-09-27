@@ -1,5 +1,6 @@
-export function installNativePinnedEmpty() {
-  const VERSION = '2026-09-05.2';
+import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
+export function installNativePinnedEmpty(order = 20) {
+  const VERSION = '2026-09-28.sidebar-groups';
   if (window.__codexControlConsolePinnedEmpty?.version === VERSION) return;
   window.__codexControlConsolePinnedEmpty?.dispose();
   const ATTR = 'data-codex-control-console-pinned-empty';
@@ -23,11 +24,11 @@ export function installNativePinnedEmpty() {
     const next = JSON.stringify(classes);
     if (root?.parentElement === parent && signature === next) return;
     signature = next; root?.remove();
-    root = make('div'); root.setAttribute(ATTR, ''); root.style.order = '1';
+    root = make('div'); root.setAttribute(ATTR, ''); root.style.order = String(order);
     const section = make('section', classes[0] || 'relative px-row-x'); section.setAttribute('aria-label', '置顶');
     const title = make('div', classes[1] || 'flex items-center ps-2');
     title.append(make('div', classes[2] || 'text-base font-medium text-tertiary', '置顶'));
-    section.append(title, make('div', 'px-2 py-2 text-sm text-tertiary', '右键项目或会话，选择“置顶”'));
+    title.title = '右键项目或会话，选择“置顶”'; section.append(title);
     root.append(section); parent.insertBefore(root, native.parentElement);
   }
   const observer = new MutationObserver(() => {
@@ -38,4 +39,4 @@ export function installNativePinnedEmpty() {
   window.__codexControlConsolePinnedEmpty = { version: VERSION, dispose() { disposed = true; observer.disconnect(); root?.remove(); } };
   render();
 }
-export function buildNativePinnedEmptyInjectionScript() { return `(${installNativePinnedEmpty.toString()})()`; }
+export function buildNativePinnedEmptyInjectionScript() { return `(${installNativePinnedEmpty.toString()})(${NATIVE_SIDEBAR_ORDER.pinned})`; }

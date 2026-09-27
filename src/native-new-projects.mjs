@@ -1,6 +1,7 @@
+import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 // This root and its children belong to the console; native rows remain untouched.
-export function installNativeNewProjects() {
-  const VERSION = '2026-09-21.idle-observer1';
+export function installNativeNewProjects(order = 31) {
+  const VERSION = '2026-09-28.sidebar-groups';
   if (window.__codexControlConsoleNewProjects?.version === VERSION) return;
   window.__codexControlConsoleNewProjects?.dispose();
   const ROOT = 'data-codex-control-console-new-projects';
@@ -86,7 +87,7 @@ export function installNativeNewProjects() {
       }, true);
     }
     next.addEventListener('pointerdown', event => event.stopPropagation());
-    next.style.order = '35';
+    next.style.order = String(order);
     const section = element('section', native.className || 'relative px-row-x');
     section.setAttribute('aria-label', '新项目');
     const heading = element('div', classes[0] || 'group/nav-section-title flex items-center gap-2 ps-2');
@@ -115,7 +116,6 @@ export function installNativeNewProjects() {
     if (expanded) {
       const list = element('div', 'flex flex-col');
       list.setAttribute('role', 'list');
-      if (!items.length) list.append(element('div', 'px-2 py-2 text-base text-tertiary', '暂无新项目'));
       for (const project of items) {
         const item = element('div', 'flex flex-col');
         item.setAttribute('role', 'listitem');
@@ -185,7 +185,7 @@ export function installNativeNewProjects() {
 }
 
 export function buildNativeNewProjectsInjectionScript() {
-  return `(${installNativeNewProjects.toString()})()`;
+  return `(${installNativeNewProjects.toString()})(${NATIVE_SIDEBAR_ORDER.newProjects})`;
 }
 
 export function buildNativeNewProjectsSnapshotScript(projects = []) {

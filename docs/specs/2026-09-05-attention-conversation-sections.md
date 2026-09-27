@@ -5,7 +5,7 @@ The unread-provider details below are superseded by
 legacy persisted-atom reads and cross-profile disk unions. No legacy support is
 retained; the remaining section and acknowledgement behavior still applies.
 
-Add 等待查看 and 进行中 above existing native sections (order 5 and 6). They
+Add 等待查看 and 进行中 above existing native sections (order 5 and 6). (Superseded for placement by `2026-09-28-sidebar-groups.md`.) They
 are additive aliases of local native tasks: no project/section ownership writes,
 no duplicate conversations, no drag/drop registration. Titles, disclosure icons,
 section padding and row appearance follow native sidebar styling. Include project

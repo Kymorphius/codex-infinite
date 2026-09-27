@@ -1,7 +1,8 @@
+import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 export const SENT_MESSAGE_SEARCH_BINDING = '__codexControlConsoleSearchSentMessages';
 
 export function buildNativeSentMessageSearchInjectionScript() {
-  return `(${installNativeSentMessageSearch.toString()})()`;
+  return `(${installNativeSentMessageSearch.toString()})(${NATIVE_SIDEBAR_ORDER.sentMessageSearch})`;
 }
 
 export async function respondToSentMessageSearch(payload, connection, service) {
@@ -15,8 +16,8 @@ export async function respondToSentMessageSearch(payload, connection, service) {
   await connection.evaluate(`window.__codexControlConsoleSentMessageSearch?.receive(${encoded})`);
 }
 
-export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-27.composer-shortcuts';
+export function installNativeSentMessageSearch(order = 11) {
+  const VERSION = '2026-09-28.sidebar-groups';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
     window.__codexControlConsoleSentMessageSearch.ensure?.();
     return;
@@ -216,6 +217,7 @@ export function installNativeSentMessageSearch() {
     }
     if (projectSearch?.parentElement && (root.parentElement !== projectSearch.parentElement || root.previousSibling !== projectSearch)) {
       root.className = projectSearch.className;
+      root.style.order = String(order);
       projectSearch.parentElement.insertBefore(root, projectSearch.nextSibling);
     }
     if (shortcuts) {

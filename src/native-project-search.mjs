@@ -1,9 +1,10 @@
 import { buildNativeNewTaskAdapterScript } from './native-new-task-adapter.mjs';
 import { filterProjectNames, terminalProjectConversations } from './project-search.mjs';
 import { installNativeProjectSearchActions } from './native-project-search-actions.mjs';
+import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
-export function installNativeProjectSearch(filter, terminalRows = () => []) {
-  const VERSION = '2026-09-27.1';
+export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
+  const VERSION = '2026-09-28.sidebar-groups';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -56,7 +57,7 @@ export function installNativeProjectSearch(filter, terminalRows = () => []) {
     const parent = native?.parentElement?.parentElement;
     if (!parent) return;
     if (!root) {
-      root = make('div', 'py-1'); root.setAttribute(ATTR, ''); root.style.order = '4';
+      root = make('div', 'py-1'); root.setAttribute(ATTR, ''); root.style.order = String(order);
       const bar = make('div', 'flex items-center gap-1 rounded-md border border-token-border-default px-2');
       input = make('input', 'min-w-0 flex-1 bg-transparent py-1 text-base text-default outline-none');
       input.value = saved.query || '';
@@ -170,7 +171,7 @@ export function installNativeProjectSearch(filter, terminalRows = () => []) {
   render();
 }
 export function buildNativeProjectSearchInjectionScript() {
-  return `${buildNativeNewTaskAdapterScript()}(${installNativeProjectSearchActions.toString()})();(${installNativeProjectSearch.toString()})(${filterProjectNames.toString()}, ${terminalProjectConversations.toString()})`;
+  return `${buildNativeNewTaskAdapterScript()}(${installNativeProjectSearchActions.toString()})();(${installNativeProjectSearch.toString()})(${filterProjectNames.toString()}, ${terminalProjectConversations.toString()}, ${NATIVE_SIDEBAR_ORDER.projectSearch})`;
 }
 export function buildNativeProjectSearchSnapshotScript(value = { projects: [], stale: true }) {
   return `window.__codexControlConsoleProjectSearch?.set(${JSON.stringify(value).replaceAll('<', '\\u003c')})`;

@@ -57,7 +57,7 @@ test('three native-style automatic sections preserve original rows and route to 
   assert.equal(row.style.paddingInlineStart, 'var(--padding-row-cell-x,var(--padding-row-x,8px))');
   row.listeners.click(); assert.equal(h.messages[0].path, '/local/' + id);
   const roots = h.parent.children.filter(x => x.attrs['data-codex-control-console-attention-conversations']);
-  assert.deepEqual(roots.map(x => x.style.order), ['5', '6', '7', '8']);
+  assert.deepEqual(roots.map(x => x.style.order), ['21', '22', '23', '24']);
   assert.ok(roots.every(x => x.children[0].className === 'relative px-row-x'));
   h.run(); h.set({ items: [item], stale: false }); assert.equal(h.parent.children.length, 5);
 });
@@ -88,7 +88,7 @@ test('read completion removes the alias, active update moves it, collapse and dr
 });
 test('automatic section toggles restore their heading after the native list rerenders', () => {
   const source = buildNativeAttentionConversationsInjectionScript();
-  assert.match(source, /shared-status/);
+  assert.match(source, /sidebar-groups/);
   assert.match(source, /scroller\.style\.overflowAnchor = 'none'/);
   assert.match(source, /anchor\.scroller\.scrollTop \+= button\.getBoundingClientRect\(\)\.top - anchor\.top/);
   assert.match(source, /restoreHeadingPosition\(key, anchor\)/);

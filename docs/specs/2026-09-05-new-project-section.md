@@ -56,7 +56,7 @@ live section/style, normalized provider data and original native membership.
 - Windows syntax/structure passed; all 19 focused policy, provider, injection and
   lifecycle tests passed, including drag rejection and disposed-render cleanup.
 - Deployed to both dedicated consoles. Live version 2026-09-05.3 has exactly one
-  automatic root per window, order 35, draggable=false. Heading text computed
+  automatic root per window, order 35, draggable=false. (Superseded for placement by `2026-09-28-sidebar-groups.md`.) Heading text computed
   font size/weight/color and transparent background match native 项目 exactly.
 - Mac currently has no eligible projects; Windows has six. Native sections and
   native project-row counts remain present (Mac 7, Windows 84 across sections).

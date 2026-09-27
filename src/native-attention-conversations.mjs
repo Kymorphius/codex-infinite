@@ -1,7 +1,8 @@
 import { createConversationViewHistory } from './conversation-view-history.mjs';
+import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
-export function installNativeAttentionConversations(createHistory = createConversationViewHistory) {
-  const VERSION = '2026-09-27.shared-status';
+export function installNativeAttentionConversations(createHistory = createConversationViewHistory, orders = { review: 21, active: 22, codex: 23, history: 24 }) {
+  const VERSION = '2026-09-28.sidebar-groups';
   if (window.__codexControlConsoleAttentionConversations?.version === VERSION) return;
   window.__codexControlConsoleAttentionConversations?.dispose();
   const ROOT = 'data-codex-control-console-attention-conversations';
@@ -91,7 +92,8 @@ export function installNativeAttentionConversations(createHistory = createConver
     if (roots.length === 4 && roots.every(root => root.parentElement === parent) && signature === nextSignature) return;
     signature = nextSignature;
     const next = [], nextHeadingButtons = new Map();
-    for (const [key, title, order] of [['review', '等待查看', 5], ['active', '进行中', 6], ['codex', 'codex委派', 7], ['history', '查看历史', 8]]) {
+    for (const [key, title] of [['review', '等待查看'], ['active', '进行中'], ['codex', 'codex委派'], ['history', '查看历史']]) {
+      const order = orders[key];
       const items = key === 'history' ? history.list() : snapshot.items.filter(item => item.section === key && (key !== 'review' || !history.hasViewed(item)));
       const open = expanded[key] !== false;
       const root = node('div'); root.setAttribute(ROOT, key); root.style.order = String(order);
@@ -121,7 +123,7 @@ export function installNativeAttentionConversations(createHistory = createConver
       if (open) {
         const list = node('div', 'flex flex-col'); list.setAttribute('role', 'list');
         if (snapshot.stale && key !== 'history') list.append(node('div', 'px-2 py-1 text-sm text-tertiary', '状态暂未更新'));
-        else if (!items.length) list.append(node('div', 'px-2 py-2 text-base text-tertiary', key === 'review' ? '暂无等待查看的会话' : key === 'active' ? '暂无进行中的会话' : key === 'codex' ? '暂无 codex委派' : '暂无查看历史'));
+        // An empty group keeps only its heading and count.
         for (const item of items) {
           const wrapper = node('div'); wrapper.setAttribute('role', 'listitem');
           const rowClass = String(classes[4] || 'sidebar-item h-[var(--height-token-row)] py-row-y px-2').split(' ').filter(value => value !== 'bg-primary-ghost-hover').join(' ');
@@ -176,7 +178,8 @@ export function installNativeAttentionConversations(createHistory = createConver
   render();
 }
 export function buildNativeAttentionConversationsInjectionScript() {
-  return `(${installNativeAttentionConversations.toString()})(${createConversationViewHistory.toString()})`;
+  const { review, active, codex, history } = NATIVE_SIDEBAR_ORDER;
+  return `(${installNativeAttentionConversations.toString()})(${createConversationViewHistory.toString()}, ${JSON.stringify({ review, active, codex, history })})`;
 }
 export function buildNativeAttentionConversationsSnapshotScript(snapshot = { items: [], stale: true }) {
   return `window.__codexControlConsoleAttentionConversations?.set(${JSON.stringify(snapshot).replaceAll('<', '\\u003c')})`;

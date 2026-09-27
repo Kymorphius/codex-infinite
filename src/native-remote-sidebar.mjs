@@ -1,3 +1,4 @@
+import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 import { buildNativeRemoteSidebarRenderSource } from "./native-remote-sidebar-render.mjs";
 import { calculateProjectPriority } from "../public/core/project-priority.js";
 import { buildNativeRemoteProjectCopyUiSource } from "./native-remote-project-copy-ui.mjs";
@@ -118,7 +119,7 @@ export class NativeRemoteSidebarService {
 
 export function buildNativeRemoteSidebarInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-08.owner.1', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
+  const VERSION = '2026-09-28.sidebar-groups', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
   const ROOT_SELECTOR = '[data-codex-control-console-remote-sidebar]';
   if (window.__codexControlConsoleRemoteSidebarVersion === VERSION && window.__codexControlConsoleRemoteSidebarObserver) return;
   window.__codexControlConsoleRemoteSidebarObserver?.disconnect?.(); if (window.__codexControlConsoleRemoteNativeSelectionListener) document.removeEventListener('click', window.__codexControlConsoleRemoteNativeSelectionListener, true);
@@ -219,7 +220,7 @@ export function buildNativeRemoteSidebarInjectionScript() {
     if (!sectionsContainer) return;
     if (!root) render();
     if (root) {
-      root.style.order = '65';
+      root.style.order = '${NATIVE_SIDEBAR_ORDER.remote}';
       if (root.parentElement !== sectionsContainer) sectionsContainer.insertBefore(root, nativeProjectsWrapper);
     }
   }

@@ -124,7 +124,7 @@ test("remote sidebar injection owns one ordered subtree above cloud work and pre
   assert.match(source, /nativeSectionHeader\('远端'/);
   assert.doesNotMatch(source, /label: '协同'/);
   assert.match(source, /项目|Projects/);
-  assert.match(source, /root\.style\.order = '65'/);
+  assert.match(source, /root\.style\.order = '32'/);
   assert.match(source, /querySelectorAll\(ROOT_SELECTOR\).*node !== root.*node\.remove\(\)/s);
   assert.match(source, /insertBefore\(root, nativeProjectsWrapper\)/);
   assert.match(source, /expandedDevices/);
