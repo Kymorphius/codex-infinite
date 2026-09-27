@@ -1,4 +1,3 @@
-import { buildInsetSource } from './native-composer-tab-layout.mjs';
 import { createConversationShortcutLayout } from './native-conversation-shortcut-layout.mjs';
 import { buildNativeLocalConversationSyncSource, resolveNativeLocalConversationId } from './native-conversation-route-sync.mjs';
 import { buildNativeConversationTabTitlePolicySource } from './native-conversation-tab-titles.mjs';
@@ -8,7 +7,6 @@ import { buildNativeConversationTabStyle } from './native-conversation-tab-style
 import { buildNativeConversationWindowInjectionSource, NATIVE_CONVERSATION_WINDOW_STYLE } from "./native-conversation-window.mjs";
 import { buildNativeRecentConversationMenuInjectionSource, NATIVE_RECENT_CONVERSATION_STYLE } from "./native-recent-conversations.mjs";
 import { buildNativeRecentSentMenuInjectionSource } from "./native-recent-sent-conversations.mjs";
-import { hasVisibleNativeTitleAction } from './native-title-action-scan.mjs';
 import { buildNativeTerminalTabSource } from './native-terminal-tabs.mjs';
 import { normalizeNativeConversationTabWheelDirection } from "./native-conversation-tab-preferences.mjs";
 import {
@@ -34,7 +32,6 @@ export function buildNativeConversationTabsInjectionSource() {
   const wheelDirectionSource = normalizeNativeConversationTabWheelDirection.toString();
   const titlePolicySource = buildNativeConversationTabTitlePolicySource();
   return `
-  ${buildInsetSource()}
   ${createConversationShortcutLayout.toString()}
   ${buildNativeLocalConversationSyncSource()}
   ${wheelDirectionSource}
@@ -45,10 +42,9 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeConversationTabTransitionSource()}
   ${createNativeLatestNavigation.toString()}
   ${buildNativeConversationTabStyle.toString()}
-  ${hasVisibleNativeTitleAction.toString()}
   ${buildNativeTerminalTabSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-28.shortcut-model-picker';
+    const VERSION = '2026-09-28.retire-top-tabs';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -57,15 +53,15 @@ export function buildNativeConversationTabsInjectionSource() {
     const MAX_TABS = 40;
     const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const previous = window.__codexControlConsoleConversationTabs;
-    if (previous?.version === VERSION && document.querySelector(ROOT_SELECTOR)) { previous.updateOptions?.(options); return previous; }
+    if (previous?.version === VERSION && document.querySelector('[data-codex-control-console-conversation-shortcuts]')) { previous.updateOptions?.(options); return previous; }
     const renderedTabs = Array.from(document.querySelectorAll(ROOT_SELECTOR + ' .ccc-native-tab[data-tab-key]:not([data-console-tab])')).map((node) => ({ key: node.dataset.tabKey || '', title: node.querySelector('.ccc-native-tab-title')?.textContent || '', active: node.getAttribute('aria-selected') === 'true' }));
     const previousSnapshot = previous?.snapshot?.() || null;
     previous?.destroy?.();
-    const pageInset = createNativePageTabInset(document);
+    document.querySelectorAll('[data-ccc-native-page-tab-inset],[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach(node => { node.removeAttribute('data-ccc-native-page-tab-inset'); node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE); });
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
-    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, shortcutRoot = null, stableLeft = null, transition = null, recentMenu = null, titleTakeoverNodes = new Set(), topControls = [], topControlsScannedAt = -Infinity;
+    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, shortcutRoot = null, transition = null, recentMenu = null;
     let recentSentMenu = null, latestNavigation = createNativeLatestNavigation(document, window);
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : tab.kind + ':' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
@@ -119,86 +115,13 @@ export function buildNativeConversationTabsInjectionSource() {
       return state.activeKey === 'console' ? { kind: 'console', module: state.consoleModule } : state.tabs.find((tab) => keyFor(tab) === state.activeKey) || null;
     }
 
-    function syncNativeTitleTakeover(workspace, workspaceRect, force = false) {
-      const now = performance.now();
-      if (!force && now - topControlsScannedAt < 1000) return topControls.filter((record) => record.button.isConnected);
-      topControlsScannedAt = now;
-      const actionLabels = ['聊天操作', 'Chat actions'];
-      const projectPrefixes = ['项目：', 'Project:'];
-      const retained = new Set(Array.from(titleTakeoverNodes).filter((node) => node.isConnected));
-      if (workspaceRect?.width > 260 && !hasVisibleNativeTitleAction(document)) {
-        titleTakeoverNodes = retained; return topControls = topControls.filter(x => x.button.isConnected);
-      }
-      const buttonRecords = Array.from(document.querySelectorAll('button')).filter((button) => !root?.contains(button)).map((button) => ({ button, bounds: button.getBoundingClientRect() }))
-        .filter(({ bounds }) => bounds.width > 0 && bounds.height > 0 && bounds.top < 42 && bounds.bottom > 0)
-        .map((record) => ({ ...record, style: getComputedStyle(record.button) }))
-        .filter(({ style }) => style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none');
-      const chatAction = buttonRecords.find(({ button }) => actionLabels.includes(clean(button.getAttribute('aria-label'), 80)));
-      if (!chatAction) {
-        titleTakeoverNodes = retained;
-        topControls = buttonRecords;
-        return topControls;
-      }
-      const next = new Set();
-      if (chatAction && workspaceRect?.width > 260) {
-        const project = buttonRecords.find(({ button, bounds }) => {
-          const label = clean(button.getAttribute('aria-label'), 160);
-          return projectPrefixes.some((prefix) => label.startsWith(prefix)) && bounds.left >= workspaceRect.left + 4 && bounds.right <= chatAction.bounds.left + 1;
-        });
-        const titleLeft = project?.bounds.right || workspaceRect.left + 4;
-        const title = buttonRecords.filter(({ button, bounds }) => !button.hasAttribute('aria-label') && bounds.left >= titleLeft - 1 && bounds.right <= chatAction.bounds.left + 1)
-          .sort((left, right) => right.bounds.width - left.bounds.width)[0];
-        [project, title, chatAction].filter(Boolean).forEach((record) => next.add(record.button));
-      }
-      document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => {
-        if (!next.has(node)) node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE);
-      });
-      next.forEach((node) => node.setAttribute(TITLE_HIDDEN_ATTRIBUTE, ''));
-      titleTakeoverNodes = next;
-      topControls = buttonRecords;
-      return topControls;
-    }
-
-    function position(forceTitleScan = false) {
-      if (!root) return;
-      const candidate = options.workspaceCandidate?.();
-      const rect = candidate?.getBoundingClientRect?.();
-      const topControls = syncNativeTitleTakeover(candidate, rect, forceTitleScan);
-      const leftControlEdge = topControls.reduce((edge, { bounds }) => bounds.right < innerWidth * .62 ? Math.max(edge, bounds.right) : edge, 0);
-      if (rect?.width > 260) stableLeft = Math.max(76, Math.round(rect.left + 8));
-      const left = stableLeft ?? Math.max(236, Math.round(leftControlEdge + 8));
-      const right = rect?.width > 260 ? Math.max(152, Math.round(innerWidth - rect.right + 152)) : 152;
-      const safeRight = Math.min(right, Math.max(60, innerWidth - 300));
-      root.style.left = Math.min(left, Math.max(76, innerWidth - safeRight - 180)) + 'px';
-      root.style.right = safeRight + 'px';
-      root.style.top = '5px';
-      pageInset.update(candidate);
-      shortcutLayout.update();
-    }
-
-    function tabButton(tab) {
-      const key = keyFor(tab), item = document.createElement('div');
-      item.className = 'ccc-native-tab'; item.dataset.tabKey = key; item.dataset.provider = tab.kind; item.setAttribute('role', 'tab');
-      item.draggable = false;
-      item.setAttribute('aria-selected', String(state.activeKey === key)); item.tabIndex = state.activeKey === key ? 0 : -1;
-      item.title = tab.title + (tab.kind === 'remote' && tab.deviceName ? '\\n' + tab.deviceName : '');
-      const label = document.createElement('span'); label.className = 'ccc-native-tab-title'; label.textContent = tab.title;
-      const newWindow = createNativeConversationWindowButton(document, tab, key);
-      const close = document.createElement('button'); close.type = 'button'; close.draggable = false; close.className = 'ccc-native-tab-close'; close.dataset.closeKey = key; close.textContent = '×'; close.setAttribute('aria-label', '关闭标签：' + tab.title);
-      item.append(label); if (newWindow) item.append(newWindow); item.append(close); return item;
-    }
+    function position() { shortcutLayout.update(); }
 
     function render() {
-      if (!root) return;
       persist();
-      const consoleTab = root.querySelector('[data-console-tab]');
-      consoleTab.setAttribute('aria-selected', String(state.activeKey === 'console')); consoleTab.tabIndex = state.activeKey === 'console' ? 0 : -1;
-      const pages = openNativeConversationPages(state.tabs.map((tab) => ({ ...tab, key: keyFor(tab) })), state.activeKey);
-      const list = root.querySelector('[data-native-tab-list]'); list.replaceChildren(...pages.map(tabButton));
       recentMenu?.render();
       recentSentMenu?.render();
       position();
-      (state.activeKey === 'console' ? consoleTab : list.querySelector('[aria-selected="true"]'))?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
 
     function open(tab, activate = true, explicitView = false) {
@@ -300,19 +223,14 @@ export function buildNativeConversationTabsInjectionSource() {
     style.textContent = buildNativeConversationTabStyle(ROOT_SELECTOR, TITLE_HIDDEN_ATTRIBUTE, nativeConversationTabTransitionStyle(ROOT_SELECTOR), ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE + NATIVE_RECENT_CONVERSATION_STYLE)});
     document.head.append(style);
 
-    root = document.createElement('nav'); root.setAttribute('data-codex-control-console-native-tabs', ''); root.setAttribute('aria-label', '打开的页面');
-    const consoleTab = document.createElement('button'); consoleTab.type = 'button'; consoleTab.className = 'ccc-native-tab ccc-native-console'; consoleTab.dataset.consoleTab = ''; consoleTab.dataset.tabKey = 'console'; consoleTab.setAttribute('role', 'tab');
-    const consoleLabel = document.createElement('span'); consoleLabel.className = 'ccc-native-tab-title'; consoleLabel.textContent = '控制台'; consoleTab.append(consoleLabel);
-    const list = document.createElement('div'); list.className = 'ccc-native-tab-list'; list.dataset.nativeTabList = ''; list.setAttribute('role', 'tablist');
-    root.append(consoleTab, list); document.body.append(root);
+    // Detached transition target: navigation state remains, retired tab DOM does not.
+    root = document.createElement('div');
     shortcutRoot = document.createElement('div'); shortcutRoot.setAttribute('data-codex-control-console-conversation-shortcuts', ''); shortcutRoot.hidden = true; document.body.append(shortcutRoot);
     const shortcutLayout = createConversationShortcutLayout(document, window, shortcutRoot);
     recentMenu = installNativeRecentConversationMenu({ documentRef: document, root: shortcutRoot, state, keyFor, activate, openWindow: options.openWindow });
     recentSentMenu = installNativeRecentSentMenu({ documentRef: document, root: shortcutRoot, state, keyFor, openLocal: (tab) => request(tab, true), openWindow: options.openWindow, readSnapshot: () => window.__codexControlConsoleRecentSentSnapshot });
     transition = createNativeConversationTabTransition(root, () => { render(); syncLocal(); });
 
-    root.addEventListener('click', (event) => { const pop=event.target.closest('[data-window-key]'); if(pop){event.preventDefault();event.stopPropagation();void openNativeConversationWindow({state,keyFor,key:pop.dataset.windowKey,button:pop,openWindow:options.openWindow});return;} const closeButton = event.target.closest('[data-close-key]'); if (closeButton) { event.stopPropagation(); close(closeButton.dataset.closeKey); return; } const tab = event.target.closest('[data-tab-key]'); if (tab) activate(tab.dataset.tabKey); });
-    root.addEventListener('keydown', (event) => { if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; const tabs = [consoleTab, ...list.querySelectorAll('[role="tab"]')], index = tabs.indexOf(event.target.closest('[role="tab"]')); if (index < 0) return; event.preventDefault(); const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length; tabs[nextIndex].focus(); activate(tabs[nextIndex].dataset.tabKey); });
     const nativeClick = (event) => {
       const localRow = event.target?.closest?.('[data-app-action-sidebar-thread-id^="local:"]');
       if (localRow) {
@@ -330,7 +248,7 @@ export function buildNativeConversationTabsInjectionSource() {
     const onResize = () => scheduleSync(true, true);
     window.addEventListener('resize', onResize);
     const terminalTabs = createNativeTerminalTabController({ state, keyFor, normalizeTab, open, close, render });
-    const controller = { ...terminalTabs, version: VERSION, updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); pageInset.dispose(); shortcutLayout.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
+    const controller = { ...terminalTabs, version: VERSION, updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); shortcutLayout.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
     render(); scheduleSync(true, true); return controller;
   }
   `;
