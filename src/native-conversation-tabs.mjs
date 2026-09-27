@@ -48,7 +48,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${hasVisibleNativeTitleAction.toString()}
   ${buildNativeTerminalTabSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-27.shortcut-space';
+    const VERSION = '2026-09-27.shortcut-dialog';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -325,7 +325,7 @@ export function buildNativeConversationTabsInjectionSource() {
     };
     document.addEventListener('click', nativeClick, true);
     observer = new MutationObserver((records) => { if (records.every((record) => root.contains(record.target))) return; scheduleSync(routeChanged(records)); });
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-title', 'data-above-composer-conversation-id'] });
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id', 'data-app-action-sidebar-thread-selected', 'data-app-action-sidebar-thread-title', 'data-above-composer-conversation-id', 'open', 'hidden', 'aria-hidden', 'data-state'] });
 
     const onResize = () => scheduleSync(true, true);
     window.addEventListener('resize', onResize);

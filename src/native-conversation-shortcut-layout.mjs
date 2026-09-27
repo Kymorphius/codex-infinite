@@ -24,7 +24,13 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       }
     }
     const box = host?.getBoundingClientRect();
-    const visible = Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
+    const modal = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')).some(node => {
+      if (node.hidden || node.getAttribute('aria-hidden') === 'true' || node.getAttribute('data-state') === 'closed') return false;
+      if (!node.getClientRects().length) return false;
+      const appearance = window.getComputedStyle(node);
+      return appearance.visibility !== 'hidden' && appearance.visibility !== 'collapse' && appearance.display !== 'none';
+    });
+    const visible = !modal && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
     set(toolbar, 'max-width', Math.max(0, Math.min(box.width, window.innerWidth - box.left - 8)) + 'px');

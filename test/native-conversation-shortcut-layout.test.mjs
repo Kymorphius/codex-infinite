@@ -16,9 +16,10 @@ function fixture() {
   const observed = new Set();
   const window = { innerHeight: 900, innerWidth: 1200, getComputedStyle: () => ({ marginTop: '12px' }),
     ResizeObserver: class { constructor(fn) { callback = fn; } observe(n) { observed.add(n); } unobserve(n) { observed.delete(n); } disconnect() { observed.clear(); } } };
-  const document = { head: { append() {} }, createElement: element, querySelector: () => current && ({ closest: () => current }) };
+  const dialogs = [];
+  const document = { head: { append() {} }, createElement: element, querySelectorAll: () => dialogs, querySelector: () => current && ({ closest: () => current }) };
   const layout = createConversationShortcutLayout(document, window, toolbar);
-  return { layout, host, toolbar, observed, writes: () => writes, resize: () => callback(), switchTo: node => { current = node; }, window };
+  return { layout, host, toolbar, observed, dialogs, writes: () => writes, resize: () => callback(), switchTo: node => { current = node; }, window };
 }
 
 test('shortcuts reserve real space above the composer instead of covering goal/task content', () => {
@@ -43,4 +44,18 @@ test('resize updates reserved height and removal releases layout and observers',
   f.switchTo(f.host); f.layout.update(); f.layout.dispose();
   assert.equal(f.host.attrs.size, 0); assert.equal(f.observed.size, 0);
   f.resize(); assert.equal(f.host.values.size, 0);
+});
+
+test('visible hooks/dialog overlays hide shortcuts while preserving spacing, then restore them', () => {
+  const f = fixture(); f.layout.update();
+  const dialog = { hidden: false, getAttribute: () => null, getClientRects: () => [{}] };
+  f.dialogs.push(dialog); f.layout.update();
+  assert.equal(f.toolbar.hidden, true);
+  assert.equal(f.host.values.get('--ccc-shortcut-height'), '50px');
+  dialog.hidden = true; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  dialog.hidden = false; dialog.getClientRects = () => [];
+  f.layout.update(); assert.equal(f.toolbar.hidden, false, 'a dialog inside a hidden parent does not suppress shortcuts');
+  dialog.getClientRects = () => [{}]; dialog.getAttribute = key => key === 'data-state' ? 'closed' : null;
+  f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  f.dialogs.length = 0; f.layout.update(); assert.equal(f.toolbar.hidden, false);
 });
