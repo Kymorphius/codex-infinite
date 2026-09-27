@@ -102,7 +102,7 @@ test("standalone dashboard mode avoids CSP bypass and loopback bridge injection"
   assert.equal(calls.some((call) => call.method === "Page.reload"), false);
   assert.equal(calls.some((call) => call.method === "evaluate" && call.source.includes("codex-control-console.unified-sidebar.v1")), false);
   assert.equal(calls.at(-1).source.includes('STANDALONE_DASHBOARD_BINDING = "codexControlConsoleOpenDashboard"'), true);
-  assert.equal(calls.some(call => call.method === "evaluate" && call.source.includes('current-host-restart') && call.source.includes('codexControlConsoleOpenDashboard')), true);
+  assert.equal(calls.some(call => call.method === "evaluate" && call.source.includes('current-host-original-launch') && call.source.includes('codexControlConsoleOpenDashboard')), true);
 });
 
 test("injector reasserts target-scoped CSP bypass after a renderer changes behind the same target", async () => {

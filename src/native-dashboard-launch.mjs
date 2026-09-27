@@ -7,6 +7,7 @@ export function normalizeNativeDashboardRequest(payload) {
   let request;
   try { request = JSON.parse(String(payload || "")); } catch { return null; }
   if (request?.module === "restart") return request.confirm === true && Object.keys(request).every(key => ["module", "confirm"].includes(key)) ? { module: "restart", confirm: true } : null;
+  if (request?.module === "original") return Object.keys(request).length === 1 ? { module: "original" } : null;
   return NATIVE_DASHBOARD_MODULES.includes(request?.module) ? { module: request.module } : null;
 }
 
@@ -20,8 +21,8 @@ export function nativeDashboardLaunchPlan(platform = process.platform) {
 }
 
 export class NativeDashboardLaunchService {
-  constructor({ platform = process.platform, spawn = nodeSpawn, restart = null } = {}) {
-    Object.assign(this, { platform, spawn, restart });
+  constructor({ platform = process.platform, spawn = nodeSpawn, restart = null, launchOriginal = null } = {}) {
+    Object.assign(this, { platform, spawn, restart, launchOriginal });
   }
 
   async open(payload) {
@@ -30,6 +31,10 @@ export class NativeDashboardLaunchService {
     if (request.module === "restart") {
       if (!this.restart) throw new Error("重启服务尚未就绪");
       return this.restart();
+    }
+    if (request.module === "original") {
+      if (!this.launchOriginal) throw new Error("原版启动服务尚未就绪");
+      return this.launchOriginal();
     }
     const plan = nativeDashboardLaunchPlan(this.platform);
     const child = this.spawn(plan.executable, plan.args, plan.options);

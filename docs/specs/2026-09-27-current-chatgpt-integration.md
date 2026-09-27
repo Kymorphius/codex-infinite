@@ -5,6 +5,8 @@ legacy iframe-based restart controls or seed its model list from an old merged
 catalog. Existing sessions, credentials and routing transport remain unchanged.
 
 - Mount one restart item in the current Help menu, including its Chinese label.
+- Mount `启动原版` immediately above `重启加强版` in the same Help menu.
+  Dispatch it through the host binding to the existing native app launcher.
 - Confirm locally, then use the existing allowlisted host binding. No network
   request, iframe, CSP exception or permanent toolbar button is required.
 - Install the restart integration even when the dashboard runs separately.

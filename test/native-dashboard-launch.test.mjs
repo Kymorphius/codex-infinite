@@ -23,6 +23,15 @@ test("restart binding requires exact confirmation and never opens a dashboard", 
   assert.equal(count, 1);
 });
 
+test("original launch uses the existing native app service with no caller supplied path", async () => {
+  let count = 0;
+  const service = new NativeDashboardLaunchService({ launchOriginal: () => { count++; return { started: true }; }, spawn: () => assert.fail("must not spawn dashboard") });
+  assert.equal(normalizeNativeDashboardRequest('{"module":"original","appPath":"/tmp/other"}'), null);
+  await assert.rejects(service.open('{"module":"original","appPath":"/tmp/other"}'), /模块无效/);
+  assert.deepEqual(await service.open('{"module":"original"}'), { started: true });
+  assert.equal(count, 1);
+});
+
 test("macOS dashboard launcher raises the installed standalone app", async () => {
   const calls = [];
   const service = new NativeDashboardLaunchService({
