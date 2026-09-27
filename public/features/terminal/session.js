@@ -97,7 +97,10 @@ export function createTerminalSession(initialSession, {
   const inputSubscription = terminal.onData((data) => {
     const operation = pasteOperation;
     // Direct terminal typing remains raw, but must not inherit a pending composer Enter.
-    if (!operation) cancelInput();
+    // Reports xterm generates by itself (mouse tracking, focus in/out, cursor position,
+    // device attributes) are forwarded unchanged but are not typing, so they keep it.
+    const report = /^(?:\u001b\[<\d+;\d+;\d+[Mm]|\u001b\[M[\s\S]{3}|\u001b\[[IO]|\u001b\[\d+;\d+R|\u001b\[[?>][\d;]*c)+$/u;
+    if (!operation && !report.test(data)) cancelInput();
     if (operation?.failed) return;
     // Bound pasted input frames without splitting a Unicode surrogate pair.
     for (let start = 0; start < data.length;) {

@@ -158,6 +158,20 @@ test("direct terminal input cancels delayed composer Enter and still delivers th
   assert.deepEqual(h.input(), ["\u001b[200~draft\u001b[201~", "\u001b[A\u0003"]);
 });
 
+test("mouse, focus and query reports from the terminal itself keep the delayed composer Enter", async () => {
+  const h = harness();
+  const pending = h.view.pasteText("draft", { submit: true });
+  const reports = ["\u001b[<35;35;34M", "\u001b[<0;10;5m", "\u001b[O", "\u001b[I", "\u001b[12;40R", "\u001b[?1;2c", "\u001b[M !!", "\u001b[<35;33;34M\u001b[<35;30;33M"];
+  for (const report of reports) h.terminal.input(report);
+  assert.equal(h.view.snapshot().sending, true, "reports are not typing");
+  h.timers[0].callback();
+  assert.deepEqual(await pending, { ok: true });
+  assert.deepEqual(h.input(), ["\u001b[200~draft\u001b[201~", ...reports, "\r"], "reports are still forwarded unchanged");
+  const typed = h.view.pasteText("again", { submit: true });
+  h.terminal.input("\u001b[O" + "x");
+  assert.equal((await typed).ok, false, "a report glued to a real key is typing");
+});
+
 test("interrupt and escape cancel pending submission before delivering their native control key", async () => {
   for (const [key, value] of [["interrupt", "\u0003"], ["escape", "\u001b"]]) {
     const h = harness();
