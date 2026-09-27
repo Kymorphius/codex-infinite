@@ -1,92 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import vm from "node:vm";
-import { buildNativeConversationWindowInjectionSource } from "../src/native-conversation-window.mjs";
+import { id, record, fixture } from "../test-support/native-recent-menu-fixture.mjs";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
-import { buildNativeRecentConversationMenuInjectionSource } from "../src/native-recent-conversations.mjs";
 import {
   normalizeRecentSentSnapshot,
   buildNativeRecentSentMenuInjectionSource,
   buildNativeRecentSentSnapshotScript
 } from "../src/native-recent-sent-conversations.mjs";
 
-const id = (number) => `00000000-0000-0000-0000-${String(number).padStart(12, "0")}`;
-const record = (number, minute = number) => ({ kind: "local", id: id(number), title: `会话 ${number}`, lastUserMessageAt: `2026-09-22T10:${String(minute).padStart(2, "0")}:00.000Z` });
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-class Events {
-  listeners = new Map();
-  addEventListener(type, callback) {
-    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
-    this.listeners.get(type).add(callback);
-  }
-  removeEventListener(type, callback) { this.listeners.get(type)?.delete(callback); }
-  dispatch(type, values = {}) {
-    const event = { target: this, preventDefault() {}, stopPropagation() {}, ...values };
-    for (const callback of this.listeners.get(type) || []) callback(event);
-    return event;
-  }
-  listenerCount(type) { return this.listeners.get(type)?.size || 0; }
-}
-
-class Element extends Events {
-  constructor(documentRef, tag) {
-    super();
-    this.document = documentRef; this.tagName = tag; this.children = []; this.dataset = {};
-    this.attrs = new Map(); this.hidden = false; this.replaceCalls = 0; this.ownText = "";
-  }
-  setAttribute(name, value) { this.attrs.set(name, String(value)); }
-  getAttribute(name) { return this.attrs.get(name) ?? null; }
-  removeAttribute(name) { this.attrs.delete(name); }
-  append(...children) { for (const child of children) { child.parent = this; this.children.push(child); } }
-  replaceChildren(...children) {
-    this.replaceCalls += 1;
-    this.children.forEach((child) => { child.parent = null; });
-    this.children = []; this.append(...children);
-  }
-  remove() { if (this.parent) this.parent.children = this.parent.children.filter((child) => child !== this); this.parent = null; }
-  contains(target) { return target === this || this.children.some((child) => child.contains(target)); }
-  focus() { this.document.activeElement = this; }
-  get textContent() { return this.ownText + this.children.map((child) => child.textContent).join(""); }
-  set textContent(value) { this.ownText = String(value); this.children = []; }
-  querySelector(selector) {
-    const match = /^\[role="([^"]+)"\]$/.exec(selector);
-    for (const child of this.children) {
-      if (match && child.getAttribute("role") === match[1]) return child;
-      const nested = child.querySelector(selector);
-      if (nested) return nested;
-    }
-    return null;
-  }
-}
-
-function fixture(snapshot = { items: [] }) {
-  const document = new Events();
-  document.createElement = (tag) => new Element(document, tag);
-  document.createElementNS = (_namespace, tag) => new Element(document, tag);
-  const root = document.createElement("nav"), selected = [], opened = [], activated = [];
-  const state = { tabs: [record(1)], activeKey: `local:${id(1)}` };
-  const window = { __codexControlConsoleRecentSentSnapshot: normalizeRecentSentSnapshot(snapshot) };
-  const context = vm.createContext({ window });
-  const api = vm.runInContext([
-    buildNativeConversationWindowInjectionSource(), buildNativeRecentConversationMenuInjectionSource(),
-    buildNativeRecentSentMenuInjectionSource(), "({ installNativeRecentConversationMenu, installNativeRecentSentMenu })"
-  ].join("\n"), context);
-  const options = {
-    documentRef: document, root, state, keyFor: (tab) => `${tab.kind}:${tab.id}`,
-    openWindow: async (tab, request) => { opened.push({ tab, request }); return true; }
-  };
-  const recent = api.installNativeRecentConversationMenu({ ...options, activate: (key) => activated.push(key) });
-  const sent = api.installNativeRecentSentMenu({ ...options, openLocal: (tab) => selected.push(tab), readSnapshot: () => window.__codexControlConsoleRecentSentSnapshot });
-  let updates = 0;
-  window.__codexControlConsoleConversationTabs = { updateRecentSent() { updates += 1; sent.render(); } };
-  const host = root.children[1], trigger = host.children[0], menu = host.children[1];
-  return {
-    document, root, state, window, recent, sent, trigger, menu, selected, opened, activated,
-    update: (input) => vm.runInContext(buildNativeRecentSentSnapshotScript(input), context),
-    updates: () => updates
-  };
-}
 
 test("recent sent normalization sorts actual user time, deduplicates, bounds and strips private metadata", () => {
   const upperId = "ABCDEFAB-0000-0000-0000-000000000001";
@@ -109,7 +32,7 @@ test("recent sent normalization sorts actual user time, deduplicates, bounds and
   assert.equal(bounded.items.at(-1).id, id(11));
 });
 
-test("both recent menus append forty entries in pages only while opened", () => {
+test("both recent menus prepend older entries on upward scroll and open at the bottom", () => {
   const items = Array.from({ length: 40 }, (_, index) => record(index + 1));
   const f = fixture({ items });
   assert.equal(f.trigger.children[0].tagName, "svg");
@@ -120,24 +43,30 @@ test("both recent menus append forty entries in pages only while opened", () => 
   openedMenu.clientHeight = 500; openedMenu.scrollHeight = 900;
   f.root.children[0].children[0].dispatch("click");
   assert.equal(openedMenu.children.length, 12);
-  openedMenu.scrollTop = 500; openedMenu.dispatch("scroll");
+  assert.equal(openedMenu.scrollTop, openedMenu.scrollHeight);
+  openedMenu.scrollTop = 0; openedMenu.dispatch("scroll");
   assert.equal(openedMenu.children.length, 24);
-  openedMenu.scrollTop = 1000; openedMenu.scrollHeight = 1400; openedMenu.dispatch("scroll");
+  openedMenu.scrollTop = 0; openedMenu.scrollHeight = 1400; openedMenu.dispatch("scroll");
   assert.equal(openedMenu.children.length, 36);
-  openedMenu.scrollTop = 1500; openedMenu.scrollHeight = 1900; openedMenu.dispatch("scroll");
+  openedMenu.scrollTop = 0; openedMenu.scrollHeight = 1900; openedMenu.dispatch("scroll");
   assert.equal(openedMenu.children.length, 40);
   f.menu.clientHeight = 500; f.menu.scrollHeight = 900;
   f.trigger.dispatch("click");
   assert.equal(f.menu.children.length, 12);
-  const firstRow = f.menu.children[0];
+  const newestRow = f.menu.children.at(-1);
+  assert.equal(newestRow.children[0].dataset.recentKey, `local:${id(40)}`);
   f.menu.scrollTop = 500; f.menu.dispatch("scroll");
+  assert.equal(f.menu.children.length, 12, "downward scrolling does not fetch older rows");
+  f.menu.scrollTop = 0; f.menu.dispatch("scroll");
   assert.equal(f.menu.children.length, 24);
-  assert.equal(f.menu.children[0], firstRow);
+  assert.equal(f.menu.children.at(-1), newestRow);
   assert.equal(f.menu.replaceCalls, 1);
-  f.menu.scrollTop = 1000; f.menu.scrollHeight = 1400; f.menu.dispatch("scroll");
-  f.menu.scrollTop = 1500; f.menu.scrollHeight = 1900; f.menu.dispatch("scroll");
+  f.menu.scrollTop = 0; f.menu.scrollHeight = 1400; f.menu.dispatch("scroll");
+  f.menu.scrollTop = 0; f.menu.scrollHeight = 1900; f.menu.dispatch("scroll");
   assert.equal(f.menu.children.length, 40);
-  assert.equal(f.menu.children[0].children[0].dataset.recentKey, `local:${id(40)}`);
+  assert.equal(f.menu.children[0].children[0].dataset.recentKey, `local:${id(1)}`);
+  f.sent.close(); f.trigger.dispatch("click");
+  assert.equal(f.menu.scrollTop, f.menu.scrollHeight);
   f.sent.render();
   assert.equal(f.menu.children.length, 40);
   assert.equal(f.menu.replaceCalls, 1);
@@ -150,6 +79,20 @@ test("recent menu fills a tall viewport without requiring an impossible scroll",
   assert.equal(f.menu.children.length, 30);
 });
 
+test("prepending an older page preserves the reading position by its added height", () => {
+  const f = fixture({ items: Array.from({ length: 40 }, (_, index) => record(index + 1)) });
+  f.menu.clientHeight = 300;
+  Object.defineProperty(f.menu, "scrollHeight", { get() { return this.children.length * 50; } });
+  f.trigger.dispatch("click");
+  const oldTopRow = f.menu.children[0];
+  f.menu.scrollTop = 20;
+  f.menu.dispatch("scroll");
+  assert.equal(f.menu.scrollTop, 620);
+  assert.equal(f.menu.children[12], oldTopRow);
+  f.sent.render();
+  assert.equal(f.menu.scrollTop, 620, "unchanged refresh leaves the scroll anchor untouched");
+});
+
 test("recent sent is adjacent to recent opened and does not promote the active conversation", () => {
   const f = fixture({ items: [record(1), record(2)] });
   assert.deepEqual(f.root.children.map((host) => host.children[0].getAttribute("aria-label")), ["最近会话", "最近发送"]);
@@ -158,11 +101,11 @@ test("recent sent is adjacent to recent opened and does not promote the active c
   f.trigger.dispatch("click");
   assert.equal(f.menu.hidden, false);
   assert.equal(f.trigger.getAttribute("aria-expanded"), "true");
-  assert.deepEqual(f.menu.children.map((row) => row.children[0].dataset.recentKey), [`local:${id(2)}`, `local:${id(1)}`]);
-  assert.equal(f.menu.children[1].dataset.active, "true");
+  assert.deepEqual(f.menu.children.map((row) => row.children[0].dataset.recentKey), [`local:${id(1)}`, `local:${id(2)}`]);
+  assert.equal(f.menu.children[0].dataset.active, "true");
   assert.doesNotMatch(f.menu.children[0].textContent, /发送于/);
   assert.match(f.menu.children[0].textContent, /2026\/9\/22/);
-  assert.equal(f.document.activeElement, f.menu.children[0].children[0]);
+  assert.equal(f.document.activeElement, f.menu.children[1].children[0]);
   const openedHost = f.root.children[0];
   openedHost.children[0].dispatch("click");
   openedHost.children[1].children[0].children[0].dispatch("click");
@@ -177,7 +120,7 @@ test("recent sent rows reuse a rendered native status SVG and fall back only to 
   const rail = { classList: { contains: (name) => ["absolute", "end-0", "group-hover:hidden"].includes(name) }, children: [svg], querySelector: (selector) => selector === "svg" ? svg : selector.includes("animate-spin") ? {} : null };
   f.document.querySelector = (selector) => selector.includes(id(1)) ? { querySelectorAll: () => [rail] } : null;
   f.trigger.dispatch("click");
-  const completed = f.menu.children[0].statusDot, active = f.menu.children[1].statusDot;
+  const completed = f.menu.children[1].statusDot, active = f.menu.children[0].statusDot;
   assert.equal(completed.dataset.status, "completed");
   assert.equal(completed.dataset.statusSource, "fallback");
   assert.equal(active.dataset.statusSource, "native");
@@ -235,7 +178,7 @@ test("unchanged snapshots preserve open rows and closed updates do no DOM rebuil
   assert.equal(f.menu.replaceCalls, 1);
   f.trigger.dispatch("click");
   assert.equal(f.menu.replaceCalls, 2);
-  assert.equal(f.menu.children[0].children[0].dataset.recentKey, `local:${id(3)}`);
+  assert.equal(f.menu.children.at(-1).children[0].dataset.recentKey, `local:${id(3)}`);
   f.update(undefined);
   assert.equal(f.updates(), 1);
 });
@@ -243,14 +186,14 @@ test("unchanged snapshots preserve open rows and closed updates do no DOM rebuil
 test("active state and refreshed sent metadata update visible rows without replacing the open menu", () => {
   const f = fixture({ items: [record(2), record(1)] });
   f.trigger.dispatch("click");
-  const row = f.menu.children[0], replacements = f.menu.replaceCalls;
+  const row = f.menu.children[1], replacements = f.menu.replaceCalls;
   f.state.activeKey = `local:${id(2)}`;
   f.sent.render();
-  assert.equal(f.menu.children[0], row);
+  assert.equal(f.menu.children[1], row);
   assert.equal(row.dataset.active, "true");
   f.update({ items: [{ ...record(2), title: "新标题", status: "completed", lastUserMessageAt: "2026-09-22T10:03:00.000Z" }, record(1)] });
   assert.equal(f.menu.replaceCalls, replacements);
-  assert.equal(f.menu.children[0], row);
+  assert.equal(f.menu.children[1], row);
   assert.match(row.textContent, /新标题/);
   assert.match(row.textContent, /:03:00/);
   assert.equal(row.statusDot.dataset.status, "completed");

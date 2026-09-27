@@ -46,7 +46,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${hasVisibleNativeTitleAction.toString()}
   ${buildNativeTerminalTabSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-27.composer-shortcuts';
+    const VERSION = '2026-09-27.recent-up';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';

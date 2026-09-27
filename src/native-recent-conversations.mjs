@@ -163,7 +163,9 @@ export function installNativeRecentConversationMenu({
     const next = currentRecords.slice(renderedCount, renderedCount + 12);
     if (!next.length) return;
     const rows = next.map((tab) => createRow(tab, currentRecords));
-    menu.append(...rows);
+    const height = menu.scrollHeight, top = menu.scrollTop;
+    menu.prepend(...rows.slice().reverse());
+    menu.scrollTop = top + menu.scrollHeight - height;
     visibleRows.push(...rows);
     renderedCount += next.length;
   };
@@ -194,6 +196,7 @@ export function installNativeRecentConversationMenu({
       });
       return;
     }
+    const bottomGap = menu.scrollHeight - menu.scrollTop;
     const targetCount = Math.min(records.length, Math.max(12, renderedCount));
     renderedSignature = signature; renderedStatus = status; currentRecords = records; renderedCount = 0; visibleRows = [];
     if (!records.length) {
@@ -214,11 +217,12 @@ export function installNativeRecentConversationMenu({
     menu.replaceChildren(...rows);
     while (renderedCount < targetCount) appendPage();
     fillViewport();
+    menu.scrollTop = Math.max(0, menu.scrollHeight - bottomGap);
   };
 
   const onScroll = () => {
     if (menu.hidden || renderedCount >= currentRecords.length) return;
-    if (menu.scrollTop + menu.clientHeight >= menu.scrollHeight - 48) { appendPage(); fillViewport(); }
+    if (menu.scrollTop <= 48) { appendPage(); fillViewport(); }
   };
   menu.addEventListener("scroll", onScroll);
 
@@ -233,7 +237,10 @@ export function installNativeRecentConversationMenu({
       if (previousSignature === renderedSignature) visibleRows.forEach((row, index) => updateStatusIcon(row, currentRecords[index]));
     }
     trigger.setAttribute("aria-expanded", String(opening));
-    if (opening) menu.querySelector('[role="menuitem"]')?.focus();
+    if (opening) {
+      visibleRows[0]?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+      menu.scrollTop = menu.scrollHeight;
+    }
   });
   const outside = (event) => {
     if (!menu.hidden && !host.contains(event.target)) close();
@@ -277,7 +284,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="interrupted"]::before{content:"Ⅱ";font-size:12px}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="error"]::before{content:"!";font:bold 12px/14px sans-serif}' +
   '.ccc-native-recent-menu{position:absolute;bottom:34px;left:0;width:min(360px,calc(100vw - 32px));max-height:min(520px,calc(100vh - 120px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px)}' +
-  '.ccc-native-recent-menu[hidden]{display:none}.ccc-native-recent-row{display:flex;align-items:center;gap:4px;border-radius:8px}' +
+  '.ccc-native-recent-menu{overflow-anchor:none}.ccc-native-recent-menu[hidden]{display:none}.ccc-native-recent-row{display:flex;align-items:center;gap:4px;border-radius:8px}' +
   '.ccc-native-recent-row[data-active="true"]{background:color-mix(in srgb,#6d8cff 14%,transparent)}' +
   '.ccc-native-recent-select{display:flex;min-width:0;flex:1;align-items:center;gap:9px;border:0;border-radius:8px;padding:8px;background:transparent;color:inherit;text-align:left;cursor:pointer}' +
   '.ccc-native-recent-select:hover,.ccc-native-recent-select:focus-visible{background:color-mix(in srgb,currentColor 9%,transparent);outline:none}' +
