@@ -1,5 +1,5 @@
 export function installNativeSidebarRestart(dashboardBinding) {
-  const VERSION = '2026-09-27.current-host-original-launch';
+  const VERSION = '2026-09-27.windows-help-host-actions';
   if (window.__codexControlConsoleSidebarRestart?.version === VERSION) return;
   window.__codexControlConsoleSidebarRestart?.dispose();
   if (!dashboardBinding) return;
@@ -16,16 +16,17 @@ export function installNativeSidebarRestart(dashboardBinding) {
   let disposed = false, scheduled = false;
   function place() {
     if (disposed) return;
-    const help = document.querySelector('button[aria-label="帮助菜单"],button[aria-label="打开帮助菜单"],button[aria-label="Open help menu"],button[aria-label="Help menu"]');
+    const help = Array.from(document.querySelectorAll('#application-menu-trigger-help-menu,button[aria-label="帮助菜单"],button[aria-label="打开帮助菜单"],button[aria-label="Open help menu"],button[aria-label="Help menu"]')).find(candidate =>
+      candidate.getAttribute('aria-expanded') === 'true' || candidate.getAttribute('data-state') === 'open');
     const open = help?.getAttribute('aria-expanded') === 'true' || help?.getAttribute('data-state') === 'open';
     const controlled = open ? document.getElementById(help.getAttribute('aria-controls') || '') : null;
     const menu = (controlled?.querySelector('[role="menu"]') || controlled) || (open ? Array.from(document.querySelectorAll('[role="menu"]')).find(candidate =>
-      /Keyboard shortcuts|键盘快捷键/.test(candidate.textContent || '') && candidate.getBoundingClientRect().width > 0) : null);
+      (candidate.getAttribute('aria-labelledby') === help.id || /Keyboard shortcuts|键盘快捷键/.test(candidate.textContent || '')) && candidate.getBoundingClientRect().width > 0) : null);
     if (!menu) { originalButton.remove(); button.remove(); return; }
-    if (originalButton.parentElement !== menu || button.parentElement !== menu || originalButton.nextElementSibling !== button) {
-      const itemClass = menu.querySelector('[role="menuitem"]')?.className || '';
-      originalButton.className = itemClass;
-      button.className = itemClass;
+    const itemClass = menu.querySelector('[role="menuitem"]:not([data-codex-control-console-help-original]):not([data-codex-control-console-help-restart])')?.className || '';
+    if (originalButton.className !== itemClass) originalButton.className = itemClass;
+    if (button.className !== itemClass) button.className = itemClass;
+    if (originalButton.parentElement !== menu || button.parentElement !== menu || originalButton.nextElementSibling !== button || menu.lastElementChild !== button) {
       originalButton.remove(); button.remove();
       menu.append(originalButton);
       menu.append(button);

@@ -93,7 +93,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
 }
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "" } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "", hostActionBinding = standaloneDashboardBinding } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -139,7 +139,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await prepareNativeCspBypass(connection, { reloadAfterCspBypass });
     await connection.evaluate(buildNativeUnifiedSidebarInjectionScript(dashboardUrl));
   }
-  await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl, standaloneDashboardBinding));
+  await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl, hostActionBinding));
   if (!force && connection.__codexControlConsoleInstalled) {
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');
@@ -286,7 +286,8 @@ export class CodexInjector {
         recentSentConversations: await this.recentSentConversationProvider?.read?.(),
         turnStateSnapshot: await this.turnStateProvider?.snapshot?.(),
         reloadAfterCspBypass: this.reloadAfterCspBypass,
-        standaloneDashboardBinding: this.dashboardLauncher ? NATIVE_DASHBOARD_BINDING : ""
+        standaloneDashboardBinding: this.dashboardLauncher && !this.reloadAfterCspBypass ? NATIVE_DASHBOARD_BINDING : "",
+        hostActionBinding: this.dashboardLauncher ? NATIVE_DASHBOARD_BINDING : ""
       });
       await syncTurnAnnotations(this.connection, this.annotationStore, { targets, dashboardUrl: this.dashboardUrl });
       this.checklistWake.clear(); // The imminent periodic read includes earlier return signals.

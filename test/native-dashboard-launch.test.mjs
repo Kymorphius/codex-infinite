@@ -52,3 +52,14 @@ test("macOS dashboard launcher raises the installed standalone app", async () =>
   assert.equal(calls[1], "unref");
   await assert.rejects(service.open('{"module":"bad"}'), /模块无效/);
 });
+
+test('Windows host actions do not invoke the macOS standalone launcher', async () => {
+  const calls = [];
+  const service = new NativeDashboardLaunchService({ platform: 'win32',
+    restart: () => calls.push('restart'), launchOriginal: () => calls.push('original'),
+    spawn: () => assert.fail('Windows host actions must not spawn standalone dashboard') });
+  await service.open('{"module":"original"}');
+  await service.open('{"module":"restart","confirm":true}');
+  assert.deepEqual(calls, ['original', 'restart']);
+  await assert.rejects(service.open('{"module":"restart","confirm":false}'), /模块无效/);
+});
