@@ -42,7 +42,7 @@ test('service coalesces and caches native reads, excludes archived paths and rem
   unread = [];
   assert.equal((await service.read()).items.length, 1); assert.equal(unreadReads, 1);
   now += 5001;
-  assert.deepEqual(await service.read(), { items: [], stale: false });
+  assert.deepEqual(await service.read(), { items: [], stale: false, statuses: { [id]: { status: 'completed', unread: false } } });
   assert.equal(reads, 2); assert.equal(unreadReads, 2);
 });
 test('historical active markers require live confirmation and live completion can enter review', async () => {
@@ -56,7 +56,7 @@ test('historical active markers require live confirmation and live completion ca
   status = 'completed';
   const result = await service.read(); assert.deepEqual(result.items.map(x => [x.id, x.section]), [[second, 'review']]);
   unread = [];
-  assert.deepEqual(await service.read(), { items: [], stale: false });
+  assert.deepEqual(await service.read(), { items: [], stale: false, statuses: { [id]: { status: 'unknown', unread: false }, [second]: { status: 'completed', unread: false } } });
 });
 
 test('empty confirmed runtime is valid while a runtime failure preserves the last snapshot as stale', async () => {
@@ -121,5 +121,5 @@ test('missing native unread provider cannot masquerade as confirmed empty state'
     unreadStateProvider: { readUnreadIds: async () => [] },
     taskAdapter: { listTasks: async () => ({ tasks: [task] }) }
   });
-  assert.deepEqual(await service.read(), { items: [], stale: false });
+  assert.deepEqual(await service.read(), { items: [], stale: false, statuses: { [id]: { status: 'completed', unread: false } } });
 });

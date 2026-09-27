@@ -220,12 +220,31 @@ test("recent sent dismisses with Escape or outside pointer and removes global li
   assert.equal(f.document.listenerCount("keydown"), 0);
 });
 
+test("both menus share live status, keep completed unread distinct, and update without rebuilding", () => {
+  const f = fixture({ items: [{ ...record(1), status: 'completed' }] });
+  let live = { status: 'completed', unread: true };
+  f.window.__codexControlConsoleAttentionConversations = { status: () => live };
+  f.root.children[0].children[0].dispatch('click'); f.trigger.dispatch('click');
+  const menus = [f.root.children[0].children[1], f.menu];
+  for (const menu of menus) assert.equal(menu.children[0].statusDot.getAttribute('aria-label'), '已完成，未读');
+  live = { status: 'completed', unread: false };
+  f.recent.render(); f.sent.render();
+  for (const menu of menus) {
+    assert.equal(menu.children[0].statusDot.getAttribute('aria-label'), '已完成，已读');
+    assert.equal(menu.replaceCalls, 1);
+  }
+  live = { status: 'active', unread: false }; f.recent.render(); f.sent.render();
+  for (const menu of menus) assert.equal(menu.children[0].statusDot.dataset.status, 'active');
+  live = null; f.sent.render();
+  assert.equal(f.menu.children[0].statusDot.dataset.unread, 'unknown');
+});
+
 test("tabs wire recent sent selection and snapshot refresh without another timer or observer", () => {
   const source = buildNativeRecentSentMenuInjectionSource();
   assert.doesNotMatch(source, /MutationObserver|setTimeout|setInterval|innerHTML/);
   const tabs = buildNativeConversationTabsInjectionSource();
   assert.match(tabs, /openLocal: \(tab\) => request\(tab, true\)/);
-  assert.match(tabs, /updateRecentSent: \(\) => recentSentMenu\?\.render\(\)/);
+  assert.match(tabs, /updateRecentSent: \(\) => \{ recentMenu\?\.render\(\); recentSentMenu\?\.render\(\); \}/);
   assert.match(tabs, /recentSentMenu\?\.destroy\(\)/);
   assert.doesNotThrow(() => new Function(tabs));
 });

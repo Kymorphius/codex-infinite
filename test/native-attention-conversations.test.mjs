@@ -88,7 +88,7 @@ test('read completion removes the alias, active update moves it, collapse and dr
 });
 test('automatic section toggles restore their heading after the native list rerenders', () => {
   const source = buildNativeAttentionConversationsInjectionScript();
-  assert.match(source, /downward-expand2/);
+  assert.match(source, /shared-status/);
   assert.match(source, /scroller\.style\.overflowAnchor = 'none'/);
   assert.match(source, /anchor\.scroller\.scrollTop \+= button\.getBoundingClientRect\(\)\.top - anchor\.top/);
   assert.match(source, /restoreHeadingPosition\(key, anchor\)/);

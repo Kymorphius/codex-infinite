@@ -1,3 +1,5 @@
+import { updateNativeRecentStatus } from './native-recent-status.mjs';
+
 export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 40) {
   const boundedLimit = Math.max(1, Math.min(40, Number(limit) || 40));
   const records = [];
@@ -93,27 +95,7 @@ export function installNativeRecentConversationMenu({
   };
 
   let renderedSignature = "", renderedStatus = "", renderedCount = 0, currentRecords = [], visibleRows = [];
-  const updateStatusIcon = (row, tab) => {
-    const dot = row.statusDot;
-    if (tab.kind !== "local" || !/^[0-9a-f-]{36}$/i.test(tab.id || "")) return;
-    const nativeRow = documentRef.querySelector?.(`[data-app-action-sidebar-thread-id="${tab.id}"]`);
-    const rail = Array.from(nativeRow?.querySelectorAll?.("div") || []).find((node) => node.classList?.contains("absolute")
-      && node.classList.contains("end-0") && node.classList.contains("group-hover:hidden") && node.children.length > 0);
-    const svg = rail?.querySelector?.("svg");
-    const nativeRunning = Boolean(rail?.querySelector?.('[class~="motion-safe:animate-spin"]'));
-    const signature = svg?.outerHTML ? `${svg.outerHTML}:${nativeRunning}` : `fallback:${tab.status || "unknown"}`;
-    if (dot.statusSignature === signature) return;
-    dot.statusSignature = signature;
-    dot.replaceChildren();
-    dot.dataset.status = ["active", "completed", "pending", "interrupted", "error"].includes(tab.status) ? tab.status : "unknown";
-    dot.dataset.statusSource = svg?.cloneNode ? "native" : "fallback";
-    dot.dataset.nativeRunning = String(nativeRunning);
-    if (svg?.cloneNode) {
-      dot.append(svg.cloneNode(true));
-      if (typeof getComputedStyle === "function" && dot.style) dot.style.color = getComputedStyle(rail.firstElementChild || rail).color;
-    }
-    dot.setAttribute("aria-label", svg ? "原生状态" : (({ active: "进行中", completed: "已完成", pending: "待处理", interrupted: "已中断", error: "出错" })[dot.dataset.status] || "状态未知"));
-  };
+  const updateStatusIcon = (row, tab) => updateNativeRecentStatus(documentRef, row, tab, window.__codexControlConsoleAttentionConversations?.status?.(tab.id));
   const createRow = (tab, records) => {
     const row = documentRef.createElement("div");
     row.className = "ccc-native-recent-row";
@@ -181,7 +163,7 @@ export function installNativeRecentConversationMenu({
     );
     const status = readStatus();
     const signature = JSON.stringify([records, state.activeKey, status]);
-    if (signature === renderedSignature) return;
+    if (signature === renderedSignature) { visibleRows.forEach((row, index) => updateStatusIcon(row, currentRecords[index])); return; }
     if (status === renderedStatus && records.length === currentRecords.length
       && records.every((tab, index) => tab.key === currentRecords[index].key)) {
       renderedSignature = signature;
@@ -279,7 +261,8 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-status[data-status-source="native"][data-native-running="true"] svg{animation:ccc-native-recent-status-spin 2s linear infinite}' +
   '.ccc-native-recent-status[data-status-source="native"],.ccc-native-recent-status[data-status]:not([data-status="unknown"]){background:none}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="active"]::before{content:"";width:10px;height:10px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:ccc-native-recent-status-spin 1s linear infinite}' +
-  '.ccc-native-recent-status[data-status-source="fallback"][data-status="completed"]::before{content:"";width:9px;height:5px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}' +
+  '.ccc-native-recent-status[data-status-source="fallback"][data-status="completed"][data-unread="false"]::before{content:"";width:9px;height:5px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}' +
+  '.ccc-native-recent-status[data-status="completed"][data-unread="true"]::before{content:"";width:8px;height:8px;border-radius:50%;background:#7da9ff}.ccc-native-recent-status[data-status="completed"][data-unread="unknown"]::before{content:"";width:8px;height:8px;border:1px solid currentColor;border-radius:50%}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="pending"]::before{content:"";width:10px;height:10px;border:1.5px solid currentColor;border-radius:50%}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="interrupted"]::before{content:"Ⅱ";font-size:12px}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="error"]::before{content:"!";font:bold 12px/14px sans-serif}' +
@@ -296,6 +279,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
 
 export function buildNativeRecentConversationMenuInjectionSource() {
   return [
+    updateNativeRecentStatus,
     recentNativeConversationRecords,
     openNativeConversationPages,
     installNativeRecentConversationMenu

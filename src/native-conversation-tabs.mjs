@@ -46,7 +46,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${hasVisibleNativeTitleAction.toString()}
   ${buildNativeTerminalTabSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-27.recent-up';
+    const VERSION = '2026-09-27.recent-status';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -337,7 +337,7 @@ export function buildNativeConversationTabsInjectionSource() {
     const onResize = () => scheduleSync(true, true);
     window.addEventListener('resize', onResize);
     const terminalTabs = createNativeTerminalTabController({ state, keyFor, normalizeTab, open, close, render });
-    const controller = { ...terminalTabs, version: VERSION, updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => recentSentMenu?.render(), destroy() { latestNavigation.cancel(); pageInset.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
+    const controller = { ...terminalTabs, version: VERSION, updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); pageInset.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); titleTakeoverNodes.clear(); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
     render(); scheduleSync(true, true); return controller;
   }
   `;

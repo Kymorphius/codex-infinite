@@ -92,6 +92,14 @@ test('cold task cache stays loading until existing indexing supplies a snapshot'
   assert.deepEqual(await settle(service), { items: [], loading: false, stale: false });
 });
 
+test('cold partial transcripts retain verified sends without inventing timestamps', async () => {
+  const service = new RecentSentConversationService({ taskAdapter: { getCachedTasks: () => [task(1), task(2)] },
+    index: { read: async file => ({ complete: false, lastUserMessageAt: file.endsWith('1.jsonl') ? date(1) : null }) } });
+  const result = await settle(service);
+  assert.equal(result.stale, true);
+  assert.deepEqual(result.items.map(item => [item.id, item.lastUserMessageAt]), [[id(1), date(1)]]);
+});
+
 test('unchanged background refresh never toggles loading or changes the published snapshot', async () => {
   let now = 0; let release;
   const result = { lastUserMessageAt: date(1), complete: true };

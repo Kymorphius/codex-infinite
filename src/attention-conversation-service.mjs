@@ -28,11 +28,15 @@ export class AttentionConversationService {
       const tasks = result.tasks.map(task => ({ ...task,
         status: runtime?.get(task.id) || (runtime && task.status === 'active' ? 'unknown' : task.status)
       }));
-      this.snapshot = { items: projectAttentionConversations(tasks.filter(task => {
+      const eligible = tasks.filter(task => {
+        if (!ID.test(task.id || '') || task.archived || task.isSubagent) return false;
         if (!this.archivedSessionRoot || !task.sourceFile) return true;
         const relative = path.relative(this.archivedSessionRoot, task.sourceFile);
         return relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative);
-      }), unread), stale: false };
+      });
+      const unreadSet = new Set(unread.map(id => id.toLowerCase()));
+      this.snapshot = { items: projectAttentionConversations(eligible, unread), stale: false,
+        statuses: Object.fromEntries(eligible.map(task => [task.id.toLowerCase(), { status: task.status || 'unknown', unread: unreadSet.has(task.id.toLowerCase()) }])) };
     } catch { this.snapshot = { ...this.snapshot, stale: true }; }
   }
 }

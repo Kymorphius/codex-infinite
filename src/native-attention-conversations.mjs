@@ -1,7 +1,7 @@
 import { createConversationViewHistory } from './conversation-view-history.mjs';
 
 export function installNativeAttentionConversations(createHistory = createConversationViewHistory) {
-  const VERSION = '2026-09-22.downward-expand2';
+  const VERSION = '2026-09-27.shared-status';
   if (window.__codexControlConsoleAttentionConversations?.version === VERSION) return;
   window.__codexControlConsoleAttentionConversations?.dispose();
   const ROOT = 'data-codex-control-console-attention-conversations';
@@ -169,7 +169,8 @@ export function installNativeAttentionConversations(createHistory = createConver
   window.__codexControlConsoleAttentionConversations = {
     version: VERSION,
     view: recordView,
-    set(value) { snapshot = stableSnapshot(value); render(); },
+    status(id) { return snapshot.stale ? null : snapshot.statuses?.[id.toLowerCase()] || null; },
+    set(value) { snapshot = stableSnapshot(value); render(); window.__codexControlConsoleConversationTabs?.updateRecentSent?.(); },
     dispose() { disposed = true; observer.disconnect(); roots.forEach(root => root.remove()); }
   };
   render();

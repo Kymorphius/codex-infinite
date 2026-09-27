@@ -50,11 +50,12 @@ export class RecentSentConversationService {
         const id = task.id.toLowerCase();
         try {
           const result = await this.index.read(task.sourceFile);
-          if (!result.complete) throw new Error('Session index is incomplete');
-          if (!result.lastUserMessageAt) continue;
+          if (!result.complete) stale = true;
+          if (!result.lastUserMessageAt) { if (!result.complete) throw new Error('No verified timestamp'); continue; }
           const timestamp = Date.parse(result.lastUserMessageAt);
           if (!Number.isFinite(timestamp)) throw new Error('Invalid message timestamp');
           const item = { kind: 'local', id, title: String(task.title || `会话 ${id.slice(0, 8)}`).slice(0, 160), lastUserMessageAt: new Date(timestamp).toISOString(), status: task.status || 'unknown' };
+          if (!result.complete && previous.get(id)?.lastUserMessageAt > item.lastUserMessageAt) item.lastUserMessageAt = previous.get(id).lastUserMessageAt;
           if (!items.has(id) || item.lastUserMessageAt > items.get(id).lastUserMessageAt) items.set(id, item);
         } catch {
           stale = true;
