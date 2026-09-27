@@ -33,10 +33,16 @@ export function createConversationShortcutLayout(document, window, toolbar) {
     const visible = !modal && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
-    set(toolbar, 'max-width', Math.max(0, Math.min(box.width, window.innerWidth - box.left - 8)) + 'px');
+    const appearance = window.getComputedStyle(host);
+    const surface = appearance.backgroundColor;
+    if (surface && surface !== 'transparent' && surface !== 'rgba(0, 0, 0, 0)') set(toolbar, '--ccc-shortcut-surface', surface);
+    else toolbar.style.removeProperty('--ccc-shortcut-surface');
+    if (appearance.fontFamily) set(toolbar, '--ccc-shortcut-font', appearance.fontFamily);
+    const inset = box.width > 100 ? 12 : 4;
+    set(toolbar, 'width', Math.max(0, Math.min(box.width - inset * 2, window.innerWidth - box.left - inset - 8)) + 'px');
     set(host, space, (toolbar.getBoundingClientRect().height || 34) + 16 + 'px');
     const placed = host.getBoundingClientRect();
-    set(toolbar, 'left', Math.max(8, Math.round(placed.left)) + 'px');
+    set(toolbar, 'left', Math.max(8, Math.round(placed.left + inset)) + 'px');
     set(toolbar, 'bottom', Math.max(8, Math.round(window.innerHeight - placed.top + 8)) + 'px');
   };
   const observer = typeof window.ResizeObserver === 'function' ? new window.ResizeObserver(update) : null;

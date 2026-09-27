@@ -29,6 +29,8 @@ test('shortcuts reserve real space above the composer instead of covering goal/t
   const toolbarBottom = 900 - parseFloat(f.toolbar.values.get('bottom'));
   assert.equal(toolbarBottom - f.toolbar.height, 608, 'toolbar starts below the preceding task edge at 600');
   assert.equal(f.toolbar.hidden, false);
+  assert.equal(f.toolbar.values.get('left'), '192px');
+  assert.equal(f.toolbar.values.get('width'), '676px');
   const writes = f.writes(); f.layout.update();
   assert.equal(f.writes(), writes, 'stable layout performs no repeated style writes');
 });
@@ -58,4 +60,17 @@ test('visible hooks/dialog overlays hide shortcuts while preserving spacing, the
   dialog.getClientRects = () => [{}]; dialog.getAttribute = key => key === 'data-state' ? 'closed' : null;
   f.layout.update(); assert.equal(f.toolbar.hidden, false);
   f.dialogs.length = 0; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+});
+
+test('toolbar follows native composer surface and font across appearances', () => {
+  const f = fixture();
+  let backgroundColor = 'rgb(48, 48, 48)';
+  f.window.getComputedStyle = () => ({ marginTop: '12px', backgroundColor, fontFamily: 'Native Sans' });
+  f.layout.update();
+  assert.equal(f.toolbar.values.get('--ccc-shortcut-surface'), backgroundColor);
+  assert.equal(f.toolbar.values.get('--ccc-shortcut-font'), 'Native Sans');
+  backgroundColor = 'rgb(255, 255, 255)'; f.layout.update();
+  assert.equal(f.toolbar.values.get('--ccc-shortcut-surface'), backgroundColor);
+  backgroundColor = 'rgba(0, 0, 0, 0)'; f.layout.update();
+  assert.equal(f.toolbar.values.has('--ccc-shortcut-surface'), false);
 });

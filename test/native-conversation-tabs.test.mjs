@@ -229,7 +229,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
   assert.match(source, /data-window-opening/);
   assert.match(source, /data-window-error/);
-  assert.match(source, /2026-09-27\.shortcut-dialog/);
+  assert.match(source, /2026-09-27\.shortcut-native/);
   assert.match(source, /consoleTab\.append\(consoleLabel\)/);
   assert.match(source, /item\.append\(label\)/);
   assert.doesNotMatch(source, /(?:consoleTab|item)\.append\((?:mark|dot),/);
