@@ -38,6 +38,13 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
 - Provider-owned rows appear under the actual corresponding native project,
   plus pinned/unassigned projections. Rows offer rename, pin and archive.
 - Native project menu offers Claude and Shell creation for explicit local paths.
+- Project search results are a second projection surface: an expanded local
+  project lists its unarchived terminal conversations first, matched by the
+  record's verified cwd against the project's source directories (search catalog
+  ids come from the app server and differ from sidebar project ids). Remote
+  projects never list local terminals. Rows and native project rows share one
+  marker: a leading glyph (◇ Claude, ›_ Shell) in the indent gutter so titles align
+  with native rows, plus a `CLI`/`Shell` tag with a green dot while running.
 - When the macOS native sidebar opens the console through its standalone launcher
   binding, the project menu still installs the terminal conversation provider.
   Terminal conversations render directly in the native main workspace through

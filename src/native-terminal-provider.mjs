@@ -27,6 +27,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     window.__codexControlConsoleConversationTabs?.syncTerminal?.(records);
     const active = window.__codexControlConsoleConversationTabs?.active?.();
     sidebar.render(records, active?.kind === 'terminal' ? active.id : '');
+    window.__codexControlConsoleProjectSearch?.refresh?.();
   }
   function signature(record) {
     if (!record) return '';
@@ -81,7 +82,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   window.addEventListener('message', receive); if (frame) document.body.append(frame);
   const interval = setInterval(refresh, 5000);
   window.__cccTerminalConversations = {
-    refresh, accept, create: actions.create, request,
+    refresh, accept, create: actions.create, request, records: () => records,
     async open(reference) {
       try {
         const result = await request('open', { id: reference.conversationId || reference.id });

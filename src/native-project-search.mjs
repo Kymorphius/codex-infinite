@@ -1,9 +1,9 @@
 import { buildNativeNewTaskAdapterScript } from './native-new-task-adapter.mjs';
-import { filterProjectNames } from './project-search.mjs';
+import { filterProjectNames, terminalProjectConversations } from './project-search.mjs';
 import { installNativeProjectSearchActions } from './native-project-search-actions.mjs';
 
-export function installNativeProjectSearch(filter) {
-  const VERSION = '2026-09-21.2';
+export function installNativeProjectSearch(filter, terminalRows = () => []) {
+  const VERSION = '2026-09-27.1';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -73,7 +73,9 @@ export function installNativeProjectSearch(filter) {
     if (root.parentElement !== parent) parent.insertBefore(root, native.parentElement);
     const query = input.value || '';
     const style = templates();
-    const next = JSON.stringify([query, snapshot, [...expanded], style.signature]);
+    const terminals = (window.__cccTerminalConversations?.records?.() || []).map(record => ({ id: record.id, deviceId: record.deviceId, provider: record.provider,
+      title: record.title, cwd: record.cwd, kind: record.kind, status: record.status, archived: record.archived, updatedAt: record.updatedAt, projectRef: record.projectRef }));
+    const next = JSON.stringify([query, snapshot, [...expanded], style.signature, terminals]);
     const rootClassName = (native.className || 'relative px-row-x') + ' py-1';
     if (root.className !== rootClassName) root.className = rootClassName;
     if (signature === next) return;
@@ -112,7 +114,21 @@ export function installNativeProjectSearch(filter) {
       button.addEventListener('keydown', event => { if (event.target === button && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); button.click(); } });
       results.append(button);
       if (!open) continue;
-      if (!project.tasks.length) results.append(make('div', 'ps-6 py-1 text-sm text-tertiary', '暂无未归档会话'));
+      const terminalTasks = remote ? [] : terminalRows(project, terminals);
+      if (!project.tasks.length && !terminalTasks.length) results.append(make('div', 'ps-6 py-1 text-sm text-tertiary', '暂无未归档会话'));
+      for (const record of terminalTasks) {
+        const row = make('button', style.thread + ' flex w-full min-w-0 items-center text-start');
+        row.style.paddingInlineStart = 'calc(var(--padding-row-cell-x,var(--padding-row-x)) + 2px)';
+        row.type = 'button'; row.setAttribute('draggable', 'false'); row.setAttribute('data-project-search-terminal-id', record.id);
+        const engine = record.kind === 'shell' ? 'Shell' : 'CLI';
+        row.title = record.title + ' · ' + (record.kind === 'shell' ? 'Shell' : 'Claude CLI') + (record.status === 'running' ? ' · 运行中' : ' · 已停止');
+        const title = make('span', 'flex min-w-0 flex-1 items-center gap-2 text-base leading-5 text-default');
+        const glyph = make('span', 'shrink-0', record.kind === 'shell' ? '›_' : '◇'); glyph.style.cssText = 'width:22px;margin-inline-end:-8px;text-align:center'; glyph.setAttribute('data-terminal-glyph', '');
+        const tag = make('span', 'shrink-0', engine); tag.setAttribute('data-terminal-engine', record.kind === 'shell' ? 'shell' : 'claude'); tag.setAttribute('data-running', String(record.status === 'running'));
+        title.append(glyph, make('span', 'min-w-0 truncate', record.title), tag); row.append(title);
+        row.addEventListener('click', () => window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find(value => value.id === record.id) || record));
+        results.append(row);
+      }
       for (const task of project.tasks) {
         const row = make('button', style.thread + ' flex w-full min-w-0 items-center text-start');
         row.style.paddingInlineStart = 'calc(var(--padding-row-cell-x,var(--padding-row-x)) + 24px)';
@@ -148,12 +164,13 @@ export function installNativeProjectSearch(filter) {
     version: VERSION,
     getState() { return { query: input?.value || '', expanded: [...expanded] }; },
     set(value) { snapshot = value && Array.isArray(value.projects) ? value : { projects: [], stale: true }; render(); },
+    refresh() { render(); },
     dispose() { disposed = true; observer.disconnect(); root?.remove(); }
   };
   render();
 }
 export function buildNativeProjectSearchInjectionScript() {
-  return `${buildNativeNewTaskAdapterScript()}(${installNativeProjectSearchActions.toString()})();(${installNativeProjectSearch.toString()})(${filterProjectNames.toString()})`;
+  return `${buildNativeNewTaskAdapterScript()}(${installNativeProjectSearchActions.toString()})();(${installNativeProjectSearch.toString()})(${filterProjectNames.toString()}, ${terminalProjectConversations.toString()})`;
 }
 export function buildNativeProjectSearchSnapshotScript(value = { projects: [], stale: true }) {
   return `window.__codexControlConsoleProjectSearch?.set(${JSON.stringify(value).replaceAll('<', '\\u003c')})`;

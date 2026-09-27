@@ -20,3 +20,12 @@ export function filterProjectNames(projects, query) {
   const normalized = String(query || '').normalize('NFKC').trim().toLocaleLowerCase();
   return normalized ? projects.filter(project => String(project.name).normalize('NFKC').toLocaleLowerCase().includes(normalized)) : [];
 }
+// Terminal conversations belong to a local project through their verified cwd; search
+// catalog ids come from the app server and differ from sidebar project ids.
+export function terminalProjectConversations(project, records) {
+  if (project?.device && project.device.kind !== 'local-codex') return [];
+  const roots = Array.isArray(project?.sourceDirectories) ? project.sourceDirectories : [];
+  return (Array.isArray(records) ? records : []).filter(record => record?.provider === 'terminal' && !record.archived
+    && record.projectRef?.hostId === 'local' && roots.includes(record.cwd))
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+}
