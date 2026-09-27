@@ -144,3 +144,13 @@ test("loading and error pages never receive a floating fallback button rail", ()
   assert.doesNotMatch(source,/function createFallbackEntry|document\.body\.append\(rail\)/);
   assert.match(source,/if \(!anchor\) \{\s+fallback\?\.remove\(\);\s+return;/);
 });
+
+test("console rows can dismiss the native terminal view without an iframe workspace ever opening", () => {
+  const source = buildInjectionScript("http://127.0.0.1:47831");
+  const boot = source.slice(source.indexOf("function boot()"));
+  const close = boot.indexOf("window.__codexControlConsoleClose = () => { cancelTerminalNavigation(); restoreWorkspace(); };");
+  assert.ok(close > 0, "boot defines the close hook");
+  assert.ok(close < boot.indexOf("window.__codexControlConsoleConversationTabs = installNativeConversationTabs("), "before any row can be clicked");
+  const restore = source.slice(source.indexOf("function restoreWorkspace()"), source.indexOf("function restoreWorkspace()") + 200);
+  assert.match(restore, /window\.__cccNativeTerminalView\?\.dispose\(\)/);
+});

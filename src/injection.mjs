@@ -309,6 +309,9 @@ ${providerSource}
       return;
     }
     installEntry();
+    // Console-owned sidebar rows close any console workspace before routing. The
+    // native terminal view never opens the iframe workspace, so define it at boot.
+    window.__codexControlConsoleClose = () => { cancelTerminalNavigation(); restoreWorkspace(); };
     window.__codexControlConsoleConversationTabs = installNativeConversationTabs({
       workspaceCandidate,
       openConsole: (module) => openWorkspace(module || 'board'),
