@@ -16,6 +16,9 @@ button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,v
 .launch{flex:0 0 auto;border:0;border-radius:999px;padding:5px 13px;background:var(--fg);color:var(--page);font-size:12px;font-weight:600}
 .launch[hidden]{display:none}
 .output{flex:1;min-height:0;overflow:hidden;padding:10px 0 6px}
+/* xterm measures each glyph repeated 32 times; Chrome trims adjacent fullwidth punctuation
+   to half width there, so a lone '，' would get extra letter-spacing and push the row edge. */
+.xterm{text-spacing-trim:space-all}
 .composer{flex:0 0 auto;display:flex;flex-direction:column;gap:10px;padding:14px 14px 10px 16px;border:1px solid var(--line);border-radius:24px;
   background:var(--surface);box-shadow:0 6px 24px #0000002e;transition:border-color .15s ease}
 .composer:focus-within{border-color:color-mix(in srgb,var(--fg) 22%,transparent)}

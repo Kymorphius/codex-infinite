@@ -43,7 +43,7 @@ body:has(.terminal-panel:not(.hidden)) .content { flex: 1; width: 100%; min-heig
 .terminal-viewport { position: relative; flex: 1; min-height: 0; background: #171719; }
 .terminal-screen { position: absolute; inset: 0; padding: 10px 9px 6px; }
 .terminal-screen[hidden] { display: none; }
-.terminal-screen .xterm { height: 100%; }
+.terminal-screen .xterm { height: 100%; text-spacing-trim: space-all; } /* Keep punctuation measurement equal to rendering. */
 .terminal-screen .xterm-viewport { scrollbar-color: #515158 #171719; }
 .terminal-empty { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 24px; text-align: center; color: #94949e; }
 .terminal-empty-symbol { font-family: Menlo, monospace; font-size: 32px; margin-bottom: 15px; }

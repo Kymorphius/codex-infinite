@@ -35,3 +35,11 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   window.__cccNativeTerminalView.update({ ...record, archived: true });
   assert.equal(disposed, 1); assert.equal(original.style.display, 'flex'); assert.deepEqual([surface.style.value, surface.style.priority], ['', '']); assert.equal(host.children.length, 1); assert.deepEqual(actions, []);
 });
+
+test('terminal glyph measurement keeps fullwidth punctuation at full width in both terminal views', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { NATIVE_TERMINAL_VIEW_STYLE } = await import('../src/native-terminal-view-style.mjs');
+  const dashboard = await readFile(new URL('../public/styles/terminal.css', import.meta.url), 'utf8');
+  assert.match(NATIVE_TERMINAL_VIEW_STYLE, /\.xterm\{text-spacing-trim:space-all\}/);
+  assert.match(dashboard, /\.terminal-screen \.xterm \{[^}]*text-spacing-trim: space-all;/);
+});
