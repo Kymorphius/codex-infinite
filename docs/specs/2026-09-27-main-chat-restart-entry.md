@@ -1,5 +1,9 @@
 # Main chat restart entry
 
+Superseded for the current macOS host by
+`2026-09-27-current-chatgpt-integration.md`: no legacy toolbar or iframe restart
+fallback; use the confirmed native host binding even with a standalone dashboard.
+
 ## Problem
 
 The native chat shortcut for restarting the control console is positioned next to

@@ -12,6 +12,17 @@ test("native dashboard requests accept only known modules", () => {
   assert.equal(normalizeNativeDashboardRequest("not-json"), null);
 });
 
+test("restart binding requires exact confirmation and never opens a dashboard", async () => {
+  let count = 0;
+  const service = new NativeDashboardLaunchService({ restart: () => { count++; return { restarting: true }; }, spawn: () => assert.fail("must not spawn dashboard") });
+  for (const request of [{ module: 'restart' }, { module: 'restart', confirm: false }, { module: 'restart', confirm: true, url: 'other' }]) {
+    await assert.rejects(service.open(JSON.stringify(request)), /模块无效/);
+  }
+  assert.equal(count, 0);
+  assert.deepEqual(await service.open('{"module":"restart","confirm":true}'), { restarting: true });
+  assert.equal(count, 1);
+});
+
 test("macOS dashboard launcher raises the installed standalone app", async () => {
   const calls = [];
   const service = new NativeDashboardLaunchService({

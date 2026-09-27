@@ -221,7 +221,7 @@ export async function run() {
     filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter) });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
-  const nativeDashboardLaunchService = config.cspReloadRequired ? null : new NativeDashboardLaunchService();
+  const nativeDashboardLaunchService = config.cspReloadRequired ? null : new NativeDashboardLaunchService({ restart: () => restartService.request() });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
   const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers, terminalConversations });

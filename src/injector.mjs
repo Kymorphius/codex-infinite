@@ -137,9 +137,9 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
   }
   if (!standaloneDashboardBinding) {
     await prepareNativeCspBypass(connection, { reloadAfterCspBypass });
-    await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl));
     await connection.evaluate(buildNativeUnifiedSidebarInjectionScript(dashboardUrl));
   }
+  await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl, standaloneDashboardBinding));
   if (!force && connection.__codexControlConsoleInstalled) {
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');

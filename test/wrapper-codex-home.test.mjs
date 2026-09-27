@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { mirrorValidRouterCatalog, prepareWrapperCodexHome, withoutWrapperContextConfig } from "../src/wrapper-codex-home.mjs";
+import { prepareWrapperCodexHome, withoutWrapperContextConfig } from "../src/wrapper-codex-home.mjs";
 
 test("wrapper config keeps model defaults when source has no root context override", () => {
   const source = 'model = "gpt-5.6-sol"\nmodel_reasoning_effort = "medium"\n\n[features]\nfoo = true\n';
@@ -110,7 +110,7 @@ test("wrapper preparation accepts a model cache atomically replaced by the runni
   assert.equal(result.sharedEntries.includes("models_cache.json"), false);
 });
 
-test("wrapper preparation mirrors a non-empty router catalog into its isolated home", async (t) => {
+test("wrapper preparation never seeds the current host from an old merged catalog", async (t) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-wrapper-router-catalog-"));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const sourceHome = path.join(directory, "source");
@@ -122,9 +122,9 @@ test("wrapper preparation mirrors a non-empty router catalog into its isolated h
 
   const result = await prepareWrapperCodexHome({ sourceHome, wrapperHome, contextWindow: 1_000_000 });
 
-  assert.equal(result.routerCatalogPath, path.join(wrapperHome, "codex-router", "merged-models.json"));
-  assert.equal(await fs.readFile(result.routerCatalogPath, "utf8"), source);
-  assert.equal(JSON.parse(await fs.readFile(result.metadataPath, "utf8")).routerCatalogMirrored, true);
+  assert.equal(result.routerCatalogPath, null);
+  await assert.rejects(fs.readFile(path.join(wrapperHome, "codex-router", "merged-models.json")), { code: 'ENOENT' });
+  assert.equal(JSON.parse(await fs.readFile(result.metadataPath, "utf8")).routerCatalogMirrored, false);
 });
 
 test("invalid or empty router catalogs never replace a valid wrapper catalog", async (t) => {
@@ -138,7 +138,7 @@ test("invalid or empty router catalogs never replace a valid wrapper catalog", a
   await fs.writeFile(targetPath, JSON.stringify({ models: [{ slug: "keep" }] }));
   await fs.writeFile(path.join(sourceHome, "codex-router", "merged-models.json"), '{"models":[]}');
 
-  assert.equal(await mirrorValidRouterCatalog(sourceHome, wrapperHome), null);
+  assert.equal((await prepareWrapperCodexHome({ sourceHome, wrapperHome, contextWindow: 1_000_000 })).routerCatalogPath, null);
   assert.deepEqual(JSON.parse(await fs.readFile(targetPath, "utf8")), { models: [{ slug: "keep" }] });
 });
 

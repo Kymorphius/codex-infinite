@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { repairWrapperProjectState } from "./wrapper-project-state.mjs";
+import { connectWrapperNativeCatalog } from "./wrapper-native-catalog.mjs";
 
 export const SHARED_ENTRIES = Object.freeze([
   "auth.json",
@@ -28,7 +29,6 @@ const REQUIRED_DANGLING_LINKS = new Set([
   "state_5.sqlite-wal"
 ]);
 const WRAPPER_OWNED_RUNTIME_FILES = new Set(["models_cache.json"]);
-const ROUTER_CATALOG_RELATIVE_PATH = path.join("codex-router", "merged-models.json");
 
 function positiveInteger(value, label) {
   const parsed = typeof value === "number" ? value : Number.parseInt(String(value || ""), 10);
@@ -92,39 +92,6 @@ async function ensureSharedEntry(sourceHome, wrapperHome, name, platform, allowA
   return true;
 }
 
-export async function mirrorValidRouterCatalog(sourceHome, wrapperHome) {
-  const sourcePath = path.join(sourceHome, ROUTER_CATALOG_RELATIVE_PATH);
-  const targetPath = path.join(wrapperHome, ROUTER_CATALOG_RELATIVE_PATH);
-  // The router owns a valid wrapper catalog. A source-home fallback must never
-  // replace the account-aware catalog it refreshed for this dedicated profile.
-  try {
-    const target = JSON.parse(await fs.readFile(targetPath, "utf8"));
-    if (Array.isArray(target?.models) && target.models.length > 0) return null;
-  } catch (error) {
-    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
-  }
-  let source;
-  try {
-    source = await fs.readFile(sourcePath, "utf8");
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-  let catalog;
-  try {
-    catalog = JSON.parse(source);
-  } catch {
-    return null;
-  }
-  if (!Array.isArray(catalog?.models) || catalog.models.length === 0) return null;
-  await fs.mkdir(path.dirname(targetPath), { recursive: true, mode: 0o700 });
-  const temporaryPath = `${targetPath}.${process.pid}.tmp`;
-  await fs.writeFile(temporaryPath, source, { mode: 0o600 });
-  await fs.rename(temporaryPath, targetPath);
-  await fs.chmod(targetPath, 0o600).catch(() => {});
-  return targetPath;
-}
-
 export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, contextWindow, platform = process.platform, allowActiveRuntimeSidecars = false }) {
   if (!sourceHome || !wrapperHome) throw new Error("缺少 Codex 数据目录配置");
   if (path.resolve(sourceHome) === path.resolve(wrapperHome)) throw new Error("包装版 CODEX_HOME 不能与普通 Codex 共用同一配置目录");
@@ -160,7 +127,9 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
   for (const name of SHARED_ENTRIES) {
     if (await ensureSharedEntry(sourceHome, wrapperHome, name, platform, allowActiveRuntimeSidecars)) sharedEntries.push(name);
   }
-  const routerCatalogPath = await mirrorValidRouterCatalog(sourceHome, wrapperHome);
+  const nativeCatalogConnected = await connectWrapperNativeCatalog(wrapperHome);
+  // Native models come from the current host, never another profile's old merge.
+  const routerCatalogPath = null;
   const projectState = await repairWrapperProjectState({ sourceHome, wrapperHome });
   const metadataPath = path.join(wrapperHome, "wrapper-context.json");
   await fs.writeFile(metadataPath, JSON.stringify({
@@ -170,6 +139,7 @@ export async function prepareWrapperCodexHome({ sourceHome, wrapperHome, context
     sourceHome,
     sharedEntries,
     routerCatalogMirrored: Boolean(routerCatalogPath),
+    nativeCatalogConnected,
     attachedRuntimeSidecarsAllowed: Boolean(allowActiveRuntimeSidecars)
   }, null, 2), { mode: 0o600 });
   return { wrapperHome, configPath, metadataPath, requestedContextWindow, sharedEntries, routerCatalogPath, projectState };
