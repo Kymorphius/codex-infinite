@@ -40,5 +40,6 @@ test("recent menu injection is bounded, dismissable, and route-oriented", () => 
   assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /height:28px/);
   assert.doesNotThrow(() => new Function(`(() => { ${source} })()`));
   assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /max-height/);
+  assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /bottom:34px/);
   assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /data-active/);
 });

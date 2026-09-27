@@ -16,7 +16,7 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch() {
-  const VERSION = '2026-09-25.topbar-finish1';
+  const VERSION = '2026-09-27.composer-shortcuts';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
     window.__codexControlConsoleSentMessageSearch.ensure?.();
     return;
@@ -139,8 +139,8 @@ export function installNativeSentMessageSearch() {
   }
   function install() {
     const projectSearch = document.querySelector('[data-codex-control-console-project-search]');
-    const tabBar = document.querySelector('[data-codex-control-console-native-tabs]');
-    if (!projectSearch?.parentElement && !tabBar) return;
+    const shortcuts = document.querySelector('[data-codex-control-console-conversation-shortcuts]');
+    if (!projectSearch?.parentElement && !shortcuts) return;
     if (!root) {
       root = make('div', projectSearch?.className || 'group/nav-section relative px-row-x py-1', null);
       root.setAttribute('data-codex-control-console-sent-message-search', '');
@@ -218,9 +218,9 @@ export function installNativeSentMessageSearch() {
       root.className = projectSearch.className;
       projectSearch.parentElement.insertBefore(root, projectSearch.nextSibling);
     }
-    if (tabBar) {
-      const recent = tabBar.querySelector('[data-recent-menu]');
-      if (topLaunch.parentElement !== tabBar || topLaunch.nextSibling !== recent) tabBar.insertBefore(topLaunch, recent);
+    if (shortcuts) {
+      const recent = shortcuts.querySelector('[data-recent-menu]');
+      if (topLaunch.parentElement !== shortcuts || topLaunch.nextSibling !== recent) shortcuts.insertBefore(topLaunch, recent);
     }
   }
   window.__codexControlConsoleSentMessageSearch = {

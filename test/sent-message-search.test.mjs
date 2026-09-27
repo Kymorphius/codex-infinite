@@ -79,7 +79,7 @@ test('native injection compiles and binding returns bounded result to renderer',
   assert.equal(script.includes('<safe>'), false);
 });
 
-test('sidebar and top tab buttons open one panel and a result navigates to its conversation', () => {
+test('sidebar and composer shortcuts open one panel and a result navigates to its conversation', () => {
   class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.style = {}; this.attrs = {}; this.parentElement = null; if (tag === 'input') this.value = ''; }
     append(...nodes) { for (const node of nodes) { this.children.push(node); node.parentElement = this; } }
@@ -94,10 +94,10 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
     querySelector(selector) { return this.children.find(child => child.tag === selector || (selector === '[data-recent-menu]' && child.attrs['data-recent-menu'] != null)); }
     focus() { this.focused = true; }
   }
-  const parent = new Node('div'), projectSearch = new Node('div'), body = new Node('body'), tabBar = new Node('nav');
+  const parent = new Node('div'), projectSearch = new Node('div'), body = new Node('body'), shortcuts = new Node('div');
   projectSearch.className = 'sidebar'; parent.append(projectSearch);
-  const recent = new Node('div'); recent.setAttribute('data-recent-menu', 'opened'); tabBar.append(new Node('div'), recent);
-  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : selector === '[data-codex-control-console-native-tabs]' ? tabBar : null; }, createElement: tag => new Node(tag), createElementNS: (_namespace, tag) => new Node(tag) };
+  const recent = new Node('div'); recent.setAttribute('data-recent-menu', 'opened'); shortcuts.append(recent);
+  const document = { body, documentElement: parent, querySelector(selector) { return selector === '[data-codex-control-console-project-search]' ? projectSearch : selector === '[data-codex-control-console-conversation-shortcuts]' ? shortcuts : null; }, createElement: tag => new Node(tag), createElementNS: (_namespace, tag) => new Node(tag) };
   const routes = [], calls = [], saved = new Map();
   const localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
   const window = { __codexControlConsoleSearchSentMessages: value => calls.push(JSON.parse(value)), postMessage: value => routes.push(value.path) };
@@ -105,10 +105,10 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
   const launch = parent.children[1].children[0];
   assert.equal(launch.textContent, '搜索发送内容');
-  const topLaunch = tabBar.children[1];
+  const topLaunch = shortcuts.children[0];
   assert.equal(topLaunch.attrs['aria-label'], '搜索已发送消息');
   assert.equal(topLaunch.children[0].tag, 'svg');
-  assert.equal(tabBar.children[2], recent);
+  assert.equal(shortcuts.children[1], recent);
   topLaunch.listeners.click({ currentTarget: topLaunch });
   assert.equal(body.children[0].hidden, false);
   body.children[0].children[0].children[0].children[1].listeners.click();
@@ -143,15 +143,15 @@ test('sidebar and top tab buttons open one panel and a result navigates to its c
   parent.children[1].remove();
   topLaunch.remove();
   assert.equal(parent.children.length, 1);
-  assert.equal(tabBar.children.includes(topLaunch), false);
+  assert.equal(shortcuts.children.includes(topLaunch), false);
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
   assert.equal(parent.children[1].children[0], launch);
-  assert.equal(tabBar.children[1], topLaunch);
+  assert.equal(shortcuts.children[0], topLaunch);
   assert.equal(body.children[0], panel);
   assert.equal(input.value, 'unfinished query');
 });
 
-test('top search launcher mounts before project search becomes available', () => {
+test('composer search launcher mounts before project search becomes available', () => {
   class Node {
     constructor() { this.children = []; this.style = {}; this.attrs = {}; this.parentElement = null; this.className = ''; }
     append(...nodes) { for (const node of nodes) { this.children.push(node); node.parentElement = this; } }
@@ -163,16 +163,16 @@ test('top search launcher mounts before project search becomes available', () =>
     addEventListener() {}
     querySelector(selector) { return this.children.find(child => selector === '[data-recent-menu]' && child.attrs['data-recent-menu'] != null); }
   }
-  const parent = new Node(), tabBar = new Node(), body = new Node(), projectSearch = new Node(), recent = new Node();
-  projectSearch.className = 'project-search'; recent.setAttribute('data-recent-menu', ''); tabBar.append(recent);
+  const parent = new Node(), shortcuts = new Node(), body = new Node(), projectSearch = new Node(), recent = new Node();
+  projectSearch.className = 'project-search'; recent.setAttribute('data-recent-menu', ''); shortcuts.append(recent);
   const document = { body, documentElement: parent, createElement: () => new Node(), createElementNS: () => new Node(), querySelector(selector) {
-    if (selector === '[data-codex-control-console-native-tabs]') return tabBar;
+    if (selector === '[data-codex-control-console-conversation-shortcuts]') return shortcuts;
     if (selector === '[data-codex-control-console-project-search]') return projectSearch.parentElement ? projectSearch : null;
     return null;
   } };
   const context = vm.createContext({ document, window: {}, localStorage: { getItem: () => null } });
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
-  assert.equal(tabBar.children[0].attrs['data-codex-control-console-tab-message-search'], '');
+  assert.equal(shortcuts.children[0].attrs['data-codex-control-console-tab-message-search'], '');
   assert.equal(parent.children.length, 0);
   parent.append(projectSearch);
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);

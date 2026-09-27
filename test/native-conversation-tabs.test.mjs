@@ -188,6 +188,9 @@ test("wheel momentum filtering ignores only a decaying tail and resumes on delib
 test("native tab injection is idempotent, route-oriented, and non-destructive", () => {
   const source = buildNativeConversationTabsInjectionSource();
   assert.match(source, /data-codex-control-console-native-tabs/);
+  assert.match(source, /data-codex-control-console-conversation-shortcuts/);
+  assert.match(source, /box\.left/);
+  assert.match(source, /shortcutRoot\.hidden = !visible/);
   assert.match(source, /__codexControlConsoleConversationTabs/);
   assert.match(source, /codex-control-console\.native-tabs\.v1/);
   assert.match(source, /previous\?\.snapshot\?\.\(\)/);
@@ -226,7 +229,7 @@ test("native tab injection is idempotent, route-oriented, and non-destructive", 
   assert.match(source, /void openNativeConversationWindow\(\{state,keyFor,key:pop\.dataset\.windowKey/);
   assert.match(source, /data-window-opening/);
   assert.match(source, /data-window-error/);
-  assert.match(source, /2026-09-26\.terminal-provider/);
+  assert.match(source, /2026-09-27\.composer-shortcuts/);
   assert.match(source, /consoleTab\.append\(consoleLabel\)/);
   assert.match(source, /item\.append\(label\)/);
   assert.doesNotMatch(source, /(?:consoleTab|item)\.append\((?:mark|dot),/);

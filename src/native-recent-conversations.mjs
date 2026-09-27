@@ -276,7 +276,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="pending"]::before{content:"";width:10px;height:10px;border:1.5px solid currentColor;border-radius:50%}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="interrupted"]::before{content:"Ⅱ";font-size:12px}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="error"]::before{content:"!";font:bold 12px/14px sans-serif}' +
-  '.ccc-native-recent-menu{position:absolute;top:34px;right:0;width:min(360px,calc(100vw - 32px));max-height:min(520px,calc(100vh - 70px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px)}' +
+  '.ccc-native-recent-menu{position:absolute;bottom:34px;left:0;width:min(360px,calc(100vw - 32px));max-height:min(520px,calc(100vh - 120px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px)}' +
   '.ccc-native-recent-menu[hidden]{display:none}.ccc-native-recent-row{display:flex;align-items:center;gap:4px;border-radius:8px}' +
   '.ccc-native-recent-row[data-active="true"]{background:color-mix(in srgb,#6d8cff 14%,transparent)}' +
   '.ccc-native-recent-select{display:flex;min-width:0;flex:1;align-items:center;gap:9px;border:0;border-radius:8px;padding:8px;background:transparent;color:inherit;text-align:left;cursor:pointer}' +
@@ -285,7 +285,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.58}' +
   '.ccc-native-recent-empty{margin:0;padding:18px;text-align:center;font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.6}' +
   '@container ccc-native-tabs (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}}' +
-  '@media(max-width:720px){.ccc-native-recent-trigger>span:nth-child(2){display:none}.ccc-native-recent-menu{right:-4px}}';
+  '@media(max-width:720px){.ccc-native-recent-trigger>span:nth-child(2){display:none}.ccc-native-recent-menu{left:-4px}}';
 
 export function buildNativeRecentConversationMenuInjectionSource() {
   return [
