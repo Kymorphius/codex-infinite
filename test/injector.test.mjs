@@ -88,7 +88,7 @@ test("injector can explicitly suppress the compatibility reload", async () => {
   assert.equal(calls.at(-1).method, "evaluate");
 });
 
-test("standalone dashboard mode avoids CSP bypass and loopback bridge injection", async () => {
+test("standalone dashboard mode preserves CSP and avoids loopback bridge injection", async () => {
   const calls = [];
   const connection = {
     async send(method, params) { calls.push({ method, params }); return {}; },

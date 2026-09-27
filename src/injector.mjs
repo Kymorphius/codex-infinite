@@ -34,6 +34,8 @@ import { buildNativeLongConversationInjectionScript } from "./native-long-conver
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
 import { deferNativeDocumentSource, waitForReloadedNativeDocument } from "./native-document-bootstrap.mjs";
 import { NATIVE_DASHBOARD_BINDING } from "./native-dashboard-launch.mjs";
+import { installNativeTerminalBinding } from './native-terminal-binding.mjs';
+import { prepareNativeTerminalRuntime } from './native-terminal-runtime.mjs';
 import { prepareNativeCspBypass } from "./native-csp-bypass.mjs";
 
 export async function persistNativeContextAction(payload, contextWindowStore) {
@@ -173,7 +175,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, terminalConversations = null, terminalService = null, pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -193,7 +195,7 @@ export class CodexInjector {
     this.turnStateProvider = turnStateProvider;
     this.recoverTarget = recoverTarget;
     this.reloadAfterCspBypass = reloadAfterCspBypass;
-    this.dashboardLauncher = dashboardLauncher;
+    this.dashboardLauncher = dashboardLauncher; this.terminalConversations = terminalConversations; this.terminalService = terminalService;
     this.running = false;
     this.timer = null;
     this.syncing = false;
@@ -228,10 +230,11 @@ export class CodexInjector {
         target = chooseMainTarget(targets);
       }
       if (target.id !== this.targetId) {
-        this.removeContextBindingListener?.();
+        this.removeTerminalBinding?.(); this.removeContextBindingListener?.();
         await this.connection?.close();
         this.connection = new CdpConnection(target.webSocketDebuggerUrl);
         await this.connection.connect();
+        if (this.terminalConversations && !this.reloadAfterCspBypass) this.removeTerminalBinding = await installNativeTerminalBinding(this.connection, this.terminalConversations, this.terminalService);
         await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
         await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
         await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
@@ -271,6 +274,7 @@ export class CodexInjector {
       if (this.dashboardLauncher) await this.connection.send("Runtime.addBinding", { name: NATIVE_DASHBOARD_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       await this.connection.send("Runtime.addBinding", { name: PROJECT_CHECKLIST_SYNC_BINDING });
+      if (this.terminalConversations && !this.reloadAfterCspBypass) await prepareNativeTerminalRuntime(this.connection);
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];
       await installIntoTarget(this.connection, this.dashboardUrl, {
@@ -294,7 +298,7 @@ export class CodexInjector {
       await syncProjectChecklist(this.connection, this.checklistStore);
     } catch (error) {
       if (/CDP (command timed out|websocket closed|connection closed)/.test(error.message || '')) {
-        this.removeContextBindingListener?.(); this.removeContextBindingListener = null;
+        this.removeTerminalBinding?.(); this.removeContextBindingListener?.(); this.removeContextBindingListener = null;
         const stale = this.connection; this.connection = null; this.targetId = null;
         await stale?.close().catch(() => {});
       }
@@ -317,7 +321,7 @@ export class CodexInjector {
     this.checklistWake.clear();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.removeContextBindingListener?.();
+    this.removeTerminalBinding?.(); this.removeContextBindingListener?.();
     this.removeContextBindingListener = null;
     await this.contextActionChain;
     await this.turboActionChain;

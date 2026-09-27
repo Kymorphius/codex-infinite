@@ -19,6 +19,7 @@ ${buildNativeTerminalProviderSource()}
     terminalTarget = { ...target, deviceId: record.deviceId };
     window.__codexControlConsoleConversationTabs?.openTerminal?.(terminalConversationTab(record));
     window.__cccTerminalConversations?.select(record.id);
+    if (window.__cccOpenNativeTerminal) { restoreWorkspace(); return window.__cccOpenNativeTerminal(record, workspaceCandidate()); }
     openWorkspace('terminal', '正在打开会话…', false);
     const activeFrame = frame; if (!activeFrame?.contentWindow) return true;
     const send = () => {
@@ -45,6 +46,7 @@ ${buildNativeTerminalProviderSource()}
     return true;
   }
   function terminalRecordChanged(record) {
+    window.__cccNativeTerminalView?.update(record);
     if (record?.provider !== 'terminal' || !terminalTarget || terminalTarget.conversationId !== record.id || terminalTarget.deviceId !== record.deviceId) return false;
     const activeFrame = frame, version = terminalNavigationVersion;
     if (!activeFrame?.contentWindow) return false;

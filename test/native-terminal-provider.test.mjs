@@ -87,3 +87,17 @@ test('a delayed list cannot replace a context-menu mutation accepted while the l
   assert.equal(changes.length, 1); assert.equal(changes[0].status, 'stopped'); assert.equal(h.renders.at(-1)[0].status, 'stopped');
   h.provider.dispose();
 });
+
+
+test('native transport installs without a loopback frame and reads metadata immediately', async () => {
+  let appended = false, created = false; const calls = [];
+  const context = vm.createContext({ URL, crypto: { randomUUID: () => 'channel' },
+    window: { __cccTerminalNative: { async request(operation) { calls.push(operation); return { conversations: [] }; } },
+      addEventListener() {}, removeEventListener() {} },
+    document: { createElement() { created = true; throw Error('native mode must not create frames'); }, body: { append() { appended = true; } }, documentElement: {} },
+    MutationObserver: class { observe() {} disconnect() {} }, setInterval: () => 1, clearInterval() {}, clearTimeout() {}
+  });
+  context.makeSidebar = () => ({ render() {}, destroy() {} }); context.makeActions = () => ({ destroy() {} });
+  vm.runInContext(`globalThis.provider = (${installNativeTerminalProvider.toString()})('http://127.0.0.1:47831', () => ({}), makeSidebar, makeActions)`, context);
+  await tick(); assert.deepEqual(calls, ['list']); assert.equal(created, false); assert.equal(appended, false); context.provider.dispose();
+});

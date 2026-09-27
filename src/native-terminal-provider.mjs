@@ -4,11 +4,13 @@ import { createNativeTerminalActions } from './native-terminal-actions.mjs';
 
 export function installNativeTerminalProvider(dashboardUrl, readModel, makeSidebar, makeActions, prepareConnection = () => false) {
   window.__cccTerminalConversations?.dispose?.();
+  const native = window.__cccTerminalNative;
   const origin = new URL(dashboardUrl).origin, channel = crypto.randomUUID(), pending = new Map();
-  let ready = false, disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, acceptedVersion = 0;
-  const frame = document.createElement('iframe'); frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', '');
-  frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel);
+  let ready = Boolean(native), disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, acceptedVersion = 0;
+  const frame = native ? null : document.createElement('iframe');
+  if (frame) { frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', ''); frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel); }
   function request(operation, input = {}) {
+    if (native && !disposed) return native.request(operation, input);
     if (!ready || disposed) {
       if (!disposed && prepareConnection()) return Promise.reject(Error('正在准备会话管理，请页面恢复后再次操作'));
       return Promise.reject(Error('会话管理正在连接，请稍后重试'));
@@ -63,7 +65,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   const actions = makeActions({ documentRef: document, windowRef: window, request, accept, readModel });
   const sidebar = makeSidebar({ documentRef: document, readModel, open: record => window.__codexControlConsoleOpenTerminalConversation?.(record), menu: actions.menu });
   function receive(event) {
-    if (event.source !== frame.contentWindow || event.origin !== origin || event.data?.channel !== channel || disposed) return;
+    if (!frame || event.source !== frame.contentWindow || event.origin !== origin || event.data?.channel !== channel || disposed) return;
     if (event.data.type === 'codex-terminal-ready') { ready = true; void refresh(); return; }
     if (event.data.type !== 'codex-terminal-response') return;
     const entry = pending.get(event.data.id); if (!entry) return;
@@ -76,7 +78,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   }
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-project-collapsed', 'data-app-action-sidebar-section-collapsed', 'aria-selected'] });
-  window.addEventListener('message', receive); document.body.append(frame);
+  window.addEventListener('message', receive); if (frame) document.body.append(frame);
   const interval = setInterval(refresh, 5000);
   window.__cccTerminalConversations = {
     refresh, accept, create: actions.create, request,
@@ -89,8 +91,9 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
       catch (error) { actions.notice(error.message); return null; }
     },
     select(id) { selected = id || ''; sidebar.render(records, selected); },
-    dispose() { disposed = true; ready = false; clearInterval(interval); clearTimeout(timer); observer.disconnect(); window.removeEventListener('message', receive); frame.remove(); sidebar.destroy(); actions.destroy(); for (const entry of pending.values()) { clearTimeout(entry.timeout); entry.reject(Error('会话管理已重新连接')); } pending.clear(); }
+    dispose() { disposed = true; ready = false; clearInterval(interval); clearTimeout(timer); observer.disconnect(); window.removeEventListener('message', receive); frame?.remove(); sidebar.destroy(); actions.destroy(); for (const entry of pending.values()) { clearTimeout(entry.timeout); entry.reject(Error('会话管理已重新连接')); } pending.clear(); }
   };
+  if (native) void refresh();
   return window.__cccTerminalConversations;
 }
 

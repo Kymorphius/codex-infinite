@@ -249,6 +249,7 @@ export async function run() {
       turnStateProvider: turnStateService,
       recoverTarget: () => ensureDedicatedCodex(config),
       reloadAfterCspBypass: config.cspReloadRequired,
+      terminalConversations, terminalService,
       dashboardLauncher: nativeDashboardLaunchService
     });
     await injector.start();

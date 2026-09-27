@@ -38,6 +38,11 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
 - Provider-owned rows appear under the actual corresponding native project,
   plus pinned/unassigned projections. Rows offer rename, pin and archive.
 - Native project menu offers Claude and Shell creation for explicit local paths.
+- When the macOS native sidebar opens the console through its standalone launcher
+  binding, the project menu still installs the terminal conversation provider.
+  Terminal conversations render directly in the native main workspace through
+  the context-validated Runtime transport, without loopback frames or CSP bypass.
+  They retain project identity; other console modules use the native launcher.
 - Existing conversation tabs understand provider-qualified stable references;
   closing a tab only closes its view. Renaming updates tabs. Archived views are
   removed without killing the process. Restoring is available in session management.

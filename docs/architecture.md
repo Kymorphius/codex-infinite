@@ -184,3 +184,12 @@ Each feature owns its rendering, events, and view-specific formatting. Shared pr
 ## Structural debt
 
 All previously frozen source debt has been decomposed. New modules remain subject to the automated structure budget; budget increases require an ADR.
+
+## Native terminal transport on macOS
+
+The native terminal adapter uses a fixed Runtime binding checked against the
+top-level app context. It delegates metadata to TerminalConversationService and
+PTY streaming to TerminalService. The packaged xterm view and shared session
+controller render inside the native workspace without network frames or host CSP
+changes. Browser HTTP and WebSocket adapters keep their exact-origin checks.
+See ADR 0029 and the native terminal transport specification.

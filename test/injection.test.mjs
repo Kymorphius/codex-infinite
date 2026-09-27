@@ -40,16 +40,17 @@ test("outer injection version tracks native tabs source so recent menu changes r
   const source = buildInjectionScript("http://127.0.0.1:47831");
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
   const providerDigest = createHash("sha256").update(buildNativeProviderNavigationSource()).digest("hex").slice(0, 12);
-  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.tabs-${digest}\\.provider-${providerDigest}\\.standalone-false"`));
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.standalone-false"`));
   assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);
 });
 
-test("standalone dashboard mode routes entries through the native binding without installing loopback frames", () => {
+test("standalone dashboard mode routes existing modules through the native binding and keeps terminal conversations embedded", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831", { standaloneDashboardBinding: "codexControlConsoleOpenDashboard" });
   assert.match(source, /const STANDALONE_DASHBOARD_BINDING = "codexControlConsoleOpenDashboard"/);
+  assert.match(source, /if \(module !== 'terminal' && STANDALONE_DASHBOARD_BINDING && typeof window\[STANDALONE_DASHBOARD_BINDING\] === 'function'\)/);
+  assert.match(source, /installNativeTerminalProvider\(DASHBOARD_URL, readNativeSidebarModel, createNativeTerminalSidebar, createNativeTerminalActions/);
   assert.match(source, /window\[STANDALONE_DASHBOARD_BINDING\]\(JSON\.stringify/);
-  assert.match(source, /if \(!STANDALONE_DASHBOARD_BINDING\) installNativeTerminalProvider/);
   assert.match(source, /standalone-true/);
   assert.doesNotThrow(() => new Function(source));
 });

@@ -39,7 +39,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.tabs-${digest}.provider-${providerDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.terminal-inline.tabs-${digest}.provider-${providerDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -89,6 +89,7 @@ ${placeNativeBoardBelowChecklist.toString()}
 
   function restoreWorkspace() {
     cancelEmbeddedFrameRecovery();
+    window.__cccNativeTerminalView?.dispose();
     if (!workspaceHost) {
       document.querySelector(WORKSPACE_SELECTOR)?.remove();
       frame = null;
@@ -135,7 +136,7 @@ ${placeNativeBoardBelowChecklist.toString()}
 
   function openWorkspace(module = 'board', loadingLabel = '', activateConsole = true) {
     if (module !== 'terminal') cancelTerminalNavigation();
-    if (STANDALONE_DASHBOARD_BINDING && typeof window[STANDALONE_DASHBOARD_BINDING] === 'function') {
+    if (module !== 'terminal' && STANDALONE_DASHBOARD_BINDING && typeof window[STANDALONE_DASHBOARD_BINDING] === 'function') {
       window[STANDALONE_DASHBOARD_BINDING](JSON.stringify({ module: ['console', 'sessions', 'priority', 'projects', 'conversations', 'terminal'].includes(module) ? module : 'board' }));
       return;
     }
@@ -328,7 +329,7 @@ ${providerSource}
       openRemote: (tab) => openRemoteConversation(tab),
       openTerminal: (tab) => openTerminalConversation(tab)
     });
-    if (!STANDALONE_DASHBOARD_BINDING) installNativeTerminalProvider(DASHBOARD_URL, readNativeSidebarModel, createNativeTerminalSidebar, createNativeTerminalActions, () => requestEmbeddedFramePreparation('projects'));
+    if (!STANDALONE_DASHBOARD_BINDING || window.__cccTerminalNative) installNativeTerminalProvider(DASHBOARD_URL, readNativeSidebarModel, createNativeTerminalSidebar, createNativeTerminalActions, () => requestEmbeddedFramePreparation('projects'));
     window.__codexControlConsoleNativeThreadListener = handleNativeThreadSelection;
     document.addEventListener('click', handleNativeThreadSelection, true);
     window.__codexControlConsoleObserver = new MutationObserver(scheduleInstall);
