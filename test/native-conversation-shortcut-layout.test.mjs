@@ -18,10 +18,10 @@ function fixture() {
   const observed = new Set();
   const window = { innerHeight: 900, innerWidth: 1200, getComputedStyle: () => ({ marginTop: '12px' }),
     ResizeObserver: class { constructor(fn) { callback = fn; } observe(n) { observed.add(n); } unobserve(n) { observed.delete(n); } disconnect() { observed.clear(); } } };
-  const dialogs = [], menus = [];
-  const document = { head: { append() {} }, createElement: element, querySelectorAll: selector => selector.startsWith('dialog') ? dialogs : menus, querySelector: () => current && ({ closest: () => current }) };
+  const dialogs = [], menus = [], modelControls = [];
+  const document = { head: { append() {} }, createElement: element, querySelectorAll: selector => selector.startsWith('dialog') ? dialogs : selector.startsWith('[data-reasoning-slider]') ? modelControls : menus, querySelector: () => current && ({ closest: () => current }) };
   const layout = createConversationShortcutLayout(document, window, toolbar);
-  return { layout, host, toolbar, observed, dialogs, menus, writes: () => writes, resize: () => callback(), switchTo: node => { current = node; }, window };
+  return { layout, host, toolbar, observed, dialogs, menus, modelControls, writes: () => writes, resize: () => callback(), switchTo: node => { current = node; }, window };
 }
 
 test('shortcuts reserve real space above the composer instead of covering goal/task content', () => {
@@ -62,6 +62,21 @@ test('visible hooks/dialog overlays hide shortcuts while preserving spacing, the
   dialog.getClientRects = () => [{}]; dialog.getAttribute = key => key === 'data-state' ? 'closed' : null;
   f.layout.update(); assert.equal(f.toolbar.hidden, false);
   f.dialogs.length = 0; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+});
+
+test('model and reasoning controls yield space even without menu or dialog semantics', () => {
+  const f = fixture(); f.layout.update();
+  const control = { hidden: false, getAttribute: () => null, getClientRects: () => [{}] };
+  f.modelControls.push(control);
+  f.layout.update(); assert.equal(f.toolbar.hidden, true);
+  f.layout.update(); assert.equal(f.toolbar.hidden, true);
+  assert.equal(f.host.values.get('--ccc-shortcut-height'), '50px');
+  control.getClientRects = () => [];
+  f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  control.getClientRects = () => [{}];
+  f.layout.update(); assert.equal(f.toolbar.hidden, true);
+  f.modelControls.length = 0;
+  f.layout.update(); assert.equal(f.toolbar.hidden, false);
 });
 
 test('toolbar follows native composer surface and font across appearances', () => {

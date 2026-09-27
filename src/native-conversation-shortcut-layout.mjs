@@ -31,6 +31,7 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       return appearance.visibility !== 'hidden' && appearance.visibility !== 'collapse' && appearance.display !== 'none';
     };
     const modal = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')).some(isVisible);
+    const modelPicker = Array.from(document.querySelectorAll('[data-reasoning-slider],[data-model-picker-view-toggle],[data-composer-navigation-target="reasoning"][aria-expanded="true"],[data-composer-navigation-target="model"][aria-expanded="true"]')).some(isVisible);
     const measured = toolbar.getBoundingClientRect();
     if (!toolbar.hidden && measured.width > 0) lastBox = measured;
     const toolBox = lastBox || measured;
@@ -39,7 +40,7 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       const bounds = node.getBoundingClientRect();
       return bounds.left < toolBox.right && bounds.right > toolBox.left && bounds.top < toolBox.bottom && bounds.bottom > toolBox.top;
     });
-    const visible = !modal && !menu && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
+    const visible = !modal && !modelPicker && !menu && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
     const appearance = window.getComputedStyle(host);
