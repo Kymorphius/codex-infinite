@@ -2,12 +2,14 @@ import { TerminalConversationStore } from './terminal-conversation-store.mjs';
 import { terminalConversationCreate, terminalConversationUpdate, terminalConversationId } from './terminal-conversation-contract.mjs';
 import { terminalError } from './terminal-contract.mjs';
 import { hasClaudeTranscript } from './terminal-conversation-transcript.mjs';
+import { createClaudeTitleReader, DEFAULT_CLAUDE_TITLE } from './terminal-conversation-title.mjs';
 
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
-    transcriptExists = hasClaudeTranscript } = {}) {
+    transcriptExists = hasClaudeTranscript, claudeTitle } = {}) {
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
+    this.claudeTitle = claudeTitle || (terminalService?.userHome ? createClaudeTitleReader({ userHome: terminalService.userHome }) : async () => '');
     this.runtimes = new Map(); this.operations = new Map(); this.runtimeErrors = new Map();
   }
 
@@ -28,20 +30,30 @@ export class TerminalConversationService {
       status: runtimeSummary?.status || 'stopped', runtimeError: this.runtimeErrors.get(record.id) || null };
   }
 
+  // A Claude conversation still carrying the default title follows Claude's own title
+  // (/rename, else generated). A title set here always wins; the store is unchanged.
+  async view(record) {
+    const presented = this.present(record);
+    if (record.kind !== 'claude' || record.title !== DEFAULT_CLAUDE_TITLE) return presented;
+    let title = '';
+    try { title = await this.claudeTitle(record.id); } catch { /* Keep the stored title when the transcript is unreadable. */ }
+    return title ? { ...presented, title } : presented;
+  }
+
   async list() {
     const records = await this.store.list();
-    return { conversations: records.map(record => this.present(record)), deviceId: this.deviceId,
+    return { conversations: await Promise.all(records.map(record => this.view(record))), deviceId: this.deviceId,
       defaultCwd: this.terminalService.defaultCwd };
   }
 
-  async open({ id }) { return this.present(await this.store.get(terminalConversationId(id))); }
+  async open({ id }) { return this.view(await this.store.get(terminalConversationId(id))); }
 
   async create(input) {
     const normalized = terminalConversationCreate(input);
     await this.terminalService.validateCwd(normalized.cwd); await this.project(normalized.projectRef, normalized.cwd);
     const record = await this.store.create(normalized);
     try { return await this.start({ id: record.id }); }
-    catch (error) { this.runtimeErrors.set(record.id, error.message); return this.present(await this.store.get(record.id)); }
+    catch (error) { this.runtimeErrors.set(record.id, error.message); return this.view(await this.store.get(record.id)); }
   }
 
   exclusive(id, operation) {
@@ -57,7 +69,7 @@ export class TerminalConversationService {
     return this.exclusive(id, async () => {
       const record = await this.store.get(id), existing = this.runtime(record);
       if (record.archived) throw terminalError(409, '请先恢复已归档的会话');
-      if (existing?.status === 'running') return this.present(await this.store.get(record.id));
+      if (existing?.status === 'running') return this.view(await this.store.get(record.id));
       if (existing) { await this.terminalService.close(existing.id); this.runtimes.delete(id); }
       let options = {};
       if (record.kind === 'claude') options = { claudeSessionId: id,
@@ -65,7 +77,7 @@ export class TerminalConversationService {
       try {
         const session = await this.terminalService.createManaged({ cwd: record.cwd, kind: record.kind }, options);
         this.runtimes.set(id, session.id); this.runtimeErrors.delete(id);
-        return this.present(await this.store.get(record.id));
+        return this.view(await this.store.get(record.id));
       } catch (error) { this.runtimeErrors.set(id, error.message); throw error; }
     });
   }
@@ -74,7 +86,7 @@ export class TerminalConversationService {
     const { id, expectedRevision, changes } = terminalConversationUpdate(input);
     const record = await this.store.get(id);
     if (Object.hasOwn(changes, 'projectRef')) await this.project(changes.projectRef, record.cwd);
-    return this.present(await this.store.update(id, expectedRevision, changes));
+    return this.view(await this.store.update(id, expectedRevision, changes));
   }
 
   stop({ id }) {
@@ -82,7 +94,7 @@ export class TerminalConversationService {
     return this.exclusive(id, async () => {
       const record = await this.store.get(id), runtime = this.runtime(record);
       if (runtime) await this.terminalService.close(runtime.id);
-      this.runtimes.delete(id); this.runtimeErrors.delete(id); return this.present(await this.store.get(record.id));
+      this.runtimes.delete(id); this.runtimeErrors.delete(id); return this.view(await this.store.get(record.id));
     });
   }
 }

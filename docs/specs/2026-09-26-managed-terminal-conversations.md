@@ -25,6 +25,13 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   `{id,expectedRevision,title?,pinned?,archived?,projectRef?}`. `/stop` closes the
   owned runtime, retaining metadata. Archive retains a running process; stopping
   is separate and explicit. Responses return `{conversation}`.
+- A Claude record whose stored title is still the default `Claude CLI` is presented
+  with Claude's own title from its managed transcript: the latest `custom-title`
+  (/rename), else the latest `ai-title`. This is projection only; the registry is
+  not written, and any title set through `/update` wins. The reader opens only
+  `~/.claude/projects/*/<id>.jsonl` inside the real projects root, advances
+  incrementally past complete lines, strips control characters and caps length.
+  An unreadable transcript keeps the stored title.
 - Creation validates an explicit existing absolute cwd; local native project
   references are verified against the native project snapshot. No remote cwd
   guessing and no terminal IDs passed to native Codex execution APIs.
