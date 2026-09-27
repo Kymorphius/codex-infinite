@@ -187,3 +187,28 @@ None.
   each project's conversations remained newest-first.
 - Syntax and structure checks passed for 182 and 200 files respectively with
   zero frozen debt. All 269 tests passed.
+
+## Template stability (2026-09-28)
+
+Native project and thread rows exist only while a native section is expanded, so
+a refresh with every native section collapsed used to render remote rows with
+empty classes: no indent, no icon, counts wrapped under names.
+`src/native-remote-sidebar-templates.mjs` keeps the last captured native section,
+heading, row and content templates for the window. When none has been seen yet,
+it falls back to native-equivalent classes and markup (icon slot, outlined folder
+glyph, label leaf). The remote root uses the native section class, so its heading
+aligns with other sections. The re-render signature compares classes only, so
+native marquee and state attributes do not cause re-render churn. Covered by
+`test/native-remote-sidebar-templates.test.mjs`; checked visually with every
+native section collapsed, including an expanded device.
+
+## Template resilience (2026-09-28)
+
+Remote rows copy native row classes and content from live native project and
+thread rows. Those rows exist only while a native section is expanded, so a
+refresh with every native section collapsed used to render unstyled rows:
+full-width labels, counts on their own line and a heading offset from its
+siblings. `src/native-remote-sidebar-templates.mjs` now caches each captured
+template value and otherwise falls back to native-equivalent classes, content,
+section padding and a folder icon. The remote section root takes the native
+section class. Tests cover the collapsed fallback and cache retention.

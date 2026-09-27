@@ -1,4 +1,5 @@
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
+import { createNativeRemoteTemplates } from './native-remote-sidebar-templates.mjs';
 import { buildNativeRemoteSidebarRenderSource } from "./native-remote-sidebar-render.mjs";
 import { calculateProjectPriority } from "../public/core/project-priority.js";
 import { buildNativeRemoteProjectCopyUiSource } from "./native-remote-project-copy-ui.mjs";
@@ -182,24 +183,9 @@ export function buildNativeRemoteSidebarInjectionScript() {
     };
   }
 
-  function nativeTemplates() {
-    const projects = nativeProjectsSection();
-    const heading = projects?.querySelector('[data-app-action-sidebar-section-toggle]');
-    const project = projects?.querySelector('[data-app-action-sidebar-project-row]') || document.querySelector('[data-app-action-sidebar-project-row]');
-    const thread = document.querySelector('[data-app-action-sidebar-thread-id]:not([data-app-action-sidebar-thread-selected="true"])') || document.querySelector('[data-app-action-sidebar-thread-id]');
-    return {
-      headingClass: heading?.className || '',
-      headingContainerClass: heading?.parentElement?.parentElement?.parentElement?.className || '',
-      headingTextClass: heading?.parentElement?.parentElement?.className || '',
-      projectClass: project?.className || '',
-      projectContent: project?.firstElementChild || null,
-      threadClass: String(thread?.className || '').split(/\\s+/).filter((token) => token !== 'bg-primary-ghost-hover').join(' '),
-      threadContent: Array.from(thread?.children || []).find((child) => child.classList?.contains('flex') && child.classList?.contains('h-full')) || null,
-      projectIcon: project?.firstElementChild?.querySelector('svg') || null,
-    };
-  }
+  const nativeTemplates = (${createNativeRemoteTemplates.toString()})(document, () => nativeProjectsSection());
 
-  function templatesSignature(templates) { return [templates.headingClass, templates.projectClass, templates.threadClass, Boolean(templates.projectContent), Boolean(templates.threadContent)].join('\\n'); }
+  function templatesSignature(templates) { return [templates.sectionClass, templates.headingClass, templates.projectClass, templates.threadClass, templates.projectContent?.className, templates.threadContent?.className].join('\\n'); }
   function applyTypography(node, typography, color) {
     node.style.fontFamily = typography.fontFamily;
     node.style.fontSize = typography.fontSize;

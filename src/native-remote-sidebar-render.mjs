@@ -3,7 +3,7 @@ export function buildNativeRemoteSidebarRenderSource() {
     const typography = nativeTypography();
     const templates = nativeTemplates();
     templateSignature = templatesSignature(templates);
-    const nextRoot = element('section', null, 'display:block;color:inherit;');
+    const nextRoot = element('section', null, 'display:block;color:inherit;'); nextRoot.className = templates.sectionClass;
     nextRoot.setAttribute('data-codex-control-console-remote-sidebar', '');
     nextRoot.append(nativeSectionHeader('远端', templates));
     for (const device of devices) {

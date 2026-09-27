@@ -141,7 +141,7 @@ test("remote sidebar injection owns one ordered subtree above cloud work and pre
   assert.match(source, /data-app-action-sidebar-project-row/);
   assert.match(source, /data-app-action-sidebar-thread-id.*text-base/);
   assert.match(source, /thread-selected="true"/);
-  assert.match(source, /function nativeTemplates\(\)/);
+  assert.match(source, /const nativeTemplates = \(function createNativeRemoteTemplates\(/);
   assert.match(source, /templatesSignature/);
   assert.match(source, /headingClass/);
   assert.match(source, /projectClass/);
