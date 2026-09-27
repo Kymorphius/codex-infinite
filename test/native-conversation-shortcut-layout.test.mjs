@@ -12,14 +12,16 @@ function fixture() {
   host.getBoundingClientRect = () => ({ left: 180, top: 600 + (parseFloat(host.values.get('--ccc-shortcut-height')) || 0), width: 700, height: 100 });
   let current = host;
   const toolbar = element(); toolbar.hidden = true; toolbar.height = 34;
-  toolbar.getBoundingClientRect = () => ({ height: toolbar.height });
+  toolbar.getBoundingClientRect = () => toolbar.hidden ? ({ height: 0, width: 0, left: 0, right: 0, top: 0, bottom: 0 })
+    : ({ height: toolbar.height, width: 676, left: 192, right: 868, top: 608, bottom: 642 });
+  toolbar.contains = node => node?.owned === true;
   const observed = new Set();
   const window = { innerHeight: 900, innerWidth: 1200, getComputedStyle: () => ({ marginTop: '12px' }),
     ResizeObserver: class { constructor(fn) { callback = fn; } observe(n) { observed.add(n); } unobserve(n) { observed.delete(n); } disconnect() { observed.clear(); } } };
-  const dialogs = [];
-  const document = { head: { append() {} }, createElement: element, querySelectorAll: () => dialogs, querySelector: () => current && ({ closest: () => current }) };
+  const dialogs = [], menus = [];
+  const document = { head: { append() {} }, createElement: element, querySelectorAll: selector => selector.startsWith('dialog') ? dialogs : menus, querySelector: () => current && ({ closest: () => current }) };
   const layout = createConversationShortcutLayout(document, window, toolbar);
-  return { layout, host, toolbar, observed, dialogs, writes: () => writes, resize: () => callback(), switchTo: node => { current = node; }, window };
+  return { layout, host, toolbar, observed, dialogs, menus, writes: () => writes, resize: () => callback(), switchTo: node => { current = node; }, window };
 }
 
 test('shortcuts reserve real space above the composer instead of covering goal/task content', () => {
@@ -73,4 +75,17 @@ test('toolbar follows native composer surface and font across appearances', () =
   assert.equal(f.toolbar.values.get('--ccc-shortcut-surface'), backgroundColor);
   backgroundColor = 'rgba(0, 0, 0, 0)'; f.layout.update();
   assert.equal(f.toolbar.values.has('--ccc-shortcut-surface'), false);
+});
+
+test('overlapping native menus yield to their actions while own and distant menus remain usable', () => {
+  const f = fixture(); f.layout.update();
+  const menu = { hidden: false, owned: false, getAttribute: () => null, getClientRects: () => [{}],
+    getBoundingClientRect: () => ({ left: 700, right: 900, top: 590, bottom: 700 }) };
+  f.menus.push(menu); f.layout.update(); assert.equal(f.toolbar.hidden, true);
+  f.layout.update(); assert.equal(f.toolbar.hidden, true, 'hidden toolbar retains its previous hit area without flashing');
+  assert.equal(f.host.values.get('--ccc-shortcut-height'), '50px');
+  menu.owned = true; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  menu.owned = false; menu.getBoundingClientRect = () => ({ left: 900, right: 1100, top: 590, bottom: 700 });
+  f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  menu.hidden = true; f.layout.update(); assert.equal(f.toolbar.hidden, false);
 });

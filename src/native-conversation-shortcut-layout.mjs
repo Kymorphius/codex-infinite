@@ -5,13 +5,13 @@ export function createConversationShortcutLayout(document, window, toolbar) {
   const style = document.createElement('style');
   style.textContent = `[${attribute}]{margin-top:calc(var(${base},0px) + var(${space},44px))!important}`;
   document.head.append(style);
-  let host = null, disposed = false;
+  let host = null, disposed = false, lastBox = null;
   const set = (node, key, value) => { if (node.style.getPropertyValue(key) !== value) node.style.setProperty(key, value); };
   const release = () => {
     if (!host) return;
     observer?.unobserve(host);
     host.removeAttribute(attribute); host.style.removeProperty(base); host.style.removeProperty(space);
-    host = null;
+    host = null; lastBox = null;
   };
   const update = () => {
     if (disposed) return;
@@ -24,13 +24,22 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       }
     }
     const box = host?.getBoundingClientRect();
-    const modal = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')).some(node => {
+    const isVisible = node => {
       if (node.hidden || node.getAttribute('aria-hidden') === 'true' || node.getAttribute('data-state') === 'closed') return false;
       if (!node.getClientRects().length) return false;
       const appearance = window.getComputedStyle(node);
       return appearance.visibility !== 'hidden' && appearance.visibility !== 'collapse' && appearance.display !== 'none';
+    };
+    const modal = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')).some(isVisible);
+    const measured = toolbar.getBoundingClientRect();
+    if (!toolbar.hidden && measured.width > 0) lastBox = measured;
+    const toolBox = lastBox || measured;
+    const menu = Array.from(document.querySelectorAll('[role="menu"],[role="listbox"],[data-radix-menu-content]')).some(node => {
+      if (toolbar.contains?.(node) || !isVisible(node)) return false;
+      const bounds = node.getBoundingClientRect();
+      return bounds.left < toolBox.right && bounds.right > toolBox.left && bounds.top < toolBox.bottom && bounds.bottom > toolBox.top;
     });
-    const visible = !modal && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
+    const visible = !modal && !menu && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
     const appearance = window.getComputedStyle(host);
