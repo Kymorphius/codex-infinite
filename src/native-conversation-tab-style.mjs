@@ -12,6 +12,6 @@ export function buildNativeConversationTabStyle(root, titleHiddenAttribute, tran
     '[data-codex-control-console-conversation-shortcuts] .ccc-native-recent-trigger:active{background:color-mix(in srgb,currentColor 12%,transparent)}' +
     '[data-codex-control-console-conversation-shortcuts] .ccc-native-recent-trigger>svg{opacity:.8}' +
     '@media(prefers-reduced-motion:reduce){[data-codex-control-console-conversation-shortcuts] .ccc-native-recent-trigger{transition:none}}' +
-    '@container ccc-native-shortcuts (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}}' +
+    '@container ccc-native-shortcuts (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}[data-codex-control-console-conversation-shortcuts]>.ccc-native-recent,[data-codex-control-console-conversation-shortcuts]>.ccc-native-recent-trigger{flex:1 1 0!important;min-width:0;justify-content:center}[data-codex-control-console-conversation-shortcuts]>.ccc-native-recent{position:static}[data-codex-control-console-conversation-shortcuts] .ccc-native-recent-trigger{width:100%;justify-content:center;padding:3px 6px;gap:5px}[data-codex-control-console-conversation-shortcuts] .ccc-native-recent-menu{left:0;right:auto;width:100%;box-sizing:border-box}}' +
     '@media(max-width:720px){' + root + ' .ccc-native-console{min-width:76px;flex-basis:82px}' + root + ' .ccc-native-tab{min-width:104px;flex-basis:150px}}';
 }

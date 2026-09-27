@@ -28,6 +28,8 @@ test("recent conversations are newest-first, bounded, and active-first", () => {
 test("recent menu injection is bounded, dismissable, and route-oriented", () => {
   const source = buildNativeRecentConversationMenuInjectionSource();
   assert.match(source, /aria-haspopup/);
+  assert.match(source, /m6 15 6-6 6 6/);
+  assert.doesNotMatch(source, /m6 9 6 6 6-6/);
   assert.match(source, /最近会话/);
   assert.match(source, /暂无最近会话/);
   assert.match(source, /activate\(tab\.key\)/);

@@ -76,7 +76,7 @@ export function installNativeRecentConversationMenu({
   triggerChevron.setAttribute("stroke-linecap", "round");
   triggerChevron.setAttribute("stroke-linejoin", "round");
   const chevronPath = documentRef.createElementNS("http://www.w3.org/2000/svg", "path");
-  chevronPath.setAttribute("d", "m6 9 6 6 6-6");
+  chevronPath.setAttribute("d", "m6 15 6-6 6 6");
   triggerChevron.append(chevronPath);
   trigger.append(triggerIcon, triggerLabel, triggerChevron);
 
@@ -275,7 +275,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.58}' +
   '.ccc-native-recent-empty{margin:0;padding:18px;text-align:center;font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.6}' +
   '@container ccc-native-tabs (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}}' +
-  '@media(max-width:720px){.ccc-native-recent-trigger>span:nth-child(2){display:none}.ccc-native-recent-menu{left:-4px}}';
+  '@media(max-width:720px){.ccc-native-recent-menu{left:-4px}}';
 
 export function buildNativeRecentConversationMenuInjectionSource() {
   return [

@@ -24,4 +24,6 @@ test('composer shortcuts use native surface tokens and quiet chrome with accessi
   assert.match(style, /font:400 13px\/20px/);
   assert.match(style, /prefers-reduced-motion:reduce/);
   assert.match(style, /@container ccc-native-shortcuts \(max-width:430px\)/);
+  assert.match(style, /flex:1 1 0!important;min-width:0;justify-content:center/);
+  assert.match(style, /left:0;right:auto;width:100%;box-sizing:border-box/);
 });
