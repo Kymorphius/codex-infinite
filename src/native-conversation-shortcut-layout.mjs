@@ -15,7 +15,11 @@ export function createConversationShortcutLayout(document, window, toolbar) {
   };
   const update = () => {
     if (disposed) return;
-    const next = document.querySelector('[data-codex-composer="true"][contenteditable="true"]')?.closest('[data-composer-surface-variant]') || null;
+    // Inside a terminal conversation the native composer is hidden; anchor to the
+    // terminal composer instead, which reserves the row through its own margin.
+    const terminalAnchor = window.__cccNativeTerminalView?.composer;
+    const terminal = terminalAnchor?.isConnected ? terminalAnchor : null;
+    const next = terminal ? null : document.querySelector('[data-codex-composer="true"][contenteditable="true"]')?.closest('[data-composer-surface-variant]') || null;
     if (next !== host) {
       release(); host = next;
       if (host) {
@@ -23,7 +27,7 @@ export function createConversationShortcutLayout(document, window, toolbar) {
         host.setAttribute(attribute, ''); observer?.observe(host);
       }
     }
-    const box = host?.getBoundingClientRect();
+    const anchor = terminal || host, box = anchor?.getBoundingClientRect();
     const isVisible = node => {
       if (node.hidden || node.getAttribute('aria-hidden') === 'true' || node.getAttribute('data-state') === 'closed') return false;
       if (!node.getClientRects().length) return false;
@@ -43,15 +47,16 @@ export function createConversationShortcutLayout(document, window, toolbar) {
     const visible = !modal && !modelPicker && !menu && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
-    const appearance = window.getComputedStyle(host);
+    const appearance = window.getComputedStyle(anchor);
     const surface = appearance.backgroundColor;
     if (surface && surface !== 'transparent' && surface !== 'rgba(0, 0, 0, 0)') set(toolbar, '--ccc-shortcut-surface', surface);
     else toolbar.style.removeProperty('--ccc-shortcut-surface');
     if (appearance.fontFamily) set(toolbar, '--ccc-shortcut-font', appearance.fontFamily);
     const inset = box.width > 100 ? 12 : 4;
     set(toolbar, 'width', Math.max(0, Math.min(box.width - inset * 2, window.innerWidth - box.left - inset - 8)) + 'px');
-    set(host, space, (toolbar.getBoundingClientRect().height || 34) + 16 + 'px');
-    const placed = host.getBoundingClientRect();
+    const reserve = (toolbar.getBoundingClientRect().height || 34) + 16 + 'px';
+    if (terminal) set(terminal, 'margin-top', reserve); else set(host, space, reserve);
+    const placed = anchor.getBoundingClientRect();
     set(toolbar, 'left', Math.max(8, Math.round(placed.left + inset)) + 'px');
     set(toolbar, 'bottom', Math.max(8, Math.round(window.innerHeight - placed.top + 8)) + 'px');
   };

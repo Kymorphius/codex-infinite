@@ -16,7 +16,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const style = el('style'); style.textContent = css;
     const layout = el('div', 'layout'), bar = el('header', 'bar'), title = el('strong'), chip = el('span', 'chip'), cwd = el('span', 'cwd');
     const launch = el('button', 'launch', '启动会话'); bar.append(title, chip, cwd, launch);
-    const output = el('div', 'output'), composer = el('div', 'composer'), hint = el('div', 'hint', 'Enter 发送 · Shift+Enter 换行 · 点击上方终端可直接键入');
+    const output = el('div', 'output'), composer = el('div', 'composer');
     const draft = el('textarea'); draft.rows = 1; draft.placeholder = '发送到终端…'; draft.setAttribute('aria-label', '终端会话输入');
     const footer = el('footer'), status = el('span', 'status'), send = el('button', 'send');
     status.setAttribute('role', 'status'); send.setAttribute('aria-label', '发送到终端'); send.disabled = true;
@@ -34,7 +34,35 @@ export function installNativeTerminalView(createSession, statusText, css) {
     more.insertAdjacentHTML?.('beforeend', '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>');
     menu.append(el('span', '', '直接发送到终端'), grid, paste); keys.append(more, menu);
     footer.append(keyButton('pill', '打断', 'interrupt', '⌃C'), keyButton('pill', 'Esc', 'escape'), keys, status, send);
-    composer.append(draft, footer); layout.append(bar, output, composer, hint); shadow.append(style, layout); host.append(root);
+    composer.append(draft, footer); layout.append(bar, output, composer); shadow.append(style, layout); host.append(root);
+    // The native header keeps showing the last native conversation's name. Put this
+    // conversation's title bar in that slot (trailing native actions stay) and fall back
+    // to the in-view bar when the header is absent. React may remount the header, so re-attach.
+    // The native toolbar disables pointer events and re-enables them per control; so do we.
+    const titleHost = el('div'); titleHost.setAttribute('data-ccc-terminal-titlebar-content', '');
+    titleHost.style.cssText = 'display:flex;flex:1;min-width:0;height:100%;align-items:center';
+    const titleShadow = titleHost.attachShadow({ mode: 'open' }), titleStyle = el('style');
+    titleStyle.textContent = css + ':host .bar{border:0;padding:0 6px;min-height:0;height:100%;width:100%}.launch{-webkit-app-region:no-drag;app-region:no-drag}.bar strong,.cwd,.launch{pointer-events:auto}';
+    titleShadow.append(titleStyle);
+    let headerStyle = document.getElementById('ccc-terminal-titlebar-style');
+    if (!headerStyle) { headerStyle = el('style'); headerStyle.id = 'ccc-terminal-titlebar-style'; document.head.append(headerStyle); }
+    headerStyle.textContent = 'html[data-ccc-terminal-titlebar] [data-app-shell-header-toolbar]>:has([data-app-shell-titlebar-content]){display:none!important}';
+    let placing = false;
+    function placeTitle() {
+      placing = false; if (disposed) return;
+      const toolbar = document.querySelector('[data-app-shell-focus-area="main"] [data-app-shell-header-toolbar]');
+      if (!toolbar) { if (bar.parentNode !== layout) layout.prepend(bar); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); return; }
+      if (bar.parentNode !== titleShadow) titleShadow.append(bar);
+      if (titleHost.parentNode !== toolbar) toolbar.prepend(titleHost);
+      document.documentElement.setAttribute('data-ccc-terminal-titlebar', '');
+    }
+    const headerObserver = new MutationObserver(() => { if (!placing && !disposed) { placing = true; requestAnimationFrame(placeTitle); } });
+    headerObserver.observe(document.body, { childList: true, subtree: true });
+    placeTitle();
+    // The shared 消息搜索 / 最近会话 / 最近发送 bar anchors to this composer (see state.composer).
+    const relayout = () => { if (!disposed) window.__codexControlConsoleConversationTabs?.relayout?.(); };
+    const composerObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(relayout) : null;
+    composerObserver?.observe(composer);
     shadow.addEventListener('pointerdown', event => { if (keys.open && !event.composedPath?.().includes(keys)) keys.open = false; });
     function setStatus(text, tone) { status.textContent = text; status.title = text; status.setAttribute('data-tone', tone); }
     function setNotice(text) { notice = text; setStatus(text, 'bad'); }
@@ -50,11 +78,18 @@ export function installNativeTerminalView(createSession, statusText, css) {
       chip.hidden = chip.textContent === record.title;
       cwd.textContent = (record.cwd || '').replace(/^\/Users\/[^/]+(?=\/|$)/u, '~'); cwd.title = record.cwd || '';
     }
+    // Stopped here: startable, or read-only while another Claude window holds the session.
+    function showStopped() {
+      launch.hidden = record.status === 'running' || Boolean(record.occupiedElsewhere);
+      if (record.occupiedElsewhere) setStatus('正在其他 Claude 窗口中运行 · 此处只读', 'held');
+      else setStatus(record.runtimeError || '会话已停止，点击右上角启动', record.runtimeError ? 'bad' : 'idle');
+    }
     function fit() { draft.style.height = 'auto'; if (draft.scrollHeight) draft.style.height = Math.min(draft.scrollHeight, 200) + 'px'; }
     function sync(state = view?.snapshot()) {
       const canInput = Boolean(state?.canInput) && !busy;
       send.disabled = !canInput || !draft.value; send.setAttribute('data-sending', String(busy));
       for (const button of inputs) button.disabled = !canInput;
+      keys.toggleAttribute?.('data-disabled', !canInput); if (!canInput) keys.open = false;
     }
     const draftKey = 'terminal-draft:' + record.id;
     try { draft.value = sessionStorage.getItem(draftKey) || ''; } catch {}
@@ -73,9 +108,10 @@ export function installNativeTerminalView(createSession, statusText, css) {
       event.stopPropagation();
     };
     function mount(value) {
-      record = value; showRecord(); launch.hidden = record.status === 'running';
+      record = value; showRecord();
       view?.dispose(); view = null; last = null; notice = ''; output.replaceChildren(); sync(null);
-      if (!record.runtimeSummary) { setStatus(record.runtimeError || '会话已停止，点击右上角启动', record.runtimeError ? 'bad' : 'idle'); return; }
+      if (!record.runtimeSummary) return showStopped();
+      launch.hidden = record.status === 'running';
       const terminalHost = el('div'); terminalHost.style.cssText = 'width:100%;height:100%'; output.append(terminalHost);
       view = createSession(record.runtimeSummary, { host: terminalHost,
         WebSocketCtor: api.socketClass(record.id), locationRef: { href: 'http://127.0.0.1/', protocol: 'http:' },
@@ -91,9 +127,9 @@ export function installNativeTerminalView(createSession, statusText, css) {
       catch (error) { if (!disposed) setNotice(error.message); }
       finally { if (!disposed) launch.disabled = false; }
     };
-    const state = { id: record.id, update(value) { if (disposed || value.id !== record.id) return; if (value.archived) state.dispose(); else if (value.runtimeSessionId !== record.runtimeSessionId) mount(value); else { record = value; showRecord(); } },
-      dispose() { if (disposed) return; disposed = true; generation++; view?.dispose(); root.remove(); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; }
+    const state = { id: record.id, composer, update(value) { if (disposed || value.id !== record.id) return; if (value.archived) state.dispose(); else if (value.runtimeSessionId !== record.runtimeSessionId) mount(value); else { record = value; showRecord(); if (!view) showStopped(); } },
+      dispose() { if (disposed) return; disposed = true; generation++; view?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
-    window.__cccNativeTerminalView = state; mount(record); fit(); sync(); return true;
+    window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;
   };
 }

@@ -32,6 +32,14 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   `~/.claude/projects/*/<id>.jsonl` inside the real projects root, advances
   incrementally past complete lines, strips control characters and caps length.
   An unreadable transcript keeps the stored title.
+- A managed Claude session another Claude process holds is read-only here, like a
+  native conversation in use elsewhere. Claude registers running sessions as
+  `~/.claude/sessions/<pid>.json`; only those JSON registrations are read (never the
+  adjacent `.key` files), within the real user home, bounded in size, and only while
+  the pid is alive. Any id on the `continued-in` chain counts. Presented records gain
+  `occupiedElsewhere` (false while our own PTY runs); `/start` refuses with 409 before
+  spawning; the view hides 启动会话, keeps inputs disabled and shows
+  「正在其他 Claude 窗口中运行 · 此处只读」 until the other process exits.
 - Creation validates an explicit existing absolute cwd; local native project
   references are verified against the native project snapshot. No remote cwd
   guessing and no terminal IDs passed to native Codex execution APIs.

@@ -14,25 +14,35 @@ export function normalizeRecentSentSnapshot(input) {
   return { items, loading: input?.loading === true, stale: input?.stale === true };
 }
 
-export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, openLocal, openWindow, readSnapshot }) {
+// Claude CLI conversations join native ones by the time of your latest message there.
+export function mergeRecentSentRecords(nativeItems = [], terminalRecords = [], limit = 40) {
+  const terminal = (Array.isArray(terminalRecords) ? terminalRecords : [])
+    .filter((record) => record?.provider === "terminal" && record.kind === "claude" && !record.archived && record.deviceId
+      && /^[0-9a-f-]{36}$/i.test(record.id || "") && Number.isFinite(Date.parse(record.lastUserMessageAt)))
+    .map((record) => ({ kind: "terminal", id: record.id, deviceId: record.deviceId, title: record.title, cwd: record.cwd, engine: record.kind, lastUserMessageAt: record.lastUserMessageAt }));
+  return [...(Array.isArray(nativeItems) ? nativeItems : []), ...terminal]
+    .sort((a, b) => Date.parse(b.lastUserMessageAt) - Date.parse(a.lastUserMessageAt)).slice(0, limit);
+}
+
+export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, openLocal, openTerminal, openWindow, readSnapshot, readTerminal = () => [] }) {
   const menu = installNativeRecentConversationMenu({
     documentRef, root, state, keyFor, openWindow,
-    label: "最近发送", icon: "↑", hint: "本机 Codex 会话，按你最近发送消息的时间排序",
-    readRecords: () => readSnapshot()?.items || [],
+    label: "最近发送", icon: "↑", hint: "本机 Codex 与 Claude CLI 会话，按你最近发送消息的时间排序",
+    readRecords: () => mergeRecentSentRecords(readSnapshot()?.items || [], readTerminal()),
     readStatus: () => {
       const snapshot = readSnapshot();
       if (!snapshot || snapshot.loading) return "正在索引发送时间…";
       return "";
     },
     emptyText: "暂无发过消息的本机会话",
-    detailFor: (tab) => new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }),
-    onSelect: (tab) => openLocal(tab)
+    detailFor: (tab) => new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }) + (tab.kind === "terminal" ? " · Claude CLI" : ""),
+    onSelect: (tab) => tab.kind === "terminal" ? openTerminal(tab) : openLocal(tab)
   });
   return menu;
 }
 
 export function buildNativeRecentSentMenuInjectionSource() {
-  return installNativeRecentSentMenu.toString();
+  return `${mergeRecentSentRecords.toString()}\n${installNativeRecentSentMenu.toString()}`;
 }
 
 export function buildNativeRecentSentSnapshotScript(snapshot) {

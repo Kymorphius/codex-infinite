@@ -120,7 +120,7 @@ export function installNativeRecentConversationMenu({
     title.textContent = tab.title;
     const detail = documentRef.createElement("span");
     detail.className = "ccc-native-recent-detail";
-    detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : "本地会话";
+    detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : tab.kind === "terminal" ? (tab.engine === "shell" ? "Shell" : "Claude CLI") : "本地会话";
     copy.append(title, detail);
     row.titleNode = title;
     row.detailNode = detail;
@@ -172,7 +172,7 @@ export function installNativeRecentConversationMenu({
         const tab = records[index];
         row.dataset.active = String(tab.key === state.activeKey);
         if (row.titleNode.textContent !== tab.title) row.titleNode.textContent = tab.title;
-        const detail = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : "本地会话";
+        const detail = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : tab.kind === "terminal" ? (tab.engine === "shell" ? "Shell" : "Claude CLI") : "本地会话";
         if (row.detailNode.textContent !== detail) row.detailNode.textContent = detail;
         updateStatusIcon(row, tab);
       });

@@ -17,7 +17,7 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch(order = 11) {
-  const VERSION = '2026-09-28.sidebar-groups';
+  const VERSION = '2026-09-28.terminal-shortcuts';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
     window.__codexControlConsoleSentMessageSearch.ensure?.();
     return;
@@ -93,11 +93,21 @@ export function installNativeSentMessageSearch(order = 11) {
       const excerpt = make('div', 'line-clamp-2 text-xs text-tertiary', item.excerpt);
       Object.assign(excerpt.style, { marginTop: '4px', color: '#b5b5b5', fontSize: '12px', lineHeight: '1.5', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical' });
       row.append(title, excerpt);
+      if (item.kind === 'terminal') {
+        const engine = make('span', '', 'Claude CLI');
+        Object.assign(engine.style, { marginLeft: '8px', padding: '0 6px', borderRadius: '999px', fontSize: '11px', fontWeight: '500', color: '#d9a640', background: 'rgba(217,166,64,.14)' });
+        title.append(engine);
+      }
       row.addEventListener('click', () => {
         saveHistory(input.value);
+        close();
+        if (item.kind === 'terminal') {
+          const record = window.__cccTerminalConversations?.records?.().find(value => value.id === item.id);
+          void window.__codexControlConsoleOpenTerminalConversation?.(record || { provider: 'terminal', conversationId: item.id, deviceId: item.deviceId });
+          return;
+        }
         window.__codexControlConsoleClose?.();
         window.__codexControlConsoleConversationTabs?.openLocal?.({ id: item.id, title: item.title });
-        close();
         window.postMessage({ type: 'navigate-to-route', path: '/local/' + item.id }, '*');
       });
       results.append(row);
@@ -209,7 +219,7 @@ export function installNativeSentMessageSearch(order = 11) {
       results.setAttribute('aria-label', '已发送消息搜索结果');
       results.style.maxHeight = '60vh'; results.style.overflowY = 'auto';
       results.style.marginTop = '10px';
-      const scope = make('div', 'my-2 text-xs text-tertiary', '搜索范围：本机未归档会话中你发送的消息');
+      const scope = make('div', 'my-2 text-xs text-tertiary', '搜索范围：本机未归档 Codex 与 Claude CLI 会话中你发送的消息');
       Object.assign(scope.style, { margin: '10px 0', color: '#aaa', fontSize: '12px' });
       bar.append(input); dialog.append(heading, bar, scope, historyPanel, results);
       panel.append(dialog); document.body.append(panel);

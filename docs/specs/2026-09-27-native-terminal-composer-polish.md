@@ -33,6 +33,18 @@ exposed fewer terminal keys than the loopback dashboard composer.
 - While mounted, the view sets the main surface's reserved 36px page-tab inset to
   zero (inline, important) so the title row takes that space; disposal restores
   the previous inline value. Other native pages keep the inset.
+- With the conversation tab bar retired, the native header shows the last native
+  conversation's name. While mounted, the view places its title bar (title, kind
+  chip, cwd, start action) in the header's title slot of
+  `[data-app-shell-header-toolbar]` and hides only the native title child via a
+  document-level `:has([data-app-shell-titlebar-content])` rule; trailing native
+  actions stay for future CLI integration. A throttled observer re-attaches after
+  React remounts. Without a header the bar stays inside the view. Disposal removes
+  the node and the rule's gate attribute.
+- The composer mirrors the native ChatGPT composer metrics measured from
+  `_ComposerLayoutRoot_`: `#363636` surface, 22px radius, 1px inset hairline and no
+  border or drop shadow; 14/20 text with a 12px inset and 44px minimum; 28px pills
+  with a `#80808040` hairline; 8px footer inset, 5px gaps and a 32px send button.
 - Colors inherit native theme tokens through the shadow root with dark fallbacks.
 
 ## Non-goals

@@ -44,7 +44,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeConversationTabStyle.toString()}
   ${buildNativeTerminalTabSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-28.retire-top-tabs';
+    const VERSION = '2026-09-28.terminal-shortcuts';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -228,7 +228,7 @@ export function buildNativeConversationTabsInjectionSource() {
     shortcutRoot = document.createElement('div'); shortcutRoot.setAttribute('data-codex-control-console-conversation-shortcuts', ''); shortcutRoot.hidden = true; document.body.append(shortcutRoot);
     const shortcutLayout = createConversationShortcutLayout(document, window, shortcutRoot);
     recentMenu = installNativeRecentConversationMenu({ documentRef: document, root: shortcutRoot, state, keyFor, activate, openWindow: options.openWindow });
-    recentSentMenu = installNativeRecentSentMenu({ documentRef: document, root: shortcutRoot, state, keyFor, openLocal: (tab) => request(tab, true), openWindow: options.openWindow, readSnapshot: () => window.__codexControlConsoleRecentSentSnapshot });
+    recentSentMenu = installNativeRecentSentMenu({ documentRef: document, root: shortcutRoot, state, keyFor, openLocal: (tab) => request(tab, true), openTerminal: (tab) => window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find((record) => record.id === tab.id) || { provider: 'terminal', conversationId: tab.id, deviceId: tab.deviceId }), openWindow: options.openWindow, readSnapshot: () => window.__codexControlConsoleRecentSentSnapshot, readTerminal: () => window.__cccTerminalConversations?.records?.() || [] });
     transition = createNativeConversationTabTransition(root, () => { render(); syncLocal(); });
 
     const nativeClick = (event) => {
@@ -248,7 +248,7 @@ export function buildNativeConversationTabsInjectionSource() {
     const onResize = () => scheduleSync(true, true);
     window.addEventListener('resize', onResize);
     const terminalTabs = createNativeTerminalTabController({ state, keyFor, normalizeTab, open, close, render });
-    const controller = { ...terminalTabs, version: VERSION, updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); shortcutLayout.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
+    const controller = { ...terminalTabs, version: VERSION, relayout: () => position(), updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); shortcutLayout.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
     render(); scheduleSync(true, true); return controller;
   }
   `;

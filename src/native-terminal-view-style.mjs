@@ -19,17 +19,18 @@ button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,v
 /* xterm measures each glyph repeated 32 times; Chrome trims adjacent fullwidth punctuation
    to half width there, so a lone '，' would get extra letter-spacing and push the row edge. */
 .xterm{text-spacing-trim:space-all}
-.composer{flex:0 0 auto;display:flex;flex-direction:column;gap:10px;padding:14px 14px 10px 16px;border:1px solid var(--line);border-radius:24px;
-  background:var(--surface);box-shadow:0 6px 24px #0000002e;transition:border-color .15s ease}
-.composer:focus-within{border-color:color-mix(in srgb,var(--fg) 22%,transparent)}
-textarea{display:block;resize:none;width:100%;min-height:24px;max-height:200px;border:0;outline:0;padding:0;background:transparent;color:inherit;
-  font:15px/22px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;scrollbar-width:thin}
+/* Composer metrics mirror the native ChatGPT composer (_ComposerLayoutRoot_): #363636, 22px
+   radius, 1px inset hairline, 14/20 text with 12px inset, 28px pills, 8px footer inset, 5px gaps. */
+.composer{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;padding:16px 8px 8px;border:0;border-radius:22px;
+  background:#363636;box-shadow:inset 0 0 1px #ffffff33}
+textarea{display:block;resize:none;width:100%;min-height:44px;max-height:200px;border:0;outline:0;padding:0 12px;background:transparent;color:inherit;
+  font:14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;scrollbar-width:thin}
 textarea::placeholder{color:var(--muted)}
-footer{display:flex;align-items:center;gap:6px;min-width:0}
-.pill{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:30px;border:1px solid var(--line);border-radius:999px;padding:0 11px;background:transparent;font-size:12px}
-.pill:hover:not(:disabled),.keys[open]>.pill{background:var(--raised)}
+footer{display:flex;align-items:center;gap:5px;min-width:0}
+.pill{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;height:28px;border:1px solid #80808040;border-radius:999px;padding:0 9px;background:transparent;font-size:12px}
+.pill:hover:not(:disabled),.keys[open]>.pill{background:#ffffff12}
 .pill>svg{opacity:.7;transition:transform .15s ease}.keys[open]>.pill>svg{transform:rotate(180deg)}.pill kbd{font:10px/1 "SF Mono",Menlo,monospace;color:var(--muted)}
-.keys{position:relative}.keys>summary{list-style:none}.keys>summary::-webkit-details-marker{display:none}
+.keys{position:relative}.keys[data-disabled]>.pill{opacity:.38;pointer-events:none}.keys>summary{list-style:none}.keys>summary::-webkit-details-marker{display:none}
 .menu{position:absolute;left:0;bottom:calc(100% + 10px);z-index:5;display:grid;gap:8px;width:220px;padding:10px;border:1px solid var(--line);border-radius:14px;
   background:var(--raised);box-shadow:0 12px 32px #0006}
 .menu>span{padding:0 2px;color:var(--muted);font-size:11px}
@@ -40,13 +41,11 @@ footer{display:flex;align-items:center;gap:6px;min-width:0}
 .status{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .status::before{content:"";flex:0 0 7px;height:7px;border-radius:50%;background:var(--muted)}
 .status[data-tone="ok"]::before{background:var(--ok)}.status[data-tone="wait"]::before{background:var(--wait);animation:pulse 1.2s ease-in-out infinite}
-.status[data-tone="bad"]{color:var(--bad)}.status[data-tone="bad"]::before{background:var(--bad)}
-.send{position:relative;flex:0 0 34px;display:grid;place-items:center;width:34px;height:34px;margin-left:6px;border:0;border-radius:50%;padding:0;background:var(--fg);color:var(--page)}
+.status[data-tone="held"]::before{background:var(--wait)}.status[data-tone="bad"]{color:var(--bad)}.status[data-tone="bad"]::before{background:var(--bad)}
+.send{position:relative;flex:0 0 32px;display:grid;place-items:center;width:32px;height:32px;margin-left:4px;border:0;border-radius:50%;padding:0;background:var(--fg);color:var(--page)}
 .send:disabled{opacity:.3}.send[data-sending="true"]>svg{opacity:0}
 .send[data-sending="true"]::after{content:"";position:absolute;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
-.hint{height:18px;padding:4px 16px 0;color:var(--muted);font-size:11px;line-height:14px;visibility:hidden}
-.layout:focus-within .hint{visibility:visible}
 @keyframes spin{to{transform:rotate(1turn)}}@keyframes pulse{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.status::before,.send::after{animation:none!important}}
-@media(max-width:720px){.layout{padding:8px 10px 10px}.pill kbd,.cwd{display:none}.composer{border-radius:20px;padding:12px 10px 8px 12px}}
+@media(max-width:720px){.layout{padding:8px 10px 10px}.pill kbd,.cwd{display:none}.composer{padding:8px 6px 6px}}
 `;

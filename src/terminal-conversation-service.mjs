@@ -2,14 +2,17 @@ import { TerminalConversationStore } from './terminal-conversation-store.mjs';
 import { terminalConversationCreate, terminalConversationUpdate, terminalConversationId } from './terminal-conversation-contract.mjs';
 import { terminalError } from './terminal-contract.mjs';
 import { hasClaudeTranscript } from './terminal-conversation-transcript.mjs';
-import { createClaudeTitleReader, DEFAULT_CLAUDE_TITLE } from './terminal-conversation-title.mjs';
+import { createClaudeTranscriptReader, DEFAULT_CLAUDE_TITLE } from './claude-transcript.mjs';
+import { createClaudeSessionOccupancy } from './claude-session-occupancy.mjs';
 
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
-    transcriptExists = hasClaudeTranscript, claudeTitle } = {}) {
+    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy } = {}) {
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
-    this.claudeTitle = claudeTitle || (terminalService?.userHome ? createClaudeTitleReader({ userHome: terminalService.userHome }) : async () => '');
+    this.claudeTranscripts = claudeTranscripts || (terminalService?.userHome ? createClaudeTranscriptReader({ userHome: terminalService.userHome })
+      : { summary: async () => ({ title: '', lastUserMessageAt: null }), search: async () => null });
+    this.claudeOccupancy = claudeOccupancy || (terminalService?.userHome ? createClaudeSessionOccupancy({ userHome: terminalService.userHome }) : async () => null);
     this.runtimes = new Map(); this.operations = new Map(); this.runtimeErrors = new Map();
   }
 
@@ -30,14 +33,37 @@ export class TerminalConversationService {
       status: runtimeSummary?.status || 'stopped', runtimeError: this.runtimeErrors.get(record.id) || null };
   }
 
-  // A Claude conversation still carrying the default title follows Claude's own title
-  // (/rename, else generated). A title set here always wins; the store is unchanged.
+  // Claude conversations follow Claude's own transcript: its title (/rename, else
+  // generated) while the stored title is still the default, and the time of the last
+  // message you sent. A title set here always wins; the store is unchanged.
   async view(record) {
     const presented = this.present(record);
-    if (record.kind !== 'claude' || record.title !== DEFAULT_CLAUDE_TITLE) return presented;
-    let title = '';
-    try { title = await this.claudeTitle(record.id); } catch { /* Keep the stored title when the transcript is unreadable. */ }
-    return title ? { ...presented, title } : presented;
+    if (record.kind !== 'claude') return presented;
+    let summary = { title: '', lastUserMessageAt: null, ids: [record.id] };
+    try { summary = await this.claudeTranscripts.summary(record.id); } catch { /* Keep stored metadata when the transcript is unreadable. */ }
+    const title = record.title === DEFAULT_CLAUDE_TITLE && summary.title ? summary.title : presented.title;
+    // Like native conversations in use elsewhere, a Claude session another Claude process
+    // holds is read-only here and cannot be started a second time.
+    const occupiedElsewhere = presented.status !== 'running' && Boolean(await this.occupant(summary.ids || [record.id]));
+    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere };
+  }
+
+  async occupant(ids) {
+    try { return await this.claudeOccupancy(ids); } catch { return null; }
+  }
+
+  // Messages you sent in managed Claude conversations, newest first; archived ones excluded.
+  async searchSent(query) {
+    const records = (await this.store.list()).filter(record => record.kind === 'claude' && !record.archived);
+    let failures = 0;
+    const found = await Promise.all(records.map(async record => {
+      try {
+        const match = await this.claudeTranscripts.search(record.id, query);
+        return match && { kind: 'terminal', id: record.id, deviceId: this.deviceId, title: (await this.view(record)).title, excerpt: match.excerpt, at: match.at };
+      } catch { failures++; return null; }
+    }));
+    const items = found.filter(Boolean).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+    return { items, incomplete: failures > 0 };
   }
 
   async list() {
@@ -72,6 +98,11 @@ export class TerminalConversationService {
       if (existing?.status === 'running') return this.view(await this.store.get(record.id));
       if (existing) { await this.terminalService.close(existing.id); this.runtimes.delete(id); }
       let options = {};
+      if (record.kind === 'claude') {
+        let ids = [id]; try { ids = (await this.claudeTranscripts.summary(id)).ids || ids; } catch { /* Check the managed id alone. */ }
+        const occupant = await this.occupant(ids);
+        if (occupant) throw terminalError(409, `会话正在其他 Claude 窗口中运行（进程 ${occupant.pid}），请先在那里退出`);
+      }
       if (record.kind === 'claude') options = { claudeSessionId: id,
         resume: await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id }) };
       try {

@@ -16,6 +16,7 @@ import { AttentionConversationService } from "./attention-conversation-service.m
 import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
+import { withTerminalSentSearch } from './sent-message-search-composite.mjs';
 import { SentMessageIndex } from './sent-message-index.mjs';
 import { NativeThreadReadStateAdapter } from "./native-thread-read-state.mjs";
 import { NewProjectService } from "./new-project-service.mjs";
@@ -243,7 +244,7 @@ export async function run() {
       sidebarLabelProvider: sidebarLabelService,
       remoteSidebarProvider: remoteSidebarService,
       newProjectProvider: newProjectService,
-      sentMessageSearchService,
+      sentMessageSearchService: withTerminalSentSearch(sentMessageSearchService, terminalConversations),
       attentionConversationProvider: attentionConversations,
       recentSentConversationProvider: recentSentConversations,
       turnStateProvider: turnStateService,
