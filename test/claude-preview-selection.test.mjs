@@ -131,6 +131,7 @@ test('button mounts when composer arrives after installation and is not duplicat
 
 test('native button left click toggles Router model and right click opens the nearby settings panel', async () => {
   const saved = new Map(), panels = [], host = {};
+  let scheduled;
   let button, current = { model: 'gpt-6-sol', reasoningEffort: 'medium' };
   function node() {
     const attrs = new Map(), events = new Map();
@@ -151,11 +152,16 @@ test('native button left click toggles Router model and right click opens the ne
     __codexControlConsoleApplyThreadSettings: async (_id, next) => { current = next; return { applied: true }; } };
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), { window, document,
     localStorage: { getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value) },
-    setTimeout: () => 1, clearTimeout() {} });
+    setTimeout: callback => { scheduled = callback; return 1; }, clearTimeout() {} });
+  assert.match(button.style.cssText, /cursor:pointer/);
   const gesture = { button: 0, preventDefault() {}, stopImmediatePropagation() {} };
   button.events.get('pointerup')(gesture);
   await new Promise(resolve => setImmediate(resolve));
+  scheduled();
   assert.equal(current.model, 'claude-subscription/opus-auto-native'); assert.equal(current.reasoningEffort, 'medium');
+  assert.equal(button.style.borderColor, '#d97757');
+  assert.equal(button.style.color, '#e9a58d');
+  assert.equal(button.style.background, 'rgba(217,119,87,.16)');
   button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
   assert.equal(panels.at(-1).dataset.cccClaudePreviewPanel, '');
   assert.equal(panels.at(-1).style.left, '130px');
@@ -167,7 +173,10 @@ test('native button left click toggles Router model and right click opens the ne
   assert.equal(current.reasoningEffort, 'high');
   button.events.get('pointerup')(gesture);
   await new Promise(resolve => setImmediate(resolve));
+  scheduled();
   assert.equal(current.model, 'gpt-6-sol'); assert.equal(current.reasoningEffort, 'medium');
+  assert.equal(button.style.borderColor, '');
+  assert.equal(button.style.background, '');
   button.events.get('pointerup')(gesture);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(current.model, 'claude-subscription/opus'); assert.equal(current.reasoningEffort, 'high');

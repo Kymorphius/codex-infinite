@@ -118,14 +118,16 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     if (!host) { button?.remove(); return; }
     if (!button) {
       button = element('button'); button.type = 'button'; button.dataset.cccClaudePreview = ''; button.setAttribute('aria-label', '切换 GPT 与 Claude；右键打开设置');
-      button.style.cssText = 'height:28px;flex:none;padding:0 10px;border:1px solid #ffffff24;border-radius:999px;background:transparent;color:inherit;font:600 12px system-ui;white-space:nowrap;';
+      button.style.cssText = 'height:28px;flex:none;padding:0 10px;border:1px solid #ffffff24;border-radius:999px;background:transparent;color:inherit;font:600 12px system-ui;white-space:nowrap;cursor:pointer;';
       activateButton(button, toggle);
       button.addEventListener('contextmenu', event => { event.preventDefault(); event.stopImmediatePropagation(); open(); });
     }
     const id = current(), selected = selection.selected(id), text = selected ? 'Claude' : 'GPT';
     if (button.textContent !== text) button.textContent = text;
     button.setAttribute('aria-pressed', String(Boolean(selected)));
-    button.style.color = selected ? '#62bd84' : '';
+    button.style.color = selected ? '#e9a58d' : '';
+    button.style.borderColor = selected ? '#d97757' : '';
+    button.style.background = selected ? 'rgba(217,119,87,.16)' : '';
     button.title = window.__cccClaudePreviewError || (selected ? 'Claude · 左键切回 GPT，右键设置' : 'GPT · 左键切换 Claude，右键设置');
     if (button.parentElement !== host) routing.after(button);
   }
