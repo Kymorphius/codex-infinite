@@ -1,7 +1,7 @@
 // Dependency-free domain controller, also serialized into the native renderer.
 export function createClaudePreviewSelection({ read, apply, storage, changed = () => {} }) {
   const modelPrefix = 'claude-subscription/';
-  const modelFamilies = ['opus', 'sonnet', 'haiku'];
+  const modelFamilies = ['opus', 'sonnet', 'haiku', 'opusplan'];
   const key = 'codex-control-console.claude-preview.v1';
   const preferenceKey = 'codex-control-console.claude-preview-preference.v1';
   const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');

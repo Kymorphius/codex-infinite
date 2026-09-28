@@ -54,6 +54,15 @@ test('model family persists across toggles and Haiku never receives an effort le
   await assert.rejects(reloaded.set(id, 'high', true, 'haiku'), /模型或推理强度/);
   await assert.rejects(reloaded.set(id, 'auto', true, 'fable'), /模型或推理强度/);
 });
+test('Opus planning and Sonnet execution mode persists with auto effort and native tools', async () => {
+  const h = harness();
+  await h.controller.set(id, 'auto', true, 'opusplan');
+  assert.deepEqual(h.current(), { model: 'claude-subscription/opusplan-auto-native', reasoningEffort: 'medium' });
+  const reloaded = createClaudePreviewSelection(h.options);
+  assert.equal(reloaded.selected(id).modelFamily, 'opusplan');
+  await reloaded.set(id, null);
+  assert.deepEqual(reloaded.preferred(id), { effort: 'auto', nativeTools: true, modelFamily: 'opusplan' });
+});
 test('existing Opus preferences without a model field keep their original route', async () => {
   const h = harness();
   h.options.storage.setItem('codex-control-console.claude-preview-preference.v1', JSON.stringify([{ id, effort: 'high', nativeTools: true }]));
@@ -187,7 +196,7 @@ test('native button left click toggles Router model and right click opens the ne
   button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
   assert.equal(panels.at(-1).dataset.cccClaudePreviewPanel, '');
   assert.equal(panels.at(-1).style.left, '130px');
-  assert.deepEqual(panels.at(-1).children[2].children[0].children.map(option => option.textContent), ['Opus 5.5', 'Sonnet 5.5', 'Haiku 4.5']);
+  assert.deepEqual(panels.at(-1).children[2].children[0].children.map(option => option.textContent), ['Opus 5.5', 'Sonnet 5.5', 'Haiku 4.5', 'Opus 5.5 规划 / Sonnet 5.5 执行']);
   assert.equal(panels.at(-1).children[4].children[0].checked, true);
   panels.at(-1).children[4].children[0].checked = false;
   panels.at(-1).children[3].children[0].value = 'high';
@@ -213,6 +222,15 @@ test('native button left click toggles Router model and right click opens the ne
   haikuPanel.children[6].children[0].onclick();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(current.model, 'claude-subscription/haiku'); assert.equal(current.reasoningEffort, 'medium');
+  button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
+  const hybridPanel = panels.at(-1);
+  hybridPanel.children[2].children[0].value = 'opusplan';
+  hybridPanel.children[2].children[0].onchange();
+  assert.equal(hybridPanel.children[3].children[0].disabled, false);
+  hybridPanel.children[6].children[0].onclick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(current.model, 'claude-subscription/opusplan-auto');
+  scheduled(); assert.equal(button.textContent, 'Claude Opus 5.5 规划 / Sonnet 5.5 执行');
 });
 
 test('panel styles update an already-installed legacy panel without duplicate styles or model changes', () => {

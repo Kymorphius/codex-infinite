@@ -58,7 +58,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
   function element(tag, text) { const node = document.createElement(tag); if (text) node.textContent = text; return node; }
   function close() { panel?.remove(); panel = null; document.removeEventListener('pointerdown', outside, true); }
   function outside(event) { if (panel && !event.composedPath().includes(panel) && !event.composedPath().includes(button)) close(); }
-  const modelNames = { opus: 'Opus 5.5', sonnet: 'Sonnet 5.5', haiku: 'Haiku 4.5' };
+  const modelNames = { opus: 'Opus 5.5', sonnet: 'Sonnet 5.5', haiku: 'Haiku 4.5', opusplan: 'Opus 5.5 规划 / Sonnet 5.5 执行' };
   const effortNames = { auto: '自动', low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' };
   async function toggle() {
     const id = current();

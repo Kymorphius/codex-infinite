@@ -1,10 +1,11 @@
 # Claude 会话模型选择
 
-原生会话输入框旁的 Claude 设置面板增加模型选择，显示并固定三个版本：Opus 5.5、Sonnet 5.5、Haiku 4.5。默认仍为 Opus 5.5；原有会话的 Opus 选择在读取时补全模型字段。左键继续在 GPT 与该会话上次选用的 Claude 模型之间切换，右键面板调整模型、推理强度及原生工具。
+原生会话输入框旁的 Claude 设置面板增加模型选择，显示并固定 Opus 5.5、Sonnet 5.5、Haiku 4.5，以及 Opus 5.5 规划 / Sonnet 5.5 执行。默认仍为 Opus 5.5；原有会话的 Opus 选择在读取时补全模型字段。左键继续在 GPT 与该会话上次选用的 Claude 模型之间切换，右键面板调整模型、推理强度及原生工具。
 
 - 面板只提交 Router 已注册的订阅路由，不提供任意模型 ID 输入，也不静默回退到 GPT 或其他提供商。
 - 版本名对应 Router 启动官方 Claude CLI 时传入的固定 `--model` ID；路由名仍保持现有 `claude-subscription/<family>` 格式，以免破坏旧会话。
 - Opus 与 Sonnet 保留自动、low、medium、high、xhigh、max 强度及原生工具开关。Haiku 4.5 不支持强度：面板将其固定为自动且停用强度选择；Router 不向 CLI 传 `--effort`。
+- 混合模式交给官方 Claude CLI 的 `opusplan` 实现，仅进入 Claude 规划模式才用 Opus，其余执行用 Sonnet；Router 同时固定 `ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-5-5` 和 `ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-5-5`，避免别名升级后面板版本与实际模型不一致。自动推理强度与此模式可组合，不将其描述为按任务自动选模型。
 - 原有成功回读和失败回滚逻辑覆盖模型切换；生成中的会话仍禁止改设置。偏好按会话保存，不保存凭证或对话文本。
 - Fable 可能使用额外 usage credits，本次不加入无需确认的非交互式订阅路由。
 
