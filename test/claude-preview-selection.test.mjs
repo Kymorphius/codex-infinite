@@ -30,6 +30,18 @@ test('invalid selection is rejected before native setting calls', async () => {
   for (const [thread, effort] of [[id, 'ultra'], ['remote', 'medium']]) await assert.rejects(controller.set(thread, effort));
   assert.equal(reads, 0);
 });
+test('native tools mode survives reload, switches off, and restores original GPT settings', async () => {
+  const h = harness();
+  await h.controller.set(id, 'high', true);
+  assert.equal(h.current().model, 'claude-subscription/opus-native');
+  const reloaded = createClaudePreviewSelection(h.options);
+  assert.equal(reloaded.selected(id).nativeTools, true);
+  assert.equal(reloaded.selected(other), null);
+  await reloaded.set(id, 'medium', false);
+  assert.equal(h.current().model, 'claude-subscription/opus');
+  await reloaded.set(id, null);
+  assert.deepEqual(h.current(), h.initial);
+});
 test('in-flight selection blocks only its conversation; concurrent toggles refused', async () => {
   let release;
   const { controller } = harness({ read: async () => new Promise(resolve => { release = resolve; }) });

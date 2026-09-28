@@ -41,11 +41,18 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     panel.style.cssText = 'position:fixed;z-index:2147483000;right:24px;bottom:100px;width:min(360px,calc(100vw - 48px));padding:20px;border:1px solid #4b765a;border-radius:16px;background:#252525;color:#eee;box-shadow:0 12px 40px #0008;font:14px/1.5 system-ui;';
     const title = element('strong', 'Claude 预览');
     const dismiss = element('button', '关闭'); dismiss.type = 'button'; dismiss.style.cssText = 'float:right;'; dismiss.onclick = close;
-    const description = element('p', '当前会话使用 Claude 订阅，通过客户端现有工具读写文件、运行命令和操作界面，沿用会话权限。支持图片和工具历史；压缩前的本地记录会按需恢复，较早内容可继续回查。');
+    panel.style.maxHeight = 'calc(100vh - 140px)'; panel.style.overflowY = 'auto';
+    const description = element('p', '当前会话使用 Claude 订阅。默认使用客户端工具；可开启下方原生工具模式。支持图片与工具历史，较早内容按需回查。');
     const model = element('p', '模型：Claude Opus');
     const label = element('label', '推理强度 '), effort = element('select'); effort.setAttribute('aria-label', 'Claude 推理强度');
     for (const [value, text] of [['low', '轻度'], ['medium', '中'], ['high', '高'], ['xhigh', '超高'], ['max', '最高']]) { const option = element('option', text); option.value = value; effort.append(option); }
     effort.value = selected?.effort || 'medium'; label.append(effort);
+    const toolsLabel = element('label', ' Claude 原生工具'), nativeTools = element('input');
+    nativeTools.type = 'checkbox'; nativeTools.setAttribute('role', 'switch'); nativeTools.setAttribute('aria-label', 'Claude 原生工具');
+    nativeTools.checked = selected?.nativeTools === true; toolsLabel.prepend(nativeTools);
+    toolsLabel.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:14px;'; nativeTools.style.accentColor = '#62bd84';
+    const toolsHelp = element('p', '开启：使用 Claude 完整内置工具与技能，由 CLI 自动判断权限；需人工批准的操作会拒绝。Computer Use 仍走客户端。不会加载额外 MCP 或 hooks。关闭：工具全部由客户端执行。');
+    toolsHelp.style.cssText = 'font-size:12px;color:#bbb;';
     const message = element('p', id ? '只修改当前会话；不改变全局模型和访问权限。' : '请先打开一个本机 Codex 会话。新建聊天尚未生成会话 ID 时不可切换。'); message.setAttribute('role', 'status');
     const save = element('button', '当前会话使用 Claude'), restore = element('button', '恢复原生模型');
     save.type = restore.type = 'button';
@@ -56,15 +63,17 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     async function change(value) {
       if (value !== null && !routerReady()) { message.textContent = 'Router 通道尚未就绪，未修改模型。'; return; }
       if (id !== current() || running()) { message.textContent = '会话已切换或正在生成，请重新打开设置。'; return; }
-      save.disabled = restore.disabled = true;
+      const useNativeTools = nativeTools.checked;
+      save.disabled = restore.disabled = nativeTools.disabled = effort.disabled = true;
       try {
-        await selection.set(id, value);
-        message.textContent = value === null ? '已回读确认：恢复原来的模型和推理强度。' : '已回读确认：Claude Opus，推理强度' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[value]) + '。下一次发送将使用预览路由。';
+        await selection.set(id, value, useNativeTools);
+        message.textContent = value === null ? '已回读确认：恢复原来的模型和推理强度。' : '已回读确认：Claude Opus，推理强度' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[value]) + (useNativeTools ? '，原生工具开启。' : '，客户端工具模式。') + '下次发送生效。';
       } catch (error) { message.textContent = String(error.message || '设置失败'); }
-      finally { const blocked = id !== current() || running(); save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
+      finally { const blocked = id !== current() || running(); nativeTools.disabled = effort.disabled = blocked; save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
     }
     save.onclick = () => void change(effort.value); restore.onclick = () => void change(null);
-    panel.append(title, dismiss, description, model, label, message, save, restore); document.body.append(panel);
+    nativeTools.disabled = disabled;
+    panel.append(title, dismiss, description, model, label, toolsLabel, toolsHelp, message, save, restore); document.body.append(panel);
   }
   function render() {
     const routing = document.querySelector('[data-codex-control-console-native-jev-current]');
@@ -75,7 +84,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       button.style.cssText = 'height:28px;flex:none;padding:0 10px;border:1px solid #ffffff24;border-radius:999px;background:transparent;color:inherit;font:600 12px system-ui;white-space:nowrap;';
       activateButton(button, open);
     }
-    const id = current(), selected = selection.selected(id), text = selected ? 'Claude Opus ' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[selected.effort]) : 'Claude 预览';
+    const id = current(), selected = selection.selected(id), text = selected ? 'Claude Opus ' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[selected.effort]) + (selected.nativeTools ? ' 原生工具' : '') : 'Claude 预览';
     if (button.parentElement === host && button.textContent === text && button.getAttribute('aria-pressed') === String(Boolean(selected))) return;
     if (button.textContent !== text) button.textContent = text;
     button.setAttribute('aria-pressed', String(Boolean(selected)));

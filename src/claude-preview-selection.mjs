@@ -21,7 +21,8 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
     selected(id) { return records.get(id) || null; },
     blocks(id) { return pending.has(id) || records.has(id); },
     busy(id) { return pending.has(id); },
-    async set(id, effort) {
+    async set(id, effort, nativeTools = false) {
+      if (typeof nativeTools !== 'boolean') throw new Error('Claude 工具模式无效');
       if (!validId(id) || (effort !== null && !efforts.includes(effort))) throw new Error('Claude 会话或推理强度无效');
       if (pending.has(id)) throw new Error('正在修改这个会话，请稍候');
       if (effort !== null && !records.has(id) && records.size >= 128) throw new Error('Claude 预览会话数量已达上限，请先关闭旧会话的预览');
@@ -34,12 +35,12 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
         if (!before?.model || !before.reasoningEffort) throw new Error('无法回读当前原生模型与强度');
         if (!previous && !validModel(before.model)) throw new Error('当前模型无法安全恢复，未启用预览');
         const original = previous?.original || { model: before.model, reasoningEffort: before.reasoningEffort };
-        const next = effort === null ? original : { model, reasoningEffort: effort };
+        const next = effort === null ? original : { model: nativeTools ? model + '-native' : model, reasoningEffort: effort };
         attempted = true;
         await apply(id, next);
         if (!matches(await read(id), next)) throw new Error('原生模型回读不一致');
         if (effort === null) records.delete(id);
-        else records.set(id, { id, effort, original });
+        else records.set(id, { id, effort, nativeTools, original });
         persist();
       } catch (error) {
         if (previous) records.set(id, previous); else records.delete(id);
