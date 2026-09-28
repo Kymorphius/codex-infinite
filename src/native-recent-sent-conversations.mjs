@@ -20,7 +20,7 @@ export function mergeRecentSentRecords(nativeItems = [], terminalRecords = [], l
   const terminal = (Array.isArray(terminalRecords) ? terminalRecords : [])
     .filter((record) => record?.provider === "terminal" && record.kind === "claude" && !record.archived && record.deviceId
       && /^[0-9a-f-]{36}$/i.test(record.id || "") && Number.isFinite(Date.parse(record.lastUserMessageAt)))
-    .map((record) => ({ kind: "terminal", id: record.id, deviceId: record.deviceId, title: record.title, cwd: record.cwd, engine: record.kind, lastUserMessageAt: record.lastUserMessageAt }));
+    .map((record) => ({ kind: "terminal", id: record.id, deviceId: record.deviceId, title: record.title, cwd: record.cwd, engine: record.kind, lastUserMessageAt: record.lastUserMessageAt, ...(record.companionOf ? { companionOf: record.companionOf } : {}) }));
   return [...(Array.isArray(nativeItems) ? nativeItems : []), ...terminal]
     .sort((a, b) => Date.parse(b.lastUserMessageAt) - Date.parse(a.lastUserMessageAt)).slice(0, limit);
 }
@@ -36,7 +36,8 @@ export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, 
       return "";
     },
     emptyText: "暂无发过消息的本机会话",
-    detailFor: (tab) => new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }) + (tab.kind === "terminal" ? " · Claude CLI" : ""),
+    // Claude rows show their kind as a tag, so the detail is only the time.
+    detailFor: (tab) => new Date(tab.lastUserMessageAt).toLocaleString("zh-CN", { hour12: false }),
     onSelect: (tab) => tab.kind === "terminal" ? openTerminal(tab) : openLocal(tab)
   });
   return menu;

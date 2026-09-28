@@ -8,8 +8,8 @@ import { createClaudeSessionTakeover } from './claude-session-takeover.mjs';
 
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
-    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null } = {}) {
-    this.companions = companions;
+    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '' } = {}) {
+    this.companions = companions; this.codexTitle = codexTitle; this.currentCompanions = null;
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
     this.claudeTranscripts = claudeTranscripts || (terminalService?.userHome ? createClaudeTranscriptReader({ userHome: terminalService.userHome })
@@ -44,7 +44,11 @@ export class TerminalConversationService {
     if (record.kind !== 'claude') return presented;
     let summary = { title: '', lastUserMessageAt: null, ids: [record.id] };
     try { summary = await this.claudeTranscripts.summary(record.id); } catch { /* Keep stored metadata when the transcript is unreadable. */ }
-    const title = record.title === DEFAULT_CLAUDE_TITLE && summary.title ? summary.title : presented.title;
+    // A Router companion is the Claude side of a Codex conversation: it carries that
+    // conversation's name (or a /rename), never a title generated from Router's prompts.
+    const title = record.title !== DEFAULT_CLAUDE_TITLE ? presented.title
+      : record.companionOf ? summary.customTitle || await this.codexTitleOf(record.companionOf) || presented.title
+      : summary.title || presented.title;
     // Like native conversations in use elsewhere, a Claude session another Claude process
     // holds is read-only here and cannot be started a second time.
     // A session held only by Claude background jobs can be opened here (attach) and
@@ -59,6 +63,16 @@ export class TerminalConversationService {
     return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus };
   }
 
+  async codexTitleOf(threadId) {
+    try { return String(await this.codexTitle(threadId) || '').slice(0, 160); } catch { return ''; }
+  }
+
+  // Router replaced this companion's Claude session: keep the record, stop showing it.
+  superseded(record) {
+    const current = record.companionOf && this.currentCompanions?.get(record.companionOf);
+    return Boolean(current && current !== record.id);
+  }
+
   async holders(ids) {
     try {
       if (this.claudeOccupancy.all) return await this.claudeOccupancy.all(ids);
@@ -68,7 +82,7 @@ export class TerminalConversationService {
 
   // Messages you sent in managed Claude conversations, newest first; archived ones excluded.
   async searchSent(query) {
-    const records = (await this.store.list()).filter(record => record.kind === 'claude' && !record.archived);
+    const records = (await this.store.list()).filter(record => record.kind === 'claude' && !record.archived && !this.superseded(record));
     let failures = 0;
     const found = await Promise.all(records.map(async record => {
       try {
@@ -86,6 +100,7 @@ export class TerminalConversationService {
     if (!this.companions) return;
     let found = [];
     try { found = await this.companions.list(); } catch { return; }
+    this.currentCompanions = new Map(found.map(companion => [companion.threadId, companion.sessionId]));
     for (const companion of found) {
       try {
         await this.store.adopt({ id: companion.sessionId, cwd: companion.cwd, kind: 'claude', title: DEFAULT_CLAUDE_TITLE,
@@ -96,7 +111,7 @@ export class TerminalConversationService {
 
   async list() {
     await this.syncCompanions();
-    const records = await this.store.list();
+    const records = (await this.store.list()).filter(record => !this.superseded(record));
     return { conversations: await Promise.all(records.map(record => this.view(record))), deviceId: this.deviceId,
       defaultCwd: this.terminalService.defaultCwd };
   }

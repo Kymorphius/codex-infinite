@@ -1,7 +1,7 @@
 // Terminal conversations are provider-owned pages, never native Codex routes.
 export function terminalConversationTab(record) {
   if (record?.provider !== 'terminal' || !/^[0-9a-f-]{36}$/i.test(record?.id || '') || !record.deviceId) return null;
-  return { kind: 'terminal', id: record.id, deviceId: record.deviceId, title: record.title, cwd: record.cwd, engine: record.kind };
+  return { kind: 'terminal', id: record.id, deviceId: record.deviceId, title: record.title, cwd: record.cwd, engine: record.kind, ...(record.companionOf ? { companionOf: record.companionOf } : {}) };
 }
 
 export function createNativeTerminalTabController({ state, keyFor, normalizeTab, open, close, render }) {

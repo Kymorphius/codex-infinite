@@ -33,3 +33,16 @@ export class SessionTitleIndex {
     }
   }
 }
+
+// Title of one Codex conversation, re-reading the index only when it changes.
+export function createCodexTitleLookup({ filePath } = {}) {
+  let cached = { key: '', titles: new Map() };
+  return async function titleOf(threadId) {
+    if (!filePath) return '';
+    try {
+      const stat = await fs.stat(filePath), key = `${stat.mtimeMs}:${stat.size}`;
+      if (cached.key !== key) cached = { key, titles: parseSessionTitleIndex(await fs.readFile(filePath, "utf8")) };
+    } catch { return ''; }
+    return cached.titles.get(String(threadId || '').toLowerCase()) || cached.titles.get(String(threadId || '')) || '';
+  };
+}

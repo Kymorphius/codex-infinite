@@ -20,7 +20,16 @@ Codex 会话选用 Router 的 Claude 订阅模型后，Router 会为这个线程
 - 终端会话记录新增可选字段 `companionOf`（Codex 线程 UUID）。用户不能通过 create/update 设置它。
 - 列表时，每个伴生摘要被收编为一条 `kind: 'claude'` 记录，记录 ID 等于 Claude CLI 会话 ID（与现有 Claude 终端会话一致），
   cwd 为伴生目录，标题跟随 Claude 自身标题。已存在的记录不改写；归档后保持归档。
-- 伴生记录与其他 Claude 终端会话一样出现在最近会话与最近发送里。
+- 命名：伴生会话是 Codex 会话的 Claude 一侧，标题跟随对应 Codex 会话的标题（`session_index.jsonl` 的
+  `thread_name`，按文件变化缓存）；用户在终端里 `/rename` 过则用该名字；在看板里改过名则以看板为准。
+  永不使用 Claude 生成的标题——伴生记录里的用户消息全是 Router 经 `claude -p` 转发的 Codex 提示词
+  （`entrypoint: "sdk-cli"`，以 Codex 系统指令开头），生成的标题会描述这些提示词。
+- 「发送」只算人在终端里亲手输入的消息：所有 Claude 记录读取时都跳过 `entrypoint: "sdk-cli"` 的用户消息。
+  因此只在 Codex 里聊时，伴生会话没有发送时间，不进最近发送（那条消息已经是 Codex 行），消息搜索也不会命中 Codex 指令。
+  在伴生终端里说过话后，它按那次时间进入最近发送，标题同 Codex 会话，说明为「时间 · Claude 伴生」；
+  最近会话里说明为「Claude 伴生」；状态图标与其他 Claude 会话一致。
+- Router 换用新的 Claude 会话后（`session.json` 的 `sessionId` 变化），旧伴生记录保留但不再出现在列表、
+  侧边栏、菜单和消息搜索中；伴生来源读取失败时不做隐藏。
 
 ## 轮流占用
 

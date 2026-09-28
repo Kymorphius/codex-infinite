@@ -7,9 +7,10 @@ import { terminalConversationId } from './terminal-conversation-contract.mjs';
 const CHUNK_BYTES = 512 * 1024, FULL_SCAN_BYTES = 64 * 1024 * 1024, MAX_CONTINUATIONS = 16, MAX_DEPTH = 4;
 export const DEFAULT_CLAUDE_TITLE = 'Claude CLI';
 
-// A message the person typed: not tool output, meta notes or command/system wrappers.
+// A message the person typed: not tool output, meta notes, command/system wrappers, or a
+// prompt a program sent through `claude -p` (entrypoint sdk-cli, e.g. Router relaying a Codex turn).
 export function claudeUserText(record, sessionId) {
-  if (record?.type !== 'user' || record.sessionId !== sessionId || record.isMeta || record.toolUseResult !== undefined) return '';
+  if (record?.type !== 'user' || record.sessionId !== sessionId || record.isMeta || record.toolUseResult !== undefined || record.entrypoint === 'sdk-cli') return '';
   const content = record.message?.content;
   const text = typeof content === 'string' ? content
     : Array.isArray(content) && content.every(part => part?.type === 'text' || part?.type === 'image')
@@ -99,14 +100,17 @@ export function createClaudeTranscriptReader({ userHome }) {
     if (!entries.length) return null;
     const live = entries.reduce((best, entry) => entry.modified > best.modified ? entry : best);
     const origin = visited.get(sessionId);
-    return { ...live, ids: [...visited.keys()], title: claudeTitleText(live.found) || (origin ? claudeTitleText(origin.found) : ''), lastUserAt: live.found.lastUserAt || origin?.found.lastUserAt || '' };
+    const custom = found => claudeTitleText({ custom: found.custom, generated: '' });
+    return { ...live, ids: [...visited.keys()], title: claudeTitleText(live.found) || (origin ? claudeTitleText(origin.found) : ''),
+      customTitle: custom(live.found) || (origin ? custom(origin.found) : ''), lastUserAt: live.found.lastUserAt || origin?.found.lastUserAt || '' };
   }
   async function summary(sessionId) {
     const resolved = await resolve(sessionId);
     // resumeId is the live file's session: resuming the managed id would reload the
     // conversation only up to its first continuation and fork an old branch.
-    return resolved ? { title: resolved.title, lastUserMessageAt: resolved.lastUserAt || null, ids: resolved.ids, resumeId: resolved.sessionId }
-      : { title: '', lastUserMessageAt: null, ids: [terminalConversationId(sessionId)], resumeId: null };
+    // customTitle is only what the person set with /rename (a generated title may describe a program's prompt).
+    return resolved ? { title: resolved.title, customTitle: resolved.customTitle, lastUserMessageAt: resolved.lastUserAt || null, ids: resolved.ids, resumeId: resolved.sessionId }
+      : { title: '', customTitle: '', lastUserMessageAt: null, ids: [terminalConversationId(sessionId)], resumeId: null };
   }
   async function search(sessionId, rawQuery) {
     const query = normalize(rawQuery).trim(), resolved = query && await resolve(sessionId);

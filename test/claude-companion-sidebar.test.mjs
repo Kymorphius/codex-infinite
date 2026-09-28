@@ -57,7 +57,9 @@ async function service(t, { holders = [] } = {}) {
   const occupancy = async () => holders[0] || null; occupancy.all = async () => holders;
   const conversations = new TerminalConversationService({ terminalService, deviceId: 'test-device', filePath: path.join(root, 'registry.json'),
     companions: createClaudeCompanionSource({ routerStateDirectory: root }), claudeOccupancy: occupancy,
-    claudeTranscripts: { summary: async () => ({ title: 'Router 调试', lastUserMessageAt: null, ids: [SESSION] }), search: async () => null } });
+    // The companion is named after its Codex conversation, never Claude's generated title.
+    codexTitle: async (thread) => (thread === THREAD ? 'Router 调试' : ''),
+    claudeTranscripts: { summary: async () => ({ title: 'Codex agent instructions', customTitle: '', lastUserMessageAt: null, ids: [SESSION] }), search: async () => null } });
   return { conversations, cwd, holders };
 }
 

@@ -38,7 +38,7 @@ async function home(t) {
 test('reader follows continued-in to the most recently written transcript and advances incrementally', async t => {
   const { userHome, file, touch } = await home(t), origin = randomUUID(), stale = randomUUID(), live = randomUUID();
   const reader = createClaudeTranscriptReader({ userHome });
-  assert.deepEqual(await reader.summary(origin), { title: '', lastUserMessageAt: null, ids: [origin], resumeId: null });
+  assert.deepEqual(await reader.summary(origin), { title: '', customTitle: '', lastUserMessageAt: null, ids: [origin], resumeId: null });
   await fs.writeFile(file(origin), line({ type: 'ai-title', aiTitle: '原标题', sessionId: origin }) + said(origin, '早', '2026-09-28T01:00:00.000Z')
     + line({ type: 'continued-in', sessionId: origin, continuedInSessionId: stale }) + line({ type: 'continued-in', sessionId: origin, continuedInSessionId: live })
     + line({ type: 'continued-in', sessionId: origin, continuedInSessionId: randomUUID() }));
@@ -46,7 +46,7 @@ test('reader follows continued-in to the most recently written transcript and ad
   await fs.writeFile(file(live), said(live, '现在', '2026-09-28T03:00:00.000Z'));
   await touch(origin, 1000); await touch(stale, 2000); await touch(live, 3000);
   const first = await reader.summary(origin);
-  assert.deepEqual({ ...first, ids: first.ids.slice(0, 3) }, { title: '原标题', lastUserMessageAt: '2026-09-28T03:00:00.000Z', ids: [origin, stale, live], resumeId: live }, 'title falls back to the origin; resume targets the live file');
+  assert.deepEqual({ ...first, ids: first.ids.slice(0, 3) }, { title: '原标题', customTitle: '', lastUserMessageAt: '2026-09-28T03:00:00.000Z', ids: [origin, stale, live], resumeId: live }, 'title falls back to the origin; resume targets the live file');
   assert.equal(first.ids.length, 4, 'a missing continuation id still belongs to the chain');
   await fs.appendFile(file(live), line({ type: 'custom-title', customTitle: '改名', sessionId: live }) + JSON.stringify({ type: 'user', sessionId: live, timestamp: '2026-09-28T04:00:00.000Z', message: { content: '半行' } }));
   await touch(live, 4000);

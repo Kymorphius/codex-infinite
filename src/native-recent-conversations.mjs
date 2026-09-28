@@ -120,11 +120,19 @@ export function installNativeRecentConversationMenu({
     title.textContent = tab.title;
     const detail = documentRef.createElement("span");
     detail.className = "ccc-native-recent-detail";
-    detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : tab.kind === "terminal" ? (tab.engine === "shell" ? "Shell" : "Claude CLI") : "本地会话";
+    detail.textContent = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : tab.kind === "terminal" ? (tab.engine === "shell" ? "Shell" : tab.companionOf ? "Claude 伴生" : "Claude CLI") : "本地会话";
     copy.append(title, detail);
     row.titleNode = title;
     row.detailNode = detail;
     select.append(dot, copy);
+    // Claude rows carry the same amber tag as the sidebar so they stand out among Codex rows.
+    if (tab.kind === "terminal" && tab.engine !== "shell") {
+      const tag = documentRef.createElement("span");
+      tag.className = "ccc-native-recent-engine";
+      tag.textContent = tab.companionOf ? "伴生" : "CLI";
+      tag.title = tab.companionOf ? "Claude 伴生会话" : "Claude CLI 会话";
+      select.append(tag);
+    }
     select.addEventListener("click", () => {
       close();
       if (onSelect) onSelect(tab); else activate(tab.key);
@@ -172,7 +180,7 @@ export function installNativeRecentConversationMenu({
         const tab = records[index];
         row.dataset.active = String(tab.key === state.activeKey);
         if (row.titleNode.textContent !== tab.title) row.titleNode.textContent = tab.title;
-        const detail = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : tab.kind === "terminal" ? (tab.engine === "shell" ? "Shell" : "Claude CLI") : "本地会话";
+        const detail = detailFor ? detailFor(tab) : tab.kind === "remote" ? tab.deviceName || "远端会话" : tab.kind === "chatgpt" ? "ChatGPT" : tab.kind === "terminal" ? (tab.engine === "shell" ? "Shell" : tab.companionOf ? "Claude 伴生" : "Claude CLI") : "本地会话";
         if (row.detailNode.textContent !== detail) row.detailNode.textContent = detail;
         updateStatusIcon(row, tab);
       });
@@ -274,6 +282,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-select{display:flex;min-width:0;flex:1;align-items:center;gap:9px;border:0;border-radius:8px;padding:8px;background:transparent;color:inherit;text-align:left;cursor:pointer}' +
   '.ccc-native-recent-select:hover,.ccc-native-recent-select:focus-visible{background:color-mix(in srgb,currentColor 9%,transparent);outline:none}' +
   '.ccc-native-recent-copy{display:flex;min-width:0;flex:1;flex-direction:column}.ccc-native-recent-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 13px/17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+  '.ccc-native-recent-engine{flex:0 0 auto;padding:0 6px;border-radius:999px;color:#f2bd5c;background:color-mix(in srgb,#d9a640 26%,transparent);font:600 10px/16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
   '.ccc-native-recent-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.58}' +
   '.ccc-native-recent-empty{margin:0;padding:18px;text-align:center;font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.6}' +
   '@container ccc-native-tabs (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}}' +

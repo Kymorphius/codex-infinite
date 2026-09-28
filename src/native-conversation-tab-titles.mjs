@@ -29,7 +29,7 @@ export function createNativeConversationTabNormalizer(storage, clean, uuid) {
     const id = clean(tab?.id, 160), deviceId = kind === 'remote' || kind === 'terminal' ? clean(tab?.deviceId, 120) : 'local';
     if (!kind || !id || !deviceId || (kind !== 'remote' && !uuid.test(id))) return null;
     const normalizedId = kind === 'remote' ? id : id.toLowerCase();
-    return { kind, id: normalizedId, deviceId, title: titles.resolve(kind, normalizedId, clean(tab?.title, 160)), cwd: clean(tab?.cwd, 1024), deviceName: clean(tab?.deviceName, 80), ...(kind === 'terminal' ? { engine: tab.engine === 'claude' ? 'claude' : 'shell' } : {}) };
+    return { kind, id: normalizedId, deviceId, title: titles.resolve(kind, normalizedId, clean(tab?.title, 160)), cwd: clean(tab?.cwd, 1024), deviceName: clean(tab?.deviceName, 80), ...(kind === 'terminal' ? { engine: tab.engine === 'claude' ? 'claude' : 'shell', ...(uuid.test(tab?.companionOf || '') ? { companionOf: String(tab.companionOf).toLowerCase() } : {}) } : {}) };
   };
 }
 

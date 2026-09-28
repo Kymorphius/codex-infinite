@@ -47,7 +47,7 @@ import { FederatedTaskAdapter } from "./federated-task-adapter.mjs";
 import { RemoteMessageService } from "./remote-message-service.mjs";
 import { NativeConversationAdapter } from "./native-conversation-adapter.mjs";
 import { NodeRuntimeService } from "./node-runtime.mjs";
-import { SessionTitleIndex } from "./session-title-index.mjs";
+import { SessionTitleIndex, createCodexTitleLookup } from "./session-title-index.mjs";
 import { NativeThreadStatusProvider } from "./native-thread-status.mjs";
 import { NativeThreadSettingsAdapter } from "./native-thread-settings-adapter.mjs";
 import { RemoteThreadSettingsService } from "./thread-settings-control.mjs";
@@ -221,7 +221,7 @@ export async function run() {
   const terminalService = new TerminalService({ userHome: config.userHome, defaultCwd: config.userHome });
   const terminalConversations = new TerminalConversationService({ terminalService, deviceId: config.nodeDevice.id,
     filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter),
-    companions: createClaudeCompanionSource({ routerStateDirectory: config.routerStateDirectory }) });
+    companions: createClaudeCompanionSource({ routerStateDirectory: config.routerStateDirectory }), codexTitle: createCodexTitleLookup({ filePath: config.sessionTitleIndexPath }) });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const nativeDashboardLaunchService = new NativeDashboardLaunchService({ restart: () => restartService.request(), launchOriginal: () => nativeAppLaunchService.launch() });
