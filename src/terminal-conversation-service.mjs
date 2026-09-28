@@ -48,9 +48,12 @@ export class TerminalConversationService {
     // holds is read-only here and cannot be started a second time.
     // A session held only by Claude background jobs can be opened here (attach) and
     // shared; one held by a terminal window needs an explicit takeover.
-    const holders = presented.status === 'running' ? [] : await this.holders(summary.ids || [record.id]);
-    const occupiedBy = !holders.length ? null : holders.every(item => item.jobId) ? 'background' : 'terminal';
-    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy };
+    // Holders include our own running Claude; their registration also carries Claude's
+    // busy/idle state, shown next to the conversation in 最近会话 / 最近发送.
+    const holders = await this.holders(summary.ids || [record.id]), running = presented.status === 'running';
+    const occupiedBy = running || !holders.length ? null : holders.every(item => item.jobId) ? 'background' : 'terminal';
+    const claudeStatus = holders.some(item => item.status === 'busy') ? 'busy' : holders.some(item => item.status === 'idle') ? 'idle' : null;
+    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus };
   }
 
   async holders(ids) {

@@ -48,3 +48,43 @@ test('sent-message search routes Claude CLI results to the terminal view and nat
   assert.match(source, /navigate-to-route', path: '\/local\/' \+ item\.id/);
   assert.doesNotThrow(() => new Function(source));
 });
+
+test('Claude rows in 最近会话 / 最近发送 show Claude busy, idle or not running', async () => {
+  const { updateNativeRecentStatus, updateClaudeStatus } = await import('../src/native-recent-status.mjs');
+  const { buildNativeRecentConversationMenuInjectionSource } = await import('../src/native-recent-conversations.mjs');
+  assert.match(buildNativeRecentConversationMenuInjectionSource(), /function updateClaudeStatus/, 'the helper ships with the injected menu');
+  const dot = () => ({ dataset: {}, attributes: {}, replaceChildren() {}, setAttribute(name, value) { this.attributes[name] = value; } });
+  let records = [{ id: 'c1', claudeStatus: 'busy' }];
+  const row = { statusDot: dot() }, tab = { kind: 'terminal', engine: 'claude', id: 'c1' };
+  updateNativeRecentStatus({}, row, tab, null, () => records);
+  assert.equal(row.statusDot.dataset.status, 'active'); assert.equal(row.statusDot.attributes.title, 'Claude 工作中');
+  records = [{ id: 'c1', claudeStatus: 'idle' }]; updateNativeRecentStatus({}, row, tab, null, () => records);
+  assert.equal(row.statusDot.dataset.status, 'completed'); assert.equal(row.statusDot.dataset.unread, 'false'); assert.equal(row.statusDot.attributes.title, 'Claude 空闲');
+  records = [{ id: 'c1', claudeStatus: null }]; updateNativeRecentStatus({}, row, tab, null, () => records);
+  assert.equal(row.statusDot.dataset.status, 'unknown'); assert.equal(row.statusDot.attributes.title, 'Claude 未运行');
+  const shell = { statusDot: dot() }; updateNativeRecentStatus({}, shell, { kind: 'terminal', engine: 'shell', id: 's' }, null, () => []);
+  assert.equal(shell.statusDot.dataset.status, undefined, 'shell rows keep the plain dot');
+  assert.equal(typeof updateClaudeStatus, 'function');
+});
+
+test('only states worth a look keep an icon; completed-and-read and idle Claude stay quiet', async () => {
+  const { updateNativeRecentStatus } = await import('../src/native-recent-status.mjs');
+  const dot = () => ({ dataset: {}, children: [], replaceChildren() { this.children = []; }, append(node) { this.children.push(node); }, setAttribute() {} });
+  const id = '019a0000-0000-7000-8000-000000000001', check = { cloneNode: () => 'check-svg' };
+  const rail = { classList: { contains: name => ['absolute', 'end-0', 'group-hover:hidden'].includes(name) }, children: [check], querySelector: selector => (selector === 'svg' ? check : null) };
+  const documentRef = { querySelector: () => ({ querySelectorAll: () => [rail] }) };
+  const status = live => { const row = { statusDot: dot() }; updateNativeRecentStatus(documentRef, row, { kind: 'local', id }, live); return row.statusDot; };
+  const read = status({ status: 'completed', unread: false });
+  assert.equal(read.dataset.quiet, 'true'); assert.equal(read.children.length, 0, 'no check for an already-read finished conversation');
+  assert.equal(status({ status: 'completed', unread: true }).dataset.quiet, 'false', 'unread keeps its dot');
+  const interrupted = status({ status: 'interrupted', unread: false });
+  assert.equal(interrupted.dataset.quiet, 'false'); assert.equal(interrupted.children.length, 1);
+  const claude = value => { const row = { statusDot: dot() }; updateNativeRecentStatus({}, row, { kind: 'terminal', engine: 'claude', id: 'c' }, null, () => [{ id: 'c', claudeStatus: value }]); return row.statusDot.dataset.quiet; };
+  assert.deepEqual([claude('busy'), claude('idle'), claude(null)], ['false', 'true', 'true']);
+});
+
+test('the quiet rule overrides the more specific completed-check rule', async () => {
+  const { NATIVE_RECENT_CONVERSATION_STYLE } = await import('../src/native-recent-conversations.mjs');
+  assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /\[data-quiet="true"\]::before\{content:none!important\}/);
+  assert.match(NATIVE_RECENT_CONVERSATION_STYLE, /\[data-quiet="true"\]\{background:none!important\}/);
+});

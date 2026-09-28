@@ -42,6 +42,18 @@ function statusFromEvent(type, current) {
   return current;
 }
 
+// Codex writes the same turn_aborted "interrupted" for a quota stop as for a manual stop;
+// the account's rate limits in the preceding token_count tell them apart. Returns the
+// reset time (ms) of an exhausted window, or null.
+export function exhaustedRateLimitReset(rateLimits) {
+  if (!rateLimits || typeof rateLimits !== "object") return null;
+  const windows = [rateLimits.primary, rateLimits.secondary].filter((value) => value && typeof value === "object");
+  const exhausted = windows.filter((value) => Number(value.used_percent) >= 100);
+  if (!exhausted.length && !rateLimits.rate_limit_reached_type) return null;
+  const resets = (exhausted.length ? exhausted : windows).map((value) => Number(value.resets_at)).filter((value) => Number.isFinite(value) && value > 0);
+  return resets.length ? Math.max(...resets) * 1000 : null;
+}
+
 function statusFromResponseItem(payload, current) {
   if (!payload) return current;
   if (payload.type === "message" && payload.role === "user") return "active";
@@ -62,6 +74,7 @@ export function parseSessionJsonl(content, filePath = "") {
   let recordCount = 0;
   let threadSettings = null;
   let modelContextWindow = null;
+  let exhaustedResetAt = null, quotaResetsAt = null;
   for (const line of String(content).split(/\r?\n/)) {
     if (!line.trim()) continue;
     let record;
@@ -84,7 +97,11 @@ export function parseSessionJsonl(content, filePath = "") {
       }
       if (eventType === "token_count") {
         modelContextWindow = record.payload.info?.model_context_window || modelContextWindow;
+        if (record.payload.rate_limits) exhaustedResetAt = exhaustedRateLimitReset(record.payload.rate_limits);
       }
+      // A turn that stops while the quota is exhausted is a quota stop; a new turn clears it.
+      if (["turn_aborted", "task_aborted", "task_failed", "turn_failed", "error"].includes(eventType)) quotaResetsAt = exhaustedResetAt;
+      if (["task_started", "turn_started", "user_message", "task_complete", "task_completed", "turn_complete"].includes(eventType)) quotaResetsAt = null;
     }
   }
   if (!meta) return null;
@@ -110,7 +127,8 @@ export function parseSessionJsonl(content, filePath = "") {
     approvalPolicy: threadSettings?.approvalPolicy || null,
     permissionProfile: threadSettings?.permissionProfile || null,
     accessMode: threadSettings?.accessMode || "unknown",
-    modelContextWindow
+    modelContextWindow,
+    quotaResetsAt: quotaResetsAt && ["interrupted", "error"].includes(status) ? new Date(quotaResetsAt).toISOString() : null
   };
 }
 

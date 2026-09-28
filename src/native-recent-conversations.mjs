@@ -1,4 +1,4 @@
-import { updateNativeRecentStatus } from './native-recent-status.mjs';
+import { updateClaudeStatus, updateNativeRecentStatus } from './native-recent-status.mjs';
 
 export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 40) {
   const boundedLimit = Math.max(1, Math.min(40, Number(limit) || 40));
@@ -95,7 +95,7 @@ export function installNativeRecentConversationMenu({
   };
 
   let renderedSignature = "", renderedStatus = "", renderedCount = 0, currentRecords = [], visibleRows = [];
-  const updateStatusIcon = (row, tab) => updateNativeRecentStatus(documentRef, row, tab, window.__codexControlConsoleAttentionConversations?.status?.(tab.id));
+  const updateStatusIcon = (row, tab) => updateNativeRecentStatus(documentRef, row, tab, window.__codexControlConsoleAttentionConversations?.status?.(tab.id), () => window.__cccTerminalConversations?.records?.() || []);
   const createRow = (tab, records) => {
     const row = documentRef.createElement("div");
     row.className = "ccc-native-recent-row";
@@ -109,7 +109,7 @@ export function installNativeRecentConversationMenu({
     const dot = documentRef.createElement("span");
     dot.className = "ccc-native-tab-dot";
     dot.dataset.kind = tab.kind;
-    if (tab.kind === "local") dot.className += " ccc-native-recent-status";
+    if (tab.kind === "local" || (tab.kind === "terminal" && tab.engine !== "shell")) dot.className += " ccc-native-recent-status";
     else dot.setAttribute("aria-hidden", "true");
     row.statusDot = dot;
     updateStatusIcon(row, tab);
@@ -266,6 +266,8 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="pending"]::before{content:"";width:10px;height:10px;border:1.5px solid currentColor;border-radius:50%}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="interrupted"]::before{content:"Ⅱ";font-size:12px}' +
   '.ccc-native-recent-status[data-status-source="fallback"][data-status="error"]::before{content:"!";font:bold 12px/14px sans-serif}' +
+  '.ccc-native-recent-status[data-status="quota"]{background:none;color:#d9a640}.ccc-native-recent-status[data-status="quota"]::before{content:"";width:12px;height:12px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M4 1.5h8M4 14.5h8M5 1.5c0 3 3 4.5 3 6.5s-3 3.5-3 6.5M11 1.5c0 3-3 4.5-3 6.5s3 3.5 3 6.5%22 fill=%22none%22 stroke=%22black%22 stroke-width=%221.6%22 stroke-linecap=%22round%22/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M4 1.5h8M4 14.5h8M5 1.5c0 3 3 4.5 3 6.5s-3 3.5-3 6.5M11 1.5c0 3-3 4.5-3 6.5s3 3.5 3 6.5%22 fill=%22none%22 stroke=%22black%22 stroke-width=%221.6%22 stroke-linecap=%22round%22/%3E%3C/svg%3E") center/contain no-repeat}' +
+  '.ccc-native-recent-status[data-quiet="true"]{background:none!important}.ccc-native-recent-status[data-quiet="true"]::before{content:none!important}' +
   '.ccc-native-recent-menu{position:absolute;bottom:34px;left:0;width:min(360px,calc(100vw - 32px));max-height:min(520px,calc(100vh - 120px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px)}' +
   '.ccc-native-recent-menu{overflow-anchor:none}.ccc-native-recent-menu[hidden]{display:none}.ccc-native-recent-row{display:flex;align-items:center;gap:4px;border-radius:8px}' +
   '.ccc-native-recent-row[data-active="true"]{background:color-mix(in srgb,#6d8cff 14%,transparent)}' +
@@ -279,6 +281,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
 
 export function buildNativeRecentConversationMenuInjectionSource() {
   return [
+    updateClaudeStatus,
     updateNativeRecentStatus,
     recentNativeConversationRecords,
     openNativeConversationPages,

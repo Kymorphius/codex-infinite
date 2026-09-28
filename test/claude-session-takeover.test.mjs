@@ -144,3 +144,20 @@ test('a session held only by Claude background jobs is attached and shared, neve
   assert.equal((await service.open({ id: created.id })).occupiedBy, 'terminal', 'any terminal-window holder needs a takeover');
   await assert.rejects(service.start({ id: created.id }), { statusCode: 409 }); assert.equal(takeovers, 0);
 });
+
+test('records carry Claude busy/idle from any holder, including our own running Claude', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-status-'));
+  const terminalService = new TerminalService({ userHome: directory, defaultCwd: directory, spawnProcess: async () => ({ onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), kill: async () => {}, write() {}, resize() {} }) });
+  t.after(async () => { await terminalService.dispose(); await fs.rm(directory, { recursive: true, force: true }); });
+  let held = [];
+  const occupancy = async () => held[0] || null; occupancy.all = async () => held;
+  const service = new TerminalConversationService({ terminalService, filePath: path.join(directory, 'registry.json'), deviceId: 'mac',
+    claudeTranscripts: { summary: async id => ({ title: '', lastUserMessageAt: null, ids: [id] }), search: async () => null }, claudeOccupancy: occupancy });
+  const created = await service.create({ cwd: directory, kind: 'claude' });
+  held = [{ pid: 5, sessionId: created.id, status: 'busy' }];
+  const running = await service.open({ id: created.id });
+  assert.equal(running.claudeStatus, 'busy'); assert.equal(running.occupiedElsewhere, false, 'our own running Claude is not elsewhere');
+  await service.stop({ id: created.id }); held = [{ pid: 6, sessionId: created.id, jobId: '13649afa', status: 'idle' }];
+  assert.equal((await service.open({ id: created.id })).claudeStatus, 'idle');
+  held = []; assert.equal((await service.open({ id: created.id })).claudeStatus, null);
+});

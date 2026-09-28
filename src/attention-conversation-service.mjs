@@ -36,7 +36,7 @@ export class AttentionConversationService {
       });
       const unreadSet = new Set(unread.map(id => id.toLowerCase()));
       this.snapshot = { items: projectAttentionConversations(eligible, unread), stale: false,
-        statuses: Object.fromEntries(eligible.map(task => [task.id.toLowerCase(), { status: task.status || 'unknown', unread: unreadSet.has(task.id.toLowerCase()) }])) };
+        statuses: Object.fromEntries(eligible.map(task => [task.id.toLowerCase(), { status: task.status || 'unknown', unread: unreadSet.has(task.id.toLowerCase()), ...(task.quotaResetsAt ? { quotaResetsAt: task.quotaResetsAt } : {}) }])) };
     } catch { this.snapshot = { ...this.snapshot, stale: true }; }
   }
 }

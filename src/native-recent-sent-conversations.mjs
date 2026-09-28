@@ -8,7 +8,8 @@ export function normalizeRecentSentSnapshot(input) {
     if (seen.has(id)) continue;
     seen.add(id);
     const status = ["active", "completed", "pending", "interrupted", "error"].includes(item.status) ? item.status : "unknown";
-    items.push({ kind: "local", id, title: String(item.title || "Codex 会话").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 160), lastUserMessageAt: new Date(item.lastUserMessageAt).toISOString(), status });
+    const quotaResetsAt = typeof item.quotaResetsAt === "string" && Number.isFinite(Date.parse(item.quotaResetsAt)) ? new Date(item.quotaResetsAt).toISOString() : null;
+    items.push({ kind: "local", id, title: String(item.title || "Codex 会话").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 160), lastUserMessageAt: new Date(item.lastUserMessageAt).toISOString(), status, ...(quotaResetsAt ? { quotaResetsAt } : {}) });
     if (items.length === 40) break;
   }
   return { items, loading: input?.loading === true, stale: input?.stale === true };

@@ -75,3 +75,34 @@ Unit tests cover continuation resolution and containment, genuine-message
 filtering, incremental summaries, search merging and ordering, the terminal
 anchor, recent-sent merging and terminal routing. Visual check in the running
 macOS app: the bar above the CLI composer, and each menu opening a CLI entry.
+
+## Claude status in 最近会话 / 最近发送
+
+Presented Claude records carry `claudeStatus` (`busy`, `idle` or null) from the
+`status` field of any live Claude registration on the conversation's chain, including
+the board's own running or attached Claude. Claude rows in both menus use the native
+status slot: busy spins like an active turn (「Claude 工作中」); idle (「Claude 空闲」)
+and not running (「Claude 未运行」) stay quiet. Shell rows keep the plain dot.
+
+Quiet icons (both menus, all rows): an icon appears only for states worth a look —
+running, unread (blue dot), interrupted, error, pending. Completed-and-read native
+conversations and idle or stopped Claude conversations get `data-quiet="true"`: the
+slot keeps its width for alignment but shows nothing (no check, no dot). The state
+remains in the slot's title/aria-label. The status helper ships inside the
+injected menu source; the provider signature includes `claudeStatus` and a record
+change re-renders both menus.
+
+
+## Quota stops
+
+Codex records a quota stop exactly like a manual stop (`turn_aborted`, reason
+`interrupted`); no error event is written. The session parser therefore tracks the
+account `rate_limits` of each `token_count`: a window with `used_percent >= 100` (or a
+set `rate_limit_reached_type`) marks the quota exhausted, and a turn that aborts or
+fails while exhausted gets `quotaResetsAt` (latest reset among exhausted windows). A
+later turn or a completed turn clears it, and it is only reported while the session's
+status is `interrupted` or `error`. The attention status map and the recent-sent items
+carry `quotaResetsAt` (validated ISO time). Both menus show an amber hourglass with
+「额度已用完 · M月D日 HH:mm 重置」 until the reset time, then the normal 已中断 icon.
+A manual stop made while the quota is already exhausted is also shown as a quota stop.
+Validated on this machine: 6 of 133 sessions ending interrupted were quota stops.
