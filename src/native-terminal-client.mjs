@@ -2,11 +2,11 @@ export function installNativeTerminalClient() {
   if (typeof window.codexControlConsoleTerminal !== 'function') return null;
   window.__cccTerminalNative?.dispose();
   const pending = new Map(), sockets = new Map(); let disposed = false;
-  function request(operation, input = {}) {
+  function request(operation, input = {}, timeoutMs = 30000) {
     if (disposed) return Promise.reject(Error('终端连接已关闭'));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { pending.delete(id); reject(Error('终端操作超时，请核对会话后重试')); }, 30000);
+      const timer = setTimeout(() => { pending.delete(id); reject(Error('终端操作超时，请核对会话后重试')); }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
       try { window.codexControlConsoleTerminal(JSON.stringify({ id, operation, input })); }
       catch (error) { clearTimeout(timer); pending.delete(id); reject(error); }

@@ -1,6 +1,7 @@
 import { readNativeSidebarModel } from './native-sidebar-model.mjs';
 import { nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar } from './native-terminal-sidebar.mjs';
 import { createNativeTerminalActions } from './native-terminal-actions.mjs';
+import { installNativeCompanionMenu } from './native-companion-menu.mjs';
 
 export function installNativeTerminalProvider(dashboardUrl, readModel, makeSidebar, makeActions, prepareConnection = () => false) {
   window.__cccTerminalConversations?.dispose?.();
@@ -11,15 +12,15 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   let ready = nativeMode, disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, acceptedVersion = 0;
   const frame = nativeMode ? null : document.createElement('iframe');
   if (frame) { frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', ''); frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel); }
-  function request(operation, input = {}) {
-    if (nativeMode) return !disposed && native() ? native().request(operation, input) : Promise.reject(Error('终端连接正在重建，请稍后重试'));
+  function request(operation, input = {}, timeoutMs = 30000) {
+    if (nativeMode) return !disposed && native() ? native().request(operation, input, timeoutMs) : Promise.reject(Error('终端连接正在重建，请稍后重试'));
     if (!ready || disposed) {
       if (!disposed && prepareConnection()) return Promise.reject(Error('正在准备会话管理，请页面恢复后再次操作'));
       return Promise.reject(Error('会话管理正在连接，请稍后重试'));
     }
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => { pending.delete(id); reject(Error('会话操作超时，请刷新核对')); }, 30000);
+      const timeout = setTimeout(() => { pending.delete(id); reject(Error('会话操作超时，请刷新核对')); }, timeoutMs);
       pending.set(id, { resolve, reject, timeout });
       frame.contentWindow.postMessage({ type: 'codex-terminal-request', channel, id, operation, input }, origin);
     });
@@ -68,6 +69,23 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   }
   const actions = makeActions({ documentRef: document, windowRef: window, request, accept, readModel });
   const sidebar = makeSidebar({ documentRef: document, readModel, open: record => window.__codexControlConsoleOpenTerminalConversation?.(record), menu: actions.menu });
+  // Thread context menu: open the companion Claude session, or have Router create one.
+  let creating = '';
+  async function companion(threadId) {
+    const existing = records.find(record => record.companionOf === threadId && !record.archived);
+    if (existing) { sidebar.expand?.(threadId); window.__codexControlConsoleOpenTerminalConversation?.(existing); return existing; }
+    if (creating) { actions.notice('正在创建另一个伴生 Claude 会话，请稍候'); return null; }
+    creating = threadId; actions.notice('正在创建伴生 Claude 会话：读取这个会话的最近记录并让 Claude 建立上下文，通常需要十几秒…');
+    try {
+      const result = await request('create-companion', { threadId }, 360000);
+      accept(result.conversation); sidebar.expand?.(threadId);
+      window.__codexControlConsoleOpenTerminalConversation?.(result.conversation);
+      return result.conversation;
+    } catch (error) { actions.notice(error.message || '未能创建伴生 Claude 会话'); return null; }
+    finally { creating = ''; }
+  }
+  const companionMenu = typeof installNativeCompanionMenu === 'function'
+    ? installNativeCompanionMenu({ documentRef: document, records: () => records, companion }) : null;
   function receive(event) {
     if (!frame || event.source !== frame.contentWindow || event.origin !== origin || event.data?.channel !== channel || disposed) return;
     if (event.data.type === 'codex-terminal-ready') { ready = true; void refresh(); return; }
@@ -85,7 +103,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   window.addEventListener('message', receive); if (frame) document.body.append(frame);
   const interval = setInterval(refresh, 5000);
   window.__cccTerminalConversations = {
-    refresh, accept, create: actions.create, request, records: () => records,
+    refresh, accept, create: actions.create, request, records: () => records, companion,
     async open(reference) {
       try {
         const result = await request('open', { id: reference.conversationId || reference.id });
@@ -95,12 +113,12 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
       catch (error) { actions.notice(error.message); return null; }
     },
     select(id) { selected = id || ''; sidebar.render(records, selected); },
-    dispose() { disposed = true; ready = false; clearInterval(interval); clearTimeout(timer); observer.disconnect(); window.removeEventListener('message', receive); frame?.remove(); sidebar.destroy(); actions.destroy(); for (const entry of pending.values()) { clearTimeout(entry.timeout); entry.reject(Error('会话管理已重新连接')); } pending.clear(); }
+    dispose() { disposed = true; ready = false; companionMenu?.dispose(); clearInterval(interval); clearTimeout(timer); observer.disconnect(); window.removeEventListener('message', receive); frame?.remove(); sidebar.destroy(); actions.destroy(); for (const entry of pending.values()) { clearTimeout(entry.timeout); entry.reject(Error('会话管理已重新连接')); } pending.clear(); }
   };
   if (nativeMode) void refresh();
   return window.__cccTerminalConversations;
 }
 
 export function buildNativeTerminalProviderSource() {
-  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar, createNativeTerminalActions, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
+  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar, createNativeTerminalActions, installNativeCompanionMenu, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
 }

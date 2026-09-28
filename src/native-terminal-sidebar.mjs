@@ -105,5 +105,7 @@ export function createNativeTerminalSidebar({ documentRef, readModel, open, menu
       roots.set(record.id, root);
     }
   }
-  return { render, destroy() { for (const root of roots.values()) root.remove(); roots.clear(); style.remove(); } };
+  // Show a thread's companion row (e.g. right after creating it from the thread menu).
+  function expand(threadId) { if (!expanded.has(threadId)) toggleCompanion(threadId); }
+  return { render, expand, destroy() { for (const root of roots.values()) root.remove(); roots.clear(); style.remove(); } };
 }

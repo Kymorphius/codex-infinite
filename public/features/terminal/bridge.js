@@ -3,7 +3,7 @@ import { requestJson } from '../../core/transport.js';
 export function installTerminalBridge({ windowRef = window, request = requestJson } = {}) {
   const channel = new URL(windowRef.location.href).searchParams.get('channel');
   if (!/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/iu.test(channel || '') || windowRef.parent === windowRef) return false;
-  const operations = new Set(['list', 'create', 'open', 'update', 'start', 'stop']);
+  const operations = new Set(['list', 'create', 'open', 'update', 'start', 'stop', 'create-companion']);
   const reply = value => windowRef.parent.postMessage({ ...value, channel }, 'app://-');
   windowRef.addEventListener('message', async event => {
     const message = event.data;

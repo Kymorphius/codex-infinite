@@ -8,8 +8,8 @@ import { createClaudeSessionTakeover } from './claude-session-takeover.mjs';
 
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
-    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '' } = {}) {
-    this.companions = companions; this.codexTitle = codexTitle; this.currentCompanions = null;
+    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '', companionCreator = null } = {}) {
+    this.companions = companions; this.codexTitle = codexTitle; this.currentCompanions = null; this.companionCreator = companionCreator;
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
     this.claudeTranscripts = claudeTranscripts || (terminalService?.userHome ? createClaudeTranscriptReader({ userHome: terminalService.userHome })
@@ -108,6 +108,19 @@ export class TerminalConversationService {
         if (record.cwd !== companion.cwd) await this.store.relocateCompanion(record.id, companion.cwd);
       } catch { /* One unreadable or over-limit companion must not hide the rest. */ }
     }
+  }
+
+  // Router seeds a companion Claude session for a Codex thread that has none (idempotent:
+  // an existing one is returned). The record then comes from the usual adoption.
+  createCompanion({ threadId }) {
+    if (!this.companions || !this.companionCreator) throw terminalError(503, '伴生 Claude 会话不可用');
+    return this.exclusive(`companion:${threadId}`, async () => {
+      const { sessionId } = await this.companionCreator.create(threadId);
+      await this.syncCompanions();
+      const record = await this.store.get(sessionId).catch(() => null);
+      if (!record || record.companionOf !== threadId) throw terminalError(502, '伴生 Claude 会话已创建，但尚未出现在会话列表中，请稍后刷新');
+      return this.view(record);
+    });
   }
 
   async list() {

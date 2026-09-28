@@ -16,6 +16,12 @@ export function terminalStartInput(input) {
   return { id: terminalConversationId(input.id), takeover: input.takeover === true };
 }
 
+// Create (or open) the Router companion Claude session of a native Codex thread.
+export function terminalCompanionCreateInput(input) {
+  assertTerminalObject(input, ['threadId']);
+  return { threadId: terminalConversationId(input.threadId) };
+}
+
 export function terminalConversationText(value, label, max = 200) {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /[\u0000-\u001f\u007f]/u.test(value)) {
     throw terminalError(400, `${label}无效`);
