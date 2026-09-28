@@ -95,3 +95,16 @@ test('service projects Claude titles and send times, searches sent messages and 
   const failing = await withTerminalSentSearch(base, { searchSent: async () => { throw Error('down'); } }).search('说过');
   assert.equal(failing.items.length, 2); assert.equal(failing.incomplete, true, 'a terminal failure marks the result incomplete');
 });
+
+test('a transcript too large to scan whole still finds the typed message behind a long tool run', async t => {
+  const { userHome, file } = await home(t), id = randomUUID(), at = '2026-09-28T15:12:22.000Z';
+  const tool = said(id, 'x'.repeat(300), '2026-09-28T15:20:00.000Z', { toolUseResult: {} });
+  await fs.writeFile(file(id), line({ type: 'ai-title', aiTitle: '看板会话交互', sessionId: id }) + said(id, '最近发送里看不到', at)
+    + tool.repeat(40) + said(id, 'y'.repeat(5000), '2026-09-28T15:21:00.000Z', { toolUseResult: {} }) + tool.repeat(10));
+  // Tail-only reading would see only tool output; the backwards backfill must reach the typed message.
+  const reader = createClaudeTranscriptReader({ userHome, fullScanBytes: 4096, chunkBytes: 1024 });
+  const summary = await reader.summary(id);
+  assert.equal(summary.title, '看板会话交互'); assert.equal(summary.lastUserMessageAt, at);
+  await fs.appendFile(file(id), said(id, '新消息', '2026-09-28T15:30:00.000Z'));
+  assert.equal((await reader.summary(id)).lastUserMessageAt, '2026-09-28T15:30:00.000Z', 'then advances incrementally');
+});

@@ -4,7 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { terminalConversationId } from './terminal-conversation-contract.mjs';
 
-const CHUNK_BYTES = 512 * 1024, FULL_SCAN_BYTES = 64 * 1024 * 1024, MAX_CONTINUATIONS = 16, MAX_DEPTH = 4;
+const CHUNK_BYTES = 512 * 1024, FULL_SCAN_BYTES = 64 * 1024 * 1024, BACKFILL_BYTES = 64 * 1024 * 1024, MAX_CONTINUATIONS = 16, MAX_DEPTH = 4;
 export const DEFAULT_CLAUDE_TITLE = 'Claude CLI';
 
 // A message the person typed: not tool output, meta notes, command/system wrappers, or a
@@ -43,7 +43,7 @@ const normalize = value => String(value || '').normalize('NFKC').toLocaleLowerCa
 
 // Reads only managed session transcripts inside the real ~/.claude/projects, never
 // settings or credentials. Summaries advance incrementally per file.
-export function createClaudeTranscriptReader({ userHome }) {
+export function createClaudeTranscriptReader({ userHome, fullScanBytes = FULL_SCAN_BYTES, chunkBytes = CHUNK_BYTES }) {
   const states = new Map();
   async function root() {
     try {
@@ -60,6 +60,28 @@ export function createClaudeTranscriptReader({ userHome }) {
     }
     return null;
   }
+  // A transcript too large to scan whole is read backwards, chunk by chunk, until the
+  // latest typed message and title are found (bounded by BACKFILL_BYTES). A long tool
+  // run can push the last typed message far past any fixed-size tail.
+  async function backfill(handle, size, sessionId) {
+    const found = emptySummary();
+    let end = size, carry = Buffer.alloc(0), read = 0;
+    while (end > 0 && read < BACKFILL_BYTES && !(found.lastUserAt && (found.custom || found.generated))) {
+      const start = Math.max(0, end - chunkBytes), buffer = Buffer.alloc(end - start);
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
+      let chunk = Buffer.concat([buffer.subarray(0, bytesRead), carry]);
+      // Keep the partial first line for the next (earlier) chunk unless this is the file start.
+      const cut = start > 0 ? chunk.indexOf(10) : -1;
+      read += bytesRead; end = start;
+      if (start > 0 && cut < 0) { carry = chunk; continue; }
+      carry = cut >= 0 ? chunk.subarray(0, cut) : Buffer.alloc(0);
+      if (cut >= 0) chunk = chunk.subarray(cut + 1);
+      const part = scanClaudeTranscript(chunk.toString('utf8'), sessionId);
+      for (const key of ['custom', 'generated', 'lastUserAt']) if (!found[key] && part[key]) found[key] = part[key];
+      for (const id of part.continued) if (!found.continued.includes(id)) found.continued.push(id);
+    }
+    return found;
+  }
   async function advance(file, sessionId) {
     const handle = await fs.open(file, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     try {
@@ -67,14 +89,15 @@ export function createClaudeTranscriptReader({ userHome }) {
       if (!stat.isFile()) return null;
       let state = states.get(file);
       if (!state || stat.size < state.offset) {
-        state = { offset: stat.size > FULL_SCAN_BYTES ? stat.size - CHUNK_BYTES : 0, found: emptySummary() };
+        const large = stat.size > fullScanBytes;
+        state = { offset: large ? stat.size : 0, found: large ? await backfill(handle, stat.size, sessionId) : emptySummary() };
         states.set(file, state);
       }
       while (state.offset < stat.size) {
-        const length = Math.min(stat.size - state.offset, CHUNK_BYTES), buffer = Buffer.alloc(length);
+        const length = Math.min(stat.size - state.offset, chunkBytes), buffer = Buffer.alloc(length);
         const { bytesRead } = await handle.read(buffer, 0, length, state.offset);
         const end = buffer.subarray(0, bytesRead).lastIndexOf(10);
-        if (end < 0) { if (bytesRead < CHUNK_BYTES) break; state.offset += bytesRead; continue; }
+        if (end < 0) { if (bytesRead < chunkBytes) break; state.offset += bytesRead; continue; }
         scanClaudeTranscript(buffer.subarray(0, end).toString('utf8'), sessionId, state.found);
         state.offset += end + 1;
       }
