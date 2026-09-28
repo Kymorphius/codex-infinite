@@ -56,34 +56,45 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     return readThreadId(document);
   }
   function element(tag, text) { const node = document.createElement(tag); if (text) node.textContent = text; return node; }
-  function close() { panel?.remove(); panel = null; }
+  function close() { panel?.remove(); panel = null; document.removeEventListener('pointerdown', outside, true); }
+  function outside(event) { if (panel && !event.composedPath().includes(panel) && !event.composedPath().includes(button)) close(); }
+  const effortNames = { auto: '自动', low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' };
+  async function toggle() {
+    const id = current();
+    if (!id || running() || selection.busy(id)) return;
+    const selected = selection.selected(id);
+    if (!selected && !routerReady()) return;
+    close();
+    const preference = selection.preferred(id) || { effort: 'auto', nativeTools: false };
+    try { await selection.set(id, selected ? null : preference.effort, preference.nativeTools); window.__cccClaudePreviewError = ''; }
+    catch (error) { window.__cccClaudePreviewError = String(error.message || '切换失败'); open(); }
+    schedule();
+  }
   function open() {
     close();
-    const id = current(), selected = selection.selected(id);
-    panel = element('section'); panel.dataset.cccClaudePreviewPanel = ''; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Claude 预览设置');
-    panel.style.cssText = 'position:fixed;z-index:2147483000;right:24px;bottom:100px;width:min(360px,calc(100vw - 48px));padding:20px;border:1px solid #4b765a;border-radius:16px;background:#252525;color:#eee;box-shadow:0 12px 40px #0008;font:14px/1.5 system-ui;';
-    const title = element('strong', 'Claude 预览');
+    const id = current(), selected = selection.selected(id), preference = selected || selection.preferred(id);
+    panel = element('section'); panel.dataset.cccClaudePreviewPanel = ''; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Claude 设置');
+    panel.style.cssText = 'position:fixed;z-index:2147483000;width:min(300px,calc(100vw - 24px));padding:14px;border:1px solid #4b765a;border-radius:14px;background:#252525;color:#eee;box-shadow:0 12px 40px #0008;font:14px/1.5 system-ui;max-height:calc(100vh - 24px);overflow:auto;';
+    const rect = button.getBoundingClientRect(), width = Math.min(300, window.innerWidth - 24);
+    panel.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) + 'px';
+    panel.style.bottom = Math.max(12, window.innerHeight - rect.top + 8) + 'px';
+    const title = element('strong', 'Claude 设置');
     const dismiss = element('button', '关闭'); dismiss.type = 'button'; dismiss.style.cssText = 'float:right;'; dismiss.onclick = close;
-    panel.style.maxHeight = 'calc(100vh - 140px)'; panel.style.overflowY = 'auto';
-    const description = element('p', '当前会话使用 Claude 订阅。默认使用客户端工具；可开启下方原生工具模式。支持图片与工具历史，较早内容按需回查。');
-    const model = element('p', '模型：Claude Opus');
     const label = element('label', '推理强度 '), effort = element('select'); effort.setAttribute('aria-label', 'Claude 推理强度');
-    for (const [value, text] of [['low', '轻度'], ['medium', '中'], ['high', '高'], ['xhigh', '超高'], ['max', '最高']]) { const option = element('option', text); option.value = value; effort.append(option); }
-    effort.value = selected?.effort || 'medium'; label.append(effort);
+    for (const [value, text] of Object.entries(effortNames)) { const option = element('option', text); option.value = value; effort.append(option); }
+    effort.value = preference?.effort || 'auto'; label.append(effort);
     const toolsLabel = element('label', ' Claude 原生工具'), nativeTools = element('input');
     nativeTools.type = 'checkbox'; nativeTools.setAttribute('role', 'switch'); nativeTools.setAttribute('aria-label', 'Claude 原生工具');
-    nativeTools.checked = selected?.nativeTools === true; toolsLabel.prepend(nativeTools);
+    nativeTools.checked = preference?.nativeTools === true; toolsLabel.prepend(nativeTools);
     toolsLabel.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:14px;'; nativeTools.style.accentColor = '#62bd84';
-    const toolsHelp = element('p', '开启：使用 Claude 完整内置工具与技能，由 CLI 自动判断权限；需人工批准的操作会拒绝。Computer Use 仍走客户端。不会加载额外 MCP 或 hooks。关闭：工具全部由客户端执行。');
-    toolsHelp.style.cssText = 'font-size:12px;color:#bbb;';
-    const message = element('p', id ? '只修改当前会话；不改变全局模型和访问权限。' : '请先打开一个本机 Codex 会话。新建聊天尚未生成会话 ID 时不可切换。'); message.setAttribute('role', 'status');
-    const save = element('button', '当前会话使用 Claude'), restore = element('button', '恢复原生模型');
+    const message = element('p', window.__cccClaudePreviewError || (!id ? '请先打开本机会话' : '')); message.setAttribute('role', 'status');
+    const save = element('button', '应用'), restore = element('button', '切回 GPT');
     const actions = element('div'); actions.dataset.claudeActions = ''; save.dataset.claudePrimary = ''; actions.append(save, restore);
     save.type = restore.type = 'button';
     const disabled = !id || running() || selection.busy(id);
     save.disabled = disabled; restore.disabled = disabled || !selected;
-    if (!routerReady()) { save.disabled = true; message.textContent = '请先在路由设置中启用 Router 通道；原生直连不能使用 Claude 预览。'; }
-    if (running()) message.textContent = '当前会话正在生成，请结束后再切换。';
+    if (!routerReady()) { save.disabled = true; message.textContent = 'Router 未就绪'; }
+    if (running()) message.textContent = '生成中，请稍后切换';
     async function change(value) {
       if (value !== null && !routerReady()) { message.textContent = 'Router 通道尚未就绪，未修改模型。'; return; }
       if (id !== current() || running()) { message.textContent = '会话已切换或正在生成，请重新打开设置。'; return; }
@@ -91,29 +102,31 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       save.disabled = restore.disabled = nativeTools.disabled = effort.disabled = true;
       try {
         await selection.set(id, value, useNativeTools);
-        message.textContent = value === null ? '已回读确认：恢复原来的模型和推理强度。' : '已回读确认：Claude Opus，推理强度' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[value]) + (useNativeTools ? '，原生工具开启。' : '，客户端工具模式。') + '下次发送生效。';
+        window.__cccClaudePreviewError = ''; message.textContent = value === null ? '已切回 GPT' : '已设为 Claude · ' + effortNames[value];
       } catch (error) { message.textContent = String(error.message || '设置失败'); }
       finally { const blocked = id !== current() || running(); nativeTools.disabled = effort.disabled = blocked; save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
     }
     save.onclick = () => void change(effort.value); restore.onclick = () => void change(null);
     nativeTools.disabled = disabled;
-    panel.append(title, dismiss, description, model, label, toolsLabel, toolsHelp, message, actions); document.body.append(panel);
+    panel.append(title, dismiss, label, toolsLabel, message, actions); document.body.append(panel);
+    if (panel.getBoundingClientRect().top < 12) { panel.style.bottom = 'auto'; panel.style.top = Math.max(12, Math.min(window.innerHeight - panel.offsetHeight - 12, rect.bottom + 8)) + 'px'; }
+    document.addEventListener('pointerdown', outside, true);
   }
   function render() {
     const routing = document.querySelector('[data-codex-control-console-native-jev-current]');
     const host = routing?.parentElement;
     if (!host) { button?.remove(); return; }
     if (!button) {
-      button = element('button'); button.type = 'button'; button.dataset.cccClaudePreview = ''; button.setAttribute('aria-label', 'Claude 预览设置');
+      button = element('button'); button.type = 'button'; button.dataset.cccClaudePreview = ''; button.setAttribute('aria-label', '切换 GPT 与 Claude；右键打开设置');
       button.style.cssText = 'height:28px;flex:none;padding:0 10px;border:1px solid #ffffff24;border-radius:999px;background:transparent;color:inherit;font:600 12px system-ui;white-space:nowrap;';
-      activateButton(button, open);
+      activateButton(button, toggle);
+      button.addEventListener('contextmenu', event => { event.preventDefault(); event.stopImmediatePropagation(); open(); });
     }
-    const id = current(), selected = selection.selected(id), text = selected ? 'Claude Opus ' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[selected.effort]) + (selected.nativeTools ? ' 原生工具' : '') : 'Claude 预览';
-    if (button.parentElement === host && button.textContent === text && button.getAttribute('aria-pressed') === String(Boolean(selected))) return;
+    const id = current(), selected = selection.selected(id), text = selected ? 'Claude' : 'GPT';
     if (button.textContent !== text) button.textContent = text;
     button.setAttribute('aria-pressed', String(Boolean(selected)));
     button.style.color = selected ? '#62bd84' : '';
-    button.title = '只修改当前本机会话的模型和强度';
+    button.title = window.__cccClaudePreviewError || (selected ? 'Claude · 左键切回 GPT，右键设置' : 'GPT · 左键切换 Claude，右键设置');
     if (button.parentElement !== host) routing.after(button);
   }
   function schedule() { clearTimeout(timer); timer = setTimeout(render, 60); }

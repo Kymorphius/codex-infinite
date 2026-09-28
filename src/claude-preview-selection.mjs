@@ -2,23 +2,32 @@
 export function createClaudePreviewSelection({ read, apply, storage, changed = () => {} }) {
   const model = 'claude-subscription/opus';
   const key = 'codex-control-console.claude-preview.v1';
+  const preferenceKey = 'codex-control-console.claude-preview-preference.v1';
   const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
   const validModel = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value);
-  const efforts = ['low', 'medium', 'high', 'xhigh', 'max'];
-  const records = new Map(), pending = new Set();
+  const efforts = ['auto', 'low', 'medium', 'high', 'xhigh', 'max'];
+  const records = new Map(), preferences = new Map(), pending = new Set();
   try {
     const saved = JSON.parse(storage.getItem(key) || '[]');
     for (const item of Array.isArray(saved) ? saved.slice(-128) : []) {
       if (validId(item?.id) && efforts.includes(item.effort) && validModel(item.original?.model) && /^[a-z]{1,16}$/.test(item.original?.reasoningEffort || '')) records.set(item.id, item);
     }
   } catch {}
+  try {
+    const saved = JSON.parse(storage.getItem(preferenceKey) || '[]');
+    for (const item of Array.isArray(saved) ? saved.slice(-128) : []) {
+      if (validId(item?.id) && efforts.includes(item.effort) && typeof item.nativeTools === 'boolean') preferences.set(item.id, { effort: item.effort, nativeTools: item.nativeTools });
+    }
+  } catch {}
   function persist() {
     storage.setItem(key, JSON.stringify([...records.values()]));
+    try { storage.setItem(preferenceKey, JSON.stringify([...preferences].map(([id, value]) => ({ id, ...value })))); } catch { /* The active model still has its own durable record. */ }
     changed();
   }
   const matches = (actual, expected) => actual?.model === expected.model && actual?.reasoningEffort === expected.reasoningEffort;
   return {
     selected(id) { return records.get(id) || null; },
+    preferred(id) { return preferences.get(id) || null; },
     blocks(id) { return pending.has(id) || records.has(id); },
     busy(id) { return pending.has(id); },
     async set(id, effort, nativeTools = false) {
@@ -27,6 +36,7 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
       if (pending.has(id)) throw new Error('正在修改这个会话，请稍候');
       if (effort !== null && !records.has(id) && records.size >= 128) throw new Error('Claude 预览会话数量已达上限，请先关闭旧会话的预览');
       const previous = records.get(id);
+      const previousPreference = preferences.get(id);
       if (!previous && effort === null) return;
       pending.add(id); changed();
       let before, attempted = false;
@@ -35,15 +45,21 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
         if (!before?.model || !before.reasoningEffort) throw new Error('无法回读当前原生模型与强度');
         if (!previous && !validModel(before.model)) throw new Error('当前模型无法安全恢复，未启用预览');
         const original = previous?.original || { model: before.model, reasoningEffort: before.reasoningEffort };
-        const next = effort === null ? original : { model: nativeTools ? model + '-native' : model, reasoningEffort: effort };
+        const next = effort === null ? original : { model: model + (effort === 'auto' ? '-auto' : '') + (nativeTools ? '-native' : ''),
+          reasoningEffort: effort === 'auto' ? 'medium' : effort };
         attempted = true;
         await apply(id, next);
         if (!matches(await read(id), next)) throw new Error('原生模型回读不一致');
         if (effort === null) records.delete(id);
-        else records.set(id, { id, effort, nativeTools, original });
+        else {
+          records.set(id, { id, effort, nativeTools, original });
+          preferences.delete(id); preferences.set(id, { effort, nativeTools });
+          if (preferences.size > 128) preferences.delete(preferences.keys().next().value);
+        }
         persist();
       } catch (error) {
         if (previous) records.set(id, previous); else records.delete(id);
+        if (previousPreference) preferences.set(id, previousPreference); else preferences.delete(id);
         if (attempted && before) {
           try {
             await apply(id, { model: before.model, reasoningEffort: before.reasoningEffort });

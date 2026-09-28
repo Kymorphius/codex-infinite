@@ -23,6 +23,18 @@ test('enable, change effort, reload and restore preserve only original model and
   await reloaded.set(id, null);
   assert.deepEqual(h.current(), h.initial);
   assert.equal(reloaded.blocks(id), false);
+  assert.deepEqual(reloaded.preferred(id), { effort: 'high', nativeTools: false });
+  assert.deepEqual(createClaudePreviewSelection(h.options).preferred(id), { effort: 'high', nativeTools: false });
+});
+test('auto effort selects the dedicated Router route with a supported native placeholder effort', async () => {
+  const h = harness();
+  await h.controller.set(id, 'auto');
+  assert.deepEqual(h.current(), { model: 'claude-subscription/opus-auto', reasoningEffort: 'medium' });
+  assert.equal(h.controller.selected(id).effort, 'auto');
+  await h.controller.set(id, 'auto', true);
+  assert.equal(h.current().model, 'claude-subscription/opus-auto-native');
+  await h.controller.set(id, null);
+  assert.deepEqual(h.current(), h.initial);
 });
 test('invalid selection is rejected before native setting calls', async () => {
   let reads = 0;
@@ -108,9 +120,51 @@ test('button mounts when composer arrives after installation and is not duplicat
   for (const notify of window.__codexControlConsoleMutationSubscribers) notify([]);
   callback();
   assert.equal(mounted.length, 1);
-  assert.equal(mounted[0].textContent, 'Claude 预览');
+  assert.equal(mounted[0].textContent, 'GPT');
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context); callback();
   assert.equal(mounted.length, 1);
+});
+
+test('native button left click toggles Router model and right click opens the nearby settings panel', async () => {
+  const saved = new Map(), panels = [], host = {};
+  let button, current = { model: 'gpt-6-sol', reasoningEffort: 'medium' };
+  function node() {
+    const attrs = new Map(), events = new Map();
+    return { dataset: {}, style: {}, events, children: [], textContent: '', offsetHeight: 220,
+      setAttribute: (key, value) => attrs.set(key, value), getAttribute: key => attrs.get(key),
+      addEventListener: (key, callback) => events.set(key, callback), removeEventListener() {},
+      append(...items) { this.children.push(...items); }, prepend(item) { this.children.unshift(item); }, remove() {},
+      getBoundingClientRect: () => ({ left: 130, top: 700, bottom: 728, width: 28 }) };
+  }
+  const selected = { getAttribute: () => 'local:' + id };
+  const routing = { parentElement: host, after(value) { value.parentElement = host; button = value; } };
+  const document = { getElementById: () => ({}), createElement: node, addEventListener() {}, removeEventListener() {},
+    querySelector: selector => selector === '[data-codex-control-console-native-jev-current]' ? routing
+      : selector.includes('data-app-action-sidebar-thread-id') ? selected : null,
+    querySelectorAll: () => [], body: { append(value) { panels.push(value); } } };
+  const window = { innerWidth: 1000, innerHeight: 900, addEventListener() {}, __cccClaudeRouterReady: () => true,
+    __codexControlConsoleReadThreadSettings: async () => current,
+    __codexControlConsoleApplyThreadSettings: async (_id, next) => { current = next; return { applied: true }; } };
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), { window, document,
+    localStorage: { getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value) },
+    setTimeout: () => 1, clearTimeout() {} });
+  const gesture = { button: 0, preventDefault() {}, stopImmediatePropagation() {} };
+  button.events.get('pointerup')(gesture);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(current.model, 'claude-subscription/opus-auto'); assert.equal(current.reasoningEffort, 'medium');
+  button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
+  assert.equal(panels.at(-1).dataset.cccClaudePreviewPanel, '');
+  assert.equal(panels.at(-1).style.left, '130px');
+  panels.at(-1).children[2].children[0].value = 'high';
+  panels.at(-1).children[5].children[0].onclick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(current.reasoningEffort, 'high');
+  button.events.get('pointerup')(gesture);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(current.model, 'gpt-6-sol'); assert.equal(current.reasoningEffort, 'medium');
+  button.events.get('pointerup')(gesture);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(current.model, 'claude-subscription/opus'); assert.equal(current.reasoningEffort, 'high');
 });
 
 test('panel styles update an already-installed legacy panel without duplicate styles or model changes', () => {
