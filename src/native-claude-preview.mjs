@@ -44,7 +44,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     const description = element('p', '当前会话使用 Claude 订阅，通过客户端现有工具读写文件、运行命令和操作界面，沿用会话权限。支持图片和工具历史；压缩前的本地记录会按需恢复，较早内容可继续回查。');
     const model = element('p', '模型：Claude Opus');
     const label = element('label', '推理强度 '), effort = element('select'); effort.setAttribute('aria-label', 'Claude 推理强度');
-    for (const [value, text] of [['low', '轻度'], ['medium', '中'], ['high', '高']]) { const option = element('option', text); option.value = value; effort.append(option); }
+    for (const [value, text] of [['low', '轻度'], ['medium', '中'], ['high', '高'], ['xhigh', '超高'], ['max', '最高']]) { const option = element('option', text); option.value = value; effort.append(option); }
     effort.value = selected?.effort || 'medium'; label.append(effort);
     const message = element('p', id ? '只修改当前会话；不改变全局模型和访问权限。' : '请先打开一个本机 Codex 会话。新建聊天尚未生成会话 ID 时不可切换。'); message.setAttribute('role', 'status');
     const save = element('button', '当前会话使用 Claude'), restore = element('button', '恢复原生模型');
@@ -59,7 +59,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       save.disabled = restore.disabled = true;
       try {
         await selection.set(id, value);
-        message.textContent = value === null ? '已回读确认：恢复原来的模型和推理强度。' : '已回读确认：Claude Opus，推理强度' + ({ low: '轻度', medium: '中', high: '高' }[value]) + '。下一次发送将使用预览路由。';
+        message.textContent = value === null ? '已回读确认：恢复原来的模型和推理强度。' : '已回读确认：Claude Opus，推理强度' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[value]) + '。下一次发送将使用预览路由。';
       } catch (error) { message.textContent = String(error.message || '设置失败'); }
       finally { const blocked = id !== current() || running(); save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
     }
@@ -75,7 +75,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       button.style.cssText = 'height:28px;flex:none;padding:0 10px;border:1px solid #ffffff24;border-radius:999px;background:transparent;color:inherit;font:600 12px system-ui;white-space:nowrap;';
       activateButton(button, open);
     }
-    const id = current(), selected = selection.selected(id), text = selected ? 'Claude Opus ' + ({ low: '轻度', medium: '中', high: '高' }[selected.effort]) : 'Claude 预览';
+    const id = current(), selected = selection.selected(id), text = selected ? 'Claude Opus ' + ({ low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' }[selected.effort]) : 'Claude 预览';
     if (button.parentElement === host && button.textContent === text && button.getAttribute('aria-pressed') === String(Boolean(selected))) return;
     if (button.textContent !== text) button.textContent = text;
     button.setAttribute('aria-pressed', String(Boolean(selected)));

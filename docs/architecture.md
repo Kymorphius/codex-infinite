@@ -61,6 +61,10 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   terminal conversation layout, per-session composer state, and xterm input /
   display adapter. Composer controls and native terminal input share the same
   ready-gated socket; they never send messages through the Codex task bridge.
+- `src/claude-companion-source.mjs` — read-only adapter over Router's public
+  `claude-companions/<thread>/session.json`; companion sessions are adopted as
+  Claude terminal records (`companionOf`) and shown under their Codex thread.
+  Codex turns (`sdk-cli` holders) make them read-only and are never taken over.
 - `src/board.mjs`, `src/priority.mjs`, `public/core/project-priority.js` — pure
   derived domain views and the browser-compatible shared priority policy.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.

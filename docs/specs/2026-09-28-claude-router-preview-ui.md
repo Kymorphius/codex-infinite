@@ -3,7 +3,7 @@
 ## 范围
 
 仅增强版 native composer 增加独立 Claude 预览入口，不改变普通客户端、不使用托管终端，也不默认迁移任何会话。
-当前 Router 只支持 `claude-subscription/opus-cua-preview` 和 low/medium/high。
+Router 模型已改名为 `claude-subscription/opus`，支持 low/medium/high/xhigh/max；旧 ID 仍被接受（见 2026-09-28-claude-companion-sidebar）。
 面板明确 Computer Use 范围和短会话限制，不把未实现模型列为可用。
 
 ## 契约

@@ -23,7 +23,9 @@ export function createClaudeSessionOccupancy({ userHome, isAlive = alive, ttlMs 
         if (!stat.isFile() || stat.size > 64 * 1024) continue;
         const value = JSON.parse(await fs.readFile(file, 'utf8'));
         if (Number.isSafeInteger(value?.pid) && value.pid > 1 && `${value.pid}.json` === name && typeof value.sessionId === 'string') items.push({ pid: value.pid, sessionId: value.sessionId.toLowerCase(), ...(['busy', 'idle'].includes(value.status) ? { status: value.status } : {}),
-          ...(value.kind === 'bg' && /^[0-9a-f]{8}$/u.test(value.jobId || '') ? { jobId: value.jobId } : {}) });
+          ...(value.kind === 'bg' && /^[0-9a-f]{8}$/u.test(value.jobId || '') ? { jobId: value.jobId } : {}),
+          // Router's per-turn `claude -p` registers as sdk-cli: a Codex turn in progress.
+          ...(value.entrypoint === 'sdk-cli' ? { codexTurn: true } : {}) });
       } catch { /* A registration being rewritten is read again next time. */ }
     }
     cached = { at: now(), items };

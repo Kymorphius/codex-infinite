@@ -240,7 +240,7 @@ export function buildNativeContextInjectionScript() {
     const settings = {};
     if (Object.prototype.hasOwnProperty.call(changes, 'model')) {
       const model = String(changes.model || '').trim();
-      if (model !== 'claude-subscription/opus-cua-preview' && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(model)) throw new Error('模型无效');
+      if (!['claude-subscription/opus', 'claude-subscription/opus-cua-preview'].includes(model) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(model)) throw new Error('模型无效');
       settings.model = model;
     }
     if (Object.prototype.hasOwnProperty.call(changes, 'reasoningEffort')) {

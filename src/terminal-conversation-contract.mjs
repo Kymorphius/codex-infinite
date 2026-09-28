@@ -56,13 +56,18 @@ export function terminalConversationUpdate(input) {
 
 export function terminalConversationRecord(input, deviceId) {
   assertTerminalObject(input, ['id', 'provider', 'deviceId', 'cwd', 'kind', 'title', 'projectRef',
-    'pinned', 'archived', 'createdAt', 'updatedAt', 'revision']);
+    'pinned', 'archived', 'createdAt', 'updatedAt', 'revision', 'companionOf']);
   const normalized = terminalConversationCreate({ cwd: input.cwd, kind: input.kind, title: input.title, projectRef: input.projectRef });
   if (input.provider !== 'terminal' || input.deviceId !== deviceId || !Number.isSafeInteger(input.revision)
       || input.revision < 1 || typeof input.pinned !== 'boolean' || typeof input.archived !== 'boolean'
       || ![input.createdAt, input.updatedAt].every(value => typeof value === 'string' && Number.isFinite(Date.parse(value)))) {
     throw terminalError(400, '终端会话记录无效');
   }
+  // companionOf: the Codex thread whose Router-owned Claude session this record resumes.
+  // Only adoption sets it; create/update inputs never accept it.
+  const companionOf = input.companionOf === undefined ? undefined : terminalConversationId(input.companionOf);
+  if (companionOf && normalized.kind !== 'claude') throw terminalError(400, '伴生会话必须是 Claude 会话');
   return { id: terminalConversationId(input.id), provider: 'terminal', deviceId, ...normalized,
-    pinned: input.pinned, archived: input.archived, createdAt: input.createdAt, updatedAt: input.updatedAt, revision: input.revision };
+    pinned: input.pinned, archived: input.archived, createdAt: input.createdAt, updatedAt: input.updatedAt, revision: input.revision,
+    ...(companionOf ? { companionOf } : {}) };
 }

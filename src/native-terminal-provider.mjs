@@ -1,5 +1,5 @@
 import { readNativeSidebarModel } from './native-sidebar-model.mjs';
-import { nativeTerminalProjectList, nativeTerminalProjectPlacement, createNativeTerminalSidebar } from './native-terminal-sidebar.mjs';
+import { nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar } from './native-terminal-sidebar.mjs';
 import { createNativeTerminalActions } from './native-terminal-actions.mjs';
 
 export function installNativeTerminalProvider(dashboardUrl, readModel, makeSidebar, makeActions, prepareConnection = () => false) {
@@ -34,7 +34,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     if (!record) return '';
     const project = record.projectRef, runtime = record.runtimeSummary;
     return JSON.stringify([record.id, record.deviceId, record.provider, record.revision, record.title, record.cwd, record.kind, record.pinned, record.archived,
-      record.createdAt, record.updatedAt, record.status, record.runtimeSessionId, record.runtimeError, record.occupiedElsewhere, record.occupiedBy, record.claudeStatus, record.lastUserMessageAt,
+      record.createdAt, record.updatedAt, record.companionOf, record.status, record.runtimeSessionId, record.runtimeError, record.occupiedElsewhere, record.occupiedBy, record.claudeStatus, record.lastUserMessageAt,
       project && [project.source, project.key, project.id, project.hostId], runtime && [runtime.id, runtime.status, runtime.exitCode, runtime.cols, runtime.rows, runtime.replayTruncated]]);
   }
   function accept(record) {
@@ -100,5 +100,5 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
 }
 
 export function buildNativeTerminalProviderSource() {
-  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, createNativeTerminalSidebar, createNativeTerminalActions, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
+  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar, createNativeTerminalActions, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
 }

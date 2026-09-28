@@ -15,7 +15,7 @@ function harness(overrides = {}) {
 test('enable, change effort, reload and restore preserve only original model and effort', async () => {
   const h = harness(), c = h.controller;
   await c.set(id, 'medium');
-  assert.equal(h.current().model, 'claude-subscription/opus-cua-preview');
+  assert.equal(h.current().model, 'claude-subscription/opus');
   assert.equal(c.blocks(id), true); assert.equal(c.blocks(other), false);
   await c.set(id, 'high');
   const reloaded = createClaudePreviewSelection(h.options);

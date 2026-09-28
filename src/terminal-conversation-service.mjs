@@ -8,7 +8,8 @@ import { createClaudeSessionTakeover } from './claude-session-takeover.mjs';
 
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
-    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover } = {}) {
+    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null } = {}) {
+    this.companions = companions;
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
     this.claudeTranscripts = claudeTranscripts || (terminalService?.userHome ? createClaudeTranscriptReader({ userHome: terminalService.userHome })
@@ -51,7 +52,9 @@ export class TerminalConversationService {
     // Holders include our own running Claude; their registration also carries Claude's
     // busy/idle state, shown next to the conversation in 最近会话 / 最近发送.
     const holders = await this.holders(summary.ids || [record.id]), running = presented.status === 'running';
-    const occupiedBy = running || !holders.length ? null : holders.every(item => item.jobId) ? 'background' : 'terminal';
+    // A companion held by Router's per-turn process is mid Codex turn: read-only here until it ends.
+    const occupiedBy = running || !holders.length ? null : record.companionOf && holders.some(item => item.codexTurn) ? 'codex'
+      : holders.every(item => item.jobId) ? 'background' : 'terminal';
     const claudeStatus = holders.some(item => item.status === 'busy') ? 'busy' : holders.some(item => item.status === 'idle') ? 'idle' : null;
     return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus };
   }
@@ -77,7 +80,22 @@ export class TerminalConversationService {
     return { items, incomplete: failures > 0 };
   }
 
+  // Router companion sessions become Claude records keyed by their Claude session ID and
+  // shown under their Codex conversation. Adoption never rewrites an existing record.
+  async syncCompanions() {
+    if (!this.companions) return;
+    let found = [];
+    try { found = await this.companions.list(); } catch { return; }
+    for (const companion of found) {
+      try {
+        await this.store.adopt({ id: companion.sessionId, cwd: companion.cwd, kind: 'claude', title: DEFAULT_CLAUDE_TITLE,
+          projectRef: null, companionOf: companion.threadId });
+      } catch { /* One unreadable or over-limit companion must not hide the rest. */ }
+    }
+  }
+
   async list() {
+    await this.syncCompanions();
     const records = await this.store.list();
     return { conversations: await Promise.all(records.map(record => this.view(record))), deviceId: this.deviceId,
       defaultCwd: this.terminalService.defaultCwd };
@@ -113,6 +131,8 @@ export class TerminalConversationService {
         let ids = [id], resumeId = null;
         try { const chain = await this.claudeTranscripts.summary(id); ids = chain.ids || ids; resumeId = chain.resumeId || null; } catch { /* Check the managed id alone. */ }
         const holders = await this.holders(ids), jobs = holders.filter(item => item.jobId);
+        // Never take over a Codex turn: that would kill Router's process mid-reply.
+        if (record.companionOf && holders.some(item => item.codexTurn)) throw terminalError(409, 'Codex 正在用这个 Claude 会话回复，本轮结束后再打开');
         if (holders.length && jobs.length === holders.length) {
           // Held only by Claude background jobs: attach to the live one and share it. Stopping
           // and resuming instead lets Claude's own viewers restart it and fork a copy.

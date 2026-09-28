@@ -1,5 +1,6 @@
 import { TerminalService } from './terminal-service.mjs';
 import { TerminalConversationService } from './terminal-conversation-service.mjs';
+import { createClaudeCompanionSource } from './claude-companion-source.mjs';
 import { createTerminalProjectValidator } from './terminal-project-adapter.mjs';
 import { attachTerminalWebSocket } from './terminal-websocket.mjs';
 import { NativeExperimentAdapter } from './native-experiment-adapter.mjs';
@@ -219,7 +220,8 @@ export async function run() {
   const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
   const terminalService = new TerminalService({ userHome: config.userHome, defaultCwd: config.userHome });
   const terminalConversations = new TerminalConversationService({ terminalService, deviceId: config.nodeDevice.id,
-    filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter) });
+    filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter),
+    companions: createClaudeCompanionSource({ routerStateDirectory: config.routerStateDirectory }) });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const nativeDashboardLaunchService = new NativeDashboardLaunchService({ restart: () => restartService.request(), launchOriginal: () => nativeAppLaunchService.launch() });

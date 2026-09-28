@@ -82,6 +82,21 @@ export class TerminalConversationStore {
     });
   }
 
+  // Records whose ID is fixed elsewhere (a Router companion's Claude session ID).
+  // Existing records are returned unchanged, never overwritten.
+  adopt(input) {
+    return this.mutate(async () => {
+      const id = terminalConversationId(input.id), existing = this.records.get(id);
+      if (existing) return structuredClone(existing);
+      if (this.records.size >= TERMINAL_CONVERSATION_LIMIT) throw terminalError(429, '终端会话数量已达上限');
+      const timestamp = this.now().toISOString();
+      const record = terminalConversationRecord({ ...input, id, provider: 'terminal', deviceId: this.deviceId,
+        pinned: false, archived: false, createdAt: timestamp, updatedAt: timestamp, revision: 1 }, this.deviceId);
+      const records = new Map(this.records); records.set(id, record);
+      await this.save(records); return structuredClone(record);
+    });
+  }
+
   update(id, expectedRevision, changes) {
     return this.mutate(async () => {
       const current = this.records.get(id);
