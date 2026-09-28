@@ -12,9 +12,9 @@ test("native sidebar registry creates the legacy project bridge and native threa
     rootPath: "/work/真仙幸存者", threadIds: ["thread-one"], now: 123, legacyProjectId: "legacy-project"
   });
   assert.deepEqual(result.state["local-projects"]["legacy-project"], {
-    id: "legacy-project", name: "真仙幸存者", rootPaths: ["/work/真仙幸存者"], createdAt: 123, updatedAt: 123
+    id: "legacy-project", name: "真仙幸存者", rootPaths: [path.resolve("/work/真仙幸存者")], createdAt: 123, updatedAt: 123
   });
-  assert.equal(result.state["app-server-project-id-by-legacy-project-id-by-host"][`local:${home}`]["legacy-project"], "server-project");
+  assert.equal(result.state["app-server-project-id-by-legacy-project-id-by-host"][`local:${path.resolve(home)}`]["legacy-project"], "server-project");
   assert.deepEqual(result.state["thread-project-assignments"]["thread-one"], { projectKind: "local", projectId: "legacy-project" });
 });
 

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { findModuleGraphProblems } from "./module-graph.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const directories = ["src", "scripts", "test", "public"];
@@ -17,3 +18,9 @@ function collect(directory) {
 for (const directory of directories) collect(path.join(root, directory));
 for (const file of files) execFileSync(process.execPath, ["--check", file], { stdio: "pipe" });
 console.log(`check: syntax ok (${files.length} files)`);
+const graph = findModuleGraphProblems(path.join(root, "public"));
+if (graph.problems.length) {
+  console.error(`check: browser module graph broken\n  ${graph.problems.join("\n  ")}`);
+  process.exit(1);
+}
+console.log(`check: module graph ok (${graph.modules} modules)`);

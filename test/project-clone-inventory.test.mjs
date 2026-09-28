@@ -18,7 +18,7 @@ for tid,parent in [('main',None),('child','main'),('grandchild','child'),('unrel
  folder=home/('archived_sessions' if tid=='main' else 'sessions')
  folder.mkdir(exist_ok=True)
  file=folder/(tid+'.jsonl')
- file.write_text(json.dumps({'type':'session_meta','payload':{'id':tid,'timestamp':'2026-09-01T00:00:00Z'}})+'\\n'+tid+' body\\n')
+ file.write_bytes((json.dumps({'type':'session_meta','payload':{'id':tid,'timestamp':'2026-09-01T00:00:00Z'}})+'\\n'+tid+' body\\n').encode())
  source=json.dumps({'subagent':{'thread_spawn':{'parent_thread_id':parent}}}) if parent else '"cli"'
  c.execute('insert into threads values(?,?,?,?,?,?,?,?)',(tid,str(file),'/root',tid,None,int(tid=='main'),source,None))
 c.commit()

@@ -8,6 +8,13 @@ import { desktopLaunchPlan, listDesktopProcesses, processSwitchValue, resolveDes
 
 const execFile = promisify(nodeExecFile);
 export const WRAPPER_DISABLED_FEATURES = "LocalNetworkAccessForSubframeNavigations";
+// Injected controls install from page timers; a minimized or covered window otherwise throttles
+// them to 1/s and, after five minutes hidden, freezes them until the user returns.
+export const WRAPPER_BACKGROUND_SWITCHES = Object.freeze([
+  "--disable-background-timer-throttling",
+  "--disable-renderer-backgrounding",
+  "--disable-backgrounding-occluded-windows"
+]);
 
 export function extractCdpProfile(command, port) {
   const portPattern = new RegExp(`--remote-debugging-port=${port}(?:\\s|$)`);
@@ -104,6 +111,7 @@ export async function ensureDedicatedCodex(config, {
     `--remote-debugging-port=${config.cdpPort}`,
     `--remote-allow-origins=${config.cdpOrigin}`,
     `--disable-features=${WRAPPER_DISABLED_FEATURES}`,
+    ...WRAPPER_BACKGROUND_SWITCHES,
     `--codex-control-wrapper-signature=${wrapperSignature(config)}`
   ], environment: {
       ...(config.nativeCodexHome || config.wrapperCodexHome ? { CODEX_HOME: config.nativeCodexHome || config.wrapperCodexHome } : {}),

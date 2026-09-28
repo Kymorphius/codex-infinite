@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { cloneVerifiedHistory, readCloneMetadata } from '../src/project-clone-history.mjs';
-import { cloneNativeProject } from '../src/native-project-clone.mjs';
+import { cloneNativeProject, preservedCloneCwd } from '../src/native-project-clone.mjs';
 import { registerNativeSidebarProjectState } from '../src/native-project-sidebar-registry.mjs';
 const sha = data => createHash('sha256').update(data).digest('hex');
 async function fixture(t) {
@@ -38,7 +38,7 @@ test('multi-root registration does not reuse a partially overlapping project', (
   const state = { 'local-projects': { old: { id: 'old', rootPaths: ['/a'] } } };
   const result = registerNativeSidebarProjectState(state, { codexHome: '/home', serverProjectId: 'server', projectName: 'Clone', rootPaths: ['/a', '/b'], threadIds: ['thread'], legacyProjectId: 'new' });
   assert.equal(result.projectId, 'new');
-  assert.deepEqual(result.state['local-projects'].new.rootPaths, ['/a', '/b']);
+  assert.deepEqual(result.state['local-projects'].new.rootPaths, ['/a', '/b'].map(item => path.resolve(item)));
   assert.deepEqual(state['local-projects'], { old: { id: 'old', rootPaths: ['/a'] } });
   assert.equal(registerNativeSidebarProjectState(result.state, { codexHome: '/home', serverProjectId: 'server', projectName: 'Clone', rootPaths: ['/b', '/a'], threadIds: [] }).projectId, 'new');
 });
@@ -99,4 +99,22 @@ test('a new paginated clone recovers when its native hash was not saved yet', as
   const first = await cloneVerifiedHistory(options), recovered = await cloneVerifiedHistory(options);
   assert.equal(recovered.resumed, true);
   assert.equal(recovered.nativeBodySha256, first.nativeBodySha256);
+});
+test('clone keeps a local cwd inside a selected root and falls back for foreign paths', () => {
+  // Regression: a `${root}/` prefix never matched Windows paths, so D:\proj\sub fell back to the root.
+  const win = (cwd, roots = ['D:\\proj']) => preservedCloneCwd(cwd, roots, roots[0], path.win32);
+  assert.equal(win('D:\\proj\\sub'), 'D:\\proj\\sub');
+  assert.equal(win('d:\\PROJ\\sub'), 'd:\\PROJ\\sub');
+  assert.equal(win('D:\\proj'), 'D:\\proj');
+  assert.equal(win('D:\\'), 'D:\\');
+  assert.equal(win('D:\\project2'), 'D:\\proj');
+  assert.equal(win('D:\\proj\\..cache'), 'D:\\proj\\..cache');
+  assert.equal(win('/Users/x', ['C:\\Users']), 'C:\\Users');
+  assert.equal(win('relative\\sub'), 'D:\\proj');
+  const posix = (cwd, roots = ['/work/proj']) => preservedCloneCwd(cwd, roots, roots[0], path.posix);
+  assert.equal(posix('/work/proj/sub'), '/work/proj/sub');
+  assert.equal(posix('/work'), '/work');
+  assert.equal(posix('/work/project2'), '/work/proj');
+  assert.equal(posix('/work/proj/../other'), '/work/proj');
+  assert.equal(posix('D:\\proj\\sub'), '/work/proj');
 });

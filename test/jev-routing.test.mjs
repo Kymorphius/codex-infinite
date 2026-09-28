@@ -118,7 +118,7 @@ test("routing store reads and writes the shared Router document", async (t) => {
   assert.equal(saved.minConfidence, 0.8);
   assert.equal((await store.read()).enabled, false);
   assert.equal((await store.read()).fallbackTier, "complex");
-  assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
+  if (process.platform !== "win32") assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
 });
 
 test("per-thread routing overrides persist privately and global changes clear them", async (t) => {
@@ -130,7 +130,7 @@ test("per-thread routing overrides persist privately and global changes clear th
   assert.deepEqual(normalizeJevThreadRoutingOverrides({ overrides: { [id.toUpperCase()]: false, invalid: true } }), { version: 1, overrides: { [id]: false } });
   await threadStore.set(id, false);
   assert.deepEqual((await threadStore.read()).overrides, { [id]: false });
-  assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
+  if (process.platform !== "win32") assert.equal((await fs.stat(filePath)).mode & 0o777, 0o600);
   let config = defaultJevRoutingConfig();
   const service = new JevRoutingService({ store: { read: async () => config, write: async (value) => (config = normalizeJevRoutingConfig(value)) }, threadStore, exists: () => false });
   assert.equal((await service.snapshot()).threadOverrides[id], false);
@@ -167,7 +167,7 @@ test("Windows Jev command wrappers run through cmd.exe", async () => {
     }
   });
   assert.equal((await service.classify("quick check", defaultJevRoutingConfig())).fallback, false);
-  assert.equal(invocation.command, "cmd.exe");
+  assert.equal(invocation.command, process.env.ComSpec || "cmd.exe");
   assert.deepEqual(invocation.args.slice(0, 4), ["/d", "/s", "/c", '"C:\\Users\\Admin\\.local\\bin\\jev.cmd"']);
 });
 
@@ -272,7 +272,7 @@ test("native dispatcher starts a durable thread with routed model and effort", a
   });
   const result = await dispatcher.dispatch({ prompt: "执行", cwd: "/tmp/project", model: "gpt-6-astra", effort: "ultra" });
   assert.equal(result.threadId, "native-thread");
-  assert.deepEqual(requests.find((item) => item.id === 2).params, { cwd: "/tmp/project", ephemeral: false, model: "gpt-6-astra", approvalPolicy: "never" });
+  assert.deepEqual(requests.find((item) => item.id === 2).params, { cwd: path.resolve("/tmp/project"), ephemeral: false, model: "gpt-6-astra", approvalPolicy: "never" });
   assert.equal(requests.find((item) => item.id === 3).params.effort, "ultra");
   dispatcher.close();
 });

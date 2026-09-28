@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { ensureDedicatedCodex, wrapperSignature, WRAPPER_DISABLED_FEATURES } from "../src/launcher.mjs";
+import { ensureDedicatedCodex, wrapperSignature, WRAPPER_BACKGROUND_SWITCHES, WRAPPER_DISABLED_FEATURES } from "../src/launcher.mjs";
 
 function config() {
   return {
@@ -76,6 +76,11 @@ test("launcher scopes Chromium LNA compatibility to the dedicated wrapper proces
   assert.equal(launches.length, 1);
   assert.equal(launches[0].args.filter((arg) => arg.startsWith("--disable-features=")).length, 1);
   assert.ok(launches[0].args.includes(`--disable-features=${WRAPPER_DISABLED_FEATURES}`));
+  // Regression: a minimized dedicated window froze the timers that install composer controls.
+  for (const flag of ["--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows"]) {
+    assert.ok(WRAPPER_BACKGROUND_SWITCHES.includes(flag));
+    assert.ok(launches[0].args.includes(flag));
+  }
   assert.ok(launches[0].args.some((arg) => arg.startsWith("--codex-control-wrapper-signature=")));
   assert.equal(result.pid, 789);
   assert.equal(launches[0].file, "/usr/bin/open");

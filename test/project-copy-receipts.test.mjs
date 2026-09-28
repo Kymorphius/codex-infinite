@@ -14,5 +14,5 @@ test("project copy receipts persist bounded private lineage", async (t) => {
   const result = JSON.parse(await fs.readFile(filePath, "utf8"));
   assert.equal(result.copies.length, 100);
   assert.equal(result.copies.at(-1).copyId, "101");
-  assert.equal((await fs.stat(filePath)).mode & 0o077, 0);
+  if (process.platform !== "win32") assert.equal((await fs.stat(filePath)).mode & 0o077, 0);
 });

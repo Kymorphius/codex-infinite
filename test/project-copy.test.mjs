@@ -18,7 +18,7 @@ test("project copy selections normalize Windows extended paths and constrain loc
   }, { allowedRoots: ["/work/copies"] }), {
     deviceId: "windows-pc",
     sourceDirectory: "D:\\333.开发\\真仙幸存者",
-    destinationDirectory: "/work/copies/真仙幸存者"
+    destinationDirectory: path.resolve("/work/copies/真仙幸存者")
   });
   assert.throws(() => validateProjectCopySelection({ deviceId: "windows-pc", sourceDirectory: "D:\\project", destinationDirectory: "/tmp/project" }, { allowedRoots: ["/work/copies"] }), /允许/);
   assert.throws(() => normalizeWindowsSourcePath("relative\\project"), /绝对路径/);

@@ -11,6 +11,18 @@ async function save(file, receipt) {
   await fs.rename(temporary, file);
 }
 
+// Keep a session's original cwd only when it is a real local path inside (or the parent of) a selected
+// root; foreign paths such as a Mac cwd on Windows (which would resolve onto the current drive) fall back.
+export function preservedCloneCwd(cwd, roots, fallbackCwd, pathImpl = path) {
+  if (typeof cwd !== 'string' || !pathImpl.isAbsolute(cwd)) return fallbackCwd;
+  if (pathImpl.sep === '\\' && /^[\\/]$/.test(pathImpl.parse(cwd).root)) return fallbackCwd;
+  const within = (root, target) => {
+    const relative = pathImpl.relative(root, target);
+    return relative !== '..' && !relative.startsWith(`..${pathImpl.sep}`) && !pathImpl.isAbsolute(relative);
+  };
+  return roots.some(root => within(root, cwd) || pathImpl.relative(pathImpl.dirname(root), cwd) === '') ? cwd : fallbackCwd;
+}
+
 export async function cloneNativeProject({ manifest, stagedHome, codexHome, roots, fallbackCwd, receiptPath, client, registry, prepareOnly = false, indexOnly = false, progress = () => {} }) {
   if (!roots.length || roots.some(root => !path.isAbsolute(root)) || !roots.includes(fallbackCwd)) throw new Error('Invalid selected roots');
   const fingerprint = createHash('sha256').update(JSON.stringify({ manifest, roots, fallbackCwd, codexHome })).digest('hex');
@@ -21,7 +33,7 @@ export async function cloneNativeProject({ manifest, stagedHome, codexHome, root
   if (!receipt) {
     receipt = { version: 1, fingerprint, roots, sourceProjectId: manifest.projectId, sessions: manifest.sessions.map(session => {
       const localThreadId = randomUUID();
-      const cwd = roots.some(root => session.cwd === root || session.cwd.startsWith(`${root}/`)) || roots.some(root => path.dirname(root) === session.cwd) ? session.cwd : fallbackCwd;
+      const cwd = preservedCloneCwd(session.cwd, roots, fallbackCwd);
       return { sourceThreadId: session.sourceThreadId, localThreadId, originalCwd: session.cwd, cwd, path: cloneRolloutPath(path.join(codexHome, 'sessions'), session.timestamp, localThreadId) };
     }) };
     if (new Set(receipt.sessions.map(item => item.sourceThreadId)).size !== receipt.sessions.length) throw new Error('Duplicate source identities');
@@ -31,7 +43,7 @@ export async function cloneNativeProject({ manifest, stagedHome, codexHome, root
   for (let index = 0; index < receipt.sessions.length; index++) {
     const item = receipt.sessions[index], session = manifest.sessions[index];
     const sourcePath = path.resolve(stagedHome, session.relativePath);
-    if (!sourcePath.startsWith(`${path.resolve(stagedHome)}/`)) throw new Error('Source rollout escapes staging');
+    if (!sourcePath.startsWith(path.resolve(stagedHome) + path.sep)) throw new Error('Source rollout escapes staging');
     if (await fs.stat(`${item.path}.clone-upgrade.json`).catch(error => { if (error.code === 'ENOENT') return null; throw error; })) Object.assign(item, await upgradeCloneHistoryReferences({ filePath: item.path, ...item, bodySha256: item.nativeBodySha256 || session.bodySha256, originalBodyBytes: item.bodyBytes, idMap }));
     const result = await cloneVerifiedHistory({ sourcePath, destinationPath: item.path, sourceThreadId: item.sourceThreadId, localThreadId: item.localThreadId, cwd: item.cwd, idMap, sha256: session.sha256, bodySha256: session.bodySha256, originalBodyBytes: item.bodyBytes, nativeBodySha256: item.nativeBodySha256 });
     if (result.resumed && !item.nativeBodySha256 && !result.nativeBodySha256) Object.assign(item, await upgradeCloneHistoryReferences({ filePath: item.path, ...item, bodySha256: session.bodySha256, originalBodyBytes: result.bodyBytes, idMap }));
