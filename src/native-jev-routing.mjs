@@ -27,7 +27,7 @@ export function buildNativeJevRoutingSnapshotScript(snapshot) {
 export function buildNativeJevRoutingInjectionScript() {
   const binding = JSON.stringify(NATIVE_JEV_ROUTING_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-26.route-hardening1') return;
+  if (window.__codexControlConsoleJevRoutingVersion === '2026-09-28.claude1') return;
   const oldInstallTimer = window.__codexControlConsoleJevRoutingInstallTimer;
   if (oldInstallTimer) clearInterval(oldInstallTimer);
   window.__codexControlConsoleJevRoutingInstallTimer = null;
@@ -39,7 +39,7 @@ export function buildNativeJevRoutingInjectionScript() {
   document.querySelector('[data-codex-control-console-native-jev-current]')?.remove();
   document.querySelector('[data-codex-control-console-native-jev-choice]')?.remove();
   document.querySelectorAll('[data-codex-control-console-jev-turn]').forEach((node) => node.remove());
-  window.__codexControlConsoleJevRoutingVersion = '2026-09-26.route-hardening1';
+  window.__codexControlConsoleJevRoutingVersion = '2026-09-28.claude1';
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const HISTORY_KEY = 'codex-control-console.jev-turn-choices.v1';
   const formatNativeJevEffort=${formatNativeJevEffort.toString()};
@@ -52,6 +52,7 @@ export function buildNativeJevRoutingInjectionScript() {
   const updatePendingTurnRetry = ${updateNativeJevPendingRetry.toString()};
   const installButtonActivation = ${installNativeJevButtonActivation.toString()};
   let policy = { enabled: false, available: false, transportMode: 'router', fallbackTier: 'everyday', mappings: {}, threadOverrides: {}, receipts: [] };
+  window.__cccClaudeRouterReady = () => policy.available && policy.transportMode === 'router';
   let sequence = 0;
   let togglePending = false;
   let submissionPending = false;
@@ -112,6 +113,7 @@ export function buildNativeJevRoutingInjectionScript() {
   }
 
   function effectiveEnabled(threadId) {
+    if (window.__cccClaudePreviewBlocks?.(threadId)) return false;
     return threadId && Object.prototype.hasOwnProperty.call(policy.threadOverrides, threadId) ? policy.threadOverrides[threadId] : policy.enabled;
   }
 

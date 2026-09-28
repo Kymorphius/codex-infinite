@@ -52,7 +52,7 @@ export function buildNativeTurboInjectionScript() {
   const enforcementSource = buildNativeTurboEnforcementSource();
   const newChatSource = buildNativeTurboNewChatSource();
   return `(() => {
-  if (window.__codexControlConsoleTurboVersion === '2026-09-26.manual-session1') return;
+  if (window.__codexControlConsoleTurboVersion === '2026-09-28.claude-preview1') return;
   window.__codexControlConsoleTurboManualCleanup?.();
   window.__codexControlConsoleTurboTurnCleanup?.();
   window.__codexControlConsoleTurboNewChatCleanup?.();
@@ -65,7 +65,7 @@ export function buildNativeTurboInjectionScript() {
   document.querySelector('[data-codex-control-console-native-turbo-settings]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-popover]')?.remove();
   document.querySelector('[data-codex-control-console-turbo-effective]')?.remove();
-  window.__codexControlConsoleTurboVersion = '2026-09-26.manual-session1';
+  window.__codexControlConsoleTurboVersion = '2026-09-28.claude-preview1';
   const TURBO_PREPARE_TIMEOUT_MS = 8000;
   const normalizeTurboQuotaStatus = ${normalizeNativeTurboQuotaStatus.toString()};
   let policy = { enabled: false, active: false, model: null, reasoningEffort: 'maximum', fast: true, millionContext: false, autoDisableGlobalRouting: false, autoDisableOnLowQuota: true, quotaRemainingThreshold: 10, quotaStatus: null, accessMode: 'preserve', deviceIds: [], efforts: new Map(), modelOptions: [], devices: [] };
@@ -74,7 +74,7 @@ export function buildNativeTurboInjectionScript() {
   let requestSequence = 0;
   let turboManualChoice = null;
   let turboDisposed = false;
-  function turboManualBlocks(threadId) { return turboDisposed || turboManualChoice?.blocks(threadId) === true; }
+  function turboManualBlocks(threadId) { return turboDisposed || window.__cccClaudePreviewBlocks?.(threadId) === true || turboManualChoice?.blocks(threadId) === true; }
   function turboManualHas(threadId) { return turboManualChoice?.has(threadId) === true; }
   function turboManualRevision() { return turboManualChoice?.revision || 0; }
   function turboCurrentManualThreadId() { return turboNewChatTrigger() ? null : selectedTurboThreadId(); }

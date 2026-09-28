@@ -27,10 +27,10 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-26.manual-guard1' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-28.claude-preview1' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-26.manual-guard1';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-28.claude-preview1';
   ${buildNativeComposerTransitionShieldSource()}
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
@@ -229,13 +229,18 @@ export function buildNativeContextInjectionScript() {
     return activation;
   };
 
+  window.__codexControlConsoleReadThreadSettings = async (threadId) => {
+    if (!UUID.test(threadId)) throw new Error('会话 ID 无效');
+    const value = await request('thread/resume', { threadId, history: null, path: null, config: {}, excludeTurns: true });
+    return { model: value?.model || value?.thread?.model, reasoningEffort: value?.reasoningEffort || value?.thread?.reasoningEffort };
+  };
   window.__codexControlConsoleApplyThreadSettings = async (threadId, changes, options = {}) => {
     const normalized = String(threadId || '').trim().toLowerCase();
     if (!UUID.test(normalized) || !changes || typeof changes !== 'object' || Array.isArray(changes)) throw new Error('会话设置变更无效');
     const settings = {};
     if (Object.prototype.hasOwnProperty.call(changes, 'model')) {
       const model = String(changes.model || '').trim();
-      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(model)) throw new Error('模型无效');
+      if (model !== 'claude-subscription/opus-cua-preview' && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(model)) throw new Error('模型无效');
       settings.model = model;
     }
     if (Object.prototype.hasOwnProperty.call(changes, 'reasoningEffort')) {
