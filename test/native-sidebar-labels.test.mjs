@@ -121,39 +121,13 @@ test("later authoritative labels survive the bounded federated merge", async () 
   });
 });
 
-test("native sidebar injection decorates existing thread entries without reordering them", () => {
+test("native sidebar injection removes existing project and device badges", () => {
   const source = buildNativeSidebarLabelsInjectionScript();
-  assert.match(source, /data-app-action-sidebar-thread-id/);
-  assert.match(source, /data-codex-control-console-sidebar-labels/);
-  assert.match(source, /projectLabel/);
-  assert.match(source, /deviceLabel/);
-  assert.match(source, /MutationObserver/);
-  assert.match(source, /function affectsLabelMount\(record\)/);
-  assert.match(source, /records\.some\(affectsLabelMount\)/);
-  assert.match(source, /record\.addedNodes/);
-  assert.match(source, /record\.removedNodes/);
-  assert.doesNotMatch(source, /new MutationObserver\(scheduleRender\)/);
-  assert.match(source, /function labelHost\(marker\)/);
-  assert.match(source, /data-thread-title-trigger="true"/);
-  assert.match(source, /titleTrigger\?\.parentElement/);
-  assert.match(source, /titleRow !== marker/);
-  assert.match(source, /\) \|\| null;/);
-  assert.match(source, /requestAnimationFrame/);
-  assert.match(source, /min-width:36px/);
-  assert.match(source, /box-sizing:border-box/);
-  assert.match(source, /generated-labels-v2/);
-  assert.match(source, /data-codex-control-console-project-label/);
-  assert.match(source, /data-codex-control-console-device-label/);
-  assert.match(source, /content:attr\(/);
-  assert.match(source, /order:100;max-width:64px;margin-left:auto/);
-  assert.match(source, /order:101;max-width:58px;margin-left:3px/);
-  assert.doesNotMatch(source, /replaceChildren\(/);
-  assert.doesNotMatch(source, /host\.append\(/);
-  assert.doesNotMatch(source, /setTimeout\(render/);
-  assert.doesNotMatch(source, /appendChild\(marker\)/);
-  assert.doesNotMatch(source, /insertBefore\(marker/);
-  const snapshot = buildNativeSidebarLabelsSnapshotScript([{ threadId: localId, projectLabel: "控制台", deviceLabel: "本地" }]);
-  assert.match(snapshot, /__codexControlConsoleSetSidebarLabels/);
-  assert.match(snapshot, /控制台/);
-  assert.match(snapshot, /本地/);
+  assert.match(source, /SidebarLabelObserver\?\.disconnect/);
+  assert.match(source, /sidebar-label-style'\)\?\.remove/);
+  assert.match(source, /data-codex-control-console-sidebar-label-host/);
+  assert.match(source, /removeAttribute\('data-codex-control-console-project-label'\)/);
+  assert.match(source, /removeAttribute\('data-codex-control-console-device-label'\)/);
+  assert.match(source, /__codexControlConsoleSetSidebarLabels = \(\) => \(\{ count: 0 \}\)/);
+  assert.doesNotMatch(source, /new MutationObserver/);
 });

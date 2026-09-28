@@ -120,124 +120,19 @@ export function buildNativeSidebarLabelsSnapshotScript(items = []) {
 }
 
 export function buildNativeSidebarLabelsInjectionScript() {
-  const stylesheet = [
-    '[data-codex-control-console-sidebar-label-host]::before,[data-codex-control-console-sidebar-label-host]::after{display:inline-block;box-sizing:border-box;flex:0 1 auto;overflow:hidden;min-width:36px;padding:1px 5px;border-radius:999px;color:currentColor;font:500 10px/14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-overflow:ellipsis;white-space:nowrap;opacity:.82;pointer-events:none;}',
-    '[data-codex-control-console-sidebar-label-host]::before{content:attr(data-codex-control-console-project-label) / "";order:100;max-width:64px;margin-left:auto;border:1px solid rgba(92,116,170,.28);background:rgba(92,116,170,.1);}',
-    '[data-codex-control-console-sidebar-label-host]::after{content:attr(data-codex-control-console-device-label) / "";order:101;max-width:58px;margin-left:3px;border:1px solid rgba(93,145,112,.3);background:rgba(93,145,112,.11);}'
-  ].join('');
   return `(() => {
-  const VERSION = '2026-09-21.2';
-  const LAYOUT_VERSION = 'generated-labels-v2';
-  const THREAD_SELECTOR = '[data-app-action-sidebar-thread-id]';
-  const LABEL_SELECTOR = '[data-codex-control-console-sidebar-labels]';
-  const HOST_SELECTOR = '[data-codex-control-console-sidebar-label-host]';
-  const STYLE_ID = 'codex-control-console-sidebar-label-style';
-  const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (window.__codexControlConsoleSidebarLabelVersion === VERSION && window.__codexControlConsoleSidebarLabelObserver) return;
-  window.__codexControlConsoleSidebarLabelObserver?.disconnect?.();
-  document.querySelectorAll(LABEL_SELECTOR).forEach((element) => element.remove());
-  document.querySelectorAll(HOST_SELECTOR).forEach(clearHost);
-  window.__codexControlConsoleSidebarLabelVersion = VERSION;
-  const labels = new Map();
-  let renderPending = false;
-
-  function clearHost(host) {
-    host.removeAttribute('data-codex-control-console-sidebar-label-host');
-    host.removeAttribute('data-codex-control-console-project-label');
-    host.removeAttribute('data-codex-control-console-device-label');
-    host.removeAttribute('data-codex-control-console-label-signature');
-    host.removeAttribute('data-codex-control-console-label-layout');
-  }
-
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = ${JSON.stringify(stylesheet)};
-    (document.head || document.documentElement).append(style);
-  }
-
-  function text(value, maxLength) {
-    return String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').trim().slice(0, maxLength);
-  }
-
-  function threadIdFor(element) {
-    const value = element.getAttribute('data-app-action-sidebar-thread-id') || '';
-    return value.match(UUID)?.[0]?.toLowerCase() || null;
-  }
-
-  function labelHost(marker) {
-    const titleTrigger = marker.querySelector('[data-thread-title-trigger="true"]');
-    const titleRow = titleTrigger?.parentElement;
-    if (titleRow
-      && titleRow !== marker
-      && titleRow.classList.contains('flex')
-      && titleRow.classList.contains('min-w-0')
-      && titleRow.classList.contains('items-center')) return titleRow;
-    return Array.from(marker.querySelectorAll('span')).find((node) => (
-      node.classList.contains('flex')
-      && node.classList.contains('min-w-0')
-      && node.classList.contains('items-center')
-      && node.getBoundingClientRect().height <= 24
-    )) || null;
-  }
-
-  function render() {
-    ensureStyle();
-    for (const marker of document.querySelectorAll(THREAD_SELECTOR)) {
-      const threadId = threadIdFor(marker);
-      const value = threadId ? labels.get(threadId) : null;
-      const host = labelHost(marker);
-      marker.querySelectorAll(HOST_SELECTOR).forEach((candidate) => { if (candidate !== host || !value) clearHost(candidate); });
-      marker.querySelectorAll(LABEL_SELECTOR).forEach((element) => element.remove());
-      if (!value || !host) { if (host) clearHost(host); continue; }
-      const signature = value.projectLabel + '\\n' + value.deviceLabel;
-      if (host.getAttribute('data-codex-control-console-label-signature') === signature && host.getAttribute('data-codex-control-console-label-layout') === LAYOUT_VERSION) continue;
-      host.setAttribute('data-codex-control-console-sidebar-label-host', '');
-      host.setAttribute('data-codex-control-console-project-label', value.projectLabel);
-      host.setAttribute('data-codex-control-console-device-label', value.deviceLabel);
-      host.setAttribute('data-codex-control-console-label-signature', signature);
-      host.setAttribute('data-codex-control-console-label-layout', LAYOUT_VERSION);
-    }
-  }
-
-  function scheduleRender() {
-    if (renderPending) return;
-    renderPending = true;
-    requestAnimationFrame(() => {
-      renderPending = false;
-      render();
+    window.__codexControlConsoleSidebarLabelObserver?.disconnect?.();
+    window.__codexControlConsoleSidebarLabelObserver = null;
+    window.__codexControlConsoleSidebarLabelVersion = '2026-09-28-removed';
+    document.getElementById('codex-control-console-sidebar-label-style')?.remove();
+    document.querySelectorAll('[data-codex-control-console-sidebar-labels]').forEach((node) => node.remove());
+    document.querySelectorAll('[data-codex-control-console-sidebar-label-host]').forEach((node) => {
+      node.removeAttribute('data-codex-control-console-sidebar-label-host');
+      node.removeAttribute('data-codex-control-console-project-label');
+      node.removeAttribute('data-codex-control-console-device-label');
+      node.removeAttribute('data-codex-control-console-label-signature');
+      node.removeAttribute('data-codex-control-console-label-layout');
     });
-  }
-
-  function containsLabelMount(node) {
-    if (node?.nodeType !== 1) return false;
-    return node.matches?.(THREAD_SELECTOR + ',[data-thread-title-trigger="true"]')
-      || Boolean(node.querySelector?.(THREAD_SELECTOR + ',[data-thread-title-trigger="true"]'));
-  }
-
-  function affectsLabelMount(record) {
-    if (record.type === 'attributes') return true;
-    return Array.from(record.addedNodes || []).some(containsLabelMount)
-      || Array.from(record.removedNodes || []).some(containsLabelMount);
-  }
-
-  window.__codexControlConsoleSetSidebarLabels = (items) => {
-    labels.clear();
-    for (const item of Array.isArray(items) ? items.slice(0, ${MAX_LABELS}) : []) {
-      const threadId = text(item?.threadId, 160).toLowerCase();
-      const projectLabel = text(item?.projectLabel, 80);
-      const deviceLabel = text(item?.deviceLabel, 80);
-      if (UUID.test(threadId) && projectLabel && deviceLabel) labels.set(threadId, { projectLabel, deviceLabel });
-    }
-    scheduleRender();
-    return { count: labels.size };
-  };
-
-  window.__codexControlConsoleSidebarLabelObserver = new MutationObserver((records) => {
-    if (records.some(affectsLabelMount)) scheduleRender();
-  });
-  window.__codexControlConsoleSidebarLabelObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-thread-id'] });
-  scheduleRender();
-})()`;
+    window.__codexControlConsoleSetSidebarLabels = () => ({ count: 0 });
+  })()`;
 }
