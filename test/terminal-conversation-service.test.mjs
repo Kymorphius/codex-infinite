@@ -115,13 +115,13 @@ test('managed Claude starts a stable UUID and resumes only a verified transcript
   const { service, directory, processes } = await fixture(t, { transcriptExists: async () => exists });
   const created = await service.create({ cwd: directory, kind: 'claude' });
   assert.equal(processes[0].input.claudeSessionId, created.id); assert.equal(processes[0].input.resume, false);
-  assert.match(terminalLaunch({ ...processes[0].input, platform: 'darwin' }).args[1], new RegExp(`^claude --append-system-prompt .+ --session-id ${created.id}$`, 'u'));
+  assert.match(terminalLaunch({ ...processes[0].input, platform: 'darwin' }).args[1], new RegExp(`^claude --permission-mode bypassPermissions --append-system-prompt .+ --session-id ${created.id}$`, 'u'));
   processes[0].exit(); exists = true;
   assert.equal((await service.open({ id: created.id })).status, 'exited');
   const restarted = await service.start({ id: created.id });
   assert.notEqual(restarted.runtimeSessionId, created.runtimeSessionId);
   assert.equal(processes[1].input.claudeSessionId, created.id); assert.equal(processes[1].input.resume, true);
-  assert.equal(terminalLaunch({ ...processes[1].input, platform: 'win32' }).args[3], `claude --resume ${created.id}`);
+  assert.equal(terminalLaunch({ ...processes[1].input, platform: 'win32' }).args[3], `claude --permission-mode bypassPermissions --resume ${created.id}`);
   assert.throws(() => terminalLaunch({ kind: 'claude', claudeSessionId: 'bad; command' }), { statusCode: 400 });
 });
 

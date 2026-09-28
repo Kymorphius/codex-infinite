@@ -91,6 +91,13 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   UI shows stopped and offers an explicit start. Managed Claude uses its own
   stable CLI session ID; restarting resumes only a verified existing transcript,
   otherwise starts that ID. No auth or model configuration is copied or changed.
+- Managed Claude processes started by this provider use the CLI's
+  `--permission-mode bypassPermissions` on creation and resume, as requested for
+  this local terminal workflow. It skips interactive tool approval prompts;
+  explicit deny rules and hooks may still reject actions. Shell sessions and
+  Codex-hosted Claude model requests are separate permission surfaces. A
+  `claude attach` viewer connects to an already-running daemon job and cannot
+  change that job's permission mode; it retains the job's original mode.
 
 ## Native integration
 

@@ -37,12 +37,14 @@ export function terminalLaunch({ kind, claudeSessionId, resume = false, attachJo
     : claudeSessionId ? `claude ${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : 'claude';
   const withUiControls = kind === 'claude' && !attachJob && platform !== 'win32'
     ? command.replace(/^claude\b/u, `claude --append-system-prompt ${shellQuote(CLAUDE_TERMINAL_UI_PROMPT)}`) : command;
+  const withPermissions = kind === 'claude' && !attachJob
+    ? withUiControls.replace(/^claude\b/u, 'claude --permission-mode bypassPermissions') : withUiControls;
   if (platform === 'win32') {
     const shell = env.COMSPEC || path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
-    return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', withUiControls] : ['/d'] };
+    return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', withPermissions] : ['/d'] };
   }
   const shell = path.isAbsolute(env.SHELL || '') ? env.SHELL : (platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-  return { shell, args: kind === 'claude' ? ['-lic', withUiControls] : ['-l'] };
+  return { shell, args: kind === 'claude' ? ['-lic', withPermissions] : ['-l'] };
 }
 
 // Only processes descended from this adapter's PTY are eligible for cleanup.

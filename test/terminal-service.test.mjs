@@ -148,10 +148,11 @@ test('process adapter preserves real HOME but strips infrastructure and provider
   assert.equal(env.HOME, '/real/user'); assert.equal(env.PATH, '/bin'); assert.equal(env.TERM, 'xterm-256color');
   for (const key of ['ANTHROPIC_API_KEY', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'SSH_AUTH_SOCK', 'NODE_OPTIONS', 'NODE_AUTH_TOKEN']) assert.equal(env[key], undefined);
   const claude = terminalLaunch({ kind: 'claude', platform: 'darwin', env: { SHELL: '/bin/zsh' } });
-  assert.equal(claude.shell, '/bin/zsh'); assert.match(claude.args[1], /^claude --append-system-prompt '/u);
+  assert.equal(claude.shell, '/bin/zsh'); assert.match(claude.args[1], /^claude --permission-mode bypassPermissions --append-system-prompt '/u);
   assert.match(claude.args[1], /ccc-ui:split=open/u); assert.match(claude.args[1], /ccc-ui:redraw/u);
   assert.deepEqual(terminalLaunch({ kind: 'shell', platform: 'linux', env: { SHELL: 'injected args' } }), { shell: '/bin/bash', args: ['-l'] });
   assert.deepEqual(terminalLaunch({ kind: 'claude', attachJob: '13649afa', platform: 'darwin', env: { SHELL: '/bin/zsh' } }), { shell: '/bin/zsh', args: ['-lic', 'claude attach 13649afa'] });
+  assert.equal(terminalLaunch({ kind: 'claude', platform: 'win32', env: { COMSPEC: 'C:\\Windows\\System32\\cmd.exe' } }).args[3], 'claude --permission-mode bypassPermissions');
   assert.throws(() => terminalLaunch({ kind: 'claude', attachJob: '13649afa; rm -rf ~', platform: 'darwin', env: {} }), { statusCode: 400 });
 });
 
