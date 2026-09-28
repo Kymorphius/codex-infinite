@@ -222,6 +222,15 @@ export function createTerminalSession(initialSession, {
         });
       } else if (frame.type === "data") {
         if (typeof frame.data === "string") writeOutput(current, frame.data);
+      } else if (frame.type === "redraw-size") {
+        if (Number.isInteger(frame.cols) && frame.cols >= 2 && frame.cols <= 500
+          && Number.isInteger(frame.rows) && frame.rows >= 1 && frame.rows <= 300) {
+          // Parse preceding output at its old width before applying the next PTY width.
+          writeOutput(current, '', () => {
+            terminal.resize(frame.cols, frame.rows);
+            terminal.refresh?.(0, terminal.rows - 1);
+          });
+        }
       } else if (frame.type === "exit") {
         session = { ...session, status: "exited", exitCode: frame.exitCode };
         choicePrompt = null; choiceSignature = '';

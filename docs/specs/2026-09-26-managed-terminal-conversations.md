@@ -60,6 +60,13 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   no longer existed. After a reinstall the shown view remounts through the new client.
   A runtime that disappears without an exit shown in the view (backend restart,
   disconnect) re-arms the one automatic open; an exit you made there does not.
+- Claude repaint (2026-09-28): a redraw changes the PTY width briefly to ask
+  Claude's interactive UI to repaint. Each temporary size is sent to the owning
+  terminal display before the PTY is resized, so xterm parses the resulting
+  output at the same width. The client applies size frames in output order and
+  never sends them back as user resizes. A real layout resize, disconnect,
+  takeover or aborted repaint cancels the pulse and restores the PTY's recorded
+  dimensions. Redraw never sends terminal input or starts another session.
 - Opening opens (2026-09-28): showing a Claude conversation that is not running
   starts it without a click, once per view: a stopped session resumes, a
   background-held one is attached (status 「正在连接…」). No automatic action when it

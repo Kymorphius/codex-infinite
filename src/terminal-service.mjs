@@ -64,6 +64,7 @@ export class TerminalService {
       entry.subscriptions.push(pty.onData(data => this.output(entry, data)));
       entry.subscriptions.push(pty.onExit(event => {
         if (entry.status !== 'running') return;
+        this.cancelRedraw(entry);
         entry.status = 'exited'; entry.exitCode = Number.isInteger(event.exitCode) ? event.exitCode : null;
         this.send(entry, { type: 'exit', exitCode: entry.exitCode });
       }));
@@ -90,29 +91,35 @@ export class TerminalService {
 
   disconnect(entry, code, reason) {
     const writer = entry.writer; entry.writer = null;
+    this.cancelRedraw(entry);
     try { writer?.close(code, reason); } catch {}
   }
 
-  cancelRedraw(entry) {
+  cancelRedraw(entry, restore = true) {
     if (!entry.redraw) return;
-    this.cancel(entry.redraw.timer);
+    const { timer, size } = entry.redraw;
+    this.cancel(timer);
     entry.redraw = null;
+    if (restore && size && (size.cols !== entry.cols || size.rows !== entry.rows)) {
+      this.send(entry, { type: 'redraw-size', cols: entry.cols, rows: entry.rows });
+      try { entry.pty.resize(entry.cols, entry.rows); } catch {}
+    }
   }
 
   redraw(entry) {
     if (entry.kind !== 'claude' || entry.status !== 'running') throw terminalError(409, 'Claude 终端当前无法重绘');
     if (entry.redraw) return;
-    const state = entry.redraw = { timer: null };
-    // Two bounded width changes reproduce the manual split/unsplit repaint, while
-    // leaving the browser's xterm and the user's input stream untouched.
+    const state = entry.redraw = { timer: null, size: null };
+    // Match xterm's width to each PTY width before Claude emits its repaint.
     const step = index => {
       if (entry.redraw !== state || this.sessions.get(entry.id) !== entry || entry.status !== 'running') return;
       if (index === 4) { entry.redraw = null; return; }
-      try { entry.pty.resize(index % 2 ? entry.cols : entry.cols > 2 ? entry.cols - 1 : entry.cols + 1, entry.rows); }
-      catch {
-        try { entry.pty.resize(entry.cols, entry.rows); } catch {}
-        entry.redraw = null; return;
-      }
+      const size = { cols: index % 2 ? entry.cols : entry.cols > 2 ? entry.cols - 1 : entry.cols + 1, rows: entry.rows };
+      state.size = size;
+      this.send(entry, { type: 'redraw-size', ...size });
+      if (!entry.writer) { this.cancelRedraw(entry); return; }
+      try { entry.pty.resize(size.cols, size.rows); }
+      catch { this.cancelRedraw(entry); return; }
       state.timer = this.schedule(() => step(index + 1), 110);
     };
     step(0);
@@ -131,9 +138,9 @@ export class TerminalService {
         if (entry.status !== 'running') throw terminalError(409, '终端进程已结束');
         if (input.type === 'input') entry.pty.write(input.data);
         else if (input.type === 'redraw') this.redraw(entry);
-        else { this.cancelRedraw(entry); entry.pty.resize(input.cols, input.rows); entry.cols = input.cols; entry.rows = input.rows; }
+        else { this.cancelRedraw(entry, false); entry.pty.resize(input.cols, input.rows); entry.cols = input.cols; entry.rows = input.rows; }
       },
-      detach: () => { if (entry.writer === writer) entry.writer = null; },
+      detach: () => { if (entry.writer === writer) { entry.writer = null; this.cancelRedraw(entry); } },
     };
   }
 
