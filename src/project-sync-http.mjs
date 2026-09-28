@@ -5,7 +5,9 @@ import { PROJECT_SYNC_ACTIONS, PROJECT_SYNC_NODE_PREFIX, PROJECT_SYNC_PACKAGE_BY
 const BROWSER_PATHS = Object.freeze({
   "/api/project-sync/catalog": "catalog",
   "/api/project-sync/preflight": "preflight",
-  "/api/project-sync/execute": "execute"
+  "/api/project-sync/execute": "execute",
+  "/api/project-sync/link": "link",
+  "/api/project-sync/unlink": "unlink"
 });
 
 function assertJson(request) {

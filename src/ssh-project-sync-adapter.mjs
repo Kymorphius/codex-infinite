@@ -3,7 +3,7 @@ import { spawn as nodeSpawn } from "node:child_process";
 import { ACTION_HEADERS, loadActionKey, signPeerAction } from "./peer-action-auth.mjs";
 import { PROJECT_SYNC_NODE_PREFIX, PROJECT_SYNC_PACKAGE_BYTES, PROJECT_SYNC_SMALL_BODY_BYTES, sshProjectSyncArguments } from "./project-sync-peer-commands.mjs";
 
-const MUTATIONS = new Set(["prepare", "apply"]);
+const MUTATIONS = new Set(["prepare", "apply", "associate", "dissociate"]);
 const REQUEST_TIMEOUT_MS = 65_000;
 
 function syncError(message, statusCode = 503, code = "PROJECT_SYNC_UNAVAILABLE") {
@@ -57,6 +57,8 @@ export class SshProjectSyncAdapter {
   export(input) { return this.request("export", input); }
   prepare(input) { return this.request("prepare", input); }
   apply(input) { return this.request("apply", input); }
+  associate(input) { return this.request("associate", input); }
+  dissociate(input) { return this.request("dissociate", input); }
 
   async request(action, input) {
     const mutation = MUTATIONS.has(action);

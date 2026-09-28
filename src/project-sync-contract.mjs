@@ -2,6 +2,16 @@ export function syncError(message, statusCode = 409) {
   return Object.assign(new Error(message), { statusCode });
 }
 
+export function syncProjectId(value) {
+  if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value)) throw syncError('共享项目标识无效', 400);
+  return value;
+}
+
+function identityFields(value) {
+  if (value.identitySupported !== true) return {};
+  return { identitySupported: true, sharedProjectId: value.sharedProjectId === null ? null : syncProjectId(value.sharedProjectId) };
+}
+
 export function syncSelection(value) {
   if (!value || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value.deviceId || '')
     || typeof value.path !== 'string' || !value.path || value.path.length > 4096 || /[\0\r\n]/.test(value.path)) {
@@ -16,7 +26,7 @@ export function syncSnapshot(value, selection) {
     || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value.head || '')) {
     throw syncError('设备未返回可确认的洁净 Git 版本，请重新检查');
   }
-  return { ...selection, branch: value.branch, head: value.head, clean: true };
+  return { ...selection, branch: value.branch, head: value.head, clean: true, ...identityFields(value) };
 }
 
 export function sameSyncVersion(a, b) {
@@ -35,6 +45,6 @@ export function syncProjects(catalog) {
     if (!project || typeof project.path !== 'string' || !project.path || project.path.length > 4096 || /[\0\r\n]/.test(project.path)
       || typeof project.name !== 'string' || project.name.length > 512 || paths.has(project.path)) throw syncError('设备项目目录格式无效', 503);
     paths.add(project.path);
-    return { path: project.path, name: project.name };
+    return { path: project.path, name: project.name, ...identityFields(project) };
   });
 }

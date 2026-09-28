@@ -1,5 +1,6 @@
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const headPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i;
+export const sharedIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export const projectKey = project => JSON.stringify([project.deviceId, project.path]);
 
@@ -11,6 +12,7 @@ export function validateCatalog(payload) {
       || !['connected', 'offline'].includes(owner.status) || !Array.isArray(owner.projects)) throw Error('设备项目列表格式无效');
     ids.add(owner.device.id);
     if (owner.projects.some(project => !nonempty(project?.path) || !nonempty(project?.name))) throw Error('设备项目路径格式无效');
+    if (owner.projects.some(project => project.identitySupported === true && project.sharedProjectId !== null && !sharedIdPattern.test(project.sharedProjectId))) throw Error('设备项目关联格式无效');
   }
   return payload;
 }
@@ -29,6 +31,7 @@ export function selectionIssue(source, target, stale) {
   if (!source || !target) return '请选择源项目和目标项目';
   if (!source.connected || !target.connected) return '所选设备暂不可用，请连接后刷新';
   if (source.deviceId === target.deviceId) return '请选择不同设备上的项目';
+  if (source.sharedProjectId && target.sharedProjectId && source.sharedProjectId !== target.sharedProjectId) return '两端属于不同的共享项目，请先解除误关联';
   return '';
 }
 

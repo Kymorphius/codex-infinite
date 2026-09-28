@@ -2,7 +2,7 @@ import { ACTION_HEADERS } from "./peer-action-auth.mjs";
 import { normalizePeerTransport } from "./peer-contract.mjs";
 import { sshSnapshotArguments } from "./ssh-peer-commands.mjs";
 
-export const PROJECT_SYNC_ACTIONS = Object.freeze(["catalog", "inspect", "export", "prepare", "apply"]);
+export const PROJECT_SYNC_ACTIONS = Object.freeze(["catalog", "inspect", "export", "prepare", "apply", "associate", "dissociate"]);
 export const PROJECT_SYNC_NODE_PREFIX = "/api/node/project-sync/";
 export const PROJECT_SYNC_SMALL_BODY_BYTES = 8 * 1024;
 export const PROJECT_SYNC_PACKAGE_BYTES = 34 * 1024 * 1024;

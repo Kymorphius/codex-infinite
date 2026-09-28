@@ -1,4 +1,4 @@
-import { catalogProjects, selectionInput, selectionIssue, validateCatalog, validateExecution, validatePreflight } from './model.js';
+import { catalogProjects, selectionInput, selectionIssue, sharedIdPattern, validateCatalog, validateExecution, validatePreflight } from './model.js';
 import { createSyncView } from './view.js';
 
 export function createSyncController({ fetchImpl = fetch, render = () => {}, requestTimeoutMs = 180000, now = Date.now } = {}) {
@@ -9,6 +9,8 @@ export function createSyncController({ fetchImpl = fetch, render = () => {}, req
     const source = projects.find(project => project.key === state.sourceKey), target = projects.find(project => project.key === state.targetKey);
     const issue = selectionIssue(source, target, state.stale);
     return { ...state, projects, source, target, issue, canPreflight: !state.busy && !issue,
+      canLink: !state.busy && !issue && Boolean(permit?.source.identitySupported && permit?.target.identitySupported)
+        && !(permit.source.sharedProjectId && permit.source.sharedProjectId === permit.target.sharedProjectId) && Date.parse(permit.expiresAt) > now(),
       canExecute: !state.busy && !issue && Boolean(permit) && !permit.unchanged && Date.parse(permit.expiresAt) > now() };
   }
   const publish = () => { if (!disposed) render(projected()); };
@@ -17,7 +19,7 @@ export function createSyncController({ fetchImpl = fetch, render = () => {}, req
   }
   async function request(path, body) {
     const aborter = new AbortController(); let timer;
-    const writing = path.endsWith('/execute');
+    const writing = ['/execute', '/link', '/unlink'].some(suffix => path.endsWith(suffix));
     try {
       return await Promise.race([
         Promise.resolve().then(() => fetchImpl(path, { cache: 'no-store', signal: aborter.signal,
@@ -52,7 +54,7 @@ export function createSyncController({ fetchImpl = fetch, render = () => {}, req
     } finally { if (!disposed && current === version) { state.busy = null; publish(); } }
   }
   function select(side, key) {
-    if (disposed || !['source', 'target'].includes(side) || state.busy === 'execute') return false;
+    if (disposed || !['source', 'target'].includes(side) || ['execute', 'link', 'unlink'].includes(state.busy)) return false;
     if (state[`${side}Key`] === key) return true;
     const hadPreflight = Boolean(permit) || state.busy === 'preflight';
     invalidate(); state[`${side}Key`] = key; state.busy = null;
@@ -70,7 +72,7 @@ export function createSyncController({ fetchImpl = fetch, render = () => {}, req
       permit = validatePreflight(payload, source, target, now());
       const { token, ...summary } = permit; state.preflight = summary;
       expiryTimer = setTimeout(() => {
-        if (disposed || current !== version || state.busy === 'execute') return;
+        if (disposed || current !== version || ['execute', 'link', 'unlink'].includes(state.busy)) return;
         invalidate(); state.notice = '预检已过期，请重新预检后同步。'; publish();
       }, Math.max(1, Date.parse(permit.expiresAt) - now()));
       expiryTimer?.unref?.();
@@ -100,7 +102,29 @@ export function createSyncController({ fetchImpl = fetch, render = () => {}, req
       return false;
     } finally { if (!disposed && current === version) { state.busy = null; publish(); } }
   }
-  return { refresh, select, preflight, execute, getState: projected,
+  async function changeIdentity(action, side) {
+    if (disposed || state.busy) return false;
+    const currentState = projected(), project = currentState[side];
+    if (action === 'link' ? !currentState.canLink : !project?.sharedProjectId || state.stale) return false;
+    const body = action === 'link' ? { token: permit.token } : { project: selectionInput(project), projectId: project.sharedProjectId };
+    invalidate(); const current = version;
+    state.busy = action; state.error = ''; state.notice = ''; publish();
+    try {
+      const result = await request(`/api/project-sync/${action}`, body);
+      if (action === 'link' ? result.linked !== true || !sharedIdPattern.test(result.projectId) : result.unlinked !== true
+        || result.project?.deviceId !== project.deviceId || result.project?.path !== project.path) throw Error('关联结果未确认，请刷新核对');
+      const catalog = validateCatalog(await request('/api/project-sync/catalog'));
+      if (disposed || current !== version) return false;
+      state.catalog = catalog; state.stale = false;
+      state.notice = action === 'link' ? '两端已记录同一个项目。换设备后也能找到对应副本；代码尚未更新，继续同步请重新预检。'
+        : '已解除这个副本的关联；项目文件、会话和其他设备的关联均保留。';
+      return true;
+    } catch (error) {
+      if (!disposed && current === version) { state.stale = true; state.error = `${error.message || '关联结果未确认'}。请刷新设备核对，不会自动重试。`; }
+      return false;
+    } finally { if (!disposed && current === version) { state.busy = null; publish(); } }
+  }
+  return { refresh, select, preflight, execute, link: () => changeIdentity('link'), unlink: side => changeIdentity('unlink', side), getState: projected,
     dispose() { disposed = true; invalidate(); } };
 }
 
@@ -110,6 +134,8 @@ export function mountProjectSync({ documentRef = document, windowRef = window, f
   documentRef.querySelector('#refresh').addEventListener('click', () => void controller.refresh());
   documentRef.querySelector('#preflight').addEventListener('click', () => void controller.preflight());
   documentRef.querySelector('#execute').addEventListener('click', () => void controller.execute());
+  documentRef.querySelector('#link-projects').addEventListener('click', () => void controller.link());
+  for (const side of ['source', 'target']) documentRef.querySelector(`#unlink-${side}`).addEventListener('click', () => void controller.unlink(side));
   if (windowRef.parent !== windowRef) windowRef.parent.postMessage({ type: 'codex-control-console-ready' }, 'app://-');
   windowRef.addEventListener('pagehide', () => controller.dispose(), { once: true });
   void controller.refresh(); return controller;

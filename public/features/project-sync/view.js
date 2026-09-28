@@ -9,15 +9,16 @@ export function createSyncView(documentRef = document) {
   function text(selector, value) { const node = $(selector); if (node.textContent !== value) node.textContent = value; }
   function choices(side, state) {
     const select = $(`#${side}`), other = state[side === 'source' ? 'target' : 'source'];
-    const signature = JSON.stringify([state.catalog, other?.deviceId]);
+    const signature = JSON.stringify([state.catalog, other?.deviceId, other?.sharedProjectId]);
     if (select.dataset.options !== signature) {
       const first = element('option', '', side === 'source' ? '选择源项目…' : '选择目标项目…'); first.value = '';
       const groups = (state.catalog?.devices || []).map(owner => {
         const group = element('optgroup', '');
         group.label = `${owner.device.name || owner.device.id}${owner.status === 'offline' ? ' · 暂不可用' : ''}`;
         group.disabled = owner.status !== 'connected' || owner.device.id === other?.deviceId;
-        for (const project of owner.projects) {
-          const option = element('option', '', `${project.name} · ${project.path}`);
+        const related = project => Boolean(other?.sharedProjectId && project.sharedProjectId === other.sharedProjectId);
+        for (const project of [...owner.projects].sort((a, b) => Number(related(b)) - Number(related(a)))) {
+          const option = element('option', '', `${related(project) ? '对应副本 · ' : ''}${project.name} · ${project.path}`);
           option.value = projectKey({ deviceId: owner.device.id, path: project.path }); group.append(option);
         }
         return group;
@@ -26,6 +27,8 @@ export function createSyncView(documentRef = document) {
     }
     select.value = state[`${side}Key`]; select.disabled = Boolean(state.busy) || !state.catalog || state.stale;
     text(`#${side}-path`, state[side]?.path || (side === 'source' ? '选择项目后显示所在目录' : '选择另一台设备上的已有项目'));
+    $(`#unlink-${side}`).hidden = !state[side]?.sharedProjectId;
+    $(`#unlink-${side}`).disabled = Boolean(state.busy) || state.stale;
   }
   function deviceStates(state) {
     const owners = state.catalog?.devices || [], connected = owners.filter(owner => owner.status === 'connected').length;
@@ -71,6 +74,16 @@ export function createSyncView(documentRef = document) {
     $('#preflight').classList.toggle('primary', !preview || preview.unchanged);
     text('#preflight', state.busy === 'preflight' ? '正在预检…' : preview ? '重新预检' : '检查同步条件');
     $('#execute').hidden = !preview || preview.unchanged; $('#execute').disabled = !state.canExecute;
+    $('#link-projects').hidden = !state.canLink && state.busy !== 'link';
+    $('#link-projects').disabled = !state.canLink;
+    text('#link-projects', state.busy === 'link' ? '正在关联并核对…' : '关联这两个副本');
+    const related = state.source?.sharedProjectId ? state.projects.filter(project => project.deviceId !== state.source.deviceId && project.sharedProjectId === state.source.sharedProjectId) : [];
+    text('#identity-hint', state.source?.sharedProjectId && state.source.sharedProjectId === state.target?.sharedProjectId
+      ? '已关联为同一个项目。每次同步仍需预检，任务与会话保持独立。'
+      : related.length ? `找到 ${related.length} 个已关联副本，目标列表已标记「对应副本」。请确认目标设备。`
+        : state.source && state.target && (!state.source.identitySupported || !state.target.identitySupported)
+          ? '部分设备尚未支持项目关联；升级后可记住副本对应关系。'
+          : '预检后可关联这两个副本，以后换设备也能找到对应项目。关联不会更新代码。');
     text('#execute', state.busy === 'execute' ? '正在同步并核对…' : `确认同步${state.target ? `到 ${state.target.deviceName}` : ''}`);
     text('#action-hint', state.busy === 'execute' ? '正在等待目标设备读回确认，请保持页面打开。' : state.busy === 'preflight' ? '检查分支、提交和工作目录，准备同步内容…'
       : complete ? '代码已一致；运行环境与任务接续需在目标设备确认。' : preview?.unchanged ? '代码已一致，无需同步。' : preview ? '确认方向和版本后，更新目标项目。' : state.issue || '先检查两端状态，再确认同步。');

@@ -21,9 +21,11 @@ async function fixture(t, overrides = {}) {
   const service = {
     catalog: async () => ({ devices: [{ id: "local", projects: [] }] }),
     preflight: async (input) => { calls.push(["preflight", input]); return { token: "short-lived", source: { head: "a" } }; },
-    execute: async (input) => { calls.push(["execute", input]); return { verified: true }; }
+    execute: async (input) => { calls.push(["execute", input]); return { verified: true }; },
+    link: async (input) => { calls.push(["link", input]); return { linked: true }; },
+    unlink: async (input) => { calls.push(["unlink", input]); return { unlinked: true }; }
   };
-  const localAdapter = Object.fromEntries(["catalog", "inspect", "export", "prepare", "apply"].map((action) => [action, async (input) => {
+  const localAdapter = Object.fromEntries(["catalog", "inspect", "export", "prepare", "apply", "associate", "dissociate"].map((action) => [action, async (input) => {
     calls.push([action, input]);
     return action === "export" ? { bundleBase64: "private-bundle" } : { action, input };
   }]));
@@ -132,4 +134,20 @@ test("node export response permits the bounded base64 package and rejects excess
   assert.equal((await request(url, { headers: signed(url) })).status, 200);
   bundleBase64 = "a".repeat(PROJECT_SYNC_PACKAGE_BYTES);
   assert.equal((await request(url, { headers: signed(url) })).status, 502);
+});
+
+test('identity actions require exact origin or signed non-browser transport with replay protection', async t => {
+  const f = await fixture(t);
+  for (const action of ['link', 'unlink']) {
+    const url = `/api/project-sync/${action}`;
+    assert.equal((await f.request(url, { headers: { 'content-type': 'application/json' } })).status, 403);
+    assert.equal((await f.request(url, { headers: { origin, 'content-type': 'application/json' } })).status, 200);
+  }
+  for (const action of ['associate', 'dissociate']) {
+    const url = `/api/node/project-sync/${action}`, headers = f.signed(url);
+    assert.equal((await f.request(url, { headers: { ...headers, origin } })).status, 403);
+    assert.equal((await f.request(url, { headers })).status, 200);
+    assert.equal((await f.request(url, { headers })).status, 409);
+  }
+  assert.deepEqual(f.calls.map(([action]) => action), ['link', 'unlink', 'associate', 'dissociate']);
 });

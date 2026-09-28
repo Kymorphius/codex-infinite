@@ -97,6 +97,10 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   remote-project selection, stdin-only Windows manifest inspection, SFTP
   staging transport, verified local promotion, native fork/import conversation
   cloning, and exact-origin HTTP workflow.
+- `src/project-identity-store.mjs`, `src/local-project-identity-adapter.mjs`,
+  `src/project-sync-links.mjs` — device-owned shared project identity mappings,
+  expected-identity writes and verified cross-device association. These are
+  advisory checkout references; native projects and task ownership stay separate.
 - `src/project-sync-contract.mjs`, `src/project-sync-service.mjs`,
   `src/local-project-sync-adapter.mjs`, `src/project-sync-git*.mjs`,
   `src/ssh-project-sync-adapter.mjs`, `src/project-sync-peer-commands.mjs`,

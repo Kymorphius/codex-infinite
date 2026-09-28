@@ -74,7 +74,7 @@ test("reads fall back to another transport using a fresh replay nonce", async (t
   assert.equal(logs.join(" ").includes("private-key-material"), false);
 });
 
-for (const action of ["prepare", "apply"]) {
+for (const action of ["prepare", "apply", "associate", "dissociate"]) {
   test(`${action} never retries after SSH failure, invalid response or EPIPE`, async (t) => {
     for (const reply of [{ exitCode: 255, stderr: "private-key-material" }, { data: "invalid-json" }, { pipeError: true }]) {
       const { adapter, calls } = await fixture(t, [reply]);

@@ -24,14 +24,17 @@
         <div class="choice-heading"><span class="project-symbol" aria-hidden="true">↗</span><div><h2>从这里同步</h2><p>拥有最新提交的设备</p></div><span class="tag">源项目</span></div>
         <label for="source">设备与项目</label><select id="source"><option value="">选择源项目…</option></select>
         <p id="source-path" class="project-path">选择项目后显示所在目录</p>
+        <button id="unlink-source" class="button quiet" type="button" hidden>解除此副本关联</button>
       </article>
       <div class="direction-arrow" aria-hidden="true">→</div>
       <article class="project-choice target-choice">
         <div class="choice-heading"><span class="project-symbol" aria-hidden="true">↙</span><div><h2>同步到这里</h2><p>准备继续工作的设备</p></div><span class="tag">目标项目</span></div>
         <label for="target">设备与项目</label><select id="target"><option value="">选择目标项目…</option></select>
         <p id="target-path" class="project-path">选择另一台设备上的已有项目</p>
+        <button id="unlink-target" class="button quiet" type="button" hidden>解除此副本关联</button>
       </article>
     </section>
+    <div class="action-bar"><p id="identity-hint" role="status">预检后可关联副本，以后换设备也能找到对应项目。关联不会更新代码。</p><button id="link-projects" class="button" type="button" hidden>关联这两个副本</button></div>
     <section id="preview" class="preview" aria-labelledby="preview-title" hidden>
       <div class="preview-heading"><span class="check-symbol" aria-hidden="true">✓</span><div><h2 id="preview-title"></h2><p id="preview-direction"></p></div></div>
       <div id="versions" class="versions"></div>

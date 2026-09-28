@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { syncError, syncSelection, syncSnapshot, syncToken, syncProjects, sameSyncVersion } from './project-sync-contract.mjs';
+import { syncError, syncSelection, syncSnapshot, syncToken, syncProjects, sameSyncVersion, syncProjectId } from './project-sync-contract.mjs';
+import { assertCompatibleIdentity, assertSyncIdentity, linkProjectCopies } from './project-sync-links.mjs';
 
 export class ProjectSyncService {
   constructor({ localAdapter, localDevice, peers = [], now = Date.now, ttlMs = 10 * 60_000 } = {}) {
@@ -46,6 +47,7 @@ export class ProjectSyncService {
       sourceAdapter.inspect({ path: sourceSelection.path }), targetAdapter.inspect({ path: targetSelection.path })
     ]);
     const source = syncSnapshot(sourceRaw, sourceSelection), target = syncSnapshot(targetRaw, targetSelection);
+    assertCompatibleIdentity(source, target);
     if (source.branch !== target.branch) throw syncError('两端分支不同，请先在目标设备选择相同分支');
     let targetToken = null;
     const unchanged = source.head === target.head;
@@ -66,13 +68,33 @@ export class ProjectSyncService {
     return { token, source, target, unchanged, expiresAt: new Date(expiresAt).toISOString() };
   }
 
-  async execute(input = {}) {
+  consume(input) {
     const token = syncToken(input.token), record = this.preflights.get(token);
     this.preflights.delete(token);
     if (!record || record.expiresAt <= this.now()) throw syncError('同步预检已使用或过期，请重新检查');
+    return record;
+  }
+
+  async link(input = {}) { return linkProjectCopies(this.consume(input)); }
+
+  async unlink(input = {}) {
+    const selection = syncSelection(input.project), projectId = syncProjectId(input.projectId);
+    const adapter = this.adapter(selection);
+    if (typeof adapter.dissociate !== 'function') throw syncError('该设备尚未支持项目关联，请先升级控制台');
+    const result = await adapter.dissociate({ path: selection.path, projectId });
+    if (result?.path !== selection.path || result.projectId !== null) throw syncError('解除关联尚未确认，请刷新核对');
+    const project = syncProjects(await adapter.catalog()).find(item => item.path === selection.path);
+    if (!project?.identitySupported || project.sharedProjectId !== null) throw syncError('解除关联尚未确认，请刷新核对');
+    return { unlinked: true, project: selection };
+  }
+
+  async execute(input = {}) {
+    const record = this.consume(input);
     const { source, target, sourceAdapter, targetAdapter, unchanged } = record;
     const current = syncSnapshot(await sourceAdapter.inspect({ path: source.path }), source);
     if (!sameSyncVersion(current, source)) throw syncError('源项目已变化，请重新检查');
+    assertSyncIdentity(current, source);
+    if (target.identitySupported) assertSyncIdentity(syncSnapshot(await targetAdapter.inspect({ path: target.path }), target), target);
     const result = unchanged
       ? { verified: true, unchanged: true, target: await targetAdapter.inspect({ path: target.path }) }
       : await targetAdapter.apply({ token: record.targetToken });

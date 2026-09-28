@@ -1,11 +1,13 @@
 import path from 'node:path';
-import { LocalProjectSyncAdapter } from './local-project-sync-adapter.mjs';
+import { LocalProjectIdentityAdapter } from './local-project-identity-adapter.mjs';
+import { ProjectIdentityStore } from './project-identity-store.mjs';
 import { SshProjectSyncAdapter } from './ssh-project-sync-adapter.mjs';
 import { ProjectSyncService } from './project-sync-service.mjs';
 import { syncError } from './project-sync-contract.mjs';
 
 export function createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeConversationAdapter, localAdapter, peers }) {
-  const localProjectSyncAdapter = new LocalProjectSyncAdapter({
+  const localProjectSyncAdapter = new LocalProjectIdentityAdapter({
+    identityStore: config.wrapperCodexHome ? new ProjectIdentityStore({ filePath: path.join(config.wrapperCodexHome, 'project-identities.json') }) : null,
     projectProvider: async () => {
       const snapshot = await nativeSidebarAdapter.read();
       const projects = new Map();
