@@ -1,6 +1,6 @@
 # Git 项目跨设备同步
 
-- Status: first release implemented, tested and deployed on Air, Pro and Windows; stages 2–4 remain proposed
+- Status: first release implemented, tested and deployed on Air, Pro and Windows; stage 2 shared identities implemented; remaining stages proposed
 - Date: 2026-09-26
 
 ## 目的与现状
@@ -38,7 +38,7 @@
 3. **会话与任务交接**：复用现有历史导入/子任务图保真能力；封存源任务、传递上下文和待办、验证目标可读历史，再通过原生能力完成单 owner 切换。需要持久 operation/receipt 和故障恢复，不能以创建新会话 ID 冒充原任务迁移。
 4. **均衡运行**：显示可用设备与实时运行任务、给出目标建议；不同任务用独立分支/checkout 并行，结果显式汇合。同一任务只有一个执行 owner，不把整个项目限制为只能在一台设备运行。
 
-阶段 2–4 尚未实现。项目代码同步不能被表述成正在运行的进程或会话已经迁移。
+阶段 2 的持久共享项目 ID 与副本映射已实现，见 [项目身份与副本关联](2026-09-28-project-sync-identity.md)；新副本创建、未提交 checkpoint、环境准备及阶段 3–4 尚未实现。项目代码同步不能被表述成正在运行的进程或会话已经迁移。
 
 ## 验收
 
@@ -54,4 +54,4 @@
 - 随后的并发 Turbo 部署仅更新两台组合入口 `main.mjs`；只读比较确认本次同步的导入、实例创建和服务注入均保留，其余 19 个文件仍匹配发布清单。再次经真实签名接口读取 Pro 15 个项目、Windows 44 个项目成功。
 - Air 正式项目同步页面实际显示 3/3 台设备可用：Air 37、Pro 15、Windows 44 个项目，源/目标选择可用。未对用户的真实项目擅自选择同步方向或执行覆盖。
 
-首版完成的是已有项目副本之间的已提交代码同步。未验证或宣称会话、任务、运行进程已经交接；阶段 2–4 仍按上面的独立验收边界推进。
+首版完成的是已有项目副本之间的已提交代码同步。未验证或宣称会话、任务、运行进程已经交接；后续阶段仍按上面的独立验收边界推进。
