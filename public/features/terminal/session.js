@@ -177,7 +177,10 @@ export function createTerminalSession(initialSession, {
         cancelInput();
         terminal.reset();
         terminal.resize(session.cols, session.rows);
-        writeOutput(current, frame.replay || "", () => {
+        const replay = session.replayTruncated
+          ? '\x1b[2J\x1b[H\r\n[此前输出超出缓存，显示已重置；会话仍在运行]\r\n'
+          : frame.replay || '';
+        writeOutput(current, replay, () => {
           if (socket !== current || current.readyState !== 1 || disposed) return;
           ready = true;
           attempts = 0;

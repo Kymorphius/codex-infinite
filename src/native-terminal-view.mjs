@@ -36,7 +36,10 @@ export function installNativeTerminalView(createSession, statusText, css) {
     more.insertAdjacentHTML?.('beforeend', '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>');
     menu.append(el('span', '', '直接发送到终端'), grid, paste); keys.append(more, menu);
     footer.append(keyButton('pill', '打断', 'interrupt', '⌃C'), keyButton('pill', 'Esc', 'escape'), keys, status, send);
-    composer.append(draft, footer); layout.append(bar, output, composer); shadow.append(style, layout); host.append(root);
+    const split = window.__cccCreateNativeTerminalSplit?.({ record, bar, output, api });
+    const redraw = el('button', 'redraw', '重绘'); redraw.type = 'button'; redraw.title = '重新连接终端显示，不结束会话';
+    redraw.onclick = () => view?.reconnect(); if (record.kind === 'claude') bar.append(redraw);
+    composer.append(draft, footer); layout.append(bar, split?.element || output, composer); shadow.append(style, layout); host.append(root);
     // The native header keeps showing the last native conversation's name. Put this
     // conversation's title bar in that slot (trailing native actions stay) and fall back
     // to the in-view bar when the header is absent. React may remount the header, so re-attach.
@@ -157,7 +160,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
         mount(value); } else { record = value; showRecord(); if (!view) showStopped(); } },
       // Reconnect the shown terminal through a rebuilt native client.
       remount() { if (!disposed) mount(record); },
-      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
+      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); split?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
     window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;
   };

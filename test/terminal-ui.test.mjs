@@ -249,3 +249,14 @@ test("a throwing terminal parser pauses safely and permits an explicit recovery"
   assert.equal(h.view.snapshot().connection, "connected");
   assert.equal(terminal.options.disableStdin, false);
 });
+
+test('truncated TUI replay resets the display instead of parsing a partial old screen', () => {
+  const h = harness(); h.view.activate();
+  const session = { ...h.session, replayTruncated: true };
+  h.sockets[0].receive({ type: 'ready', session, replay: '\u001b[?1049hpartial-old-screen' });
+  assert.match(h.terminals[0].writes[0], /显示已重置/);
+  assert.doesNotMatch(h.terminals[0].writes[0], /partial-old-screen/);
+  h.terminals[0].callbacks.shift()();
+  assert.equal(h.view.snapshot().connection, 'connected');
+  assert.equal(h.sockets[0].sent.some(frame => frame.type === 'resize'), true);
+});

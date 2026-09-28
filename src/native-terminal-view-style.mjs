@@ -15,10 +15,20 @@ button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,v
 .cwd{flex:1;min-width:0;color:var(--muted);font:11px/18px "SF Mono",SFMono-Regular,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .launch{flex:0 0 auto;border:0;border-radius:999px;padding:5px 13px;background:var(--fg);color:var(--page);font-size:12px;font-weight:600}
 .launch[hidden]{display:none}.launch[data-armed]{background:var(--bad);color:#fff}
-.output{flex:1;min-height:0;overflow:hidden;padding:10px 0 6px}
+.output{flex:1;min-width:0;min-height:0;overflow:hidden;contain:layout paint;padding:10px 0 6px}
+.workbench{display:flex;flex:1;min-width:0;min-height:0}.divider,.review{display:none}.workbench.is-split .divider{display:block;flex:0 0 8px;cursor:col-resize;background:var(--line)}
+.workbench.is-split .review{display:flex;flex:0 0 auto;flex-direction:column;width:min(44%,620px);min-width:280px;max-width:calc(100% - 348px);min-height:0;border-left:1px solid var(--line);background:var(--page)}
+.split-toggle,.redraw{flex:0 0 auto;border:1px solid var(--line);border-radius:8px;padding:3px 9px;background:transparent;font-size:12px;pointer-events:auto}.redraw:hover{background:#ffffff16}.split-toggle[aria-pressed=true]{background:#ffffff20}
+.review-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}.review-head strong{flex:1;font-size:12px}.review-head button{border:0;background:transparent;font-size:12px}
+.review-files{display:flex;flex-direction:column;gap:4px;overflow:auto;flex:0 0 auto;max-height:34%;padding:6px;border-bottom:1px solid var(--line)}
+.review-file{display:flex;flex:0 0 auto;align-items:center;gap:8px;max-width:100%;padding:5px 9px;border:0;border-radius:7px;background:transparent;text-align:left;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-file span{margin-left:auto;flex:0 0 auto;font-size:10px;color:var(--muted)}.review-file[aria-selected=true]{background:#ffffff20}
+.review-detail{flex:1;overflow:auto;min-height:0;padding:8px 10px;font:11px/17px SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:2}
+.review-detail>div{min-height:17px}.review-detail .added{color:#7bd88f;background:#16351b}.review-detail .removed{color:#f08080;background:#401d1d}.review-detail .hunk{color:#91baf2}.review-message{white-space:normal;color:var(--muted);font:12px/1.5 system-ui;padding:12px}
 /* xterm measures each glyph repeated 32 times; Chrome trims adjacent fullwidth punctuation
    to half width there, so a lone '，' would get extra letter-spacing and push the row edge. */
 .xterm{text-spacing-trim:space-all}
+.xterm{max-width:100%;max-height:100%}
 /* Composer metrics mirror the native ChatGPT composer (_ComposerLayoutRoot_): #363636, 22px
    radius, 1px inset hairline, 14/20 text with 12px inset, 28px pills, 8px footer inset, 5px gaps. */
 .composer{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;padding:16px 8px 8px;border:0;border-radius:22px;

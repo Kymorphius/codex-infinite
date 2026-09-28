@@ -1,3 +1,4 @@
+import { readNativeTerminalChanges } from './native-terminal-changes.mjs';
 import { assertTerminalObject, TERMINAL_LIMITS } from './terminal-contract.mjs';
 import { terminalConversationId, terminalStartInput } from './terminal-conversation-contract.mjs';
 export const NATIVE_TERMINAL_BINDING = 'codexControlConsoleTerminal';
@@ -30,6 +31,12 @@ export async function installNativeTerminalBinding(connection, conversations, te
       if (allowed?.result?.value !== true || disposed) return;
       const { operation, input = {} } = message; let result;
       if (operation === 'list') { assertTerminalObject(input, []); result = await conversations.list(); }
+      else if (operation === 'changes-list' || operation === 'changes-file') {
+        assertTerminalObject(input, operation === 'changes-file' ? ['id', 'file'] : ['id']);
+        const record = await conversations.open({ id: terminalConversationId(input.id) });
+        if (record.kind !== 'claude' || typeof record.cwd !== 'string') throw Error('只支持本地 Claude 会话的变更预览');
+        result = await readNativeTerminalChanges(record.cwd, operation === 'changes-file' ? input.file : null);
+      }
       else if (['create', 'update'].includes(operation)) result = { conversation: await conversations[operation](input) };
       else if (operation === 'start') result = { conversation: await conversations.start(terminalStartInput(input)) };
       else if (['open', 'stop'].includes(operation)) {
