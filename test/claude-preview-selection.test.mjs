@@ -23,8 +23,8 @@ test('enable, change effort, reload and restore preserve only original model and
   await reloaded.set(id, null);
   assert.deepEqual(h.current(), h.initial);
   assert.equal(reloaded.blocks(id), false);
-  assert.deepEqual(reloaded.preferred(id), { effort: 'high', nativeTools: false });
-  assert.deepEqual(createClaudePreviewSelection(h.options).preferred(id), { effort: 'high', nativeTools: false });
+  assert.deepEqual(reloaded.preferred(id), { effort: 'high', nativeTools: false, modelFamily: 'opus' });
+  assert.deepEqual(createClaudePreviewSelection(h.options).preferred(id), { effort: 'high', nativeTools: false, modelFamily: 'opus' });
 });
 test('new Claude selections default to native tools and auto effort uses the native Router route', async () => {
   const h = harness();
@@ -34,11 +34,33 @@ test('new Claude selections default to native tools and auto effort uses the nat
   assert.equal(h.controller.selected(id).nativeTools, true);
   await h.controller.set(id, null);
   assert.deepEqual(h.current(), h.initial);
-  assert.deepEqual(h.controller.preferred(id), { effort: 'auto', nativeTools: true });
+  assert.deepEqual(h.controller.preferred(id), { effort: 'auto', nativeTools: true, modelFamily: 'opus' });
   await h.controller.set(id, 'auto', false);
   assert.equal(h.current().model, 'claude-subscription/opus-auto');
   await h.controller.set(id, null);
-  assert.deepEqual(h.controller.preferred(id), { effort: 'auto', nativeTools: false });
+  assert.deepEqual(h.controller.preferred(id), { effort: 'auto', nativeTools: false, modelFamily: 'opus' });
+});
+test('model family persists across toggles and Haiku never receives an effort level', async () => {
+  const h = harness();
+  await h.controller.set(id, 'high', true, 'sonnet');
+  assert.deepEqual(h.current(), { model: 'claude-subscription/sonnet-native', reasoningEffort: 'high' });
+  await h.controller.set(id, 'auto', false, 'haiku');
+  assert.deepEqual(h.current(), { model: 'claude-subscription/haiku', reasoningEffort: 'medium' });
+  const reloaded = createClaudePreviewSelection(h.options);
+  assert.equal(reloaded.selected(id).modelFamily, 'haiku');
+  await reloaded.set(id, null);
+  assert.deepEqual(h.current(), h.initial);
+  assert.deepEqual(reloaded.preferred(id), { effort: 'auto', nativeTools: false, modelFamily: 'haiku' });
+  await assert.rejects(reloaded.set(id, 'high', true, 'haiku'), /模型或推理强度/);
+  await assert.rejects(reloaded.set(id, 'auto', true, 'fable'), /模型或推理强度/);
+});
+test('existing Opus preferences without a model field keep their original route', async () => {
+  const h = harness();
+  h.options.storage.setItem('codex-control-console.claude-preview-preference.v1', JSON.stringify([{ id, effort: 'high', nativeTools: true }]));
+  const restored = createClaudePreviewSelection(h.options);
+  assert.deepEqual(restored.preferred(id), { effort: 'high', nativeTools: true, modelFamily: 'opus' });
+  await restored.set(id, 'high', true, restored.preferred(id).modelFamily);
+  assert.equal(h.current().model, 'claude-subscription/opus-native');
 });
 test('invalid selection is rejected before native setting calls', async () => {
   let reads = 0;
@@ -165,12 +187,16 @@ test('native button left click toggles Router model and right click opens the ne
   button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
   assert.equal(panels.at(-1).dataset.cccClaudePreviewPanel, '');
   assert.equal(panels.at(-1).style.left, '130px');
-  assert.equal(panels.at(-1).children[3].children[0].checked, true);
-  panels.at(-1).children[3].children[0].checked = false;
-  panels.at(-1).children[2].children[0].value = 'high';
-  panels.at(-1).children[5].children[0].onclick();
+  assert.deepEqual(panels.at(-1).children[2].children[0].children.map(option => option.textContent), ['Opus 5.5', 'Sonnet 5.5', 'Haiku 4.5']);
+  assert.equal(panels.at(-1).children[4].children[0].checked, true);
+  panels.at(-1).children[4].children[0].checked = false;
+  panels.at(-1).children[3].children[0].value = 'high';
+  panels.at(-1).children[2].children[0].value = 'sonnet';
+  panels.at(-1).children[6].children[0].onclick();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(current.reasoningEffort, 'high');
+  assert.equal(current.model, 'claude-subscription/sonnet');
+  scheduled(); assert.equal(button.textContent, 'Claude Sonnet 5.5');
   button.events.get('pointerup')(gesture);
   await new Promise(resolve => setImmediate(resolve));
   scheduled();
@@ -179,7 +205,14 @@ test('native button left click toggles Router model and right click opens the ne
   assert.equal(button.style.background, '');
   button.events.get('pointerup')(gesture);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(current.model, 'claude-subscription/opus'); assert.equal(current.reasoningEffort, 'high');
+  assert.equal(current.model, 'claude-subscription/sonnet'); assert.equal(current.reasoningEffort, 'high');
+  button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
+  const haikuPanel = panels.at(-1), haikuModel = haikuPanel.children[2].children[0], haikuEffort = haikuPanel.children[3].children[0];
+  haikuModel.value = 'haiku'; haikuModel.onchange();
+  assert.equal(haikuEffort.value, 'auto'); assert.equal(haikuEffort.disabled, true);
+  haikuPanel.children[6].children[0].onclick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(current.model, 'claude-subscription/haiku'); assert.equal(current.reasoningEffort, 'medium');
 });
 
 test('panel styles update an already-installed legacy panel without duplicate styles or model changes', () => {

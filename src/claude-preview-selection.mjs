@@ -1,6 +1,7 @@
 // Dependency-free domain controller, also serialized into the native renderer.
 export function createClaudePreviewSelection({ read, apply, storage, changed = () => {} }) {
-  const model = 'claude-subscription/opus';
+  const modelPrefix = 'claude-subscription/';
+  const modelFamilies = ['opus', 'sonnet', 'haiku'];
   const key = 'codex-control-console.claude-preview.v1';
   const preferenceKey = 'codex-control-console.claude-preview-preference.v1';
   const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
@@ -10,13 +11,17 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
   try {
     const saved = JSON.parse(storage.getItem(key) || '[]');
     for (const item of Array.isArray(saved) ? saved.slice(-128) : []) {
-      if (validId(item?.id) && efforts.includes(item.effort) && validModel(item.original?.model) && /^[a-z]{1,16}$/.test(item.original?.reasoningEffort || '')) records.set(item.id, item);
+      if (validId(item?.id) && efforts.includes(item.effort) && modelFamilies.includes(item.modelFamily || 'opus')
+        && validModel(item.original?.model) && /^[a-z]{1,16}$/.test(item.original?.reasoningEffort || ''))
+        records.set(item.id, { ...item, modelFamily: item.modelFamily || 'opus' });
     }
   } catch {}
   try {
     const saved = JSON.parse(storage.getItem(preferenceKey) || '[]');
     for (const item of Array.isArray(saved) ? saved.slice(-128) : []) {
-      if (validId(item?.id) && efforts.includes(item.effort) && typeof item.nativeTools === 'boolean') preferences.set(item.id, { effort: item.effort, nativeTools: item.nativeTools });
+      if (validId(item?.id) && efforts.includes(item.effort) && typeof item.nativeTools === 'boolean'
+        && modelFamilies.includes(item.modelFamily || 'opus'))
+        preferences.set(item.id, { effort: item.effort, nativeTools: item.nativeTools, modelFamily: item.modelFamily || 'opus' });
     }
   } catch {}
   function persist() {
@@ -30,9 +35,10 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
     preferred(id) { return preferences.get(id) || null; },
     blocks(id) { return pending.has(id) || records.has(id); },
     busy(id) { return pending.has(id); },
-    async set(id, effort, nativeTools = true) {
+    async set(id, effort, nativeTools = true, modelFamily = 'opus') {
       if (typeof nativeTools !== 'boolean') throw new Error('Claude 工具模式无效');
-      if (!validId(id) || (effort !== null && !efforts.includes(effort))) throw new Error('Claude 会话或推理强度无效');
+      if (!validId(id) || (effort !== null && (!efforts.includes(effort) || !modelFamilies.includes(modelFamily)
+        || (modelFamily === 'haiku' && effort !== 'auto')))) throw new Error('Claude 会话、模型或推理强度无效');
       if (pending.has(id)) throw new Error('正在修改这个会话，请稍候');
       if (effort !== null && !records.has(id) && records.size >= 128) throw new Error('Claude 预览会话数量已达上限，请先关闭旧会话的预览');
       const previous = records.get(id);
@@ -45,15 +51,15 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
         if (!before?.model || !before.reasoningEffort) throw new Error('无法回读当前原生模型与强度');
         if (!previous && !validModel(before.model)) throw new Error('当前模型无法安全恢复，未启用预览');
         const original = previous?.original || { model: before.model, reasoningEffort: before.reasoningEffort };
-        const next = effort === null ? original : { model: model + (effort === 'auto' ? '-auto' : '') + (nativeTools ? '-native' : ''),
+        const next = effort === null ? original : { model: modelPrefix + modelFamily + (effort === 'auto' && modelFamily !== 'haiku' ? '-auto' : '') + (nativeTools ? '-native' : ''),
           reasoningEffort: effort === 'auto' ? 'medium' : effort };
         attempted = true;
         await apply(id, next);
         if (!matches(await read(id), next)) throw new Error('原生模型回读不一致');
         if (effort === null) records.delete(id);
         else {
-          records.set(id, { id, effort, nativeTools, original });
-          preferences.delete(id); preferences.set(id, { effort, nativeTools });
+          records.set(id, { id, effort, nativeTools, modelFamily, original });
+          preferences.delete(id); preferences.set(id, { effort, nativeTools, modelFamily });
           if (preferences.size > 128) preferences.delete(preferences.keys().next().value);
         }
         persist();

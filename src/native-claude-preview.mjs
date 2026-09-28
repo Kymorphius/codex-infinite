@@ -58,6 +58,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
   function element(tag, text) { const node = document.createElement(tag); if (text) node.textContent = text; return node; }
   function close() { panel?.remove(); panel = null; document.removeEventListener('pointerdown', outside, true); }
   function outside(event) { if (panel && !event.composedPath().includes(panel) && !event.composedPath().includes(button)) close(); }
+  const modelNames = { opus: 'Opus 5.5', sonnet: 'Sonnet 5.5', haiku: 'Haiku 4.5' };
   const effortNames = { auto: '自动', low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' };
   async function toggle() {
     const id = current();
@@ -65,8 +66,8 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     const selected = selection.selected(id);
     if (!selected && !routerReady()) return;
     close();
-    const preference = selection.preferred(id) || { effort: 'auto', nativeTools: true };
-    try { await selection.set(id, selected ? null : preference.effort, preference.nativeTools); window.__cccClaudePreviewError = ''; }
+    const preference = selection.preferred(id) || { effort: 'auto', nativeTools: true, modelFamily: 'opus' };
+    try { await selection.set(id, selected ? null : preference.effort, preference.nativeTools, preference.modelFamily); window.__cccClaudePreviewError = ''; }
     catch (error) { window.__cccClaudePreviewError = String(error.message || '切换失败'); open(); }
     schedule();
   }
@@ -80,9 +81,13 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     panel.style.bottom = Math.max(12, window.innerHeight - rect.top + 8) + 'px';
     const title = element('strong', 'Claude 设置');
     const dismiss = element('button', '关闭'); dismiss.type = 'button'; dismiss.style.cssText = 'float:right;'; dismiss.onclick = close;
+    const modelLabel = element('label', '模型 '), model = element('select'); model.setAttribute('aria-label', 'Claude 模型');
+    for (const [value, text] of Object.entries(modelNames)) { const option = element('option', text); option.value = value; model.append(option); }
+    model.value = preference?.modelFamily || 'opus'; modelLabel.append(model);
     const label = element('label', '推理强度 '), effort = element('select'); effort.setAttribute('aria-label', 'Claude 推理强度');
     for (const [value, text] of Object.entries(effortNames)) { const option = element('option', text); option.value = value; effort.append(option); }
     effort.value = preference?.effort || 'auto'; label.append(effort);
+    model.onchange = () => { if (model.value === 'haiku') effort.value = 'auto'; effort.disabled = disabled || model.value === 'haiku'; };
     const toolsLabel = element('label', ' Claude 原生工具'), nativeTools = element('input');
     nativeTools.type = 'checkbox'; nativeTools.setAttribute('role', 'switch'); nativeTools.setAttribute('aria-label', 'Claude 原生工具');
     nativeTools.checked = preference?.nativeTools ?? true; toolsLabel.prepend(nativeTools);
@@ -99,16 +104,17 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       if (value !== null && !routerReady()) { message.textContent = 'Router 通道尚未就绪，未修改模型。'; return; }
       if (id !== current() || running()) { message.textContent = '会话已切换或正在生成，请重新打开设置。'; return; }
       const useNativeTools = nativeTools.checked;
-      save.disabled = restore.disabled = nativeTools.disabled = effort.disabled = true;
+      save.disabled = restore.disabled = nativeTools.disabled = effort.disabled = model.disabled = true;
       try {
-        await selection.set(id, value, useNativeTools);
-        window.__cccClaudePreviewError = ''; message.textContent = value === null ? '已切回 GPT' : '已设为 Claude · ' + effortNames[value];
+        const family = model.value;
+        await selection.set(id, value === null ? null : family === 'haiku' ? 'auto' : value, useNativeTools, family);
+        window.__cccClaudePreviewError = ''; message.textContent = value === null ? '已切回 GPT' : '已设为 Claude ' + modelNames[family];
       } catch (error) { message.textContent = String(error.message || '设置失败'); }
-      finally { const blocked = id !== current() || running(); nativeTools.disabled = effort.disabled = blocked; save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
+      finally { const blocked = id !== current() || running(); nativeTools.disabled = model.disabled = blocked; effort.disabled = blocked || model.value === 'haiku'; save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
     }
     save.onclick = () => void change(effort.value); restore.onclick = () => void change(null);
-    nativeTools.disabled = disabled;
-    panel.append(title, dismiss, label, toolsLabel, message, actions); document.body.append(panel);
+    nativeTools.disabled = model.disabled = disabled; effort.disabled = disabled || model.value === 'haiku';
+    panel.append(title, dismiss, modelLabel, label, toolsLabel, message, actions); document.body.append(panel);
     if (panel.getBoundingClientRect().top < 12) { panel.style.bottom = 'auto'; panel.style.top = Math.max(12, Math.min(window.innerHeight - panel.offsetHeight - 12, rect.bottom + 8)) + 'px'; }
     document.addEventListener('pointerdown', outside, true);
   }
@@ -122,7 +128,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       activateButton(button, toggle);
       button.addEventListener('contextmenu', event => { event.preventDefault(); event.stopImmediatePropagation(); open(); });
     }
-    const id = current(), selected = selection.selected(id), text = selected ? 'Claude' : 'GPT';
+    const id = current(), selected = selection.selected(id), text = selected ? 'Claude ' + modelNames[selected.modelFamily || 'opus'] : 'GPT';
     if (button.textContent !== text) button.textContent = text;
     button.setAttribute('aria-pressed', String(Boolean(selected)));
     button.style.color = selected ? '#e9a58d' : '';
