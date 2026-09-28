@@ -17,7 +17,7 @@ class Node {
 test('native conversation mounts full terminal and composer, preserves draft, and restores host without stopping PTY', async () => {
   const surface = { style: { value: '', priority: '', getPropertyValue() { return this.value; }, getPropertyPriority() { return this.priority; }, setProperty(name, value, priority) { this.value = value; this.priority = priority; } } };
   const host = new Node('main'), original = new Node('conversation'); original.style.display = 'flex'; host.append(original); host.closest = selector => selector.includes('_MainContentSurface_') ? surface : null;
-  const created = [], actions = [], keys = []; let disposed = 0, activated = 0, pasted, keyResult;
+  const created = [], actions = [], keys = []; let disposed = 0, activated = 0, redrawn = 0, pasted, keyResult, sessionOptions;
   const window = { __cccTerminalNative: { socketClass: () => class {}, async request(operation) { actions.push(operation); } } };
   const drafts = new Map();
   const html = new Node('html'), head = new Node('head'), toolbar = new Node('toolbar'), nativeTitle = new Node('native-title'); toolbar.append(nativeTitle);
@@ -27,16 +27,17 @@ test('native conversation mounts full terminal and composer, preserves draft, an
     createElement(tag) { const node = new Node(tag); created.push(node); return node; } };
   const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(),
     sessionStorage: { getItem: key => drafts.get(key), setItem: (key, value) => drafts.set(key, value) } });
-  context.createSession = (session, options) => ({ activate() { activated++; options.onChange({ session, connection: 'connected', canInput: true }); },
-    async pasteText(text, { submit }) { pasted = [text, submit]; return { ok: true }; }, sendKey: key => { keys.push(key); return keyResult; }, snapshot: () => ({ canInput: true }), dispose() { disposed++; } });
+  context.createSession = (session, options) => { sessionOptions = options; return { activate() { activated++; options.onChange({ session, connection: 'connected', canInput: true }); },
+    async pasteText(text, { submit }) { pasted = [text, submit]; return { ok: true }; }, sendKey: key => { keys.push(key); return keyResult; }, snapshot: () => ({ canInput: true }), reconnect() { redrawn++; }, dispose() { disposed++; } }; };
   vm.runInContext(`(${installNativeTerminalView.toString()})(createSession, () => '已连接', '')`, context);
-  const record = { id: 'session', title: 'Claude', runtimeSessionId: 'pty', runtimeSummary: { id: 'pty', status: 'running' }, status: 'running' };
+  const record = { id: 'session', title: 'Claude', kind: 'claude', runtimeSessionId: 'pty', runtimeSummary: { id: 'pty', kind: 'claude', status: 'running' }, status: 'running' };
   assert.equal(window.__cccOpenNativeTerminal(record, host), true); assert.deepEqual([surface.style.value, surface.style.priority], ['0px', 'important']); assert.equal(original.style.display, 'none'); assert.equal(activated, 1);
   const draft = created.find(node => node.tag === 'textarea'), send = created.find(node => node.className === 'send');
   const bar = created.find(node => node.className === 'bar'), titleHost = toolbar.children[0];
   assert.equal(titleHost.attributes['data-ccc-terminal-titlebar-content'], '', 'terminal title takes the native header slot');
   assert.equal(bar.parent, titleHost.shadowRoot); assert.equal(toolbar.children[1], nativeTitle, 'native header content stays for trailing actions');
-  assert.equal(html.attributes['data-ccc-terminal-titlebar'], ''); assert.match(titleHost.shadowRoot.children[0].textContent, /\.launch\{pointer-events:auto\}/, 'header controls opt back into pointer events'); assert.match(head.children[0].textContent, /:has\(\[data-app-shell-titlebar-content\]\)\{display:none!important\}/);
+  assert.equal(html.attributes['data-ccc-terminal-titlebar'], ''); assert.match(titleHost.shadowRoot.children[0].textContent, /\.bar button\{-webkit-app-region:no-drag;app-region:no-drag;pointer-events:auto\}/, 'every header button remains clickable in the native drag region'); assert.match(head.children[0].textContent, /:has\(\[data-app-shell-titlebar-content\]\)\{display:none!important\}/);
+  sessionOptions.onUiCommand('redraw'); await Promise.resolve(); assert.equal(redrawn, 1);
   assert.equal(send.disabled, true, 'empty draft cannot be sent');
   draft.value = 'hello'; draft.oninput(); assert.equal(send.disabled, false); await send.onclick(); assert.deepEqual(pasted, ['hello', true]); assert.equal(draft.value, '');
   const chip = created.find(node => node.className === 'chip'), status = created.find(node => node.className === 'status');

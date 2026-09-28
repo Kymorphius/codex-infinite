@@ -8,6 +8,8 @@ import { terminalError } from './terminal-contract.mjs';
 const execute = promisify(execFile);
 const ENV_KEYS = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'TMP', 'TEMP',
   'USER', 'LOGNAME', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT'];
+const CLAUDE_TERMINAL_UI_PROMPT = 'This Claude session is shown in Codex Control Console. You may control only your current display through Bash by writing OSC 777 to /dev/tty. Open the read-only code changes pane with: printf "\\033]777;ccc-ui:split=open\\007" > /dev/tty. Close it with split=close, refresh it with split=refresh, and reconnect a scrambled terminal display with ccc-ui:redraw. Use these when helpful; they do not alter files or conversation input.';
+const shellQuote = value => `'${value.replaceAll("'", "'\\''")}'`;
 
 export function terminalEnvironment({ userHome = os.homedir(), shell, env = process.env } = {}) {
   const clean = {};
@@ -33,12 +35,14 @@ export function terminalLaunch({ kind, claudeSessionId, resume = false, attachJo
   if (attachJob !== undefined && (typeof attachJob !== 'string' || !/^[0-9a-f]{8}$/u.test(attachJob))) throw terminalError(400, 'Claude 后台会话标识无效');
   const command = attachJob ? `claude attach ${attachJob}`
     : claudeSessionId ? `claude ${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : 'claude';
+  const withUiControls = kind === 'claude' && !attachJob && platform !== 'win32'
+    ? command.replace(/^claude\b/u, `claude --append-system-prompt ${shellQuote(CLAUDE_TERMINAL_UI_PROMPT)}`) : command;
   if (platform === 'win32') {
     const shell = env.COMSPEC || path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
-    return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', command] : ['/d'] };
+    return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', withUiControls] : ['/d'] };
   }
   const shell = path.isAbsolute(env.SHELL || '') ? env.SHELL : (platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
-  return { shell, args: kind === 'claude' ? ['-lic', command] : ['-l'] };
+  return { shell, args: kind === 'claude' ? ['-lic', withUiControls] : ['-l'] };
 }
 
 // Only processes descended from this adapter's PTY are eligible for cleanup.

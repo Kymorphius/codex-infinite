@@ -47,7 +47,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const titleHost = el('div'); titleHost.setAttribute('data-ccc-terminal-titlebar-content', '');
     titleHost.style.cssText = 'display:flex;flex:1;min-width:0;height:100%;align-items:center';
     const titleShadow = titleHost.attachShadow({ mode: 'open' }), titleStyle = el('style');
-    titleStyle.textContent = css + ':host .bar{border:0;padding:0 6px;min-height:0;height:100%;width:100%}.launch{-webkit-app-region:no-drag;app-region:no-drag}.bar strong,.cwd,.launch{pointer-events:auto}';
+    titleStyle.textContent = css + ':host .bar{border:0;padding:0 6px;min-height:0;height:100%;width:100%}.bar button{-webkit-app-region:no-drag;app-region:no-drag;pointer-events:auto}.bar strong,.cwd{pointer-events:auto}';
     titleShadow.append(titleStyle);
     let headerStyle = document.getElementById('ccc-terminal-titlebar-style');
     if (!headerStyle) { headerStyle = el('style'); headerStyle.id = 'ccc-terminal-titlebar-style'; document.head.append(headerStyle); }
@@ -136,6 +136,11 @@ export function installNativeTerminalView(createSession, statusText, css) {
       const terminalHost = el('div'); terminalHost.style.cssText = 'width:100%;height:100%'; output.append(terminalHost);
       view = createSession(record.runtimeSummary, { host: terminalHost,
         WebSocketCtor: api.socketClass(record.id), locationRef: { href: 'http://127.0.0.1/', protocol: 'http:' },
+        onUiCommand: action => {
+          if (disposed || record.kind !== 'claude') return;
+          if (action === 'redraw') Promise.resolve().then(() => { if (!disposed) view?.reconnect(); });
+          else if (action.startsWith('split=')) split?.command(action.slice('split='.length));
+        },
         onChange: state => {
           if (disposed) return; last = state; launch.hidden = state.session.status === 'running'; sync(state); renderStatus(state);
         }

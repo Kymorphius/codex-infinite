@@ -5,6 +5,7 @@ export function createTerminalSession(initialSession, {
   host, onChange = () => {}, TerminalCtor = globalThis.Terminal,
   FitAddonCtor = globalThis.FitAddon?.FitAddon, WebSocketCtor = globalThis.WebSocket,
   locationRef = globalThis.location, ResizeObserverCtor = globalThis.ResizeObserver,
+  onUiCommand = null,
   schedule = setTimeout, cancel = clearTimeout
 }) {
   let session = initialSession;
@@ -31,6 +32,15 @@ export function createTerminalSession(initialSession, {
   const fitAddon = new FitAddonCtor();
   terminal.loadAddon(fitAddon);
   terminal.open(host);
+  // OSC 777 is display-only. Replay is parsed while `ready` is false, so an
+  // old request never runs again after a reconnect.
+  const uiCommands = new Set(['split=open', 'split=close', 'split=toggle', 'split=refresh', 'redraw']);
+  const uiSubscription = onUiCommand && terminal.parser?.registerOscHandler?.(777, data => {
+    if (!data.startsWith('ccc-ui:')) return false;
+    const action = data.slice('ccc-ui:'.length);
+    if (uiCommands.has(action) && ready && visible && session.kind === 'claude') onUiCommand(action);
+    return true;
+  });
 
   const interruptedInput = "输入可能已部分交给终端，后续回车已取消；请检查终端后再操作。";
   function writable(current = socket) {
@@ -227,7 +237,15 @@ export function createTerminalSession(initialSession, {
     update(value) { session = value; if (session.status !== "running") cancelInput(); publish(); },
     activate() { visible = true; host.hidden = false; fit(); terminal.focus(); if (connection === "disconnected" && !attempts) connect(); else publish(); },
     deactivate() { visible = false; host.hidden = true; cancelInput(); publish(); },
-    reconnect() { attempts = 0; connect(); },
+    reconnect() {
+      attempts = 0;
+      const previous = socket;
+      socket = null;
+      ready = false;
+      cancelInput();
+      if (previous) previous.close(1000, 'terminal display reconnect');
+      connect();
+    },
     dispose() {
       disposed = true;
       ready = false;
@@ -235,6 +253,7 @@ export function createTerminalSession(initialSession, {
       cancel(retryTimer);
       observer.disconnect();
       inputSubscription.dispose();
+      uiSubscription?.dispose?.();
       socket?.close();
       socket = null;
       terminal.dispose();

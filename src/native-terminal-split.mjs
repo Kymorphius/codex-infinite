@@ -80,6 +80,14 @@ export function installNativeTerminalSplit() {
       event.preventDefault(); applyWidth(review.getBoundingClientRect().width + (event.key === 'ArrowLeft' ? 24 : -24));
     };
     visibility(); if (open) void load();
-    return { element: workbench, dispose() { disposed = true; version++; document.removeEventListener('pointerup', finishDrag, true); } };
+    return { element: workbench,
+      command(action) {
+        if (disposed) return;
+        if (action === 'open') setOpen(true);
+        else if (action === 'close') setOpen(false);
+        else if (action === 'toggle') setOpen(!open);
+        else if (action === 'refresh' && open) void load();
+      },
+      dispose() { disposed = true; version++; document.removeEventListener('pointerup', finishDrag, true); } };
   };
 }

@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { createTerminalSession } from "../public/features/terminal/session.js";
 import { isAbsoluteTerminalDirectory, readSelectedTerminal, saveSelectedTerminal, selectListedTerminal, terminalDirectories, terminalStatus, terminalMessage, terminalTabTitle } from "../public/features/terminal/presentation.js";
 
-function harness() {
+function harness({ onUiCommand = null, kind = 'shell' } = {}) {
   const sockets = [];
   const timers = [];
   const terminals = [];
   const observers = [];
   let fits = 0;
   class Terminal {
-    constructor(options) { this.options = options; this.writes = []; this.callbacks = []; terminals.push(this); }
+    constructor(options) { this.options = options; this.writes = []; this.callbacks = []; this.parser = { registerOscHandler: (code, handler) => { this.oscCode = code; this.oscHandler = handler; return { dispose: () => { this.oscHandler = null; } }; } }; terminals.push(this); }
     loadAddon() {}
     open() {}
     onData(callback) { this.input = callback; return { dispose() {} }; }
@@ -33,11 +33,11 @@ function harness() {
     disconnect() { this.disconnected = true; }
   }
   const host = { hidden: false, getBoundingClientRect: () => ({ width: 800, height: 500 }), remove() { this.removed = true; } };
-  const session = { id: "terminal-one", title: "终端", cwd: "/project", status: "running", cols: 80, rows: 24 };
+  const session = { id: "terminal-one", title: "终端", cwd: "/project", kind, status: "running", cols: 80, rows: 24 };
   const view = createTerminalSession(session, {
     host, TerminalCtor: Terminal, FitAddonCtor: class { fit() { fits++; } },
     WebSocketCtor: Socket, ResizeObserverCtor: Observer,
-    locationRef: { href: "http://127.0.0.1:4321/?module=terminal", protocol: "http:" },
+    locationRef: { href: "http://127.0.0.1:4321/?module=terminal", protocol: "http:" }, onUiCommand,
     schedule(callback, delay) { const timer = { callback, delay }; timers.push(timer); return timer; },
     cancel(timer) { if (timer) timer.cancelled = true; }
   });
@@ -60,6 +60,28 @@ test("restoring a terminal only connects to its existing ID, and replay cannot s
   assert.equal(h.view.snapshot().connection, "connected");
   socket.receive({ type: "data", data: "new" });
   assert.deepEqual(terminal.writes, ["old\u001b[6n", "new"]);
+});
+
+test('Claude display commands run only from live output in the current visible session', () => {
+  const commands = [], h = harness({ kind: 'claude', onUiCommand: action => commands.push(action) });
+  const terminal = h.terminals[0]; assert.equal(terminal.oscCode, 777);
+  h.view.activate();
+  h.sockets[0].receive({ type: 'ready', session: h.session, replay: '\u001b]777;ccc-ui:split=open\u0007' });
+  assert.equal(terminal.oscHandler('ccc-ui:split=open'), true);
+  assert.deepEqual(commands, [], 'replayed display commands are inert');
+  terminal.callbacks.shift()();
+  assert.equal(terminal.oscHandler('ccc-ui:split=open'), true);
+  assert.equal(terminal.oscHandler('ccc-ui:redraw'), true);
+  assert.equal(terminal.oscHandler('ccc-ui:unknown'), true);
+  assert.equal(terminal.oscHandler('other-protocol'), false);
+  assert.deepEqual(commands, ['split=open', 'redraw']);
+  h.view.deactivate(); terminal.oscHandler('ccc-ui:split=close');
+  assert.deepEqual(commands, ['split=open', 'redraw'], 'hidden sessions do not act');
+  h.view.dispose(); assert.equal(terminal.oscHandler, null);
+  const shellCommands = [], shell = harness({ kind: 'shell', onUiCommand: action => shellCommands.push(action) });
+  shell.view.activate(); shell.sockets[0].receive({ type: 'ready', session: shell.session, replay: '' });
+  shell.terminals[0].callbacks.shift()(); shell.terminals[0].oscHandler('ccc-ui:redraw');
+  assert.deepEqual(shellCommands, [], 'shell sessions do not control Claude UI'); shell.view.dispose();
 });
 
 test("module and session switches preserve the same display/socket and never resize hidden terminals", () => {
@@ -101,6 +123,18 @@ test("connection takeover never fights another page and requires explicit reconn
   assert.equal(h.timers.length, 0);
   h.view.reconnect();
   assert.equal(h.sockets.length, 2);
+});
+
+test('redraw reconnects an already connected display to the same PTY without sending input', () => {
+  const h = harness({ kind: 'claude' }); h.view.activate();
+  const first = h.sockets[0]; first.receive({ type: 'ready', session: h.session, replay: 'before' });
+  h.terminals[0].callbacks.shift()(); assert.equal(h.view.snapshot().connection, 'connected');
+  h.view.reconnect();
+  assert.equal(first.closed, true); assert.equal(h.sockets.length, 2);
+  assert.match(h.sockets[1].url, /id=terminal-one$/u); assert.deepEqual(first.sent.filter(frame => frame.type === 'input'), []);
+  h.sockets[1].receive({ type: 'ready', session: h.session, replay: 'after' });
+  h.terminals[0].callbacks.shift()(); assert.equal(h.view.snapshot().connection, 'connected');
+  assert.equal(h.terminals[0].resets, 2);
 });
 
 test("reconnect is bounded, drops offline input and ignores stale replay completion", () => {

@@ -19,6 +19,16 @@ time. Unknown or non-Git directories show an explicit empty state. Selecting a f
 shows a bounded patch; untracked files appear by name without reading their bytes.
 Neither pane mutates code, Git state, terminal input or project identity.
 
+Claude may request these local display actions from its own PTY by emitting an
+OSC 777 `ccc-ui:` command to the controlling terminal. Only the current Claude
+display handles `split=open|close|toggle|refresh` and `redraw`; shell sessions,
+other conversations and replayed output cannot trigger commands. A short
+session prompt documents the escape sequence for Claude's Bash tool. The tool
+must write to `/dev/tty`, since captured Bash stdout is not the interactive PTY.
+The command only changes the local display; it does not change files or send
+terminal input. Existing resumed Claude sessions may need the user to tell
+Claude about this command until Claude refreshes its system prompt.
+
 On layout changes, fit the terminal and send only the final dimensions to the PTY.
 Keep xterm inside its own clipped pane and preserve fullwidth glyph measurement. Do not replay or write partial commands merely to
 recover a scrambled display; the user can explicitly reconnect the display.

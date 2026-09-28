@@ -32,6 +32,9 @@ test('split preview opens, selects bounded patch, resizes and closes without ter
   assert.equal(review.style.width, '444px', 'drag does not resize the PTY during movement');
   listeners.get('pointerup')({ clientX: 460 });
   assert.equal(review.style.width, '460px', 'one resize is committed on release');
+  split.command('refresh'); await tick(); assert.equal(operations.filter(value => value.operation === 'changes-list').length, 2);
+  split.command('close'); assert.equal(review.hidden, true);
+  split.command('open'); await tick(); assert.equal(review.hidden, false);
   review.children[0].children[2].onclick(); assert.equal(review.hidden, true);
   assert.equal(operations.some(value => value.operation === 'input'), false); split.dispose();
 });
