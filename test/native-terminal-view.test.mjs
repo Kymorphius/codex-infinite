@@ -7,6 +7,7 @@ class Node {
   setAttribute(name, value) { this.attributes[name] = value; } addEventListener() {}
   get parentNode() { return this.parent || null; }
   removeAttribute(name) { delete this.attributes[name]; }
+  hasAttribute(name) { return name in this.attributes; } toggleAttribute(name, on) { if (on) this.attributes[name] = ''; else delete this.attributes[name]; }
   append(...nodes) { for (const node of nodes) { node.remove(); node.parent = this; this.children.push(node); } }
   prepend(...nodes) { for (const node of nodes.reverse()) { node.remove(); node.parent = this; this.children.unshift(node); } }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); this.parent = null; }
@@ -60,17 +61,31 @@ test('terminal glyph measurement keeps fullwidth punctuation at full width in bo
   assert.match(dashboard, /\.terminal-screen \.xterm \{[^}]*text-spacing-trim: space-all;/);
 });
 
-test('a Claude session held by another window is read-only: no start action and inputs stay disabled', () => {
-  const created = []; const window = { __cccTerminalNative: { socketClass: () => class {}, async request() {} } };
+test('a Claude session held by another window is read-only, offers a two-step takeover, and keeps the key menu shut', async () => {
+  const created = [], requests = [];
+  const window = { __cccTerminalNative: { socketClass: () => class {}, async request(operation, input) { requests.push([operation, input]); throw Error('接管失败'); } } };
   const documentRef = { documentElement: new Node('html'), head: new Node('head'), body: new Node('body'), getElementById: () => null, querySelector: () => null,
     createElement(tag) { const node = new Node(tag); created.push(node); return node; } };
-  const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(), sessionStorage: { getItem() {}, setItem() {} } });
+  const timers = [];
+  const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(), sessionStorage: { getItem() {}, setItem() {} },
+    setTimeout: fn => { timers.push(fn); return timers.length; }, clearTimeout: () => {} });
   vm.runInContext(`(${installNativeTerminalView.toString()})(() => { throw Error('no session'); }, () => '', '')`, context);
   const record = { id: 'held', title: '看板会话交互', kind: 'claude', status: 'stopped', runtimeSessionId: null, runtimeSummary: null, occupiedElsewhere: true };
   window.__cccOpenNativeTerminal(record, new Node('main'));
-  const launch = created.find(node => node.className === 'launch'), status = created.find(node => node.className === 'status'), send = created.find(node => node.className === 'send');
-  assert.equal(launch.hidden, true); assert.equal(status.textContent, '正在其他 Claude 窗口中运行 · 此处只读'); assert.equal(status.attributes['data-tone'], 'held'); assert.equal(send.disabled, true);
+  const find = name => created.find(node => node.className === name);
+  const launch = find('launch'), status = find('status'), send = find('send'), keys = find('keys'), more = keys.children[0];
+  assert.equal(launch.hidden, false); assert.equal(launch.textContent, '强制接管');
+  assert.equal(status.textContent, '正在其他 Claude 窗口中运行 · 此处只读'); assert.equal(status.attributes['data-tone'], 'held'); assert.equal(send.disabled, true);
+  assert.equal(more.tabIndex, -1); assert.equal(more.attributes['aria-disabled'], 'true');
+  let prevented = false; more.onclick({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, 'keyboard activation cannot open the key menu while read-only');
+  await launch.onclick();
+  assert.equal(requests.length, 0, 'the first click only arms'); assert.equal(launch.textContent, '确认接管？将结束其他窗口'); assert.ok('data-armed' in launch.attributes);
+  timers.at(-1)(); assert.equal(launch.textContent, '强制接管', 'the confirmation expires');
+  await launch.onclick(); await launch.onclick();
+  assert.equal(JSON.stringify(requests), JSON.stringify([['start', { id: 'held', takeover: true }]])); assert.equal(status.textContent, '接管失败');
   window.__cccNativeTerminalView.update({ ...record, occupiedElsewhere: false });
-  assert.equal(launch.hidden, false, 'once the other window exits the session can be started here'); assert.equal(status.textContent, '会话已停止，点击右上角启动');
+  assert.equal(launch.textContent, '启动会话', 'once the other window exits it is a normal start');
+  await launch.onclick(); assert.equal(JSON.stringify(requests.at(-1)), JSON.stringify(['start', { id: 'held' }]), 'a plain start never asks to take over');
   window.__cccNativeTerminalView.dispose();
 });

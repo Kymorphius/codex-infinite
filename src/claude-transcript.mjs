@@ -103,7 +103,10 @@ export function createClaudeTranscriptReader({ userHome }) {
   }
   async function summary(sessionId) {
     const resolved = await resolve(sessionId);
-    return resolved ? { title: resolved.title, lastUserMessageAt: resolved.lastUserAt || null, ids: resolved.ids } : { title: '', lastUserMessageAt: null, ids: [terminalConversationId(sessionId)] };
+    // resumeId is the live file's session: resuming the managed id would reload the
+    // conversation only up to its first continuation and fork an old branch.
+    return resolved ? { title: resolved.title, lastUserMessageAt: resolved.lastUserAt || null, ids: resolved.ids, resumeId: resolved.sessionId }
+      : { title: '', lastUserMessageAt: null, ids: [terminalConversationId(sessionId)], resumeId: null };
   }
   async function search(sessionId, rawQuery) {
     const query = normalize(rawQuery).trim(), resolved = query && await resolve(sessionId);

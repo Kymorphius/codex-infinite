@@ -38,8 +38,26 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   adjacent `.key` files), within the real user home, bounded in size, and only while
   the pid is alive. Any id on the `continued-in` chain counts. Presented records gain
   `occupiedElsewhere` (false while our own PTY runs); `/start` refuses with 409 before
-  spawning; the view hides 启动会话, keeps inputs disabled and shows
-  「正在其他 Claude 窗口中运行 · 此处只读」 until the other process exits.
+  spawning; the view keeps inputs disabled (the 更多按键 menu refuses pointer and
+  keyboard) and shows 「正在其他 Claude 窗口中运行 · 此处只读」 until the other process exits.
+- Forced takeover (ADR 2026-09-28-claude-session-takeover): the read-only view offers
+  强制接管, which arms on the first click (「确认接管？将结束其他窗口」, 4s) and sends
+  `start { id, takeover: true }` on the second. `takeover` must be a literal boolean
+  on both the HTTP and native routes. The service re-reads registrations (no cache),
+  and touches only holders that are alive, owned by this user and whose command is
+  `claude`/`claude.exe`. Daemon-hosted holders (registration `kind: "bg"` with an
+  8-hex `jobId`) are stopped with `claude stop <jobId>` and never signalled, so the
+  daemon records a stop instead of a crash; a failed stop aborts before any signal.
+  Interactive holders get SIGTERM, a 5s grace, then SIGKILL; the command is re-checked
+  immediately before every signal so a reused pid is never signalled. If any holder
+  cannot be verified nothing is touched. If a holder survives or a new holder appears
+  the start fails with 409. Only then is the session resumed here.
+- Resume target: Claude continues a resumed session in a new transcript and leaves a
+  `continued-in` pointer in the old one. `--resume <managed id>` would reload only the
+  history before the first continuation and fork an old branch (observed 2026-09-28:
+  the board resumed a day-old point and Claude spawned a "(4)" copy). Starts resume
+  the chain's live transcript id (`summary().resumeId`, the most recently written
+  reachable file) and fall back to the managed id only when that file is missing.
 - Creation validates an explicit existing absolute cwd; local native project
   references are verified against the native project snapshot. No remote cwd
   guessing and no terminal IDs passed to native Codex execution APIs.

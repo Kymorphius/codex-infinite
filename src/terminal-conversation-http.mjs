@@ -1,7 +1,7 @@
 import { assertJsonContentType, readJsonBody, sendJson, httpError } from './http-utils.mjs';
 import { assertTerminalOrigin } from './terminal-http.mjs';
 import { assertTerminalObject } from './terminal-contract.mjs';
-import { terminalConversationId } from './terminal-conversation-contract.mjs';
+import { terminalConversationId, terminalStartInput } from './terminal-conversation-contract.mjs';
 
 export function createTerminalConversationHttpHandler({ service, dashboardOrigin } = {}) {
   const prefix = '/api/terminal-conversations/';
@@ -14,6 +14,7 @@ export function createTerminalConversationHttpHandler({ service, dashboardOrigin
     const input = await readJsonBody(request, 8192), action = url.pathname.slice(prefix.length);
     if (action === 'list') { assertTerminalObject(input, []); sendJson(response, 200, await service.list()); }
     else if (action === 'create' || action === 'update') sendJson(response, 200, { conversation: await service[action](input) });
+    else if (action === 'start') sendJson(response, 200, { conversation: await service.start(terminalStartInput(input)) });
     else {
       assertTerminalObject(input, ['id']);
       sendJson(response, 200, { conversation: await service[action]({ id: terminalConversationId(input.id) }) });

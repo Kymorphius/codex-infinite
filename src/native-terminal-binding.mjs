@@ -1,5 +1,5 @@
 import { assertTerminalObject, TERMINAL_LIMITS } from './terminal-contract.mjs';
-import { terminalConversationId } from './terminal-conversation-contract.mjs';
+import { terminalConversationId, terminalStartInput } from './terminal-conversation-contract.mjs';
 export const NATIVE_TERMINAL_BINDING = 'codexControlConsoleTerminal';
 
 export async function installNativeTerminalBinding(connection, conversations, terminals) {
@@ -31,7 +31,8 @@ export async function installNativeTerminalBinding(connection, conversations, te
       const { operation, input = {} } = message; let result;
       if (operation === 'list') { assertTerminalObject(input, []); result = await conversations.list(); }
       else if (['create', 'update'].includes(operation)) result = { conversation: await conversations[operation](input) };
-      else if (['open', 'start', 'stop'].includes(operation)) {
+      else if (operation === 'start') result = { conversation: await conversations.start(terminalStartInput(input)) };
+      else if (['open', 'stop'].includes(operation)) {
         assertTerminalObject(input, ['id']); result = { conversation: await conversations[operation]({ id: terminalConversationId(input.id) }) };
       } else if (operation === 'attach') {
         assertTerminalObject(input, ['id', 'stream']); terminalConversationId(input.stream);

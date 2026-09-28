@@ -14,7 +14,7 @@ button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,v
 .chip[hidden]{display:none}.chip[data-kind="shell"]{color:#8fb6ea;background:#8fb6ea1c;border-color:#8fb6ea3d}
 .cwd{flex:1;min-width:0;color:var(--muted);font:11px/18px "SF Mono",SFMono-Regular,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .launch{flex:0 0 auto;border:0;border-radius:999px;padding:5px 13px;background:var(--fg);color:var(--page);font-size:12px;font-weight:600}
-.launch[hidden]{display:none}
+.launch[hidden]{display:none}.launch[data-armed]{background:var(--bad);color:#fff}
 .output{flex:1;min-height:0;overflow:hidden;padding:10px 0 6px}
 /* xterm measures each glyph repeated 32 times; Chrome trims adjacent fullwidth punctuation
    to half width there, so a lone '，' would get extra letter-spacing and push the row edge. */

@@ -8,8 +8,8 @@ const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) 
 // counts only while its process is alive.
 export function createClaudeSessionOccupancy({ userHome, isAlive = alive, ttlMs = 2000, now = () => Date.now() }) {
   let cached = null;
-  async function registrations() {
-    if (cached && now() - cached.at < ttlMs) return cached.items;
+  async function registrations(fresh = false) {
+    if (!fresh && cached && now() - cached.at < ttlMs) return cached.items;
     const items = [];
     let root;
     try {
@@ -22,14 +22,19 @@ export function createClaudeSessionOccupancy({ userHome, isAlive = alive, ttlMs 
         const file = path.join(root, name), stat = await fs.lstat(file);
         if (!stat.isFile() || stat.size > 64 * 1024) continue;
         const value = JSON.parse(await fs.readFile(file, 'utf8'));
-        if (Number.isSafeInteger(value?.pid) && value.pid > 1 && `${value.pid}.json` === name && typeof value.sessionId === 'string') items.push({ pid: value.pid, sessionId: value.sessionId.toLowerCase() });
+        if (Number.isSafeInteger(value?.pid) && value.pid > 1 && `${value.pid}.json` === name && typeof value.sessionId === 'string') items.push({ pid: value.pid, sessionId: value.sessionId.toLowerCase(),
+          ...(value.kind === 'bg' && /^[0-9a-f]{8}$/u.test(value.jobId || '') ? { jobId: value.jobId } : {}) });
       } catch { /* A registration being rewritten is read again next time. */ }
     }
     cached = { at: now(), items };
     return items;
   }
-  return async function occupiedBy(sessionIds) {
+  const holders = async (sessionIds, fresh) => {
     const wanted = new Set([...sessionIds].map(id => String(id).toLowerCase()));
-    return (await registrations()).find(item => wanted.has(item.sessionId) && isAlive(item.pid)) || null;
+    return (await registrations(fresh)).filter(item => wanted.has(item.sessionId) && isAlive(item.pid));
   };
+  async function occupiedBy(sessionIds) { return (await holders(sessionIds, false))[0] || null; }
+  // Every live holder of the chain, read fresh; used by takeover.
+  occupiedBy.all = sessionIds => holders(sessionIds, true);
+  return occupiedBy;
 }

@@ -3,7 +3,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
     window.__cccNativeTerminalView?.dispose();
     const api = window.__cccTerminalNative;
     if (!host || !api) return false;
-    let view = null, disposed = false, generation = 0, busy = false, notice = '', last = null;
+    let view = null, disposed = false, generation = 0, busy = false, notice = '', last = null, armed = null;
     const saved = [...host.children].map(node => [node, node.style.display]);
     for (const [node] of saved) node.style.display = 'none';
     // The page-tab inset reserves an empty row above native pages; the terminal reclaims it.
@@ -63,6 +63,8 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const relayout = () => { if (!disposed) window.__codexControlConsoleConversationTabs?.relayout?.(); };
     const composerObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(relayout) : null;
     composerObserver?.observe(composer);
+    // Keyboard can still toggle a <details>; refuse while input is unavailable.
+    more.onclick = event => { if (keys.hasAttribute?.('data-disabled')) event.preventDefault(); };
     shadow.addEventListener('pointerdown', event => { if (keys.open && !event.composedPath?.().includes(keys)) keys.open = false; });
     function setStatus(text, tone) { status.textContent = text; status.title = text; status.setAttribute('data-tone', tone); }
     function setNotice(text) { notice = text; setStatus(text, 'bad'); }
@@ -78,9 +80,12 @@ export function installNativeTerminalView(createSession, statusText, css) {
       chip.hidden = chip.textContent === record.title;
       cwd.textContent = (record.cwd || '').replace(/^\/Users\/[^/]+(?=\/|$)/u, '~'); cwd.title = record.cwd || '';
     }
-    // Stopped here: startable, or read-only while another Claude window holds the session.
+    // Takeover ends the other window's Claude, so it needs a second click within 4s.
+    function disarm() { if (armed) clearTimeout(armed); armed = null; launch.removeAttribute('data-armed'); launch.textContent = record.occupiedElsewhere ? '强制接管' : '启动会话'; }
+    // Stopped here: startable, or read-only (with takeover) while another Claude window holds the session.
     function showStopped() {
-      launch.hidden = record.status === 'running' || Boolean(record.occupiedElsewhere);
+      launch.hidden = record.status === 'running'; if (!armed) disarm();
+      launch.title = record.occupiedElsewhere ? '结束其他 Claude 窗口中的这个会话，并在这里继续' : '';
       if (record.occupiedElsewhere) setStatus('正在其他 Claude 窗口中运行 · 此处只读', 'held');
       else setStatus(record.runtimeError || '会话已停止，点击右上角启动', record.runtimeError ? 'bad' : 'idle');
     }
@@ -90,6 +95,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
       send.disabled = !canInput || !draft.value; send.setAttribute('data-sending', String(busy));
       for (const button of inputs) button.disabled = !canInput;
       keys.toggleAttribute?.('data-disabled', !canInput); if (!canInput) keys.open = false;
+      more.tabIndex = canInput ? 0 : -1; more.setAttribute('aria-disabled', String(!canInput));
     }
     const draftKey = 'terminal-draft:' + record.id;
     try { draft.value = sessionStorage.getItem(draftKey) || ''; } catch {}
@@ -108,7 +114,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
       event.stopPropagation();
     };
     function mount(value) {
-      record = value; showRecord();
+      record = value; showRecord(); disarm();
       view?.dispose(); view = null; last = null; notice = ''; output.replaceChildren(); sync(null);
       if (!record.runtimeSummary) return showStopped();
       launch.hidden = record.status === 'running';
@@ -122,13 +128,16 @@ export function installNativeTerminalView(createSession, statusText, css) {
       view.activate();
     }
     launch.onclick = async () => {
-      const token = ++generation; launch.disabled = true; setStatus('正在启动…', 'wait');
-      try { const result = await api.request('start', { id: record.id }); if (!disposed && token === generation) { window.__cccTerminalConversations?.accept(result.conversation); mount(result.conversation); } }
+      const takeover = Boolean(record.occupiedElsewhere);
+      if (takeover && !armed) { launch.textContent = '确认接管？将结束其他窗口'; launch.setAttribute('data-armed', ''); armed = setTimeout(disarm, 4000); return; }
+      disarm();
+      const token = ++generation; launch.disabled = true; setStatus(takeover ? '正在结束其他窗口并接管…' : '正在启动…', 'wait');
+      try { const result = await api.request('start', takeover ? { id: record.id, takeover: true } : { id: record.id }); if (!disposed && token === generation) { window.__cccTerminalConversations?.accept(result.conversation); mount(result.conversation); } }
       catch (error) { if (!disposed) setNotice(error.message); }
       finally { if (!disposed) launch.disabled = false; }
     };
     const state = { id: record.id, composer, update(value) { if (disposed || value.id !== record.id) return; if (value.archived) state.dispose(); else if (value.runtimeSessionId !== record.runtimeSessionId) mount(value); else { record = value; showRecord(); if (!view) showStopped(); } },
-      dispose() { if (disposed) return; disposed = true; generation++; view?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
+      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
     window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;
   };

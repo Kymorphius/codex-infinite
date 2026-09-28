@@ -9,6 +9,13 @@ export function terminalConversationId(value) {
   return value.toLowerCase();
 }
 
+// start accepts an explicit takeover flag; anything but a literal boolean is rejected.
+export function terminalStartInput(input) {
+  assertTerminalObject(input, ['id', 'takeover']);
+  if (input.takeover !== undefined && typeof input.takeover !== 'boolean') throw terminalError(400, '接管标记无效');
+  return { id: terminalConversationId(input.id), takeover: input.takeover === true };
+}
+
 export function terminalConversationText(value, label, max = 200) {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /[\u0000-\u001f\u007f]/u.test(value)) {
     throw terminalError(400, `${label}无效`);
