@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import { buildNativeContextInjectionScript } from "../src/native-context-injection.mjs";
+import { createClaudePreviewSelection } from "../src/claude-preview-selection.mjs";
 
 const THREAD_ID = "01a015ac-363f-7472-961a-f31d174ad2c8";
 const changes = { model: "gpt-6-astra", reasoningEffort: "ultra", contextWindow: 1_000_000 };
@@ -148,4 +149,28 @@ test("manual guard does not weaken existing input validation", async () => {
     /模型无效/
   );
   assert.deepEqual(r.methods(), []);
+});
+
+test("native settings bridge accepts every Claude model the panel can select and rejects unknown routes", async () => {
+  const r = runtime();
+  let current = { model: 'gpt-6-sol', reasoningEffort: 'medium' };
+  const storage = new Map();
+  const selection = createClaudePreviewSelection({
+    read: async () => current,
+    apply: async (_id, settings) => { current = settings; },
+    storage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+  });
+  const autoOnly = new Set(['haiku', 'default', 'best', 'haiku-latest']);
+  const families = ['opus', 'sonnet', 'haiku', 'opusplan', 'default', 'best', 'opus-latest', 'sonnet-latest', 'haiku-latest', 'opusplan-latest', 'opus-1m', 'sonnet-1m'];
+  const routes = new Set();
+  for (const family of families) for (const effort of autoOnly.has(family) ? ['auto'] : ['medium', 'auto']) for (const nativeTools of [false, true]) {
+    await selection.set(THREAD_ID, effort, nativeTools, family);
+    routes.add(current.model);
+    assertSuperseded(await r.window.__codexControlConsoleApplyThreadSettings(THREAD_ID, { model: current.model }, { shouldApply: () => false }));
+  }
+  assert.equal(routes.size, 40);
+  assert.deepEqual(r.methods(), []);
+  for (const model of ['claude-subscription/fable', 'claude-subscription/best-auto', 'claude-subscription/haiku-auto', 'other-provider/model']) {
+    await assert.rejects(r.window.__codexControlConsoleApplyThreadSettings(THREAD_ID, { model }), /模型无效/);
+  }
 });

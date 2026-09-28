@@ -62,6 +62,8 @@ test("native bridge resumes through the desktop app-server with thread-scoped co
   assert.match(source, /__codexControlConsoleInterruptThread/);
   assert.match(source, /request\('turn\/interrupt'/);
   assert.match(source, /__codexControlConsoleApplyThreadSettings/);
+  assert.match(source, /isClaudePreviewModel/);
+  assert.match(source, /2026-09-29\.claude-model-routes2/);
   assert.match(source, /request\('thread\/settings\/update'/);
   assert.match(source, /thread not found/);
   assert.match(source, /await resume\(params\.threadId, \{\}, shouldApply\)/);

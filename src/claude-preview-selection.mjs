@@ -1,4 +1,10 @@
 // Dependency-free domain controller, also serialized into the native renderer.
+export function isClaudePreviewModel(model) {
+  if (model === 'claude-subscription/opus-cua-preview') return true;
+  const match = /^claude-subscription\/(opus|sonnet|haiku|opusplan|default|best|opus-latest|sonnet-latest|haiku-latest|opusplan-latest|opus-1m|sonnet-1m)(-auto)?(-native)?$/.exec(model || '');
+  return Boolean(match && (!['haiku', 'default', 'best', 'haiku-latest'].includes(match[1]) || !match[2]));
+}
+
 export function createClaudePreviewSelection({ read, apply, storage, changed = () => {} }) {
   const modelPrefix = 'claude-subscription/';
   const modelFamilies = ['opus', 'sonnet', 'haiku', 'opusplan', 'default', 'best', 'opus-latest', 'sonnet-latest', 'haiku-latest', 'opusplan-latest', 'opus-1m', 'sonnet-1m'];

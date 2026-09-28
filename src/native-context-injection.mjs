@@ -1,5 +1,6 @@
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
 import { buildNativeComposerTransitionShieldSource } from "./native-composer-transition-shield.mjs";
+import { isClaudePreviewModel } from "./claude-preview-selection.mjs";
 
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,12 +28,13 @@ export const NATIVE_CONTEXT_BINDING = "__codexControlConsolePersistContext";
 export function buildNativeContextInjectionScript() {
   const bindingName = JSON.stringify(NATIVE_CONTEXT_BINDING);
   return `(() => {
-  if (window.__codexControlConsoleNativeContextVersion === '2026-09-28.claude-preview1' && window.__codexControlConsoleNativeContextObserver) return;
+  if (window.__codexControlConsoleNativeContextVersion === '2026-09-29.claude-model-routes2' && window.__codexControlConsoleNativeContextObserver) return;
   window.__codexControlConsoleNativeContextObserver?.disconnect?.();
   document.querySelector('[data-codex-control-console-context-toggle]')?.remove();
-  window.__codexControlConsoleNativeContextVersion = '2026-09-28.claude-preview1';
+  window.__codexControlConsoleNativeContextVersion = '2026-09-29.claude-model-routes2';
   ${buildNativeComposerTransitionShieldSource()}
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isClaudePreviewModel = (${isClaudePreviewModel.toString()});
   const PENDING_KEY = 'codex-control-console.pending-million-context.v1';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const overrides = new Map();
@@ -240,7 +242,7 @@ export function buildNativeContextInjectionScript() {
     const settings = {};
     if (Object.prototype.hasOwnProperty.call(changes, 'model')) {
       const model = String(changes.model || '').trim();
-      if (!['claude-subscription/opus', 'claude-subscription/opus-native', 'claude-subscription/opus-auto', 'claude-subscription/opus-auto-native', 'claude-subscription/opus-cua-preview'].includes(model) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(model)) throw new Error('模型无效');
+      if (!isClaudePreviewModel(model) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(model)) throw new Error('模型无效');
       settings.model = model;
     }
     if (Object.prototype.hasOwnProperty.call(changes, 'reasoningEffort')) {
