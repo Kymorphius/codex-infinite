@@ -3,7 +3,30 @@ import { readNativeComposerThreadId } from './native-composer-thread-id.mjs';
 import { installNativeJevButtonActivation } from './native-jev-button-activation.mjs';
 
 export function buildNativeClaudePreviewInjectionScript() {
-  return `(${installClaudePreview.toString()})(${createClaudePreviewSelection.toString()}, ${readNativeComposerThreadId.toString()}, ${installNativeJevButtonActivation.toString()})`;
+  return buildNativeClaudePanelStyleScript() + `;(${installClaudePreview.toString()})(${createClaudePreviewSelection.toString()}, ${readNativeComposerThreadId.toString()}, ${installNativeJevButtonActivation.toString()})`;
+}
+
+export function buildNativeClaudePanelStyleScript() {
+  return `(() => {
+    let style = document.getElementById('ccc-claude-panel-style');
+    if (!style) { style = document.createElement('style'); style.id = 'ccc-claude-panel-style'; document.head.append(style); }
+    const css = ${JSON.stringify(`
+      [data-ccc-claude-preview-panel] { box-sizing:border-box; color-scheme:dark; }
+      [data-ccc-claude-preview-panel] > strong { display:inline-block; font-size:16px; line-height:32px; }
+      [data-ccc-claude-preview-panel] p { margin:12px 0; }
+      [data-ccc-claude-preview-panel] label { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 8px; }
+      [data-ccc-claude-preview-panel] select { appearance:auto; min-width:116px; min-height:36px; padding:6px 12px; border:1px solid #626262; border-radius:8px; background:#303030; color:#eee; font:inherit; cursor:pointer; }
+      [data-ccc-claude-preview-panel] input[type=checkbox] { appearance:auto; width:18px; height:18px; flex:none; accent-color:#62bd84; }
+      [data-ccc-claude-preview-panel] button { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:7px 12px; margin:4px 8px 4px 0; border:1px solid #626262; border-radius:8px; background:#303030; color:#eee; font:inherit; cursor:pointer; }
+      [data-ccc-claude-preview-panel] button:hover:not(:disabled) { background:#3a3a3a; }
+      [data-ccc-claude-preview-panel] button:disabled, [data-ccc-claude-preview-panel] select:disabled, [data-ccc-claude-preview-panel] input:disabled { opacity:.45; cursor:default; }
+      [data-ccc-claude-preview-panel] :is(button,select,input):focus-visible { outline:2px solid #62bd84; outline-offset:2px; }
+      [data-ccc-claude-preview-panel] [data-claude-actions] { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+      [data-ccc-claude-preview-panel] [data-claude-actions] button { margin:0; flex:1 1 auto; }
+      [data-ccc-claude-preview-panel] [data-claude-primary] { border-color:#508d65; background:#294b35; color:#a6e5ba; }
+    `)};
+    if (style.textContent !== css) style.textContent = css;
+  })()`;
 }
 
 function installClaudePreview(createSelection, readThreadId, activateButton) {
@@ -55,6 +78,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     toolsHelp.style.cssText = 'font-size:12px;color:#bbb;';
     const message = element('p', id ? '只修改当前会话；不改变全局模型和访问权限。' : '请先打开一个本机 Codex 会话。新建聊天尚未生成会话 ID 时不可切换。'); message.setAttribute('role', 'status');
     const save = element('button', '当前会话使用 Claude'), restore = element('button', '恢复原生模型');
+    const actions = element('div'); actions.dataset.claudeActions = ''; save.dataset.claudePrimary = ''; actions.append(save, restore);
     save.type = restore.type = 'button';
     const disabled = !id || running() || selection.busy(id);
     save.disabled = disabled; restore.disabled = disabled || !selected;
@@ -73,7 +97,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     }
     save.onclick = () => void change(effort.value); restore.onclick = () => void change(null);
     nativeTools.disabled = disabled;
-    panel.append(title, dismiss, description, model, label, toolsLabel, toolsHelp, message, save, restore); document.body.append(panel);
+    panel.append(title, dismiss, description, model, label, toolsLabel, toolsHelp, message, actions); document.body.append(panel);
   }
   function render() {
     const routing = document.querySelector('[data-codex-control-console-native-jev-current]');

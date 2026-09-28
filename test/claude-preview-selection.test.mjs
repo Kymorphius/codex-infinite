@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { createClaudePreviewSelection } from '../src/claude-preview-selection.mjs';
-import { buildNativeClaudePreviewInjectionScript } from '../src/native-claude-preview.mjs';
+import { buildNativeClaudePreviewInjectionScript, buildNativeClaudePanelStyleScript } from '../src/native-claude-preview.mjs';
 
 const id = '11111111-1111-4111-8111-111111111111', other = '22222222-2222-4222-8222-222222222222';
 function harness(overrides = {}) {
@@ -65,7 +65,7 @@ test('failed rollback explicitly reports uncertainty', async () => {
 });
 test('renderer installs idempotently without polling or sending any request', () => {
   const subscribers = new Set(), window = { __codexControlConsoleMutationSubscribers: subscribers, addEventListener() {} };
-  const context = { window, localStorage: { getItem: () => null }, document: { querySelector: () => null, addEventListener() {} },
+  const context = { window, localStorage: { getItem: () => null }, document: { getElementById: () => ({}), querySelector: () => null, addEventListener() {} },
     setTimeout, clearTimeout, setInterval() { throw new Error('polling forbidden'); } };
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
@@ -77,7 +77,7 @@ test('early installation creates subscription and later injection requests a ren
   let scheduled = 0;
   const window = { addEventListener() {} };
   const context = { window, localStorage: { getItem: () => null },
-    document: { querySelector: () => null, addEventListener() {} },
+    document: { getElementById: () => ({}), querySelector: () => null, addEventListener() {} },
     setTimeout() { scheduled++; return 1; }, clearTimeout() {} };
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
   assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
@@ -91,6 +91,7 @@ test('button mounts when composer arrives after installation and is not duplicat
   const mounted = [], host = {};
   const window = { addEventListener() {} };
   const document = {
+    getElementById: () => ({}),
     querySelector: selector => selector === '[data-codex-control-console-native-jev-current]' ? routing : null,
     querySelectorAll: () => [], addEventListener() {},
     createElement() {
@@ -110,4 +111,16 @@ test('button mounts when composer arrives after installation and is not duplicat
   assert.equal(mounted[0].textContent, 'Claude 预览');
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context); callback();
   assert.equal(mounted.length, 1);
+});
+
+test('panel styles update an already-installed legacy panel without duplicate styles or model changes', () => {
+  let style, inserts = 0;
+  const document = { getElementById: () => style, createElement: () => ({}), head: { append(value) { style = value; inserts++; } } };
+  const context = { document };
+  vm.runInNewContext(buildNativeClaudePanelStyleScript(), context);
+  vm.runInNewContext(buildNativeClaudePanelStyleScript(), context);
+  assert.equal(inserts, 1);
+  assert.match(style.textContent, /select.*appearance:auto/);
+  assert.match(style.textContent, /button.*min-height:36px/);
+  assert.match(style.textContent, /data-claude-actions.*gap:8px/);
 });
