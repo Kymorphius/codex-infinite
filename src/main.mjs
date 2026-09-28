@@ -15,6 +15,7 @@ import { RuntimeRestartService } from "./runtime-restart.mjs";
 import { NativeAppLaunchService } from "./native-app-launch.mjs";
 import { NativeDashboardLaunchService } from "./native-dashboard-launch.mjs";
 import { AttentionConversationService } from "./attention-conversation-service.mjs";
+import { createComposerDraftReader } from "./native-composer-drafts.mjs";
 import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
@@ -163,9 +164,9 @@ export async function run() {
     index: new SentMessageIndex({ databasePath: path.join(config.wrapperCodexHome, 'sent-message-search.sqlite'), sessionRoots: [config.sessionRoot] })
   });
   void sentMessageSearchService.prepare().catch(error => console.warn(`[codex-control-console] sent message indexing unavailable: ${error.message}`));
-  const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
+  const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, draftReader: createComposerDraftReader({ filePath: path.join(config.nativeCodexHome, ".codex-global-state.json") }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
   const recentSentConversations = new RecentSentConversationService({ taskAdapter: localAdapter, archivedSessionRoot: config.archivedSessionRoot });
-  const primaryAttentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: new NativeConversationAdapter({ cdpOrigin: config.primaryCdpOrigin }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.primaryCdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
+  const primaryAttentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: new NativeConversationAdapter({ cdpOrigin: config.primaryCdpOrigin }), draftReader: createComposerDraftReader({ filePath: path.join(config.sourceCodexHome, ".codex-global-state.json") }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.primaryCdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
   const turboPolicyStore = new TurboPolicyStore({ filePath: path.join(config.wrapperCodexHome, "turbo-policy.json") });
   await turboPolicyStore.init();
   const turboPolicyService = new TurboPolicyService({
