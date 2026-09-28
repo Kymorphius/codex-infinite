@@ -75,7 +75,7 @@ export class SshProjectSyncAdapter {
       const nonce = crypto.randomUUID();
       const headers = { [ACTION_HEADERS.timestamp]: timestamp, [ACTION_HEADERS.nonce]: nonce };
       headers[ACTION_HEADERS.signature] = signPeerAction(key, { method: "POST", path: `${PROJECT_SYNC_NODE_PREFIX}${action}`, timestamp, nonce, body });
-      const args = sshProjectSyncArguments(transport, headers, action, { remotePlatform: this.peer.platform, timeoutSeconds: Math.min(60, Math.ceil(remainingMs / 1000)) });
+      const args = sshProjectSyncArguments(transport, headers, action, { remotePlatform: this.peer.platform, timeoutSeconds: Math.min(60, Math.ceil(remainingMs / 1000)), bodyLength: body.length });
       try {
         const payload = JSON.parse(await execute(this.spawn, args, body, maxResponseBytes, remainingMs));
         if (payload?.status === "error") {

@@ -128,10 +128,16 @@ test("oversized small requests fail before SSH", async (t) => {
 
 test("command builder validates shell inputs and uses Windows stdin UTF-8 on direct peers", () => {
   const headers = { [ACTION_HEADERS.timestamp]: "123456789", [ACTION_HEADERS.nonce]: "abcdefghijklmnop", [ACTION_HEADERS.signature]: "a".repeat(64) };
-  const args = sshProjectSyncArguments(direct, headers, "prepare", { remotePlatform: "windows" });
+  const args = sshProjectSyncArguments(direct, headers, "prepare", { remotePlatform: "windows", bodyLength: 37 });
   const script = Buffer.from(args.at(-1), "base64").toString("utf16le");
-  assert.match(script, /InputEncoding/);
-  assert.match(script, /\[Console\]::In.ReadToEnd\(\)/);
+  assert.doesNotMatch(script, /\[Console\]::(?:InputEncoding|OutputEncoding|In\.ReadToEnd)/);
+  assert.match(script, /New-Object byte\[\] 37/);
+  assert.match(script, /OpenStandardInput/);
+  assert.match(script, /OpenStandardOutput/);
+  assert.match(script, /Incomplete project sync request/);
+  for (const bodyLength of [undefined, 0, -1, 1.5, PROJECT_SYNC_PACKAGE_BYTES + 1]) {
+    assert.throws(() => sshProjectSyncArguments(direct, headers, "prepare", { remotePlatform: "windows", bodyLength }), /长度无效/);
+  }
   assert.match(script, /\/api\/node\/project-sync\/prepare/);
   assert.equal(args.includes("powershell.exe"), true);
   assert.throws(() => sshProjectSyncArguments(direct, headers, "apply; touch /tmp/nope"));
@@ -140,4 +146,13 @@ test("command builder validates shell inputs and uses Windows stdin UTF-8 on dir
   const viaRelay = sshProjectSyncArguments(relay, headers, "catalog", { remotePlatform: "windows" });
   assert.equal(viaRelay.includes("powershell.exe"), false);
   assert.equal(viaRelay.at(-1), "http://127.0.0.1:47832/api/node/project-sync/catalog");
+});
+
+test('Windows framing uses signed UTF-8 byte length, not JavaScript character count', async t => {
+  const { adapter, calls } = await fixture(t, [{ status: 'ok', result: {} }], { peer: { id: 'windows', name: 'Windows', platform: 'windows', transports: [direct] } });
+  await adapter.inspect({ path: 'C:\\中文项目\\文件' });
+  const script = Buffer.from(calls[0].args.at(-1), 'base64').toString('utf16le');
+  assert.ok(calls[0].body.length > calls[0].body.toString('utf8').length);
+  assert.ok(script.includes(`New-Object byte[] ${calls[0].body.length}`));
+  assert.equal(script.includes('中文项目'), false);
 });

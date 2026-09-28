@@ -16,7 +16,7 @@ function signedHeaders(headers) {
   });
 }
 
-export function sshProjectSyncArguments(transport, headers, action, { remotePlatform = "posix", timeoutSeconds = 60 } = {}) {
+export function sshProjectSyncArguments(transport, headers, action, { remotePlatform = "posix", timeoutSeconds = 60, bodyLength } = {}) {
   if (!PROJECT_SYNC_ACTIONS.includes(action)) throw new Error("项目同步操作无效");
   if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 60) throw new Error("项目同步超时无效");
   transport = normalizePeerTransport(transport);
@@ -24,12 +24,14 @@ export function sshProjectSyncArguments(transport, headers, action, { remotePlat
   const args = sshSnapshotArguments(transport, { curlTimeoutSeconds: timeoutSeconds });
   const url = args.pop().replace("/api/node/snapshot", `${PROJECT_SYNC_NODE_PREFIX}${action}`);
   if (transport.type === "direct-ssh" && remotePlatform === "windows") {
+    if (!Number.isInteger(bodyLength) || bodyLength < 1 || bodyLength > PROJECT_SYNC_PACKAGE_BYTES) throw new Error("项目同步请求长度无效");
     const source = [
-      "$utf8=[Text.UTF8Encoding]::new($false);[Console]::InputEncoding=$utf8;[Console]::OutputEncoding=$utf8;$OutputEncoding=$utf8",
-      "$ErrorActionPreference='Stop'",
-      "$bodyBytes=$utf8.GetBytes([Console]::In.ReadToEnd())",
+      "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';$utf8=[Text.UTF8Encoding]::new($false)",
+      // Console encoding setters can hang on Windows OpenSSH pipes. Keep signed bytes intact.
+      `$bodyBytes=New-Object byte[] ${bodyLength};$inputStream=[Console]::OpenStandardInput();$offset=0;while($offset -lt ${bodyLength}){$read=$inputStream.Read($bodyBytes,$offset,${bodyLength}-$offset);if($read -le 0){throw 'Incomplete project sync request'};$offset+=$read}`,
       `$headers=@{${pairs.map(([name, value]) => `'${name}'='${value}'`).join(";")}}`,
-      `try{$response=Invoke-WebRequest -UseBasicParsing -TimeoutSec ${timeoutSeconds} -Method Post -ContentType 'application/json' -Headers $headers -Body $bodyBytes -Uri '${url}';[Console]::Out.Write($response.Content)}catch{if($_.Exception.Response){$reader=New-Object IO.StreamReader($_.Exception.Response.GetResponseStream());[Console]::Out.Write($reader.ReadToEnd());$reader.Dispose();exit 0};throw}`
+      `try{$response=Invoke-WebRequest -UseBasicParsing -TimeoutSec ${timeoutSeconds} -Method Post -ContentType 'application/json' -Headers $headers -Body $bodyBytes -Uri '${url}';$reply=[string]$response.Content}catch{if(-not $_.Exception.Response){throw};$reader=New-Object IO.StreamReader($_.Exception.Response.GetResponseStream());try{$reply=$reader.ReadToEnd()}finally{$reader.Dispose()}}`,
+      "$bytes=$utf8.GetBytes($reply);$outputStream=[Console]::OpenStandardOutput();$outputStream.Write($bytes,0,$bytes.Length);$outputStream.Flush();exit 0"
     ].join(";");
     return [...args.slice(0, args.indexOf("/usr/bin/curl")), "powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(source, "utf16le").toString("base64")];
   }
