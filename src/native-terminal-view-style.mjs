@@ -31,6 +31,8 @@ button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,v
 .xterm{max-width:100%;max-height:100%}
 .choice-dock{flex:0 0 auto;max-height:min(260px,35vh);overflow:auto;margin:0 0 8px;padding:10px 12px;border:1px solid #e5b53255;border-radius:14px;background:#e5b53212}
 .choice-dock[hidden]{display:none}.choice-title{display:block;margin-bottom:7px;font-size:13px;font-weight:600;white-space:pre-wrap}
+.choice-preview{max-height:160px;overflow:auto;margin:0 0 8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--page);color:var(--fg);font:12px/1.35 "SF Mono",SFMono-Regular,Menlo,monospace;white-space:pre;tab-size:4}
+.choice-preview[hidden]{display:none}
 .choice-list{display:grid;gap:3px;max-height:125px;overflow:auto}.choice-option{padding:4px 8px;border-radius:7px;color:var(--muted);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
 .choice-option[aria-current=true]{background:#e5b53225;color:var(--fg)}.choice-option[aria-current=true]::before{content:'❯ ';color:#e5b532}
 .choice-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}

@@ -110,6 +110,11 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   are auto-approved, so no permission menu is fabricated. The dock is cleared
   on exit, disconnect, takeover, session switch and when the menu disappears.
   Parsing is presentation-only; terminal text cannot create privileged actions.
+  Menus containing character-art examples retain their original spacing in an
+  optional monospace preview above the controls. The terminal remains the
+  full-fidelity rendering, including ANSI colors and cursor behavior; the
+  preview is plain text from the current visible screen, never a reconstructed
+  or fabricated diagram. Numbered choices may have example lines between them.
 
 ## Native integration
 

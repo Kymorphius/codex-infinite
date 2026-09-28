@@ -44,8 +44,9 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   assert.equal(chip.textContent, 'Claude CLI'); assert.equal(status.attributes['data-tone'], 'ok');
   const choiceDock = created.find(node => node.className === 'choice-dock');
   sessionOptions.onChange({ session: record.runtimeSummary, connection: 'connected', canInput: true,
-    choicePrompt: { question: 'Which plan?', selected: 1, options: [{ number: 1, label: 'A' }, { number: 2, label: 'B' }] } });
+    choicePrompt: { question: 'Which plan?', selected: 1, preview: '┌───┐\n│ A │\n└───┘', options: [{ number: 1, label: 'A' }, { number: 2, label: 'B' }] } });
   assert.equal(choiceDock.hidden, false); assert.equal(created.find(node => node.className === 'choice-title').textContent, 'Which plan?');
+  assert.equal(created.find(node => node.className === 'choice-preview').textContent, '┌───┐\n│ A │\n└───┘');
   created.find(node => node.textContent === '↓ 下一项').onclick();
   created.find(node => node.textContent === '确认当前项').onclick();
   assert.deepEqual(keys, ['down', 'enter'], 'choice controls return PTY keys without inventing approval');
