@@ -41,7 +41,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     panel.style.cssText = 'position:fixed;z-index:2147483000;right:24px;bottom:100px;width:min(360px,calc(100vw - 48px));padding:20px;border:1px solid #4b765a;border-radius:16px;background:#252525;color:#eee;box-shadow:0 12px 40px #0008;font:14px/1.5 system-ui;';
     const title = element('strong', 'Claude 预览');
     const dismiss = element('button', '关闭'); dismiss.type = 'button'; dismiss.style.cssText = 'float:right;'; dismiss.onclick = close;
-    const description = element('p', '当前本机会话使用 Claude 订阅，由现有客户端执行 Computer Use。支持历史文字、工具结果和内嵌图片；文字历史上限 1 MiB，含图片总量上限 16 MiB。');
+    const description = element('p', '当前会话使用 Claude 订阅，通过客户端现有工具读写文件、运行命令和操作界面，沿用会话权限。支持图片和工具历史；压缩前的本地记录会按需恢复，较早内容可继续回查。');
     const model = element('p', '模型：Claude Opus');
     const label = element('label', '推理强度 '), effort = element('select'); effort.setAttribute('aria-label', 'Claude 推理强度');
     for (const [value, text] of [['low', '轻度'], ['medium', '中'], ['high', '高']]) { const option = element('option', text); option.value = value; effort.append(option); }
