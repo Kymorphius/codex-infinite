@@ -15,7 +15,7 @@ export function buildNativeClaudePanelStyleScript() {
       [data-ccc-claude-preview-panel] > strong { display:inline-block; font-size:16px; line-height:32px; }
       [data-ccc-claude-preview-panel] p { margin:12px 0; }
       [data-ccc-claude-preview-panel] label { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:16px 0 8px; }
-      [data-ccc-claude-preview-panel] select { appearance:auto; min-width:116px; min-height:36px; padding:6px 12px; border:1px solid #626262; border-radius:8px; background:#303030; color:#eee; font:inherit; cursor:pointer; }
+      [data-ccc-claude-preview-panel] select { appearance:auto; min-width:116px; max-width:210px; min-height:36px; padding:6px 12px; border:1px solid #626262; border-radius:8px; background:#303030; color:#eee; font:inherit; cursor:pointer; }
       [data-ccc-claude-preview-panel] input[type=checkbox] { appearance:auto; width:18px; height:18px; flex:none; accent-color:#62bd84; }
       [data-ccc-claude-preview-panel] button { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:7px 12px; margin:4px 8px 4px 0; border:1px solid #626262; border-radius:8px; background:#303030; color:#eee; font:inherit; cursor:pointer; }
       [data-ccc-claude-preview-panel] button:hover:not(:disabled) { background:#3a3a3a; }
@@ -58,7 +58,15 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
   function element(tag, text) { const node = document.createElement(tag); if (text) node.textContent = text; return node; }
   function close() { panel?.remove(); panel = null; document.removeEventListener('pointerdown', outside, true); }
   function outside(event) { if (panel && !event.composedPath().includes(panel) && !event.composedPath().includes(button)) close(); }
-  const modelNames = { opus: 'Opus 5.5', sonnet: 'Sonnet 5.5', haiku: 'Haiku 4.5', opusplan: 'Opus 5.5 规划 / Sonnet 5.5 执行' };
+  const modelNames = { opus: 'Opus 5.5', sonnet: 'Sonnet 5.5', haiku: 'Haiku 4.5', opusplan: 'Opus 5.5 规划 / Sonnet 5.5 执行',
+    default: '默认（随账号变化）', best: 'best（可能使用额外 usage credits）',
+    'opus-latest': 'Opus 最新（随 Claude 更新）', 'sonnet-latest': 'Sonnet 最新（随 Claude 更新）',
+    'haiku-latest': 'Haiku 最新（随 Claude 更新）', 'opusplan-latest': 'Opus 规划 / Sonnet 执行（随 Claude 更新）',
+    'opus-1m': 'Opus 最新 · 1M（需账号支持）', 'sonnet-1m': 'Sonnet 最新 · 1M（需账号支持）' };
+  const autoOnly = new Set(['haiku', 'default', 'best', 'haiku-latest']);
+  const buttonNames = { opusplan: 'Claude OpusPlan 5.5', default: 'Claude 默认', best: 'Claude best',
+    'opus-latest': 'Claude Opus 最新', 'sonnet-latest': 'Claude Sonnet 最新', 'haiku-latest': 'Claude Haiku 最新',
+    'opusplan-latest': 'Claude OpusPlan 最新', 'opus-1m': 'Claude Opus 1M', 'sonnet-1m': 'Claude Sonnet 1M' };
   const effortNames = { auto: '自动', low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' };
   async function toggle() {
     const id = current();
@@ -87,7 +95,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     const label = element('label', '推理强度 '), effort = element('select'); effort.setAttribute('aria-label', 'Claude 推理强度');
     for (const [value, text] of Object.entries(effortNames)) { const option = element('option', text); option.value = value; effort.append(option); }
     effort.value = preference?.effort || 'auto'; label.append(effort);
-    model.onchange = () => { if (model.value === 'haiku') effort.value = 'auto'; effort.disabled = disabled || model.value === 'haiku'; };
+    model.onchange = () => { if (autoOnly.has(model.value)) effort.value = 'auto'; effort.disabled = disabled || autoOnly.has(model.value); };
     const toolsLabel = element('label', ' Claude 原生工具'), nativeTools = element('input');
     nativeTools.type = 'checkbox'; nativeTools.setAttribute('role', 'switch'); nativeTools.setAttribute('aria-label', 'Claude 原生工具');
     nativeTools.checked = preference?.nativeTools ?? true; toolsLabel.prepend(nativeTools);
@@ -107,13 +115,13 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       save.disabled = restore.disabled = nativeTools.disabled = effort.disabled = model.disabled = true;
       try {
         const family = model.value;
-        await selection.set(id, value === null ? null : family === 'haiku' ? 'auto' : value, useNativeTools, family);
+        await selection.set(id, value === null ? null : autoOnly.has(family) ? 'auto' : value, useNativeTools, family);
         window.__cccClaudePreviewError = ''; message.textContent = value === null ? '已切回 GPT' : '已设为 Claude ' + modelNames[family];
       } catch (error) { message.textContent = String(error.message || '设置失败'); }
-      finally { const blocked = id !== current() || running(); nativeTools.disabled = model.disabled = blocked; effort.disabled = blocked || model.value === 'haiku'; save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
+      finally { const blocked = id !== current() || running(); nativeTools.disabled = model.disabled = blocked; effort.disabled = blocked || autoOnly.has(model.value); save.disabled = blocked || !routerReady(); restore.disabled = blocked || !selection.selected(id); }
     }
     save.onclick = () => void change(effort.value); restore.onclick = () => void change(null);
-    nativeTools.disabled = model.disabled = disabled; effort.disabled = disabled || model.value === 'haiku';
+    nativeTools.disabled = model.disabled = disabled; effort.disabled = disabled || autoOnly.has(model.value);
     panel.append(title, dismiss, modelLabel, label, toolsLabel, message, actions); document.body.append(panel);
     if (panel.getBoundingClientRect().top < 12) { panel.style.bottom = 'auto'; panel.style.top = Math.max(12, Math.min(window.innerHeight - panel.offsetHeight - 12, rect.bottom + 8)) + 'px'; }
     document.addEventListener('pointerdown', outside, true);
@@ -128,7 +136,8 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
       activateButton(button, toggle);
       button.addEventListener('contextmenu', event => { event.preventDefault(); event.stopImmediatePropagation(); open(); });
     }
-    const id = current(), selected = selection.selected(id), text = selected ? 'Claude ' + modelNames[selected.modelFamily || 'opus'] : 'GPT';
+    const id = current(), selected = selection.selected(id), family = selected?.modelFamily || 'opus';
+    const text = selected ? buttonNames[family] || 'Claude ' + modelNames[family] : 'GPT';
     if (button.textContent !== text) button.textContent = text;
     button.setAttribute('aria-pressed', String(Boolean(selected)));
     button.style.color = selected ? '#e9a58d' : '';

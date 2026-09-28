@@ -1,7 +1,8 @@
 // Dependency-free domain controller, also serialized into the native renderer.
 export function createClaudePreviewSelection({ read, apply, storage, changed = () => {} }) {
   const modelPrefix = 'claude-subscription/';
-  const modelFamilies = ['opus', 'sonnet', 'haiku', 'opusplan'];
+  const modelFamilies = ['opus', 'sonnet', 'haiku', 'opusplan', 'default', 'best', 'opus-latest', 'sonnet-latest', 'haiku-latest', 'opusplan-latest', 'opus-1m', 'sonnet-1m'];
+  const autoOnly = new Set(['haiku', 'default', 'best', 'haiku-latest']);
   const key = 'codex-control-console.claude-preview.v1';
   const preferenceKey = 'codex-control-console.claude-preview-preference.v1';
   const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
@@ -38,7 +39,7 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
     async set(id, effort, nativeTools = true, modelFamily = 'opus') {
       if (typeof nativeTools !== 'boolean') throw new Error('Claude 工具模式无效');
       if (!validId(id) || (effort !== null && (!efforts.includes(effort) || !modelFamilies.includes(modelFamily)
-        || (modelFamily === 'haiku' && effort !== 'auto')))) throw new Error('Claude 会话、模型或推理强度无效');
+        || (autoOnly.has(modelFamily) && effort !== 'auto')))) throw new Error('Claude 会话、模型或推理强度无效');
       if (pending.has(id)) throw new Error('正在修改这个会话，请稍候');
       if (effort !== null && !records.has(id) && records.size >= 128) throw new Error('Claude 预览会话数量已达上限，请先关闭旧会话的预览');
       const previous = records.get(id);
@@ -51,7 +52,7 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
         if (!before?.model || !before.reasoningEffort) throw new Error('无法回读当前原生模型与强度');
         if (!previous && !validModel(before.model)) throw new Error('当前模型无法安全恢复，未启用预览');
         const original = previous?.original || { model: before.model, reasoningEffort: before.reasoningEffort };
-        const next = effort === null ? original : { model: modelPrefix + modelFamily + (effort === 'auto' && modelFamily !== 'haiku' ? '-auto' : '') + (nativeTools ? '-native' : ''),
+        const next = effort === null ? original : { model: modelPrefix + modelFamily + (effort === 'auto' && !autoOnly.has(modelFamily) ? '-auto' : '') + (nativeTools ? '-native' : ''),
           reasoningEffort: effort === 'auto' ? 'medium' : effort };
         attempted = true;
         await apply(id, next);

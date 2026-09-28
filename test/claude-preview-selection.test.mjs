@@ -63,6 +63,20 @@ test('Opus planning and Sonnet execution mode persists with auto effort and nati
   await reloaded.set(id, null);
   assert.deepEqual(reloaded.preferred(id), { effort: 'auto', nativeTools: true, modelFamily: 'opusplan' });
 });
+test('Claude aliases keep their own routes and auto-only choices reject fixed effort', async () => {
+  const h = harness();
+  for (const family of ['default', 'best', 'haiku-latest']) {
+    await h.controller.set(id, 'auto', true, family);
+    assert.equal(h.current().model, `claude-subscription/${family}-native`);
+    await assert.rejects(h.controller.set(id, 'high', true, family), /模型或推理强度/);
+  }
+  for (const family of ['opus-latest', 'sonnet-latest', 'opusplan-latest', 'opus-1m', 'sonnet-1m']) {
+    await h.controller.set(id, 'high', false, family);
+    assert.equal(h.current().model, `claude-subscription/${family}`);
+  }
+  await h.controller.set(id, null);
+  assert.equal(h.controller.preferred(id).modelFamily, 'sonnet-1m');
+});
 test('existing Opus preferences without a model field keep their original route', async () => {
   const h = harness();
   h.options.storage.setItem('codex-control-console.claude-preview-preference.v1', JSON.stringify([{ id, effort: 'high', nativeTools: true }]));
@@ -196,7 +210,12 @@ test('native button left click toggles Router model and right click opens the ne
   button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
   assert.equal(panels.at(-1).dataset.cccClaudePreviewPanel, '');
   assert.equal(panels.at(-1).style.left, '130px');
-  assert.deepEqual(panels.at(-1).children[2].children[0].children.map(option => option.textContent), ['Opus 5.5', 'Sonnet 5.5', 'Haiku 4.5', 'Opus 5.5 规划 / Sonnet 5.5 执行']);
+  assert.deepEqual(panels.at(-1).children[2].children[0].children.map(option => option.textContent), [
+    'Opus 5.5', 'Sonnet 5.5', 'Haiku 4.5', 'Opus 5.5 规划 / Sonnet 5.5 执行',
+    '默认（随账号变化）', 'best（可能使用额外 usage credits）', 'Opus 最新（随 Claude 更新）',
+    'Sonnet 最新（随 Claude 更新）', 'Haiku 最新（随 Claude 更新）', 'Opus 规划 / Sonnet 执行（随 Claude 更新）',
+    'Opus 最新 · 1M（需账号支持）', 'Sonnet 最新 · 1M（需账号支持）',
+  ]);
   assert.equal(panels.at(-1).children[4].children[0].checked, true);
   panels.at(-1).children[4].children[0].checked = false;
   panels.at(-1).children[3].children[0].value = 'high';
@@ -230,7 +249,7 @@ test('native button left click toggles Router model and right click opens the ne
   hybridPanel.children[6].children[0].onclick();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(current.model, 'claude-subscription/opusplan-auto');
-  scheduled(); assert.equal(button.textContent, 'Claude Opus 5.5 规划 / Sonnet 5.5 执行');
+  scheduled(); assert.equal(button.textContent, 'Claude OpusPlan 5.5');
 });
 
 test('panel styles update an already-installed legacy panel without duplicate styles or model changes', () => {

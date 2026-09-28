@@ -6,6 +6,7 @@
 - 版本名对应 Router 启动官方 Claude CLI 时传入的固定 `--model` ID；路由名仍保持现有 `claude-subscription/<family>` 格式，以免破坏旧会话。
 - Opus 与 Sonnet 保留自动、low、medium、high、xhigh、max 强度及原生工具开关。Haiku 4.5 不支持强度：面板将其固定为自动且停用强度选择；Router 不向 CLI 传 `--effort`。
 - 混合模式交给官方 Claude CLI 的 `opusplan` 实现，仅进入 Claude 规划模式才用 Opus，其余执行用 Sonnet；Router 同时固定 `ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-5-5` 和 `ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-5-5`，避免别名升级后面板版本与实际模型不一致。自动推理强度与此模式可组合，不将其描述为按任务自动选模型。
+- 面板另提供 Claude Code 原生别名：`default`、`best`、`opus`、`sonnet`、`haiku`、`opusplan`、`opus[1m]`、`sonnet[1m]`。它们与上方固定版本选项分开命名，界面明确写“随 Claude 更新”；`best` 显示“可能使用额外 usage credits”。`default`、`best`、`haiku` 的强度固定为自动；长上下文别名由 CLI 检查账号支持情况，不在本地伪装为已开通。别名不设置固定版本环境变量。
 - 原有成功回读和失败回滚逻辑覆盖模型切换；生成中的会话仍禁止改设置。偏好按会话保存，不保存凭证或对话文本。
 - Fable 可能使用额外 usage credits，本次不加入无需确认的非交互式订阅路由。
 
