@@ -64,10 +64,10 @@ export async function drainNativeContextActions(connection, contextWindowStore) 
 async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations) {
   await connection.evaluate(buildNativeApprovalInjectionScript());
   await connection.evaluate(buildNativeContextInjectionScript());
-  await connection.evaluate(buildNativeClaudePreviewInjectionScript());
   await drainNativeContextActions(connection, contextWindowStore);
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
   await connection.evaluate(buildNativeJevRoutingInjectionScript());
+  await connection.evaluate(buildNativeClaudePreviewInjectionScript());
   await connection.evaluate(buildNativeJevRoutingSnapshotScript(jevRouting));
   await connection.evaluate(buildNativeTurboInjectionScript());
   await connection.evaluate(buildNativeTurboSnapshotScript(turboPolicy));

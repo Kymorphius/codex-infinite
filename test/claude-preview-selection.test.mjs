@@ -60,3 +60,42 @@ test('renderer installs idempotently without polling or sending any request', ()
   assert.equal(subscribers.size, 1);
   assert.equal(window.__cccClaudePreviewBlocks(id), false);
 });
+
+test('early installation creates subscription and later injection requests a render', () => {
+  let scheduled = 0;
+  const window = { addEventListener() {} };
+  const context = { window, localStorage: { getItem: () => null },
+    document: { querySelector: () => null, addEventListener() {} },
+    setTimeout() { scheduled++; return 1; }, clearTimeout() {} };
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
+  assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
+  assert.equal(scheduled, 1);
+  assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
+});
+
+test('button mounts when composer arrives after installation and is not duplicated', () => {
+  let routing = null, callback;
+  const mounted = [], host = {};
+  const window = { addEventListener() {} };
+  const document = {
+    querySelector: selector => selector === '[data-codex-control-console-native-jev-current]' ? routing : null,
+    querySelectorAll: () => [], addEventListener() {},
+    createElement() {
+      const attrs = new Map();
+      return { dataset: {}, style: {}, addEventListener() {},
+        setAttribute: (key, value) => attrs.set(key, value), getAttribute: key => attrs.get(key) };
+    },
+  };
+  const context = { window, document, localStorage: { getItem: () => null },
+    setTimeout(fn) { callback = fn; return 1; }, clearTimeout() {} };
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
+  assert.equal(mounted.length, 0);
+  routing = { parentElement: host, after(button) { button.parentElement = host; mounted.push(button); } };
+  for (const notify of window.__codexControlConsoleMutationSubscribers) notify([]);
+  callback();
+  assert.equal(mounted.length, 1);
+  assert.equal(mounted[0].textContent, 'Claude 预览');
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context); callback();
+  assert.equal(mounted.length, 1);
+});

@@ -30,6 +30,8 @@ test("primary owner injector installs only native bridges and does not add the d
     .every(([, params]) => params.source.includes("DOMContentLoaded") && params.source.includes("document.documentElement") && params.source.includes("crypto?.randomUUID") && params.source.includes("localStorage.length")));
   assert.equal(sent.some(([method, params]) => method === "Page.addScriptToEvaluateOnNewDocument" && params?.source?.includes("__codexControlConsoleHeldQueueInstalledVersion")), false);
   assert.equal(evaluated.some((source) => source.includes("__codexControlConsoleHeldQueueInstalledVersion")), true);
+  assert.ok(evaluated.some(source => source.includes('__cccClaudePreviewInstalled')));
+  assert.ok(sent.some(([method, params]) => method === 'Page.addScriptToEvaluateOnNewDocument' && params.source.includes('__cccClaudePreviewInstalled')));
   assert.equal(evaluated.filter((source) => source.includes("data-codex-control-console-chat-title") && source.includes("聊天")).length, 1);
   await injector.sync();
   assert.equal(sent.filter(([method]) => method === "Runtime.addBinding").length, 12);

@@ -7,7 +7,8 @@ export function buildNativeClaudePreviewInjectionScript() {
 }
 
 function installClaudePreview(createSelection, readThreadId, activateButton) {
-  if (window.__cccClaudePreviewInstalled) return;
+  if (window.__cccClaudePreviewInstalled && window.__cccClaudePreviewRefresh) { window.__cccClaudePreviewRefresh(); return; }
+  document.querySelector('[data-ccc-claude-preview]')?.remove();
   window.__cccClaudePreviewInstalled = true;
   let timer, panel, button;
   const selection = createSelection({
@@ -83,7 +84,8 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     if (button.parentElement !== host) routing.after(button);
   }
   function schedule() { clearTimeout(timer); timer = setTimeout(render, 60); }
-  window.__codexControlConsoleMutationSubscribers?.add(schedule);
+  window.__cccClaudePreviewRefresh = schedule;
+  (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(schedule);
   window.addEventListener('popstate', () => { close(); schedule(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
   render();
