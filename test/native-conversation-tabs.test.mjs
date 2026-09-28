@@ -187,7 +187,7 @@ test("wheel momentum filtering ignores only a decaying tail and resumes on delib
 
 test("retired top tabs preserve history, navigation and composer shortcuts", () => {
   const source = buildNativeConversationTabsInjectionSource();
-  assert.match(source, /2026-09-29\.draft-mark/);
+  assert.match(source, /2026-09-28\.claude-tag/);
   assert.match(source, /previous\?\.destroy\?\.\(\)/);
   assert.match(source, /previous\?\.snapshot\?\.\(\)/);
   assert.match(source, /localStorage\.setItem\(STORAGE_KEY/);

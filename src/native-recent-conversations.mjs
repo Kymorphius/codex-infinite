@@ -1,4 +1,4 @@
-import { updateClaudeStatus, updateNativeRecentDraft, updateNativeRecentStatus } from './native-recent-status.mjs';
+import { updateClaudeStatus, updateNativeRecentStatus } from './native-recent-status.mjs';
 
 export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 40) {
   const boundedLimit = Math.max(1, Math.min(40, Number(limit) || 40));
@@ -95,11 +95,7 @@ export function installNativeRecentConversationMenu({
   };
 
   let renderedSignature = "", renderedStatus = "", renderedCount = 0, currentRecords = [], visibleRows = [];
-  const updateStatusIcon = (row, tab) => {
-    const live = window.__codexControlConsoleAttentionConversations?.status?.(tab.id);
-    updateNativeRecentStatus(documentRef, row, tab, live, () => window.__cccTerminalConversations?.records?.() || []);
-    updateNativeRecentDraft(row, tab, live);
-  };
+  const updateStatusIcon = (row, tab) => updateNativeRecentStatus(documentRef, row, tab, window.__codexControlConsoleAttentionConversations?.status?.(tab.id), () => window.__cccTerminalConversations?.records?.() || []);
   const createRow = (tab, records) => {
     const row = documentRef.createElement("div");
     row.className = "ccc-native-recent-row";
@@ -116,6 +112,7 @@ export function installNativeRecentConversationMenu({
     if (tab.kind === "local" || (tab.kind === "terminal" && tab.engine !== "shell")) dot.className += " ccc-native-recent-status";
     else dot.setAttribute("aria-hidden", "true");
     row.statusDot = dot;
+    updateStatusIcon(row, tab);
     const copy = documentRef.createElement("span");
     copy.className = "ccc-native-recent-copy";
     const title = documentRef.createElement("span");
@@ -128,11 +125,6 @@ export function installNativeRecentConversationMenu({
     row.titleNode = title;
     row.detailNode = detail;
     select.append(dot, copy);
-    const draftMark = documentRef.createElement("span");
-    draftMark.className = "ccc-native-recent-draft";
-    draftMark.hidden = true;
-    row.draftMark = draftMark;
-    select.append(draftMark);
     // Claude rows carry the same amber tag as the sidebar so they stand out among Codex rows.
     if (tab.kind === "terminal" && tab.engine !== "shell") {
       const tag = documentRef.createElement("span");
@@ -141,7 +133,6 @@ export function installNativeRecentConversationMenu({
       tag.title = tab.companionOf ? "Claude 伴生会话" : "Claude CLI 会话";
       select.append(tag);
     }
-    updateStatusIcon(row, tab);
     select.addEventListener("click", () => {
       close();
       if (onSelect) onSelect(tab); else activate(tab.key);
@@ -291,7 +282,6 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-select{display:flex;min-width:0;flex:1;align-items:center;gap:9px;border:0;border-radius:8px;padding:8px;background:transparent;color:inherit;text-align:left;cursor:pointer}' +
   '.ccc-native-recent-select:hover,.ccc-native-recent-select:focus-visible{background:color-mix(in srgb,currentColor 9%,transparent);outline:none}' +
   '.ccc-native-recent-copy{display:flex;min-width:0;flex:1;flex-direction:column}.ccc-native-recent-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 13px/17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
-  '.ccc-native-recent-draft{flex:0 0 14px;width:14px;height:14px;background:#e89a6c;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath d=%27M11.2 2.3a1.6 1.6 0 0 1 2.3 2.3l-7.9 7.9-3.1.8.8-3.1z%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.5%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") center/13px no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath d=%27M11.2 2.3a1.6 1.6 0 0 1 2.3 2.3l-7.9 7.9-3.1.8.8-3.1z%27 fill=%27none%27 stroke=%27black%27 stroke-width=%271.5%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") center/13px no-repeat}.ccc-native-recent-draft[hidden]{display:none}' +
   '.ccc-native-recent-engine{flex:0 0 auto;padding:0 6px;border-radius:999px;color:#f2bd5c;background:color-mix(in srgb,#d9a640 26%,transparent);font:600 10px/16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
   '.ccc-native-recent-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.58}' +
   '.ccc-native-recent-empty{margin:0;padding:18px;text-align:center;font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.6}' +
@@ -302,7 +292,6 @@ export function buildNativeRecentConversationMenuInjectionSource() {
   return [
     updateClaudeStatus,
     updateNativeRecentStatus,
-    updateNativeRecentDraft,
     recentNativeConversationRecords,
     openNativeConversationPages,
     installNativeRecentConversationMenu

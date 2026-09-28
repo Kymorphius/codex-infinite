@@ -45,20 +45,3 @@ export function updateNativeRecentStatus(documentRef, row, tab, live, terminalRe
     : ({ active: '进行中', pending: '待处理', interrupted: '已中断', error: '出错' })[status] || '状态未知';
   dot.setAttribute('aria-label', label); dot.setAttribute('title', label);
 }
-
-// Unsent-draft mark, independent of the status icon: a finished conversation can still
-// hold a draft. Native drafts come from the backend snapshot; a terminal conversation's
-// draft lives in this page's sessionStorage under its composer key.
-export function updateNativeRecentDraft(row, tab, live, storage = globalThis.sessionStorage) {
-  const mark = row.draftMark;
-  if (!mark) return;
-  let text = '';
-  if (tab.kind === 'terminal') { try { text = String(storage?.getItem?.('terminal-draft:' + tab.id) || '').replace(/\s+/gu, ' ').trim().slice(0, 80); } catch {} }
-  else if (tab.kind === 'local') text = typeof live?.draft === 'string' ? live.draft : '';
-  if (mark.draftSignature === text) return;
-  mark.draftSignature = text;
-  mark.hidden = !text;
-  const label = text ? '未发送的草稿：' + text : '';
-  mark.setAttribute('title', label);
-  if (text) mark.setAttribute('aria-label', label); else mark.removeAttribute('aria-label');
-}

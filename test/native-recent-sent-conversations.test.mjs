@@ -248,27 +248,3 @@ test("tabs wire recent sent selection and snapshot refresh without another timer
   assert.match(tabs, /recentSentMenu\?\.destroy\(\)/);
   assert.doesNotThrow(() => new Function(tabs));
 });
-
-test("an unsent draft adds its own mark next to the status and clears once sent", () => {
-  const f = fixture({ items: [{ ...record(1), status: 'completed' }] });
-  let live = { status: 'completed', unread: false, draft: '修复一下' };
-  f.window.__codexControlConsoleAttentionConversations = { status: () => live };
-  f.trigger.dispatch('click');
-  const row = f.menu.children[0];
-  assert.equal(row.draftMark.hidden, false);
-  assert.equal(row.draftMark.getAttribute('title'), '未发送的草稿：修复一下');
-  assert.equal(row.statusDot.dataset.quiet, 'true', 'the draft does not replace the status');
-  live = { status: 'completed', unread: false }; f.sent.render();
-  assert.equal(row.draftMark.hidden, true);
-  assert.equal(f.menu.replaceCalls, 1, 'updated in place');
-});
-
-test("a terminal conversation's draft comes from its composer key in sessionStorage", async () => {
-  const { updateNativeRecentDraft } = await import('../src/native-recent-status.mjs');
-  const mark = { hidden: true, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
-  const storage = new Map([['terminal-draft:abc', '  已经\n重启过了 ']]);
-  updateNativeRecentDraft({ draftMark: mark }, { kind: 'terminal', id: 'abc' }, null, { getItem: k => storage.get(k) ?? null });
-  assert.equal(mark.hidden, false); assert.equal(mark.attrs.title, '未发送的草稿：已经 重启过了');
-  storage.clear(); updateNativeRecentDraft({ draftMark: mark }, { kind: 'terminal', id: 'abc' }, { draft: 'ignored for terminal rows' }, { getItem: k => storage.get(k) ?? null });
-  assert.equal(mark.hidden, true);
-});
