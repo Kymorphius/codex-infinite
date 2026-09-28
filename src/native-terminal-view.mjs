@@ -150,8 +150,11 @@ export function installNativeTerminalView(createSession, statusText, css) {
       view?.dispose(); view = null; last = null; notice = ''; output.replaceChildren(); sync(null);
       if (!record.runtimeSummary) return showStopped();
       launch.hidden = record.status === 'running';
-      const terminalHost = el('div'); terminalHost.style.cssText = 'width:100%;height:100%'; output.append(terminalHost);
-      view = createSession(record.runtimeSummary, { host: terminalHost,
+      const terminalHost = el('div'); terminalHost.style.cssText = 'width:100%;height:100%;background:var(--page)'; output.append(terminalHost);
+      // The canvas paints its own background; take the resolved native page color so the
+      // terminal matches the surrounding surface in both themes.
+      const background = globalThis.getComputedStyle?.(terminalHost)?.backgroundColor || '#181818';
+      view = createSession(record.runtimeSummary, { host: terminalHost, background,
         WebSocketCtor: api.socketClass(record.id), locationRef: { href: 'http://127.0.0.1/', protocol: 'http:' },
         onUiCommand: action => {
           if (disposed || record.kind !== 'claude') return;

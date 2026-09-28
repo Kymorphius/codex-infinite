@@ -2,11 +2,12 @@
 // through the shadow boundary; fallbacks keep the dark native appearance.
 export const NATIVE_TERMINAL_VIEW_STYLE = `
 :host{--fg:var(--color-text,#ececf1);--muted:var(--color-text-tertiary,#ffffff80);--line:var(--color-border,#ffffff16);
-  --surface:#2c2c2e;--raised:#3a3a3d;--page:var(--color-codex-terminal-background,#171719);
+  --surface:#2c2c2e;--raised:#3a3a3d;--page:var(--color-codex-terminal-background,var(--color-token-main-surface-primary,#181818));
   --ok:#3fb27f;--wait:#d9a640;--bad:#ef6b64;color:var(--fg);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
 button{font:inherit;color:inherit;cursor:pointer}button:disabled{opacity:.38;cursor:default}
 button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,var(--fg) 55%,transparent);outline-offset:1px}
+.xterm .xterm-viewport{background-color:var(--page)!important}
 .layout{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;background:var(--page);padding:10px 22px 14px}
 .bar{display:flex;align-items:center;gap:10px;min-height:34px;padding:0 2px 8px;border-bottom:1px solid var(--line)}
 .bar strong{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}

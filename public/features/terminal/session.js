@@ -6,7 +6,7 @@ export function createTerminalSession(initialSession, {
   host, onChange = () => {}, TerminalCtor = globalThis.Terminal,
   FitAddonCtor = globalThis.FitAddon?.FitAddon, WebSocketCtor = globalThis.WebSocket,
   locationRef = globalThis.location, ResizeObserverCtor = globalThis.ResizeObserver,
-  onUiCommand = null,
+  onUiCommand = null, background = "#171719",
   schedule = setTimeout, cancel = clearTimeout
 }) {
   let session = initialSession;
@@ -30,7 +30,7 @@ export function createTerminalSession(initialSession, {
   const terminal = new TerminalCtor({
     cursorBlink: true, fontSize: 13, fontFamily: '"SFMono-Regular", Menlo, Consolas, monospace',
     scrollback: 5000, allowProposedApi: false, disableStdin: true,
-    theme: { background: "#171719", foreground: "#e4e4e7", cursor: "#e4e4e7", selectionBackground: "#44444c" },
+    theme: { background, foreground: "#e4e4e7", cursor: "#e4e4e7", selectionBackground: "#44444c" },
     linkHandler: { activate() {}, hover() {}, leave() {} }
   });
   const fitAddon = new FitAddonCtor();

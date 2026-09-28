@@ -37,6 +37,7 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   assert.equal(titleHost.attributes['data-ccc-terminal-titlebar-content'], '', 'terminal title takes the native header slot');
   assert.equal(bar.parent, titleHost.shadowRoot); assert.equal(toolbar.children[1], nativeTitle, 'native header content stays for trailing actions');
   assert.equal(html.attributes['data-ccc-terminal-titlebar'], ''); assert.match(titleHost.shadowRoot.children[0].textContent, /\.bar button\{-webkit-app-region:no-drag;app-region:no-drag;pointer-events:auto\}/, 'every header button remains clickable in the native drag region'); assert.match(head.children[0].textContent, /:has\(\[data-app-shell-titlebar-content\]\)\{display:none!important\}/);
+  assert.equal(sessionOptions.background, '#181818', 'terminal canvas uses the native page color (fallback without a DOM)');
   sessionOptions.onUiCommand('redraw'); await Promise.resolve(); assert.equal(redrawn, 1);
   created.find(node => node.className === 'redraw').onclick(); assert.equal(redrawn, 2);
   assert.equal(send.disabled, true, 'empty draft cannot be sent');
@@ -63,6 +64,9 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   headerToolbar = null; window.__cccOpenNativeTerminal(record, host);
   const fallbackBar = created.filter(node => node.className === 'bar').at(-1), layout = created.filter(node => node.className === 'layout').at(-1);
   assert.equal(fallbackBar.parent, layout, 'without a native header the title stays inside the view'); window.__cccNativeTerminalView.dispose(); assert.deepEqual([surface.style.value, surface.style.priority], ['', '']); assert.equal(host.children.length, 1); assert.deepEqual(actions, []);
+  const { NATIVE_TERMINAL_VIEW_STYLE } = await import('../src/native-terminal-view-style.mjs');
+  assert.match(NATIVE_TERMINAL_VIEW_STYLE, /\.xterm \.xterm-viewport\{background-color:var\(--page\)!important\}/);
+  assert.match(NATIVE_TERMINAL_VIEW_STYLE, /--page:var\(--color-codex-terminal-background,var\(--color-token-main-surface-primary,#181818\)\)/);
 });
 
 test('terminal glyph measurement keeps fullwidth punctuation at full width in both terminal views', async () => {
