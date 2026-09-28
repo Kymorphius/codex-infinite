@@ -8,10 +8,23 @@ export function nativeTerminalHost(fallback) {
   return rect && rect.width > 260 && rect.height > 180 ? area : main;
 }
 
+// Native controls that replace the main page. The terminal view hides that page, so a
+// click on any of them must close the view first: thread rows and the new-chat buttons
+// (global and per-project). Console-owned sidebar controls never match.
+export function nativeNavigationControl(target) {
+  const row = target?.closest?.('[data-app-action-sidebar-thread-id],[data-sidebar-chatgpt-conversation-key],[data-codex-control-console-ordinary-chat-row]');
+  if (row) return row;
+  const button = target?.closest?.('button,a,[role="button"]');
+  if (!button || button.closest('[data-ccc-terminal-sidebar],[data-codex-control-console-workspace]')) return null;
+  const label = (button.getAttribute('aria-label') || button.textContent || '').trim();
+  return /^(新聊天|新对话|新建任务|New chat|New task)$|开始新聊天|新建会话|Start new chat|New chat in/i.test(label) ? button : null;
+}
+
 export function buildNativeProviderNavigationSource() {
   return `
 ${buildNativeTerminalProviderSource()}
 ${nativeTerminalHost}
+${nativeNavigationControl}
   let terminalTarget = null, terminalNavigationVersion = 0;
   function cancelTerminalNavigation() { terminalTarget = null; terminalNavigationVersion++; }
   function terminalReference(reference) {

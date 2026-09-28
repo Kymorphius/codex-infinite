@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { buildNativeProviderNavigationSource, nativeTerminalHost } from '../src/native-terminal-navigation.mjs';
+import { buildNativeProviderNavigationSource, nativeTerminalHost, nativeNavigationControl } from '../src/native-terminal-navigation.mjs';
 import { terminalConversationTab, createNativeTerminalTabController } from '../src/native-terminal-tabs.mjs';
 import { normalizeNativeConversationTab, NativeConversationTabState } from '../src/native-conversation-tab-state.mjs';
 import { createNativeConversationTabNormalizer } from '../src/native-conversation-tab-titles.mjs';
@@ -107,4 +107,24 @@ test('native terminal takes the enclosing focus area so the ChatGPT mode toggle 
   const bare = main(null); assert.equal(nativeTerminalHost(() => bare), bare);
   const narrow = main({ ...area, getBoundingClientRect: () => ({ width: 200, height: 676 }) }); assert.equal(nativeTerminalHost(() => narrow), narrow);
   const body = {}; assert.equal(nativeTerminalHost(() => body), body);
+});
+
+test('native new-chat buttons leave the terminal view; console controls do not', () => {
+  const node = (attrs = {}, text = '', inside = '') => {
+    const el = { textContent: text, getAttribute: name => attrs[name] ?? null };
+    el.closest = selector => {
+      if (selector.includes('data-app-action-sidebar-thread-id')) return attrs.row ? el : null;
+      if (selector.startsWith('button')) return el;
+      return inside && selector.includes(inside) ? {} : null;
+    };
+    return el;
+  };
+  for (const label of ['新聊天', 'New chat', '在 mulitca 中开始新聊天', 'New chat in mulitca']) assert.ok(nativeNavigationControl(node({ 'aria-label': label })), label);
+  assert.ok(nativeNavigationControl(node({}, '新对话')));
+  assert.ok(nativeNavigationControl(node({ row: true })));
+  assert.equal(nativeNavigationControl(node({ 'aria-label': '新建聊天首轮使用原生模型' })), null);
+  assert.equal(nativeNavigationControl(node({ 'aria-label': 'New chat' }, '', 'data-ccc-terminal-sidebar')), null);
+  assert.equal(nativeNavigationControl(node({ 'aria-label': '会话操作：新聊天' })), null);
+  assert.equal(nativeNavigationControl(null), null);
+  assert.match(buildNativeProviderNavigationSource(), /function nativeNavigationControl/);
 });

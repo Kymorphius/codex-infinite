@@ -299,7 +299,9 @@ ${providerSource}
   }
 
   function handleNativeThreadSelection(event) {
-    const conversation = event.target?.closest?.('[data-app-action-sidebar-thread-id],[data-sidebar-chatgpt-conversation-key],[data-codex-control-console-ordinary-chat-row]'); if (!conversation) return; cancelTerminalNavigation(); if (document.querySelector(WORKSPACE_SELECTOR)) setTimeout(restoreWorkspace, 0);
+    if (!nativeNavigationControl(event.target)) return; cancelTerminalNavigation(); if (document.querySelector(WORKSPACE_SELECTOR)) setTimeout(restoreWorkspace, 0);
+    // A new chat mounts no thread to re-activate, so drop the terminal tab or a reload reopens it over the native page.
+    const tabs = window.__codexControlConsoleConversationTabs; if (tabs?.active?.()?.kind === 'terminal') tabs.showConsole?.(undefined, true);
   }
 
   function boot() {

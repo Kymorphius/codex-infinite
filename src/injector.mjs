@@ -31,6 +31,7 @@ import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-c
 import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
 import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
 import { buildNativeComposerControlOrderSource } from "./native-composer-control-order.mjs";
+import { buildNativeComposerIconControlsSource } from "./native-composer-icon-controls.mjs";
 import { buildNativeLongConversationInjectionScript } from "./native-long-conversation.mjs";
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
 import { deferNativeDocumentSource, waitForReloadedNativeDocument } from "./native-document-bootstrap.mjs";
@@ -81,6 +82,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeOpenLocalProjectInjectionScript());
   await connection.evaluate(buildNativeComposerHeldQueueInjectionScript());
   await connection.evaluate(`(() => { ${buildNativeComposerControlOrderSource()} })()`);
+  await connection.evaluate(buildNativeComposerIconControlsSource());
   await connection.evaluate(buildNativeLongConversationInjectionScript());
   await connection.evaluate(buildNativeTurnStateInjectionScript());
   await connection.evaluate(buildNativeTurnStateSnapshotScript(turnStateSnapshot));
@@ -130,6 +132,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       source: deferNativeDocumentSource(buildNativeOpenLocalProjectInjectionScript())
     });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(`(() => { ${buildNativeComposerControlOrderSource()} })()`) });
+    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeComposerIconControlsSource()) });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeLongConversationInjectionScript()) });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeTurnStateInjectionScript()) });
     await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeNewProjectsInjectionScript()) });

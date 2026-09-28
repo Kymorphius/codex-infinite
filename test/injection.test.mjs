@@ -154,3 +154,10 @@ test("console rows can dismiss the native terminal view without an iframe worksp
   const restore = source.slice(source.indexOf("function restoreWorkspace()"), source.indexOf("function restoreWorkspace()") + 200);
   assert.match(restore, /window\.__cccNativeTerminalView\?\.dispose\(\)/);
 });
+
+test("native navigation controls close the terminal view and drop its active tab", () => {
+  const source = buildInjectionScript("http://127.0.0.1:47831");
+  const handler = source.slice(source.indexOf("function handleNativeThreadSelection"), source.indexOf("function boot()"));
+  assert.match(handler, /if \(!nativeNavigationControl\(event\.target\)\) return;/);
+  assert.match(handler, /active\?\.\(\)\?\.kind === 'terminal'\) tabs\.showConsole\?\.\(undefined, true\)/);
+});
