@@ -1,5 +1,10 @@
 # Sidebar running project status
 
+> 2026-09-28: the rail move is reverted. The native status rail stays at its trailing
+> edge (native behavior, hidden on hover for row actions); the leading slot is used by
+> the companion Claude disclosure (see 2026-09-28-claude-companion-sidebar.md). The
+> project-level mirror below is unchanged.
+
 Move the complete native conversation-status rail from the trailing edge to the
 reserved slot before the conversation title. This includes running and any other
 status rendered by the native client; selection/active-tab state must never be

@@ -1,14 +1,14 @@
-// Repositions native status rails with CSS; React retains ownership of their nodes.
+// Marks native status rails and mirrors their icon on the owning project. The rail stays at
+// its native trailing position (2026-09-28): the leading slot belongs to companion toggles.
 export function buildNativeSidebarActivityInjectionScript() {
   const stylesheet = [
     '@keyframes ccc-project-status-spin{to{transform:rotate(360deg)}}',
-    '[data-ccc-native-status-rail]{inset-inline-start:6px!important;inset-inline-end:auto!important;min-width:20px!important;width:20px!important;padding-inline:0!important;justify-content:center!important}',
     '[data-ccc-project-status-host]{display:flex;min-width:0;align-items:center}',
     '[data-ccc-project-status-host]::before{content:"";display:inline-block;box-sizing:border-box;width:14px;height:14px;flex:0 0 14px;margin-right:6px;background:var(--ccc-project-status-color,currentColor);-webkit-mask:var(--ccc-project-status-mask) center/contain no-repeat;mask:var(--ccc-project-status-mask) center/contain no-repeat;opacity:.82}',
     '[data-ccc-project-status-kind="running"]::before{animation:ccc-project-status-spin 2s linear infinite}'
   ].join('');
   return `(() => {
-  const VERSION = '2026-09-07.5';
+  const VERSION = '2026-09-28.1';
   const STYLE_ID = 'codex-control-console-sidebar-activity-style';
   const THREAD = '[data-app-action-sidebar-thread-id]';
   const PROJECT = '[data-app-action-sidebar-project-id]';

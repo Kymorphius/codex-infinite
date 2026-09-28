@@ -28,10 +28,19 @@ export function nativeCompanionPlacement(documentRef, record) {
   return item.parentElement ? { parent: item.parentElement, after: item } : null;
 }
 
-export function createNativeTerminalSidebar({ documentRef, readModel, open, menu }) {
+export function createNativeTerminalSidebar({ documentRef, readModel, open, menu, storage = documentRef.defaultView?.localStorage }) {
   const roots = new Map();
+  // Companions start collapsed under their Codex row; a disclosure in the row's left gutter
+  // expands them. Expanded threads are a per-viewer preference.
+  const EXPANDED_KEY = 'codex-control-console.companion-expanded.v1';
+  const expanded = new Set((() => { try { const value = JSON.parse(storage?.getItem(EXPANDED_KEY) || '[]'); return Array.isArray(value) ? value.filter(id => typeof id === 'string').slice(0, 200) : []; } catch { return []; } })());
+  function toggleCompanion(threadId) {
+    if (!expanded.delete(threadId)) expanded.add(threadId);
+    try { storage?.setItem(EXPANDED_KEY, JSON.stringify([...expanded])); } catch { /* Preference only. */ }
+    signature = ''; render();
+  }
   const make = (tag, text) => { const node = documentRef.createElement(tag); if (text) node.textContent = text; return node; };
-  const style = make('style'); style.textContent = '[data-ccc-terminal-sidebar]{display:flex;flex-direction:column;min-width:0;font:13px/20px system-ui;color:inherit}[data-ccc-terminal-sidebar-row]{display:flex;align-items:center;min-height:30px;border-radius:7px;padding:1px 5px;gap:3px}[data-ccc-terminal-sidebar-row]:hover{background:color-mix(in srgb,currentColor 7%,transparent)}[data-ccc-terminal-sidebar-row][data-selected="true"]{background:color-mix(in srgb,currentColor 11%,transparent)}[data-ccc-terminal-sidebar-row] button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:4px 5px}[data-ccc-terminal-sidebar-row] [data-terminal-open]{min-width:0;display:flex;align-items:center;gap:7px;flex:1;text-align:left}[data-ccc-terminal-sidebar-row] [data-terminal-title]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}[data-terminal-glyph]{width:16px;text-align:center;font:600 11px/1 ui-monospace,Menlo,monospace;opacity:.7}[data-terminal-engine]{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;padding:0 6px;border-radius:999px;font-size:10px;line-height:16px;color:#d9a640;background:color-mix(in srgb,#d9a640 14%,transparent)}[data-terminal-engine="shell"]{color:#8fb6ea;background:color-mix(in srgb,#8fb6ea 14%,transparent)}[data-terminal-engine][data-running="true"]::before{content:"";width:5px;height:5px;border-radius:50%;background:#3fb27f}[data-terminal-more]{opacity:.55}[data-ccc-terminal-fallback-heading]{padding:8px 10px;font-size:12px;opacity:.6}[data-ccc-terminal-sidebar-row][data-companion="true"]{padding-left:22px;min-height:26px;font-size:12px}[data-ccc-terminal-sidebar-row][data-companion="true"] [data-terminal-glyph]{opacity:.5}[data-terminal-engine="claude"]{color:#f2bd5c;background:color-mix(in srgb,#d9a640 26%,transparent);font-weight:600}[data-ccc-terminal-sidebar-row]:has([data-terminal-engine="claude"]) [data-terminal-glyph]{color:#f2bd5c;opacity:1}[data-ccc-terminal-sidebar-row][data-companion="true"]:has([data-terminal-engine="claude"]) [data-terminal-glyph]{opacity:.85}';
+  const style = make('style'); style.textContent = '[data-ccc-terminal-sidebar]{display:flex;flex-direction:column;min-width:0;font:13px/20px system-ui;color:inherit}[data-ccc-terminal-sidebar-row]{display:flex;align-items:center;min-height:30px;border-radius:7px;padding:1px 5px;gap:3px}[data-ccc-terminal-sidebar-row]:hover{background:color-mix(in srgb,currentColor 7%,transparent)}[data-ccc-terminal-sidebar-row][data-selected="true"]{background:color-mix(in srgb,currentColor 11%,transparent)}[data-ccc-terminal-sidebar-row] button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:4px 5px}[data-ccc-terminal-sidebar-row] [data-terminal-open]{min-width:0;display:flex;align-items:center;gap:7px;flex:1;text-align:left}[data-ccc-terminal-sidebar-row] [data-terminal-title]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}[data-terminal-glyph]{width:16px;text-align:center;font:600 11px/1 ui-monospace,Menlo,monospace;opacity:.7}[data-terminal-engine]{flex:0 0 auto;display:inline-flex;align-items:center;gap:4px;padding:0 6px;border-radius:999px;font-size:10px;line-height:16px;color:#d9a640;background:color-mix(in srgb,#d9a640 14%,transparent)}[data-terminal-engine="shell"]{color:#8fb6ea;background:color-mix(in srgb,#8fb6ea 14%,transparent)}[data-terminal-engine][data-running="true"]::before{content:"";width:5px;height:5px;border-radius:50%;background:#3fb27f}[data-terminal-more]{opacity:.55}[data-ccc-terminal-fallback-heading]{padding:8px 10px;font-size:12px;opacity:.6}[data-ccc-terminal-sidebar-row][data-companion="true"]{padding-left:22px;min-height:26px;font-size:12px}[data-ccc-terminal-sidebar-row][data-companion="true"] [data-terminal-glyph]{opacity:.5}[data-ccc-terminal-sidebar][data-companion-thread]{position:relative}[data-companion-toggle]{position:absolute;left:10px;z-index:1;width:16px;height:16px;padding:0;border:0;border-radius:4px;background:none;color:#f2bd5c;cursor:pointer;display:flex;align-items:center;justify-content:center}[data-companion-toggle]:hover{background:color-mix(in srgb,#d9a640 22%,transparent)}[data-companion-toggle]::before{content:"";width:5px;height:5px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .12s ease}[data-companion-toggle][aria-expanded="true"]::before{transform:rotate(45deg)}[data-terminal-engine="claude"]{color:#f2bd5c;background:color-mix(in srgb,#d9a640 26%,transparent);font-weight:600}[data-ccc-terminal-sidebar-row]:has([data-terminal-engine="claude"]) [data-terminal-glyph]{color:#f2bd5c;opacity:1}[data-ccc-terminal-sidebar-row][data-companion="true"]:has([data-terminal-engine="claude"]) [data-terminal-glyph]{opacity:.85}';
   documentRef.head.append(style);
   let signature = '', lastRecords = [], selected = '';
   function target(record, model) {
@@ -46,7 +55,7 @@ export function createNativeTerminalSidebar({ documentRef, readModel, open, menu
   function render(records = lastRecords, active = selected) {
     lastRecords = records; selected = active;
     let model; try { model = readModel(documentRef); } catch { return; }
-    const visible = records.filter(record => !record.archived), next = JSON.stringify([visible, active]);
+    const visible = records.filter(record => !record.archived), next = JSON.stringify([visible, active, [...expanded]]);
     const placements = visible.map(record => [record, target(record, model)]).filter(([, placement]) => placement?.parent);
     const expectedTails = new Map();
     const placed = placements.every(([record, placement]) => {
@@ -80,7 +89,17 @@ export function createNativeTerminalSidebar({ documentRef, readModel, open, menu
       const more = make('button', '···'); more.type = 'button'; more.dataset.terminalMore = ''; more.setAttribute('aria-label', '会话操作：' + record.title); more.onclick = () => menu(record);
       row.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); menu(record); };
       row.onkeydown = event => { if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) { event.preventDefault(); menu(record); } };
-      row.append(button, more); root.append(row);
+      row.append(button, more);
+      if (companion) {
+        // The toggle sits in the Codex row's gutter, just above this (possibly empty) root.
+        const isOpen = expanded.has(record.companionOf); root.dataset.companionThread = record.companionOf;
+        const toggle = make('button'); toggle.type = 'button'; toggle.dataset.companionToggle = ''; toggle.setAttribute('aria-expanded', String(isOpen));
+        toggle.title = (isOpen ? '收起' : '展开') + '伴生 Claude 会话：' + record.title; toggle.setAttribute('aria-label', toggle.title);
+        toggle.style.top = -Math.round((after?.getBoundingClientRect?.().height || 30) / 2 + 8) + 'px';
+        toggle.onclick = event => { event.preventDefault(); event.stopPropagation(); toggleCompanion(record.companionOf); };
+        root.append(toggle);
+        if (isOpen) root.append(row);
+      } else root.append(row);
       if (after) { const tail = tails.get(after) || after; parent.insertBefore(root, tail.nextSibling); tails.set(after, root); }
       else parent.append(root);
       roots.set(record.id, root);

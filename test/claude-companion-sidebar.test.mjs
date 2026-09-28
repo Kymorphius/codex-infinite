@@ -93,7 +93,7 @@ function node(attributes = {}) {
     addEventListener() {} };
 }
 
-test('the companion row mounts right under its Codex thread list item and disappears with it', () => {
+test('the companion mounts collapsed under its Codex thread, expands from the gutter toggle, and disappears with it', () => {
   // Native shape: list > item(role) > wrapper > wrapper > thread row, each wrapper with one child.
   const list = node(), item = node({ role: 'listitem' }), wrapper = node(), row = node({ 'data-app-action-sidebar-thread-id': 'local:' + THREAD });
   const nextThread = node({ role: 'listitem' });
@@ -105,11 +105,18 @@ test('the companion row mounts right under its Codex thread list item and disapp
     companionOf: THREAD, projectRef: null, pinned: false, archived: false, occupiedBy: 'codex' };
   assert.deepEqual(nativeCompanionPlacement(documentRef, record), { parent: list, after: item });
   const opened = [];
-  const sidebar = createNativeTerminalSidebar({ documentRef, readModel: () => ({ sections: [{ kind: 'tasks', node: { parentElement: node() } }] }), open: value => opened.push(value), menu() {} });
+  const stored = { value: null }, storage = { getItem: () => stored.value, setItem: (key, value) => { stored.value = value; } };
+  const sidebar = createNativeTerminalSidebar({ documentRef, readModel: () => ({ sections: [{ kind: 'tasks', node: { parentElement: node() } }] }), open: value => opened.push(value), menu() {}, storage });
   sidebar.render([record]);
   assert.equal(list.children[1].dataset.cccTerminalSidebar, SESSION, 'directly after its thread, before the next thread');
   assert.equal(list.children[2], nextThread);
-  const companionRow = list.children[1].children[0], button = companionRow.children[0];
+  // Collapsed by default: only the gutter toggle, remembered once expanded.
+  const toggle = list.children[1].children[0];
+  assert.equal(toggle.dataset.companionToggle, ''); assert.equal(toggle.attributes['aria-expanded'], 'false'); assert.equal(list.children[1].children.length, 1);
+  toggle.onclick({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(stored.value, JSON.stringify([THREAD]));
+  const companionRow = list.children[1].children[1], button = companionRow.children[0];
+  assert.equal(list.children[1].children[0].attributes['aria-expanded'], 'true');
   assert.equal(companionRow.dataset.companion, 'true');
   assert.equal(button.children[0].textContent, '↳'); assert.equal(button.children[2].textContent, 'Codex 回复中');
   button.onclick(); assert.equal(opened[0], record);

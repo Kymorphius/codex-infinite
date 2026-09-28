@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { buildNativeSidebarActivityInjectionScript } from '../src/native-sidebar-activity.mjs';
 
-test('sidebar activity moves only a real native status rail and mirrors its icon on the owning project', () => {
+test('sidebar activity marks only a real native status rail, leaves it at its native position and mirrors its icon on the owning project', () => {
+  assert.doesNotMatch(buildNativeSidebarActivityInjectionScript(), /inset-inline-start/, 'the rail is not moved to the leading slot');
   const decorate = node => Object.assign(node, {
     attributes: node.attributes || {}, style: node.style || { values: {}, setProperty(k, v) { this.values[k] = v; }, removeProperty(k) { delete this.values[k]; } },
     setAttribute(k, v) { this.attributes[k] = v; }, removeAttribute(k) { delete this.attributes[k]; }, getAttribute(k) { return this.attributes[k] ?? null; }
