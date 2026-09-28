@@ -65,7 +65,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     const selected = selection.selected(id);
     if (!selected && !routerReady()) return;
     close();
-    const preference = selection.preferred(id) || { effort: 'auto', nativeTools: false };
+    const preference = selection.preferred(id) || { effort: 'auto', nativeTools: true };
     try { await selection.set(id, selected ? null : preference.effort, preference.nativeTools); window.__cccClaudePreviewError = ''; }
     catch (error) { window.__cccClaudePreviewError = String(error.message || '切换失败'); open(); }
     schedule();
@@ -85,7 +85,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     effort.value = preference?.effort || 'auto'; label.append(effort);
     const toolsLabel = element('label', ' Claude 原生工具'), nativeTools = element('input');
     nativeTools.type = 'checkbox'; nativeTools.setAttribute('role', 'switch'); nativeTools.setAttribute('aria-label', 'Claude 原生工具');
-    nativeTools.checked = preference?.nativeTools === true; toolsLabel.prepend(nativeTools);
+    nativeTools.checked = preference?.nativeTools ?? true; toolsLabel.prepend(nativeTools);
     toolsLabel.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:14px;'; nativeTools.style.accentColor = '#62bd84';
     const message = element('p', window.__cccClaudePreviewError || (!id ? '请先打开本机会话' : '')); message.setAttribute('role', 'status');
     const save = element('button', '应用'), restore = element('button', '切回 GPT');

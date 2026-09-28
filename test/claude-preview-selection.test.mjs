@@ -14,10 +14,10 @@ function harness(overrides = {}) {
 }
 test('enable, change effort, reload and restore preserve only original model and effort', async () => {
   const h = harness(), c = h.controller;
-  await c.set(id, 'medium');
+  await c.set(id, 'medium', false);
   assert.equal(h.current().model, 'claude-subscription/opus');
   assert.equal(c.blocks(id), true); assert.equal(c.blocks(other), false);
-  await c.set(id, 'high');
+  await c.set(id, 'high', false);
   const reloaded = createClaudePreviewSelection(h.options);
   assert.equal(reloaded.selected(id).effort, 'high');
   await reloaded.set(id, null);
@@ -26,15 +26,19 @@ test('enable, change effort, reload and restore preserve only original model and
   assert.deepEqual(reloaded.preferred(id), { effort: 'high', nativeTools: false });
   assert.deepEqual(createClaudePreviewSelection(h.options).preferred(id), { effort: 'high', nativeTools: false });
 });
-test('auto effort selects the dedicated Router route with a supported native placeholder effort', async () => {
+test('new Claude selections default to native tools and auto effort uses the native Router route', async () => {
   const h = harness();
   await h.controller.set(id, 'auto');
-  assert.deepEqual(h.current(), { model: 'claude-subscription/opus-auto', reasoningEffort: 'medium' });
+  assert.deepEqual(h.current(), { model: 'claude-subscription/opus-auto-native', reasoningEffort: 'medium' });
   assert.equal(h.controller.selected(id).effort, 'auto');
-  await h.controller.set(id, 'auto', true);
-  assert.equal(h.current().model, 'claude-subscription/opus-auto-native');
+  assert.equal(h.controller.selected(id).nativeTools, true);
   await h.controller.set(id, null);
   assert.deepEqual(h.current(), h.initial);
+  assert.deepEqual(h.controller.preferred(id), { effort: 'auto', nativeTools: true });
+  await h.controller.set(id, 'auto', false);
+  assert.equal(h.current().model, 'claude-subscription/opus-auto');
+  await h.controller.set(id, null);
+  assert.deepEqual(h.controller.preferred(id), { effort: 'auto', nativeTools: false });
 });
 test('invalid selection is rejected before native setting calls', async () => {
   let reads = 0;
@@ -151,10 +155,12 @@ test('native button left click toggles Router model and right click opens the ne
   const gesture = { button: 0, preventDefault() {}, stopImmediatePropagation() {} };
   button.events.get('pointerup')(gesture);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(current.model, 'claude-subscription/opus-auto'); assert.equal(current.reasoningEffort, 'medium');
+  assert.equal(current.model, 'claude-subscription/opus-auto-native'); assert.equal(current.reasoningEffort, 'medium');
   button.events.get('contextmenu')({ preventDefault() {}, stopImmediatePropagation() {} });
   assert.equal(panels.at(-1).dataset.cccClaudePreviewPanel, '');
   assert.equal(panels.at(-1).style.left, '130px');
+  assert.equal(panels.at(-1).children[3].children[0].checked, true);
+  panels.at(-1).children[3].children[0].checked = false;
   panels.at(-1).children[2].children[0].value = 'high';
   panels.at(-1).children[5].children[0].onclick();
   await new Promise(resolve => setImmediate(resolve));

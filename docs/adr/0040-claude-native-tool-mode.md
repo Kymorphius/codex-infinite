@@ -3,7 +3,8 @@
 2026-09-28。用户要求在现有 Claude 面板提供完整工具开关。
 
 采用独立模型身份 `claude-subscription/opus-native`，复用现有会话设置写入、
-回读和恢复流程。原生工具默认关闭；Claude CLI 权限与 Codex 的访问授权独立。
+回读和恢复流程。新 Claude 会话默认开启原生工具，已保存的显式关闭偏好不改；
+Claude CLI 权限与 Codex 的访问授权独立。
 原生工具在官方 CLI 内执行。2026-09-29 用户明确纠正：自动推理强度与
 `bypassPermissions` 无冲突，所有 Claude Router CLI 启动均使用 bypass，
 包括客户端工具模式和原生工具模式。这覆盖本 ADR 原先的 auto 权限决策。

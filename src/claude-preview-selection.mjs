@@ -30,7 +30,7 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
     preferred(id) { return preferences.get(id) || null; },
     blocks(id) { return pending.has(id) || records.has(id); },
     busy(id) { return pending.has(id); },
-    async set(id, effort, nativeTools = false) {
+    async set(id, effort, nativeTools = true) {
       if (typeof nativeTools !== 'boolean') throw new Error('Claude 工具模式无效');
       if (!validId(id) || (effort !== null && !efforts.includes(effort))) throw new Error('Claude 会话或推理强度无效');
       if (pending.has(id)) throw new Error('正在修改这个会话，请稍候');
