@@ -18,7 +18,9 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const style = el('style'); style.textContent = css;
     const layout = el('div', 'layout'), bar = el('header', 'bar'), title = el('strong'), chip = el('span', 'chip'), cwd = el('span', 'cwd');
     const launch = el('button', 'launch', '启动会话'); bar.append(title, chip, cwd, launch);
-    const output = el('div', 'output'), composer = el('div', 'composer');
+    const output = el('div', 'output'), composer = el('div', 'composer'), choiceDock = el('section', 'choice-dock');
+    choiceDock.hidden = true; choiceDock.setAttribute('aria-label', 'Claude 当前选择');
+    const choiceTitle = el('strong', 'choice-title'), choiceList = el('div', 'choice-list'), choiceActions = el('div', 'choice-actions');
     const draft = el('textarea'); draft.rows = 1; draft.placeholder = '发送到终端…'; draft.setAttribute('aria-label', '终端会话输入');
     const footer = el('footer'), status = el('span', 'status'), send = el('button', 'send');
     status.setAttribute('role', 'status'); send.setAttribute('aria-label', '发送到终端'); send.disabled = true;
@@ -30,6 +32,8 @@ export function installNativeTerminalView(createSession, statusText, css) {
       button.onclick = () => { keys.open = false; const result = view?.sendKey(key); if (result && !result.ok) setNotice(result.message); else { clearNotice(); view?.activate(); } };
       return button;
     }
+    choiceActions.append(keyButton('pill', '↑ 上一项', 'up'), keyButton('pill', '↓ 下一项', 'down'), keyButton('pill', '空格选中', 'space'), keyButton('pill', '确认当前项', 'enter'), keyButton('pill', '取消', 'escape'));
+    choiceDock.append(choiceTitle, choiceList, choiceActions);
     const keys = el('details', 'keys'), more = el('summary', 'pill', '更多按键'), menu = el('div', 'menu'), grid = el('div', 'grid');
     for (const [label, key] of [['Enter', 'enter'], ['↑', 'up'], ['↓', 'down'], ['Esc', 'escape'], ['Tab', 'tab'], ['Ctrl+D', 'eof']]) grid.append(keyButton('', label, key));
     const paste = el('button', 'paste', '仅粘贴，不按 Enter'); paste.type = 'button'; inputs.push(paste); paste.onclick = () => { keys.open = false; void submit(false); };
@@ -39,7 +43,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const split = window.__cccCreateNativeTerminalSplit?.({ record, bar, output, api });
     const redraw = el('button', 'redraw', '重绘'); redraw.type = 'button'; redraw.title = '重新连接终端显示，不结束会话';
     redraw.onclick = () => view?.reconnect(); if (record.kind === 'claude') bar.append(redraw);
-    composer.append(draft, footer); layout.append(bar, split?.element || output, composer); shadow.append(style, layout); host.append(root);
+    composer.append(draft, footer); layout.append(bar, split?.element || output, choiceDock, composer); shadow.append(style, layout); host.append(root);
     // The native header keeps showing the last native conversation's name. Put this
     // conversation's title bar in that slot (trailing native actions stay) and fall back
     // to the in-view bar when the header is absent. React may remount the header, so re-attach.
@@ -111,6 +115,17 @@ export function installNativeTerminalView(createSession, statusText, css) {
       for (const button of inputs) button.disabled = !canInput;
       keys.toggleAttribute?.('data-disabled', !canInput); if (!canInput) keys.open = false;
       more.tabIndex = canInput ? 0 : -1; more.setAttribute('aria-disabled', String(!canInput));
+      const prompt = canInput && record.kind === 'claude' ? state?.choicePrompt : null;
+      choiceDock.hidden = !prompt;
+      if (prompt) {
+        choiceTitle.textContent = prompt.question;
+        const rows = prompt.options.map((option, index) => {
+          const row = el('div', 'choice-option', `${option.number}. ${option.label}`);
+          row.setAttribute('aria-current', String(index === prompt.selected));
+          return row;
+        });
+        choiceList.replaceChildren(...rows);
+      } else choiceList.replaceChildren();
     }
     const draftKey = 'terminal-draft:' + record.id;
     try { draft.value = sessionStorage.getItem(draftKey) || ''; } catch {}

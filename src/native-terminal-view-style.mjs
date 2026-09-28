@@ -29,6 +29,11 @@ button:focus-visible,summary:focus-visible{outline:2px solid color-mix(in srgb,v
    to half width there, so a lone '，' would get extra letter-spacing and push the row edge. */
 .xterm{text-spacing-trim:space-all}
 .xterm{max-width:100%;max-height:100%}
+.choice-dock{flex:0 0 auto;max-height:min(260px,35vh);overflow:auto;margin:0 0 8px;padding:10px 12px;border:1px solid #e5b53255;border-radius:14px;background:#e5b53212}
+.choice-dock[hidden]{display:none}.choice-title{display:block;margin-bottom:7px;font-size:13px;font-weight:600;white-space:pre-wrap}
+.choice-list{display:grid;gap:3px;max-height:125px;overflow:auto}.choice-option{padding:4px 8px;border-radius:7px;color:var(--muted);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.choice-option[aria-current=true]{background:#e5b53225;color:var(--fg)}.choice-option[aria-current=true]::before{content:'❯ ';color:#e5b532}
+.choice-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 /* Composer metrics mirror the native ChatGPT composer (_ComposerLayoutRoot_): #363636, 22px
    radius, 1px inset hairline, 14/20 text with 12px inset, 28px pills, 8px footer inset, 5px gaps. */
 .composer{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;padding:16px 8px 8px;border:0;border-radius:22px;

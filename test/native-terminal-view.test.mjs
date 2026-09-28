@@ -42,10 +42,19 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   draft.value = 'hello'; draft.oninput(); assert.equal(send.disabled, false); await send.onclick(); assert.deepEqual(pasted, ['hello', true]); assert.equal(draft.value, '');
   const chip = created.find(node => node.className === 'chip'), status = created.find(node => node.className === 'status');
   assert.equal(chip.textContent, 'Claude CLI'); assert.equal(status.attributes['data-tone'], 'ok');
+  const choiceDock = created.find(node => node.className === 'choice-dock');
+  sessionOptions.onChange({ session: record.runtimeSummary, connection: 'connected', canInput: true,
+    choicePrompt: { question: 'Which plan?', selected: 1, options: [{ number: 1, label: 'A' }, { number: 2, label: 'B' }] } });
+  assert.equal(choiceDock.hidden, false); assert.equal(created.find(node => node.className === 'choice-title').textContent, 'Which plan?');
+  created.find(node => node.textContent === '↓ 下一项').onclick();
+  created.find(node => node.textContent === '确认当前项').onclick();
+  assert.deepEqual(keys, ['down', 'enter'], 'choice controls return PTY keys without inventing approval');
+  sessionOptions.onChange({ session: record.runtimeSummary, connection: 'connected', canInput: true, choicePrompt: null });
+  assert.equal(choiceDock.hidden, true);
   draft.value = 'ls'; draft.oninput(); await created.find(node => node.className === 'paste').onclick(); assert.deepEqual(pasted, ['ls', false]);
   const interrupt = created.find(node => node.textContent === '打断'); keyResult = { ok: false, message: '终端输入过快，请等待' }; interrupt.onclick();
-  assert.deepEqual(keys, ['interrupt']); assert.equal(status.textContent, '终端输入过快，请等待'); assert.equal(status.attributes['data-tone'], 'bad');
-  keyResult = { ok: true }; created.find(node => node.textContent === 'Ctrl+D').onclick(); assert.deepEqual(keys, ['interrupt', 'eof']); assert.equal(status.attributes['data-tone'], 'ok');
+  assert.deepEqual(keys, ['down', 'enter', 'interrupt']); assert.equal(status.textContent, '终端输入过快，请等待'); assert.equal(status.attributes['data-tone'], 'bad');
+  keyResult = { ok: true }; created.find(node => node.textContent === 'Ctrl+D').onclick(); assert.deepEqual(keys, ['down', 'enter', 'interrupt', 'eof']); assert.equal(status.attributes['data-tone'], 'ok');
   window.__cccNativeTerminalView.update({ ...record, archived: true });
   assert.equal(disposed, 1); assert.equal(original.style.display, 'flex');
   assert.deepEqual(toolbar.children, [nativeTitle], 'native title comes back'); assert.equal(html.attributes['data-ccc-terminal-titlebar'], undefined);

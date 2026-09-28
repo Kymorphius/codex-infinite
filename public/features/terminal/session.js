@@ -1,4 +1,5 @@
 import { terminalMessage } from "./presentation.js";
+import { terminalChoicePrompt } from "./prompt.js";
 
 // A terminal owns its display and connection; the backend owns its process.
 export function createTerminalSession(initialSession, {
@@ -20,6 +21,8 @@ export function createTerminalSession(initialSession, {
   let pendingInput = null;
   let pasteOperation = null;
   let pendingOutputBytes = 0;
+  let choicePrompt = null;
+  let choiceSignature = '';
   const pendingWrites = new Set();
   const outputEncoder = new TextEncoder();
   const outputLimit = 2 * 1024 * 1024;
@@ -46,8 +49,16 @@ export function createTerminalSession(initialSession, {
   function writable(current = socket) {
     return !disposed && ready && current && socket === current && current.readyState === 1 && session.status === "running";
   }
-  function snapshot() { return { session, connection, error, canInput: Boolean(visible && writable()), sending: Boolean(pendingInput) }; }
+  function snapshot() { return { session, connection, error, canInput: Boolean(visible && writable()), sending: Boolean(pendingInput), choicePrompt: visible && ready && session.kind === 'claude' ? choicePrompt : null }; }
   function publish() { onChange(snapshot()); }
+  function refreshChoicePrompt() {
+    const next = session.kind === 'claude' && ready && visible ? terminalChoicePrompt(terminal.buffer?.active, terminal.rows) : null;
+    const signature = JSON.stringify(next);
+    if (signature === choiceSignature) return;
+    choicePrompt = next;
+    choiceSignature = signature;
+    publish();
+  }
   function finishInput(token, result) {
     if (pendingInput !== token) return;
     cancel(token.timer);
@@ -61,6 +72,7 @@ export function createTerminalSession(initialSession, {
   function pauseOutput(current, message) {
     if (socket !== current || disposed) return;
     ready = false;
+    choicePrompt = null; choiceSignature = '';
     cancelInput();
     terminal.options.disableStdin = true;
     cancel(retryTimer);
@@ -87,7 +99,7 @@ export function createTerminalSession(initialSession, {
     };
     try {
       terminal.write(data, () => {
-        if (release() && socket === current && !disposed) onParsed?.();
+        if (release() && socket === current && !disposed) { onParsed?.(); refreshChoicePrompt(); }
       });
     } catch {
       release();
@@ -155,7 +167,7 @@ export function createTerminalSession(initialSession, {
     });
   }
   function sendKey(key) {
-    const keys = { enter: "\r", escape: "\u001b", interrupt: "\u0003", tab: "\t", up: "\u001b[A", down: "\u001b[B", eof: "\u0004" };
+    const keys = { enter: "\r", escape: "\u001b", interrupt: "\u0003", tab: "\t", up: "\u001b[A", down: "\u001b[B", space: " ", eof: "\u0004" };
     if (!Object.hasOwn(keys, key)) return { ok: false, message: "不支持这个终端按键。" };
     if (key === "interrupt" || key === "escape") cancelInput();
     const issue = inputGate();
@@ -167,6 +179,7 @@ export function createTerminalSession(initialSession, {
     if (disposed || socket && socket.readyState < 2) return;
     cancel(retryTimer);
     ready = false;
+    choicePrompt = null; choiceSignature = '';
     cancelInput();
     terminal.options.disableStdin = true;
     error = "";
@@ -203,6 +216,7 @@ export function createTerminalSession(initialSession, {
         if (typeof frame.data === "string") writeOutput(current, frame.data);
       } else if (frame.type === "exit") {
         session = { ...session, status: "exited", exitCode: frame.exitCode };
+        choicePrompt = null; choiceSignature = '';
         cancelInput();
         terminal.options.disableStdin = true;
         publish();
@@ -214,6 +228,7 @@ export function createTerminalSession(initialSession, {
     current.onclose = (event) => {
       if (socket !== current || disposed) return;
       ready = false;
+      choicePrompt = null; choiceSignature = '';
       cancelInput();
       terminal.options.disableStdin = true;
       socket = null;
@@ -234,14 +249,15 @@ export function createTerminalSession(initialSession, {
   return {
     snapshot, pasteText, sendKey,
     focus() { if (visible && !disposed) terminal.focus(); },
-    update(value) { session = value; if (session.status !== "running") cancelInput(); publish(); },
-    activate() { visible = true; host.hidden = false; fit(); terminal.focus(); if (connection === "disconnected" && !attempts) connect(); else publish(); },
-    deactivate() { visible = false; host.hidden = true; cancelInput(); publish(); },
+    update(value) { session = value; if (session.status !== "running") { cancelInput(); choicePrompt = null; choiceSignature = ''; } publish(); },
+    activate() { visible = true; host.hidden = false; fit(); terminal.focus(); if (connection === "disconnected" && !attempts) connect(); else { publish(); refreshChoicePrompt(); } },
+    deactivate() { visible = false; host.hidden = true; cancelInput(); choicePrompt = null; choiceSignature = ''; publish(); },
     reconnect() {
       attempts = 0;
       const previous = socket;
       socket = null;
       ready = false;
+      choicePrompt = null; choiceSignature = '';
       cancelInput();
       if (previous) previous.close(1000, 'terminal display reconnect');
       connect();

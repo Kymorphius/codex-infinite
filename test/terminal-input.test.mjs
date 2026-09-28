@@ -185,8 +185,8 @@ test("interrupt and escape cancel pending submission before delivering their nat
 
 test("native key actions share the active socket and focus is limited to a visible live view", () => {
   const h = harness();
-  for (const key of ["enter", "escape", "interrupt", "tab", "up", "down", "eof"]) assert.deepEqual(h.view.sendKey(key), { ok: true });
-  assert.deepEqual(h.input(), ["\r", "\u001b", "\u0003", "\t", "\u001b[A", "\u001b[B", "\u0004"]);
+  for (const key of ["enter", "escape", "interrupt", "tab", "up", "down", "space", "eof"]) assert.deepEqual(h.view.sendKey(key), { ok: true });
+  assert.deepEqual(h.input(), ["\r", "\u001b", "\u0003", "\t", "\u001b[A", "\u001b[B", " ", "\u0004"]);
   assert.equal(h.view.sendKey("unsupported").ok, false);
   h.terminal.focused = false;
   h.view.focus();
