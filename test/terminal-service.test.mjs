@@ -149,11 +149,14 @@ test('process adapter preserves real HOME but strips infrastructure and provider
   for (const key of ['ANTHROPIC_API_KEY', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'SSH_AUTH_SOCK', 'NODE_OPTIONS', 'NODE_AUTH_TOKEN']) assert.equal(env[key], undefined);
   assert.deepEqual(terminalLaunch({ kind: 'claude', platform: 'darwin', env: { SHELL: '/bin/zsh' } }), { shell: '/bin/zsh', args: ['-lic', 'claude'] });
   assert.deepEqual(terminalLaunch({ kind: 'shell', platform: 'linux', env: { SHELL: 'injected args' } }), { shell: '/bin/bash', args: ['-l'] });
+  assert.deepEqual(terminalLaunch({ kind: 'claude', attachJob: '13649afa', platform: 'darwin', env: { SHELL: '/bin/zsh' } }), { shell: '/bin/zsh', args: ['-lic', 'claude attach 13649afa'] });
+  assert.throws(() => terminalLaunch({ kind: 'claude', attachJob: '13649afa; rm -rf ~', platform: 'darwin', env: {} }), { statusCode: 400 });
 });
 
-test('process cleanup targets only owned PTY group and its descendants', async () => {
+test('process cleanup targets only owned PTY group and its attached descendants, never detached daemons', async () => {
   const killed = [], root = process.pid + 10000;
-  const stdout = `${root} 1\n${root + 1} ${root}\n${root + 2} ${root + 1}\n${root + 3} 1\n${process.pid} 1\n`;
+  // root+4 is a daemon that detached from the terminal (no tty); it and its child survive.
+  const stdout = `${root} 1 ttys017\n${root + 1} ${root} ttys017\n${root + 2} ${root + 1} ttys017\n${root + 3} 1 ttys002\n${process.pid} 1 ??\n${root + 4} ${root + 1} ??\n${root + 5} ${root + 4} ttys018\n`;
   const pty = { pid: root, kill: signal => killed.push(['pty', signal]) };
   await killTerminalProcess(pty, { platform: 'darwin', executeCommand: async () => ({ stdout }), kill: (...args) => killed.push(args) });
   assert.deepEqual(killed, [[-root, 'SIGHUP'], [root + 2, 'SIGKILL'], [root + 1, 'SIGKILL'], ['pty', 'SIGKILL']]);

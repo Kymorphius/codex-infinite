@@ -84,7 +84,11 @@ test('a Claude session held by another window is read-only, offers a two-step ta
   timers.at(-1)(); assert.equal(launch.textContent, '强制接管', 'the confirmation expires');
   await launch.onclick(); await launch.onclick();
   assert.equal(JSON.stringify(requests), JSON.stringify([['start', { id: 'held', takeover: true }]])); assert.equal(status.textContent, '接管失败');
-  window.__cccNativeTerminalView.update({ ...record, occupiedElsewhere: false });
+  window.__cccNativeTerminalView.update({ ...record, occupiedBy: 'background' });
+  assert.equal(launch.textContent, '在此打开'); assert.equal(status.textContent, '正在 Claude 后台运行 · 可在此打开');
+  await launch.onclick();
+  assert.equal(JSON.stringify(requests.at(-1)), JSON.stringify(['start', { id: 'held' }]), 'a background session opens in one click without takeover');
+  window.__cccNativeTerminalView.update({ ...record, occupiedElsewhere: false, occupiedBy: null });
   assert.equal(launch.textContent, '启动会话', 'once the other window exits it is a normal start');
   await launch.onclick(); assert.equal(JSON.stringify(requests.at(-1)), JSON.stringify(['start', { id: 'held' }]), 'a plain start never asks to take over');
   window.__cccNativeTerminalView.dispose();

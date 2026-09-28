@@ -81,12 +81,15 @@ export function installNativeTerminalView(createSession, statusText, css) {
       cwd.textContent = (record.cwd || '').replace(/^\/Users\/[^/]+(?=\/|$)/u, '~'); cwd.title = record.cwd || '';
     }
     // Takeover ends the other window's Claude, so it needs a second click within 4s.
-    function disarm() { if (armed) clearTimeout(armed); armed = null; launch.removeAttribute('data-armed'); launch.textContent = record.occupiedElsewhere ? '强制接管' : '启动会话'; }
+    // Background-held sessions are opened (attached, shared); only a terminal window's hold needs takeover.
+    const needsTakeover = () => Boolean(record.occupiedElsewhere) && record.occupiedBy !== 'background';
+    function disarm() { if (armed) clearTimeout(armed); armed = null; launch.removeAttribute('data-armed'); launch.textContent = needsTakeover() ? '强制接管' : record.occupiedBy === 'background' ? '在此打开' : '启动会话'; }
     // Stopped here: startable, or read-only (with takeover) while another Claude window holds the session.
     function showStopped() {
       launch.hidden = record.status === 'running'; if (!armed) disarm();
-      launch.title = record.occupiedElsewhere ? '结束其他 Claude 窗口中的这个会话，并在这里继续' : '';
-      if (record.occupiedElsewhere) setStatus('正在其他 Claude 窗口中运行 · 此处只读', 'held');
+      launch.title = needsTakeover() ? '结束其他 Claude 窗口中的这个会话，并在这里继续' : record.occupiedBy === 'background' ? '连接到正在 Claude 后台运行的这个会话，不会停止它' : '';
+      if (record.occupiedBy === 'background') setStatus('正在 Claude 后台运行 · 可在此打开', 'held');
+      else if (record.occupiedElsewhere) setStatus('正在其他 Claude 窗口中运行 · 此处只读', 'held');
       else setStatus(record.runtimeError || '会话已停止，点击右上角启动', record.runtimeError ? 'bad' : 'idle');
     }
     function fit() { draft.style.height = 'auto'; if (draft.scrollHeight) draft.style.height = Math.min(draft.scrollHeight, 200) + 'px'; }
@@ -128,7 +131,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
       view.activate();
     }
     launch.onclick = async () => {
-      const takeover = Boolean(record.occupiedElsewhere);
+      const takeover = needsTakeover();
       if (takeover && !armed) { launch.textContent = '确认接管？将结束其他窗口'; launch.setAttribute('data-armed', ''); armed = setTimeout(disarm, 4000); return; }
       disarm();
       const token = ++generation; launch.disabled = true; setStatus(takeover ? '正在结束其他窗口并接管…' : '正在启动…', 'wait');

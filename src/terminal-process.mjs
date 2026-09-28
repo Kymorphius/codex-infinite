@@ -23,12 +23,16 @@ export async function validateTerminalCwd(cwd) {
   return cwd;
 }
 
-export function terminalLaunch({ kind, claudeSessionId, resume = false, env = process.env, platform = process.platform } = {}) {
+export function terminalLaunch({ kind, claudeSessionId, resume = false, attachJob, env = process.env, platform = process.platform } = {}) {
   if (claudeSessionId !== undefined && (typeof claudeSessionId !== 'string'
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(claudeSessionId))) {
     throw terminalError(400, 'Claude 会话标识无效');
   }
-  const command = claudeSessionId ? `claude ${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : 'claude';
+  // A daemon-hosted background session is opened with `claude attach`, which shares it
+  // with other viewers instead of resuming (which would fork a copy).
+  if (attachJob !== undefined && (typeof attachJob !== 'string' || !/^[0-9a-f]{8}$/u.test(attachJob))) throw terminalError(400, 'Claude 后台会话标识无效');
+  const command = attachJob ? `claude attach ${attachJob}`
+    : claudeSessionId ? `claude ${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : 'claude';
   if (platform === 'win32') {
     const shell = env.COMSPEC || path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
     return { shell, args: kind === 'claude' ? ['/d', '/s', '/c', command] : ['/d'] };
@@ -48,10 +52,14 @@ export async function killTerminalProcess(pty, { platform = process.platform, ex
   }
   const descendants = [];
   try {
-    const { stdout } = await executeCommand('/bin/ps', ['-A', '-o', 'pid=,ppid='], { timeout: 2000, maxBuffer: 2 * 1024 * 1024 });
+    const { stdout } = await executeCommand('/bin/ps', ['-A', '-o', 'pid=,ppid=,tty='], { timeout: 2000, maxBuffer: 2 * 1024 * 1024 });
     const parents = new Map();
     for (const line of stdout.split('\n')) {
-      const [child, parent] = line.trim().split(/\s+/u).map(Number);
+      const [childText, parentText, tty] = line.trim().split(/\s+/u), child = Number(childText), parent = Number(parentText);
+      // A descendant without a controlling terminal detached itself on purpose (e.g. the
+      // Claude daemon hosting every background session). Like closing a terminal window,
+      // leave it and everything below it running.
+      if (!tty || tty === '??' || tty === '?') continue;
       if (child > 1 && child !== process.pid && Number.isSafeInteger(parent)) {
         if (!parents.has(parent)) parents.set(parent, []);
         parents.get(parent).push(child);
@@ -68,12 +76,12 @@ export async function killTerminalProcess(pty, { platform = process.platform, ex
   try { pty.kill('SIGKILL'); } catch {}
 }
 
-export async function spawnTerminalProcess({ cwd, kind, cols, rows, claudeSessionId, resume,
+export async function spawnTerminalProcess({ cwd, kind, cols, rows, claudeSessionId, resume, attachJob,
   userHome = os.homedir(), env = process.env } = {}) {
   let library;
   try { library = await import('node-pty'); }
   catch { throw terminalError(503, '终端组件不可用，请重新安装本机依赖后重试'); }
-  const { shell, args } = terminalLaunch({ kind, claudeSessionId, resume, env });
+  const { shell, args } = terminalLaunch({ kind, claudeSessionId, resume, attachJob, env });
   let pty;
   try {
     pty = (library.spawn || library.default.spawn)(shell, args, {

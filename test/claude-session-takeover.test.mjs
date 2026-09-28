@@ -120,3 +120,27 @@ test('starting resumes the live transcript of the chain, never the stale managed
   await service.start({ id: created.id });
   assert.equal(spawned.at(-1).claudeSessionId, live); assert.equal(spawned.at(-1).resume, true);
 });
+
+test('a session held only by Claude background jobs is attached and shared, never stopped', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-attach-'));
+  const spawned = [], live = '13649afa-75c9-4f75-9acf-3e65689fa832';
+  const terminalService = new TerminalService({ userHome: directory, defaultCwd: directory, spawnProcess: async input => { spawned.push(input); return { onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }), kill: async () => {}, write() {}, resize() {} }; } });
+  t.after(async () => { await terminalService.dispose(); await fs.rm(directory, { recursive: true, force: true }); });
+  let held = [], takeovers = 0;
+  const occupancy = async () => held[0] || null; occupancy.all = async () => held;
+  const service = new TerminalConversationService({ terminalService, filePath: path.join(directory, 'registry.json'), deviceId: 'mac',
+    claudeTranscripts: { summary: async id => ({ title: '', lastUserMessageAt: null, ids: [id, live, 'fork'], resumeId: live }), search: async () => null },
+    claudeOccupancy: occupancy, claudeTakeover: async () => { takeovers++; }, transcriptExists: async () => true });
+  const created = await service.create({ cwd: directory, kind: 'claude' });
+  await service.stop({ id: created.id });
+  held = [{ pid: 7, sessionId: 'fork', jobId: '846a6733' }, { pid: 8, sessionId: live, jobId: '13649afa' }];
+  const viewed = await service.open({ id: created.id });
+  assert.equal(viewed.occupiedElsewhere, true); assert.equal(viewed.occupiedBy, 'background');
+  assert.equal((await service.start({ id: created.id })).status, 'running');
+  assert.equal(spawned.at(-1).attachJob, '13649afa', 'attaches to the job running the live transcript');
+  assert.equal(spawned.at(-1).claudeSessionId, undefined); assert.equal(takeovers, 0);
+  await service.stop({ id: created.id });
+  held = [{ pid: 8, sessionId: live, jobId: '13649afa' }, { pid: 9, sessionId: live }];
+  assert.equal((await service.open({ id: created.id })).occupiedBy, 'terminal', 'any terminal-window holder needs a takeover');
+  await assert.rejects(service.start({ id: created.id }), { statusCode: 409 }); assert.equal(takeovers, 0);
+});

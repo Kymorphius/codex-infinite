@@ -46,12 +46,18 @@ export class TerminalConversationService {
     const title = record.title === DEFAULT_CLAUDE_TITLE && summary.title ? summary.title : presented.title;
     // Like native conversations in use elsewhere, a Claude session another Claude process
     // holds is read-only here and cannot be started a second time.
-    const occupiedElsewhere = presented.status !== 'running' && Boolean(await this.occupant(summary.ids || [record.id]));
-    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere };
+    // A session held only by Claude background jobs can be opened here (attach) and
+    // shared; one held by a terminal window needs an explicit takeover.
+    const holders = presented.status === 'running' ? [] : await this.holders(summary.ids || [record.id]);
+    const occupiedBy = !holders.length ? null : holders.every(item => item.jobId) ? 'background' : 'terminal';
+    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy };
   }
 
-  async occupant(ids) {
-    try { return await this.claudeOccupancy(ids); } catch { return null; }
+  async holders(ids) {
+    try {
+      if (this.claudeOccupancy.all) return await this.claudeOccupancy.all(ids);
+      const first = await this.claudeOccupancy(ids); return first ? [first] : [];
+    } catch { return []; }
   }
 
   // Messages you sent in managed Claude conversations, newest first; archived ones excluded.
@@ -103,13 +109,19 @@ export class TerminalConversationService {
       if (record.kind === 'claude') {
         let ids = [id], resumeId = null;
         try { const chain = await this.claudeTranscripts.summary(id); ids = chain.ids || ids; resumeId = chain.resumeId || null; } catch { /* Check the managed id alone. */ }
-        const occupant = await this.occupant(ids);
-        if (occupant && !(takeover === true && this.claudeTakeover)) throw terminalError(409, `会话正在其他 Claude 窗口中运行（进程 ${occupant.pid}），请先在那里退出`);
-        // Explicit takeover ends the other Claude processes, then resumes here.
-        if (occupant) await this.claudeTakeover(ids);
-        // Resume the chain's live transcript, not the managed id (see claude-transcript resumeId).
-        const target = resumeId && await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: resumeId }) ? resumeId : id;
-        options = { claudeSessionId: target, resume: target !== id || await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id }) };
+        const holders = await this.holders(ids), jobs = holders.filter(item => item.jobId);
+        if (holders.length && jobs.length === holders.length) {
+          // Held only by Claude background jobs: attach to the live one and share it. Stopping
+          // and resuming instead lets Claude's own viewers restart it and fork a copy.
+          options = { attachJob: (jobs.find(item => item.sessionId === resumeId) || jobs[0]).jobId };
+        } else {
+          if (holders.length && !(takeover === true && this.claudeTakeover)) throw terminalError(409, `会话正在其他 Claude 窗口中运行（进程 ${holders[0].pid}），请先在那里退出`);
+          // Explicit takeover ends the other Claude processes, then resumes here.
+          if (holders.length) await this.claudeTakeover(ids);
+          // Resume the chain's live transcript, not the managed id (see claude-transcript resumeId).
+          const target = resumeId && await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: resumeId }) ? resumeId : id;
+          options = { claudeSessionId: target, resume: target !== id || await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id }) };
+        }
       }
       try {
         const session = await this.terminalService.createManaged({ cwd: record.cwd, kind: record.kind }, options);

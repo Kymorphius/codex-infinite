@@ -52,6 +52,18 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   immediately before every signal so a reused pid is never signalled. If any holder
   cannot be verified nothing is touched. If a holder survives or a new holder appears
   the start fails with 409. Only then is the session resumed here.
+- Background-held sessions are shared, not taken over (2026-09-28): when every live
+  holder is a daemon-hosted job, the record reports `occupiedBy: "background"`, the
+  view offers 在此打开 in one click, and start launches `claude attach <jobId>`
+  (8-hex, validated in `terminalLaunch`) for the job running the live transcript.
+  Attach coexists with other viewers and detaching leaves the job running (probed with
+  two concurrent attach clients). Stopping and resuming instead let the Claude app
+  restart the job and made Claude fork a copy. Any terminal-window holder reports
+  `occupiedBy: "terminal"` and still requires 强制接管.
+- PTY cleanup never follows detached processes: descendants without a controlling
+  terminal (`tty` `??`), such as the Claude daemon an interactive `claude` spawns, and
+  everything below them are left running, as closing a terminal window would. The old
+  walk SIGKILLed that daemon and every background session it hosted.
 - Resume target: Claude continues a resumed session in a new transcript and leaves a
   `continued-in` pointer in the old one. `--resume <managed id>` would reload only the
   history before the first continuation and fork an old branch (observed 2026-09-28:
