@@ -103,8 +103,9 @@ export class TerminalConversationService {
     this.currentCompanions = new Map(found.map(companion => [companion.threadId, companion.sessionId]));
     for (const companion of found) {
       try {
-        await this.store.adopt({ id: companion.sessionId, cwd: companion.cwd, kind: 'claude', title: DEFAULT_CLAUDE_TITLE,
+        const record = await this.store.adopt({ id: companion.sessionId, cwd: companion.cwd, kind: 'claude', title: DEFAULT_CLAUDE_TITLE,
           projectRef: null, companionOf: companion.threadId });
+        if (record.cwd !== companion.cwd) await this.store.relocateCompanion(record.id, companion.cwd);
       } catch { /* One unreadable or over-limit companion must not hide the rest. */ }
     }
   }

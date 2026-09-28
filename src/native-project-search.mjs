@@ -4,7 +4,7 @@ import { installNativeProjectSearchActions } from './native-project-search-actio
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
 export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
-  const VERSION = '2026-09-28.sidebar-groups';
+  const VERSION = '2026-09-28.companions';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -18,6 +18,27 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     if (text != null) node.textContent = text;
     return node;
   };
+  const COMPANION_KEY = 'codex-control-console.companion-expanded.v1';
+  function companionExpanded() {
+    try { const value = JSON.parse(localStorage.getItem(COMPANION_KEY) || '[]'); return new Set(Array.isArray(value) ? value.filter(id => typeof id === 'string') : []); } catch { return new Set(); }
+  }
+  function toggleCompanion(threadId) {
+    const open = companionExpanded(); if (!open.delete(threadId)) open.add(threadId);
+    try { localStorage.setItem(COMPANION_KEY, JSON.stringify([...open].slice(0, 200))); } catch { /* Preference only. */ }
+    render();
+  }
+  function companionRow(style, record) {
+    const row = make('button', style.thread + ' flex w-full min-w-0 items-center text-start');
+    row.style.paddingInlineStart = 'calc(var(--padding-row-cell-x,var(--padding-row-x)) + 26px)';
+    row.type = 'button'; row.setAttribute('draggable', 'false'); row.setAttribute('data-project-search-terminal-id', record.id); row.setAttribute('data-companion', 'true');
+    row.title = '伴生 Claude CLI 会话：' + record.title + (record.occupiedBy === 'codex' ? ' · Codex 正在用它回复' : '');
+    const title = make('span', 'flex min-w-0 flex-1 items-center gap-2 text-sm leading-5 text-default');
+    const glyph = make('span', 'shrink-0', '↳'); glyph.style.cssText = 'width:16px;text-align:center;font-weight:700'; glyph.setAttribute('data-terminal-glyph', '');
+    const tag = make('span', 'shrink-0', record.occupiedBy === 'codex' ? 'Codex 回复中' : 'CLI'); tag.setAttribute('data-terminal-engine', 'claude'); tag.setAttribute('data-running', String(record.status === 'running'));
+    title.append(glyph, make('span', 'min-w-0 flex-1 truncate', record.title), tag); row.append(title);
+    row.addEventListener('click', () => window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find(value => value.id === record.id) || record));
+    return row;
+  }
   function cleanClass(value) {
     return String(value || '').split(' ').filter(token => token !== 'bg-primary-ghost-hover').join(' ');
   }
@@ -75,8 +96,13 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     const query = input.value || '';
     const style = templates();
     const terminals = (window.__cccTerminalConversations?.records?.() || []).map(record => ({ id: record.id, deviceId: record.deviceId, provider: record.provider,
-      title: record.title, cwd: record.cwd, kind: record.kind, status: record.status, archived: record.archived, updatedAt: record.updatedAt, projectRef: record.projectRef }));
-    const next = JSON.stringify([query, snapshot, [...expanded], style.signature, terminals]);
+      title: record.title, cwd: record.cwd, kind: record.kind, status: record.status, archived: record.archived, updatedAt: record.updatedAt, projectRef: record.projectRef,
+      companionOf: record.companionOf || null, occupiedBy: record.occupiedBy || null }));
+    // Companion Claude sessions hang under their Codex task, collapsed unless expanded here or
+    // in the sidebar (shared per-viewer preference).
+    const companions = new Map(terminals.filter(record => record.companionOf && !record.archived).map(record => [record.companionOf, record]));
+    const companionOpen = companionExpanded();
+    const next = JSON.stringify([query, snapshot, [...expanded], style.signature, terminals, [...companionOpen]]);
     const rootClassName = (native.className || 'relative px-row-x') + ' py-1';
     if (root.className !== rootClassName) root.className = rootClassName;
     if (signature === next) return;
@@ -126,7 +152,8 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
         const title = make('span', 'flex min-w-0 flex-1 items-center gap-2 text-base leading-5 text-default');
         const glyph = make('span', 'shrink-0', record.kind === 'shell' ? '›_' : '◇'); glyph.style.cssText = 'width:22px;margin-inline-end:-8px;text-align:center'; glyph.setAttribute('data-terminal-glyph', '');
         const tag = make('span', 'shrink-0', engine); tag.setAttribute('data-terminal-engine', record.kind === 'shell' ? 'shell' : 'claude'); tag.setAttribute('data-running', String(record.status === 'running'));
-        title.append(glyph, make('span', 'min-w-0 truncate', record.title), tag); row.append(title);
+        // Same shape as the sidebar row: title fills the row so the tag sits at the trailing edge.
+        title.append(glyph, make('span', 'min-w-0 flex-1 truncate', record.title), tag); row.append(title);
         row.addEventListener('click', () => window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find(value => value.id === record.id) || record));
         results.append(row);
       }
@@ -151,7 +178,17 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
             window.postMessage({ type: 'navigate-to-route', path: '/local/' + task.id }, '*');
           }
         });
-        results.append(row);
+        const companion = remote ? null : companions.get(String(task.id).toLowerCase());
+        if (!companion) { results.append(row); continue; }
+        // The disclosure lives beside (not inside) the row button, over its leading gutter.
+        const holder = make('div', 'relative'); holder.setAttribute('data-project-search-companion-thread', task.id);
+        const isOpen = companionOpen.has(companion.companionOf);
+        const toggle = make('button', ''); toggle.type = 'button'; toggle.setAttribute('data-companion-toggle', ''); toggle.setAttribute('aria-expanded', String(isOpen));
+        toggle.title = (isOpen ? '收起' : '展开') + '伴生 Claude 会话：' + companion.title; toggle.setAttribute('aria-label', toggle.title);
+        toggle.style.cssText = 'top:50%;margin-top:-8px;left:calc(var(--padding-row-cell-x,var(--padding-row-x)) + 4px)';
+        toggle.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); toggleCompanion(companion.companionOf); });
+        holder.append(row, toggle); results.append(holder);
+        if (isOpen) results.append(companionRow(style, companion));
       }
       if (project.hiddenConversationCount) results.append(make('div', 'ps-6 py-1 text-sm text-tertiary', '另有 ' + project.hiddenConversationCount + ' 个会话未在此列出'));
     }

@@ -97,6 +97,18 @@ export class TerminalConversationStore {
     });
   }
 
+  // A companion's working directory follows Router (now the conversation's project); only
+  // companion records move, and only their cwd changes.
+  relocateCompanion(id, cwd) {
+    return this.mutate(async () => {
+      const current = this.records.get(terminalConversationId(id));
+      if (!current?.companionOf || current.cwd === cwd) return current ? structuredClone(current) : null;
+      const record = terminalConversationRecord({ ...current, cwd, revision: current.revision + 1, updatedAt: this.now().toISOString() }, this.deviceId);
+      const records = new Map(this.records); records.set(record.id, record);
+      await this.save(records); return structuredClone(record);
+    });
+  }
+
   update(id, expectedRevision, changes) {
     return this.mutate(async () => {
       const current = this.records.get(id);
