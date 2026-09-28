@@ -1,5 +1,6 @@
 import { buildNativeUnifiedSidebarInjectionScript } from './native-unified-sidebar.mjs';
 import { buildNativeClaudePreviewInjectionScript } from './native-claude-preview.mjs';
+import { buildNativeClaudeToolRowsInjectionScript } from './native-claude-tool-rows.mjs';
 import { syncProjectChecklist } from './project-checklist-sync.mjs';
 import { createProjectChecklistSyncWake, PROJECT_CHECKLIST_SYNC_BINDING } from './project-checklist-sync-wake.mjs';
 import { syncTurnAnnotations } from './turn-annotation-sync.mjs';
@@ -69,6 +70,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
   await connection.evaluate(buildNativeJevRoutingInjectionScript());
   await connection.evaluate(buildNativeClaudePreviewInjectionScript());
+  await connection.evaluate(buildNativeClaudeToolRowsInjectionScript());
   await connection.evaluate(buildNativeJevRoutingSnapshotScript(jevRouting));
   await connection.evaluate(buildNativeTurboInjectionScript());
   await connection.evaluate(buildNativeTurboSnapshotScript(turboPolicy));

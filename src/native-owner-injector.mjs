@@ -1,5 +1,6 @@
 import { buildNativePinnedEmptyInjectionScript } from "./native-pinned-empty.mjs";
 import { buildNativeClaudePreviewInjectionScript } from './native-claude-preview.mjs';
+import { buildNativeClaudeToolRowsInjectionScript } from './native-claude-tool-rows.mjs';
 import { buildNativeProjectSearchInjectionScript, buildNativeProjectSearchSnapshotScript } from "./native-project-search.mjs";
 import { buildNativeSentMessageSearchInjectionScript, respondToSentMessageSearch, SENT_MESSAGE_SEARCH_BINDING } from './native-sent-message-search.mjs';
 import { buildNativeAttentionConversationsInjectionScript, buildNativeAttentionConversationsSnapshotScript } from "./native-attention-conversations.mjs";
@@ -36,6 +37,7 @@ function nativeOwnerInjectionScripts() {
     buildNativeApprovalInjectionScript(),
     buildNativeJevRoutingInjectionScript(),
     buildNativeClaudePreviewInjectionScript(),
+    buildNativeClaudeToolRowsInjectionScript(),
     buildNativeTurboInjectionScript(),
     buildNativeSidebarLabelsInjectionScript(),
     buildNativeSidebarActivityInjectionScript(),
