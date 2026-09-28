@@ -19,7 +19,7 @@ const assetMap = new Map([
   ...["index", "model", "controller", "view", "editor"].map(name => [`/features/task-center/${name}.js`, { file: `features/task-center/${name}.js`, type: javascriptType }]),
   ...terminalAssets,
   ["/terminal-bridge.html", { file: "terminal-bridge.html", type: "text/html; charset=utf-8" }],
-  ...["session", "presentation", "bridge", "managed", "tasks", "legacy"].map(name => [`/features/terminal/${name}.js`, { file: `features/terminal/${name}.js`, type: javascriptType }]),
+  ...["session", "presentation", "prompt", "bridge", "managed", "tasks", "legacy"].map(name => [`/features/terminal/${name}.js`, { file: `features/terminal/${name}.js`, type: javascriptType }]),
   ["/conversations.html", { file: "conversations.html", type: "text/html; charset=utf-8" }],
   ["/styles/conversations.css", { file: "styles/conversations.css", type: "text/css; charset=utf-8" }],
   ...["model", "index"].map(name => [`/features/conversations/${name}.js`, { file: `features/conversations/${name}.js`, type: javascriptType }]),

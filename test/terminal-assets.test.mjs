@@ -20,3 +20,15 @@ test('terminal runtime serves only the three pinned browser assets', async () =>
     assert.equal(resolveStaticAsset(url), null);
   }
 });
+
+test('terminal session imports a served choice prompt module', async () => {
+  const asset = resolveStaticAsset('/features/terminal/prompt.js');
+  assert.match(asset?.type || '', /^text\/javascript/);
+  const source = await fs.readFile(asset.path, 'utf8');
+  assert.match(source, /export function terminalChoicePrompt/);
+  let status;
+  await serveStaticAsset({ method: 'GET', url: '/features/terminal/prompt.js' }, {
+    writeHead(code) { status = code; }, end() {}
+  });
+  assert.equal(status, 200);
+});
