@@ -93,3 +93,34 @@ test('a Claude session held by another window is read-only, offers a two-step ta
   await launch.onclick(); assert.equal(JSON.stringify(requests.at(-1)), JSON.stringify(['start', { id: 'held' }]), 'a plain start never asks to take over');
   window.__cccNativeTerminalView.dispose();
 });
+
+test('opening a conversation opens it once: resume or attach automatically, never a takeover', async () => {
+  const harness = (record, fail = false) => {
+    const created = [], requests = [];
+    const window = { __cccTerminalNative: { socketClass: () => class {}, async request(operation, input) { requests.push(JSON.stringify([operation, input])); if (fail) throw Error('启动失败'); return { conversation: { ...record, runtimeSessionId: null } }; } } };
+    const documentRef = { documentElement: new Node('html'), head: new Node('head'), body: new Node('body'), getElementById: () => null, querySelector: () => null,
+      createElement(tag) { const node = new Node(tag); created.push(node); return node; } };
+    const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(),
+      sessionStorage: { getItem() {}, setItem() {} }, setTimeout: () => 1, clearTimeout: () => {} });
+    vm.runInContext(`(${installNativeTerminalView.toString()})(() => { throw Error('no session'); }, () => '', '')`, context);
+    window.__cccOpenNativeTerminal(record, new Node('main'));
+    return { window, requests, launch: created.find(node => node.className === 'launch'), status: created.find(node => node.className === 'status') };
+  };
+  const base = { id: 'c1', title: '看板会话交互', kind: 'claude', status: 'stopped', runtimeSessionId: null, runtimeSummary: null, occupiedElsewhere: false, occupiedBy: null };
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  const stopped = harness(base); await tick();
+  assert.deepEqual(stopped.requests, [JSON.stringify(['start', { id: 'c1' }])], 'a stopped conversation resumes on open'); assert.equal(stopped.launch.hidden, true);
+  const background = harness({ ...base, occupiedElsewhere: true, occupiedBy: 'background' }); await tick();
+  assert.deepEqual(background.requests, [JSON.stringify(['start', { id: 'c1' }])], 'a background session is attached on open');
+  const terminal = harness({ ...base, occupiedElsewhere: true, occupiedBy: 'terminal' }); await tick();
+  assert.deepEqual(terminal.requests, [], 'a takeover is never automatic'); assert.equal(terminal.launch.hidden, false); assert.equal(terminal.launch.textContent, '强制接管');
+  const codex = harness({ ...base, occupiedElsewhere: true, occupiedBy: 'codex', companionOf: 't' }); await tick();
+  assert.deepEqual(codex.requests, [], 'waits while Codex is replying');
+  codex.window.__cccNativeTerminalView.update({ ...base, companionOf: 't' }); await tick();
+  assert.deepEqual(codex.requests, [JSON.stringify(['start', { id: 'c1' }])], 'opens once the Codex turn ends');
+  const failing = harness(base, true); await tick();
+  assert.equal(failing.launch.hidden, false, 'the button returns for a retry'); assert.equal(failing.status.textContent, '启动失败');
+  failing.window.__cccNativeTerminalView.update({ ...base, runtimeError: '启动失败' }); await tick();
+  assert.equal(failing.requests.length, 1, 'no automatic retry loop');
+  for (const value of [stopped, background, terminal, codex, failing]) value.window.__cccNativeTerminalView?.dispose();
+});

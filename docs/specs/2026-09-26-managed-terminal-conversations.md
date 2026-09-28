@@ -52,6 +52,12 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   immediately before every signal so a reused pid is never signalled. If any holder
   cannot be verified nothing is touched. If a holder survives or a new holder appears
   the start fails with 409. Only then is the session resumed here.
+- Opening opens (2026-09-28): showing a Claude conversation that is not running
+  starts it without a click, once per view: a stopped session resumes, a
+  background-held one is attached (status 「正在连接…」). No automatic action when it
+  needs a takeover (terminal window), a Codex turn holds a companion (it opens as soon
+  as the turn ends while the view is shown), the last start failed (the button returns
+  with the error, no retry loop) or the session exited while shown (「启动会话」 stays).
 - Background-held sessions are shared, not taken over (2026-09-28): when every live
   holder is a daemon-hosted job, the record reports `occupiedBy: "background"`, the
   view offers 在此打开 in one click, and start launches `claude attach <jobId>`

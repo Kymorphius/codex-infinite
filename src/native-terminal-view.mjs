@@ -3,7 +3,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
     window.__cccNativeTerminalView?.dispose();
     const api = window.__cccTerminalNative;
     if (!host || !api) return false;
-    let view = null, disposed = false, generation = 0, busy = false, notice = '', last = null, armed = null;
+    let view = null, disposed = false, generation = 0, busy = false, notice = '', last = null, armed = null, autoOpen = true, starting = false;
     const saved = [...host.children].map(node => [node, node.style.display]);
     for (const [node] of saved) node.style.display = 'none';
     // The page-tab inset reserves an empty row above native pages; the terminal reclaims it.
@@ -84,8 +84,15 @@ export function installNativeTerminalView(createSession, statusText, css) {
     // Background-held sessions are opened (attached, shared); only a terminal window's hold needs takeover.
     const needsTakeover = () => Boolean(record.occupiedElsewhere) && record.occupiedBy !== 'background';
     function disarm() { if (armed) clearTimeout(armed); armed = null; launch.removeAttribute('data-armed'); launch.textContent = needsTakeover() ? '强制接管' : record.occupiedBy === 'background' ? '在此打开' : '启动会话'; }
+    // Opening a conversation opens it: resume it, or attach to its Claude background job, once
+    // per view. A takeover (ends another window), a start error, a Codex turn in progress or a
+    // session that exited while shown keep the explicit button instead.
+    const canAutoOpen = () => autoOpen && !record.runtimeSummary && record.status !== 'running' && !record.archived
+      && !record.runtimeError && !needsTakeover();
     // Stopped here: startable, or read-only (with takeover) while another Claude window holds the session.
     function showStopped() {
+      if (canAutoOpen()) { autoOpen = false; launch.hidden = true; void startHere(false); return; }
+      if (starting) { launch.hidden = true; return; }
       launch.hidden = record.status === 'running'; if (!armed) disarm();
       launch.title = needsTakeover() ? '结束其他 Claude 窗口中的这个会话，并在这里继续' : record.occupiedBy === 'background' ? '连接到正在 Claude 后台运行的这个会话，不会停止它' : '';
       if (record.occupiedBy === 'background') setStatus('正在 Claude 后台运行 · 可在此打开', 'held');
@@ -133,12 +140,15 @@ export function installNativeTerminalView(createSession, statusText, css) {
     launch.onclick = async () => {
       const takeover = needsTakeover();
       if (takeover && !armed) { launch.textContent = '确认接管？将结束其他窗口'; launch.setAttribute('data-armed', ''); armed = setTimeout(disarm, 4000); return; }
-      disarm();
-      const token = ++generation; launch.disabled = true; setStatus(takeover ? '正在结束其他窗口并接管…' : '正在启动…', 'wait');
-      try { const result = await api.request('start', takeover ? { id: record.id, takeover: true } : { id: record.id }); if (!disposed && token === generation) { window.__cccTerminalConversations?.accept(result.conversation); mount(result.conversation); } }
-      catch (error) { if (!disposed) setNotice(error.message); }
-      finally { if (!disposed) launch.disabled = false; }
+      disarm(); autoOpen = false; await startHere(takeover);
     };
+    async function startHere(takeover) {
+      const token = ++generation; launch.disabled = true; starting = true;
+      setStatus(takeover ? '正在结束其他窗口并接管…' : record.occupiedBy === 'background' ? '正在连接…' : '正在启动…', 'wait');
+      try { const result = await api.request('start', takeover ? { id: record.id, takeover: true } : { id: record.id }); if (!disposed && token === generation) { window.__cccTerminalConversations?.accept(result.conversation); mount(result.conversation); } }
+      catch (error) { if (!disposed) { launch.hidden = false; disarm(); setNotice(error.message); } }
+      finally { starting = false; if (!disposed) launch.disabled = false; }
+    }
     const state = { id: record.id, composer, update(value) { if (disposed || value.id !== record.id) return; if (value.archived) state.dispose(); else if (value.runtimeSessionId !== record.runtimeSessionId) mount(value); else { record = value; showRecord(); if (!view) showStopped(); } },
       dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
