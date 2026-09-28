@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 
 test("Windows service startup projects the private primary bridge configuration", async () => {
   const script = await fs.readFile(new URL("../scripts/start-windows.ps1", import.meta.url), "utf8");
+  assert.match(script, /\$env:CODEX_CONTROL_CDP_PORT\s*=\s*if \(\$null -eq \$config\.cdpPort\) \{ '9231' \} else \{ \[string\]\$config\.cdpPort \}/);
   for (const name of [
     "CODEX_CONTROL_PRIMARY_CDP_HOST",
     "CODEX_CONTROL_PRIMARY_CDP_PORT",
@@ -15,6 +16,7 @@ test("Windows service startup projects the private primary bridge configuration"
 
 test("Windows installer records a disabled loopback-only primary bridge", async () => {
   const script = await fs.readFile(new URL("../scripts/install-windows.ps1", import.meta.url), "utf8");
+  assert.match(script, /cdpPort\s*=\s*9231/);
   assert.match(script, /primaryCdpHost\s*=\s*'127\.0\.0\.1'/);
   assert.match(script, /primaryCdpPort\s*=\s*9232/);
   assert.match(script, /primaryCdpEnabled\s*=\s*\$false/);

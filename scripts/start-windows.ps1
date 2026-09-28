@@ -32,6 +32,7 @@ if ([string]::IsNullOrWhiteSpace([string]$config.localManagerDeviceDirectoryPath
   $env:CODEX_CONTROL_LOCALMANAGER_DEVICE_DIRECTORY = [string]$config.localManagerDeviceDirectoryPath
 }
 $env:CODEX_CONTROL_CODEX_PATH = [string]$config.codexExecutable
+$env:CODEX_CONTROL_CDP_PORT = if ($null -eq $config.cdpPort) { '9231' } else { [string]$config.cdpPort }
 $env:CODEX_CONTROL_PRIMARY_CDP_HOST = if ([string]::IsNullOrWhiteSpace([string]$config.primaryCdpHost)) { '127.0.0.1' } else { [string]$config.primaryCdpHost }
 $env:CODEX_CONTROL_PRIMARY_CDP_PORT = if ($null -eq $config.primaryCdpPort) { '9232' } else { [string]$config.primaryCdpPort }
 $env:CODEX_CONTROL_PRIMARY_CDP_ENABLED = if ([bool]$config.primaryCdpEnabled) { 'true' } else { 'false' }

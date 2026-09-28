@@ -87,6 +87,7 @@ $runtimeConfig = [ordered]@{
   sourceCodexHome = $sourceHome
   wrapperCodexHome = $wrapperHome
   peerConfigPath = $peerConfigPath
+  cdpPort = 9231
   primaryCdpHost = '127.0.0.1'
   primaryCdpPort = 9232
   primaryCdpEnabled = $false
