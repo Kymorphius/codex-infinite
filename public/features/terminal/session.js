@@ -36,6 +36,23 @@ export function createTerminalSession(initialSession, {
   const fitAddon = new FitAddonCtor();
   terminal.loadAddon(fitAddon);
   terminal.open(host);
+  const clipboardHasImage = event => [
+    ...Array.from(event.clipboardData?.items || []),
+    ...Array.from(event.clipboardData?.files || []),
+  ].some(item => /^image\//iu.test(item.type || ''))
+    || Array.from(event.clipboardData?.types || []).some(type => /^image\//iu.test(type));
+  const imagePaste = event => {
+    if (session.kind !== 'claude' || !clipboardHasImage(event)) return;
+    event.preventDefault(); event.stopPropagation();
+    sendKey('paste-image');
+  };
+  host.addEventListener?.('paste', imagePaste, true);
+  terminal.attachCustomKeyEventHandler?.(event => {
+    if (session.kind !== 'claude' || event.key !== 'Enter' || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return true;
+    event.preventDefault(); event.stopPropagation();
+    if (event.type === 'keydown') sendKey('send-now');
+    return false;
+  });
   // OSC 777 is display-only. Replay is parsed while `ready` is false, so an
   // old request never runs again after a reconnect.
   const uiCommands = new Set(['split=open', 'split=close', 'split=toggle', 'split=refresh', 'redraw']);
@@ -146,8 +163,10 @@ export function createTerminalSession(initialSession, {
     if (!visible || !writable()) return "终端暂不可输入，请先连接并切换到正在运行的会话。";
     return "";
   }
-  function pasteText(text, { submit = false } = {}) {
-    const issue = inputGate() || (typeof text !== "string" || !text.length ? "请输入内容。"
+  function pasteText(text, { submit = false, sendNow = false } = {}) {
+    const issue = inputGate() || (sendNow && session.kind !== 'claude' ? "此快捷键只用于 Claude 会话。"
+      : submit && sendNow ? "不能同时指定两种发送方式。"
+      : typeof text !== "string" || !text.length ? "请输入内容。"
       : /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(text) ? "底部输入仅支持普通文本，请在终端直接使用控制按键。"
       : outputEncoder.encode(text).byteLength > 65536 ? "输入超过 64 KiB，请缩短后再发送。"
       : /[\r\n]/u.test(text) && !terminal.modes?.bracketedPasteMode ? "当前程序未启用多行粘贴，请在终端直接输入。" : "");
@@ -160,17 +179,18 @@ export function createTerminalSession(initialSession, {
       finally { pasteOperation = null; }
       if (pendingInput !== token) return;
       if (token.failed || !token.frames) { finishInput(token, { ok: false, message: interruptedInput }); return; }
-      if (!submit) { finishInput(token, { ok: true }); return; }
+      if (!submit && !sendNow) { finishInput(token, { ok: true }); return; }
       token.timer = schedule(() => {
         if (pendingInput !== token) return;
-        const ok = Boolean(visible && writable(token.socket) && send({ type: "input", data: "\r" }, token.socket));
+        const ok = Boolean(visible && writable(token.socket) && send({ type: "input", data: sendNow ? "\u0018\u0013" : "\r" }, token.socket));
         finishInput(token, ok ? { ok: true } : { ok: false, message: interruptedInput });
       }, 50);
     });
   }
   function sendKey(key) {
-    const keys = { enter: "\r", escape: "\u001b", interrupt: "\u0003", tab: "\t", up: "\u001b[A", down: "\u001b[B", space: " ", eof: "\u0004" };
+    const keys = { enter: "\r", escape: "\u001b", interrupt: "\u0003", tab: "\t", up: "\u001b[A", down: "\u001b[B", space: " ", eof: "\u0004", 'paste-image': "\u0016", 'send-now': "\u0018\u0013" };
     if (!Object.hasOwn(keys, key)) return { ok: false, message: "不支持这个终端按键。" };
+    if (session.kind !== 'claude' && (key === 'paste-image' || key === 'send-now')) return { ok: false, message: "此快捷键只用于 Claude 会话。" };
     if (key === "interrupt" || key === "escape") cancelInput();
     const issue = inputGate();
     if (issue) return { ok: false, message: issue };
@@ -287,6 +307,7 @@ export function createTerminalSession(initialSession, {
       cancel(retryTimer);
       observer.disconnect();
       inputSubscription.dispose();
+      host.removeEventListener?.('paste', imagePaste, true);
       uiSubscription?.dispose?.();
       socket?.close();
       socket = null;

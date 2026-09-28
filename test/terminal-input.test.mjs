@@ -2,13 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createTerminalSession } from "../public/features/terminal/session.js";
 
-function harness({ connected = true, bracketed = true } = {}) {
+function harness({ connected = true, bracketed = true, kind = 'claude' } = {}) {
   const sockets = [], timers = [], changes = [];
   let terminal;
   class Terminal {
     constructor(options) { terminal = this; this.options = options; this.modes = { bracketedPasteMode: bracketed }; this.callbacks = []; }
     loadAddon() {}
     open() {}
+    attachCustomKeyEventHandler(callback) { this.keyHandler = callback; }
     onData(callback) { this.input = callback; return { dispose() {} }; }
     resize(cols, rows) { this.cols = cols; this.rows = rows; }
     reset() {}
@@ -32,9 +33,12 @@ function harness({ connected = true, bracketed = true } = {}) {
     receive(frame) { this.onmessage({ data: JSON.stringify(frame) }); }
     disconnect(code = 1006) { this.readyState = 3; this.onclose({ code }); }
   }
-  const session = { id: "one", status: "running", cols: 80, rows: 24 };
+  const session = { id: "one", kind, status: "running", cols: 80, rows: 24 };
+  const listeners = new Map();
+  const host = { getBoundingClientRect: () => ({ width: 1, height: 1 }), remove() {},
+    addEventListener(type, callback) { listeners.set(type, callback); }, removeEventListener(type) { listeners.delete(type); } };
   const view = createTerminalSession(session, {
-    host: { getBoundingClientRect: () => ({ width: 1, height: 1 }), remove() {} },
+    host,
     TerminalCtor: Terminal, FitAddonCtor: class { fit() {} }, WebSocketCtor: Socket,
     ResizeObserverCtor: class { observe() {} disconnect() {} },
     locationRef: { href: "http://127.0.0.1/", protocol: "http:" }, onChange: (value) => changes.push(value),
@@ -44,8 +48,46 @@ function harness({ connected = true, bracketed = true } = {}) {
   const ready = () => { sockets.at(-1).receive({ type: "ready", session, replay: "" }); terminal.callbacks.shift()(); };
   if (connected) { view.activate(); ready(); }
   const input = (socket = sockets.at(-1)) => socket.sent.filter((frame) => frame.type === "input").map((frame) => frame.data);
-  return { view, terminal, sockets, timers, changes, session, ready, input };
+  return { view, terminal, sockets, timers, changes, session, ready, input, listeners };
 }
+
+test('Claude image paste and Command-Enter use the CLI control keys while text and Shell stay native', () => {
+  const h = harness();
+  let prevented = 0;
+  const event = type => ({ clipboardData: { items: [{ type }] }, preventDefault() { prevented++; }, stopPropagation() {} });
+  h.listeners.get('paste')(event('text/plain'));
+  assert.deepEqual(h.input(), []);
+  h.listeners.get('paste')(event('image/png'));
+  assert.deepEqual(h.input(), ['\u0016']); assert.equal(prevented, 1);
+  const key = { type: 'keydown', key: 'Enter', metaKey: true, preventDefault() { prevented++; }, stopPropagation() {} };
+  assert.equal(h.terminal.keyHandler(key), false);
+  assert.deepEqual(h.input(), ['\u0016', '\u0018\u0013']);
+  assert.equal(h.terminal.keyHandler({ ...key, metaKey: false }), true);
+  const shell = harness({ kind: 'shell' });
+  shell.listeners.get('paste')(event('image/png'));
+  assert.equal(shell.terminal.keyHandler(key), true);
+  assert.deepEqual(shell.input(), []);
+  assert.equal(shell.view.sendKey('paste-image').ok, false);
+  assert.equal(shell.view.sendKey('send-now').ok, false);
+  h.view.dispose(); assert.equal(h.listeners.has('paste'), false);
+});
+
+test('composer send-now waits for a successful paste on the same Claude socket', async () => {
+  const h = harness();
+  const pending = h.view.pasteText('queued draft', { sendNow: true });
+  assert.deepEqual(h.input(), ['\u001b[200~queued draft\u001b[201~']);
+  assert.equal(h.view.sendKey('send-now').ok, false);
+  h.timers.at(-1).callback();
+  assert.deepEqual(await pending, { ok: true });
+  assert.deepEqual(h.input(), ['\u001b[200~queued draft\u001b[201~', '\u0018\u0013']);
+  const interrupted = h.view.pasteText('other draft', { sendNow: true });
+  h.sockets[0].disconnect();
+  assert.equal((await interrupted).ok, false);
+  h.timers.at(-1).callback();
+  assert.equal(h.input(h.sockets[0]).filter(data => data === '\u0018\u0013').length, 1);
+  const shell = harness({ kind: 'shell' });
+  assert.equal((await shell.view.pasteText('text', { sendNow: true })).ok, false);
+});
 
 test("composer paste uses native paste semantics and sends Enter later on the same connection", async () => {
   const h = harness();

@@ -132,6 +132,16 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const draftKey = 'terminal-draft:' + record.id;
     try { draft.value = sessionStorage.getItem(draftKey) || ''; } catch {}
     draft.oninput = () => { try { sessionStorage.setItem(draftKey, draft.value); } catch {} fit(); sync(); };
+    draft.addEventListener('paste', event => {
+      const clipboard = event.clipboardData;
+      const images = [...Array.from(clipboard?.items || []), ...Array.from(clipboard?.files || [])]
+        .some(item => /^image\//iu.test(item.type || ''))
+        || Array.from(clipboard?.types || []).some(type => /^image\//iu.test(type));
+      if (record.kind !== 'claude' || !images) return;
+      event.preventDefault(); event.stopPropagation();
+      const result = view?.sendKey('paste-image');
+      if (result && !result.ok) setNotice(result.message);
+    });
     async function submit(enter = true) {
       if (busy || !view || !draft.value || !view.snapshot().canInput) return;
       busy = true; clearNotice(); const text = draft.value; sync();
@@ -141,7 +151,24 @@ export function installNativeTerminalView(createSession, statusText, css) {
       else if (!result.ok) setNotice(result.message);
       sync();
     }
+    async function sendNow() {
+      if (busy || !view || !view.snapshot().canInput || record.kind !== 'claude') return;
+      if (!draft.value) {
+        const result = view.sendKey('send-now');
+        if (result && !result.ok) setNotice(result.message);
+        return;
+      }
+      busy = true; clearNotice(); const text = draft.value; sync();
+      const result = await view.pasteText(text, { sendNow: true }); busy = false;
+      if (disposed) return;
+      if (result.ok && draft.value === text) { draft.value = ''; draft.oninput(); }
+      else if (!result.ok) setNotice(result.message);
+      sync();
+    }
     send.onclick = () => submit(); draft.onkeydown = event => {
+      if (record.kind === 'claude' && event.key === 'Enter' && event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+        event.preventDefault(); event.stopPropagation(); void sendNow(); return;
+      }
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); void submit(); }
       event.stopPropagation();
     };

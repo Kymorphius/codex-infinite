@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { installNativeTerminalView } from '../src/native-terminal-view.mjs';
 class Node {
   constructor(tag) { this.tag = tag; this.children = []; this.style = {}; this.value = ''; this.attributes = {}; }
-  setAttribute(name, value) { this.attributes[name] = value; } addEventListener() {}
+  setAttribute(name, value) { this.attributes[name] = value; } addEventListener(name, callback) { (this.listeners ||= new Map()).set(name, callback); }
   get parentNode() { return this.parent || null; }
   removeAttribute(name) { delete this.attributes[name]; }
   hasAttribute(name) { return name in this.attributes; } toggleAttribute(name, on) { if (on) this.attributes[name] = ''; else delete this.attributes[name]; }
@@ -17,7 +17,7 @@ class Node {
 test('native conversation mounts full terminal and composer, preserves draft, and restores host without stopping PTY', async () => {
   const surface = { style: { value: '', priority: '', getPropertyValue() { return this.value; }, getPropertyPriority() { return this.priority; }, setProperty(name, value, priority) { this.value = value; this.priority = priority; } } };
   const host = new Node('main'), original = new Node('conversation'); original.style.display = 'flex'; host.append(original); host.closest = selector => selector.includes('_MainContentSurface_') ? surface : null;
-  const created = [], actions = [], keys = []; let disposed = 0, activated = 0, redrawn = 0, pasted, keyResult, sessionOptions;
+  const created = [], actions = [], keys = []; let disposed = 0, activated = 0, redrawn = 0, pasted, keyResult, sessionOptions, lastSendNow;
   const window = { __cccTerminalNative: { socketClass: () => class {}, async request(operation) { actions.push(operation); } } };
   const drafts = new Map();
   const html = new Node('html'), head = new Node('head'), toolbar = new Node('toolbar'), nativeTitle = new Node('native-title'); toolbar.append(nativeTitle);
@@ -28,7 +28,7 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(),
     sessionStorage: { getItem: key => drafts.get(key), setItem: (key, value) => drafts.set(key, value) } });
   context.createSession = (session, options) => { sessionOptions = options; return { activate() { activated++; options.onChange({ session, connection: 'connected', canInput: true }); },
-    async pasteText(text, { submit }) { pasted = [text, submit]; return { ok: true }; }, sendKey: key => { keys.push(key); return keyResult; }, snapshot: () => ({ canInput: true }), redraw() { redrawn++; return { ok: true }; }, dispose() { disposed++; } }; };
+    async pasteText(text, { submit, sendNow }) { pasted = [text, submit]; lastSendNow = sendNow; return { ok: true }; }, sendKey: key => { keys.push(key); return keyResult; }, snapshot: () => ({ canInput: true }), redraw() { redrawn++; return { ok: true }; }, dispose() { disposed++; } }; };
   vm.runInContext(`(${installNativeTerminalView.toString()})(createSession, () => '已连接', '')`, context);
   const record = { id: 'session', title: 'Claude', kind: 'claude', runtimeSessionId: 'pty', runtimeSummary: { id: 'pty', kind: 'claude', status: 'running' }, status: 'running' };
   assert.equal(window.__cccOpenNativeTerminal(record, host), true); assert.deepEqual([surface.style.value, surface.style.priority], ['0px', 'important']); assert.equal(original.style.display, 'none'); assert.equal(activated, 1);
@@ -54,10 +54,22 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   assert.deepEqual(keys, ['down', 'enter'], 'choice controls return PTY keys without inventing approval');
   sessionOptions.onChange({ session: record.runtimeSummary, connection: 'connected', canInput: true, choicePrompt: null });
   assert.equal(choiceDock.hidden, true);
-  draft.value = 'ls'; draft.oninput(); await created.find(node => node.className === 'paste').onclick(); assert.deepEqual(pasted, ['ls', false]);
+  draft.value = 'ls'; draft.oninput(); created.find(node => node.className === 'paste').onclick();
+  await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(pasted, ['ls', false]);
   const interrupt = created.find(node => node.textContent === '打断'); keyResult = { ok: false, message: '终端输入过快，请等待' }; interrupt.onclick();
   assert.deepEqual(keys, ['down', 'enter', 'interrupt']); assert.equal(status.textContent, '终端输入过快，请等待'); assert.equal(status.attributes['data-tone'], 'bad');
   keyResult = { ok: true }; created.find(node => node.textContent === 'Ctrl+D').onclick(); assert.deepEqual(keys, ['down', 'enter', 'interrupt', 'eof']); assert.equal(status.attributes['data-tone'], 'ok');
+  let imagePrevented = false;
+  draft.listeners.get('paste')({ clipboardData: { items: [{ type: 'image/png' }] }, preventDefault() { imagePrevented = true; }, stopPropagation() {} });
+  assert.equal(imagePrevented, true); assert.equal(keys.at(-1), 'paste-image');
+  draft.value = '插队内容'; draft.oninput();
+  let shortcutPrevented = false;
+  draft.onkeydown({ key: 'Enter', metaKey: true, preventDefault() { shortcutPrevented = true; }, stopPropagation() {} });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(shortcutPrevented, true); assert.equal(lastSendNow, true); assert.deepEqual(pasted, ['插队内容', undefined]);
+  assert.equal(draft.value, '');
+  draft.onkeydown({ key: 'Enter', metaKey: true, preventDefault() {}, stopPropagation() {} });
+  assert.equal(keys.at(-1), 'send-now');
   window.__cccNativeTerminalView.update({ ...record, archived: true });
   assert.equal(disposed, 1); assert.equal(original.style.display, 'flex');
   assert.deepEqual(toolbar.children, [nativeTitle], 'native title comes back'); assert.equal(html.attributes['data-ccc-terminal-titlebar'], undefined);
