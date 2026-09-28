@@ -33,5 +33,18 @@ On layout changes, fit the terminal and send only the final dimensions to the PT
 Keep xterm inside its own clipped pane and preserve fullwidth glyph measurement. Do not replay or write partial commands merely to
 recover a scrambled display; the user can explicitly reconnect the display.
 
+## Recovery from a truncated Claude TUI replay (2026-09-28)
+
+The old `redraw` control reconnected the display. When the bounded PTY output
+history had been truncated, reconnect displayed only a reset notice and whatever
+incremental cursor updates Claude emitted next; it could look like isolated
+numbers and fragments. `redraw` must instead keep the current stream and
+request a bounded PTY resize pulse from the terminal service, which restores
+the recorded dimensions in all cases. A running Claude session automatically
+requests the same pulse after a truncated replay has been parsed. The pulse
+does not send a keystroke, restart Claude, discard input, or replay partial ANSI
+history. It is limited to the active owned terminal and coalesces repeat requests.
+Normal layout changes still send only their final dimensions.
+
 Verify split open/close/resize, conversation isolation, safe Git reads, and terminal
 input routing. Treat physical native rendering as a separate acceptance check.

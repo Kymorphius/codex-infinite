@@ -31,7 +31,7 @@ export function terminalId(id) {
 }
 
 export function terminalClientFrame(frame) {
-  assertTerminalObject(frame, frame?.type === 'input' ? ['type', 'data'] : ['type', 'cols', 'rows']);
+  assertTerminalObject(frame, frame?.type === 'input' ? ['type', 'data'] : frame?.type === 'redraw' ? ['type'] : ['type', 'cols', 'rows']);
   if (frame.type === 'input') {
     if (typeof frame.data !== 'string' || new TextEncoder().encode(frame.data).length > TERMINAL_LIMITS.inputBytes) {
       throw terminalError(400, '终端输入过大或无效');
@@ -39,5 +39,6 @@ export function terminalClientFrame(frame) {
     return { type: 'input', data: frame.data };
   }
   if (frame.type === 'resize') return { type: 'resize', ...terminalDimensions(frame.cols, frame.rows) };
+  if (frame.type === 'redraw') return { type: 'redraw' };
   throw terminalError(400, '不支持的终端消息');
 }

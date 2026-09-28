@@ -68,6 +68,29 @@ test('terminal bounded UTF-8 replay reports truncation and reconnects exited ses
   assert.throws(() => service.connect(session.id, {}), { statusCode: 404 });
 });
 
+test('redraw pulses only the owned Claude PTY and restores final size without input or reconnect', async () => {
+  assert.deepEqual(terminalClientFrame({ type: 'redraw' }), { type: 'redraw' });
+  assert.throws(() => terminalClientFrame({ type: 'redraw', data: '\f' }), { statusCode: 400 });
+  const timers = [];
+  const { service, processes, connect } = fixture({
+    schedule: callback => { const timer = { callback, cancelled: false }; timers.push(timer); return timer; },
+    cancel: timer => { if (timer) timer.cancelled = true; }
+  });
+  const session = await service.create({ kind: 'claude', cols: 100, rows: 30 });
+  const stream = connect(session.id);
+  stream.receive({ type: 'redraw' }); stream.receive({ type: 'redraw' });
+  for (let index = 0; index < 4; index++) timers[index].callback();
+  assert.deepEqual(processes[0].sizes, [[99, 30], [100, 30], [99, 30], [100, 30]]);
+  assert.deepEqual(processes[0].writes, []);
+  assert.equal(stream.frames.filter(frame => frame.type === 'ready').length, 1);
+  stream.receive({ type: 'redraw' });
+  stream.receive({ type: 'resize', cols: 120, rows: 40 });
+  timers.at(-1).callback();
+  assert.deepEqual(processes[0].sizes.slice(-2), [[99, 30], [120, 40]], 'a real resize cancels recovery and wins');
+  assert.equal(service.list().sessions[0].cols, 120);
+  await service.dispose();
+});
+
 test('control-heavy replay stays within the serialized socket queue bound', async () => {
   const { service, processes, connect } = fixture();
   const session = await service.create({});

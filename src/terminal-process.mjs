@@ -8,7 +8,7 @@ import { terminalError } from './terminal-contract.mjs';
 const execute = promisify(execFile);
 const ENV_KEYS = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'TMP', 'TEMP',
   'USER', 'LOGNAME', 'SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT'];
-const CLAUDE_TERMINAL_UI_PROMPT = 'This Claude session is shown in Codex Control Console. You may control only your current display through Bash by writing OSC 777 to /dev/tty. Open the read-only code changes pane with: printf "\\033]777;ccc-ui:split=open\\007" > /dev/tty. Close it with split=close, refresh it with split=refresh, and reconnect a scrambled terminal display with ccc-ui:redraw. Use these when helpful; they do not alter files or conversation input.';
+const CLAUDE_TERMINAL_UI_PROMPT = 'This Claude session is shown in Codex Control Console. You may control only your current display through Bash by writing OSC 777 to /dev/tty. Open the read-only code changes pane with: printf "\\033]777;ccc-ui:split=open\\007" > /dev/tty. Close it with split=close, refresh it with split=refresh, and request a repaint of a scrambled terminal display with ccc-ui:redraw. Use these when helpful; they do not alter files or conversation input.';
 const shellQuote = value => `'${value.replaceAll("'", "'\\''")}'`;
 
 export function terminalEnvironment({ userHome = os.homedir(), shell, env = process.env } = {}) {

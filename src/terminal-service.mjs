@@ -22,10 +22,12 @@ function readyFrame(entry) {
 
 export class TerminalService {
   constructor({ userHome = os.homedir(), defaultCwd = userHome, spawnProcess = spawnTerminalProcess,
-    validateCwd = validateTerminalCwd, replayBytes = TERMINAL_LIMITS.replayBytes } = {}) {
+    validateCwd = validateTerminalCwd, replayBytes = TERMINAL_LIMITS.replayBytes,
+    schedule = setTimeout, cancel = clearTimeout } = {}) {
     this.userHome = userHome; this.defaultCwd = defaultCwd;
     this.spawnProcess = spawnProcess; this.validateCwd = validateCwd;
     this.replayBytes = Math.max(1, Math.min(replayBytes, TERMINAL_LIMITS.replayBytes));
+    this.schedule = schedule; this.cancel = cancel;
     this.sessions = new Map(); this.creations = new Set(); this.pending = 0; this.disposed = false;
   }
 
@@ -91,6 +93,31 @@ export class TerminalService {
     try { writer?.close(code, reason); } catch {}
   }
 
+  cancelRedraw(entry) {
+    if (!entry.redraw) return;
+    this.cancel(entry.redraw.timer);
+    entry.redraw = null;
+  }
+
+  redraw(entry) {
+    if (entry.kind !== 'claude' || entry.status !== 'running') throw terminalError(409, 'Claude 终端当前无法重绘');
+    if (entry.redraw) return;
+    const state = entry.redraw = { timer: null };
+    // Two bounded width changes reproduce the manual split/unsplit repaint, while
+    // leaving the browser's xterm and the user's input stream untouched.
+    const step = index => {
+      if (entry.redraw !== state || this.sessions.get(entry.id) !== entry || entry.status !== 'running') return;
+      if (index === 4) { entry.redraw = null; return; }
+      try { entry.pty.resize(index % 2 ? entry.cols : entry.cols > 2 ? entry.cols - 1 : entry.cols + 1, entry.rows); }
+      catch {
+        try { entry.pty.resize(entry.cols, entry.rows); } catch {}
+        entry.redraw = null; return;
+      }
+      state.timer = this.schedule(() => step(index + 1), 110);
+    };
+    step(0);
+  }
+
   connect(id, transport) {
     const entry = this.get(id);
     this.disconnect(entry, 4001, '另一连接已接管终端');
@@ -103,7 +130,8 @@ export class TerminalService {
         const input = terminalClientFrame(frame);
         if (entry.status !== 'running') throw terminalError(409, '终端进程已结束');
         if (input.type === 'input') entry.pty.write(input.data);
-        else { entry.pty.resize(input.cols, input.rows); entry.cols = input.cols; entry.rows = input.rows; }
+        else if (input.type === 'redraw') this.redraw(entry);
+        else { this.cancelRedraw(entry); entry.pty.resize(input.cols, input.rows); entry.cols = input.cols; entry.rows = input.rows; }
       },
       detach: () => { if (entry.writer === writer) entry.writer = null; },
     };
@@ -111,6 +139,7 @@ export class TerminalService {
 
   async close(id) {
     const entry = this.get(id);
+    this.cancelRedraw(entry);
     this.sessions.delete(entry.id); this.disconnect(entry, 4000, '终端已关闭');
     for (const subscription of entry.subscriptions) subscription?.dispose?.();
     if (entry.status === 'running') await entry.pty.kill();

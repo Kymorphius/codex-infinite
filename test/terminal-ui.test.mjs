@@ -125,16 +125,15 @@ test("connection takeover never fights another page and requires explicit reconn
   assert.equal(h.sockets.length, 2);
 });
 
-test('redraw reconnects an already connected display to the same PTY without sending input', () => {
+test('redraw requests a PTY repaint without reconnecting or sending input', () => {
   const h = harness({ kind: 'claude' }); h.view.activate();
   const first = h.sockets[0]; first.receive({ type: 'ready', session: h.session, replay: 'before' });
   h.terminals[0].callbacks.shift()(); assert.equal(h.view.snapshot().connection, 'connected');
-  h.view.reconnect();
-  assert.equal(first.closed, true); assert.equal(h.sockets.length, 2);
-  assert.match(h.sockets[1].url, /id=terminal-one$/u); assert.deepEqual(first.sent.filter(frame => frame.type === 'input'), []);
-  h.sockets[1].receive({ type: 'ready', session: h.session, replay: 'after' });
-  h.terminals[0].callbacks.shift()(); assert.equal(h.view.snapshot().connection, 'connected');
-  assert.equal(h.terminals[0].resets, 2);
+  assert.deepEqual(h.view.redraw(), { ok: true });
+  assert.equal(first.closed, undefined); assert.equal(h.sockets.length, 1);
+  assert.deepEqual(first.sent.at(-1), { type: 'redraw' });
+  assert.deepEqual(first.sent.filter(frame => frame.type === 'input'), []);
+  assert.equal(h.terminals[0].resets, 1);
 });
 
 test("reconnect is bounded, drops offline input and ignores stale replay completion", () => {
@@ -285,7 +284,7 @@ test("a throwing terminal parser pauses safely and permits an explicit recovery"
 });
 
 test('truncated TUI replay resets the display instead of parsing a partial old screen', () => {
-  const h = harness(); h.view.activate();
+  const h = harness({ kind: 'claude' }); h.view.activate();
   const session = { ...h.session, replayTruncated: true };
   h.sockets[0].receive({ type: 'ready', session, replay: '\u001b[?1049hpartial-old-screen' });
   assert.match(h.terminals[0].writes[0], /显示已重置/);
@@ -293,4 +292,7 @@ test('truncated TUI replay resets the display instead of parsing a partial old s
   h.terminals[0].callbacks.shift()();
   assert.equal(h.view.snapshot().connection, 'connected');
   assert.equal(h.sockets[0].sent.some(frame => frame.type === 'resize'), true);
+  assert.equal(h.sockets[0].sent.some(frame => frame.type === 'redraw'), true);
+  const frames = h.sockets[0].sent.length; h.observers[0].callback();
+  assert.equal(h.sockets[0].sent.length, frames, 'an unchanged layout does not interrupt the repaint pulse');
 });

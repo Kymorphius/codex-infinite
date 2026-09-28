@@ -41,8 +41,8 @@ export function installNativeTerminalView(createSession, statusText, css) {
     menu.append(el('span', '', '直接发送到终端'), grid, paste); keys.append(more, menu);
     footer.append(keyButton('pill', '打断', 'interrupt', '⌃C'), keyButton('pill', 'Esc', 'escape'), keys, status, send);
     const split = window.__cccCreateNativeTerminalSplit?.({ record, bar, output, api });
-    const redraw = el('button', 'redraw', '重绘'); redraw.type = 'button'; redraw.title = '重新连接终端显示，不结束会话';
-    redraw.onclick = () => view?.reconnect(); if (record.kind === 'claude') bar.append(redraw);
+    const redraw = el('button', 'redraw', '重绘'); redraw.type = 'button'; redraw.title = '请求 Claude 重新绘制当前终端，不重连会话';
+    redraw.onclick = () => { const result = view?.redraw(); if (result && !result.ok) setNotice(result.message); }; if (record.kind === 'claude') bar.append(redraw);
     composer.append(draft, footer); layout.append(bar, split?.element || output, choiceDock, composer); shadow.append(style, layout); host.append(root);
     // The native header keeps showing the last native conversation's name. Put this
     // conversation's title bar in that slot (trailing native actions stay) and fall back
@@ -155,7 +155,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
         WebSocketCtor: api.socketClass(record.id), locationRef: { href: 'http://127.0.0.1/', protocol: 'http:' },
         onUiCommand: action => {
           if (disposed || record.kind !== 'claude') return;
-          if (action === 'redraw') Promise.resolve().then(() => { if (!disposed) view?.reconnect(); });
+          if (action === 'redraw') Promise.resolve().then(() => { if (!disposed) view?.redraw(); });
           else if (action.startsWith('split=')) split?.command(action.slice('split='.length));
         },
         onChange: state => {

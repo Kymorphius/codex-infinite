@@ -28,7 +28,7 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(),
     sessionStorage: { getItem: key => drafts.get(key), setItem: (key, value) => drafts.set(key, value) } });
   context.createSession = (session, options) => { sessionOptions = options; return { activate() { activated++; options.onChange({ session, connection: 'connected', canInput: true }); },
-    async pasteText(text, { submit }) { pasted = [text, submit]; return { ok: true }; }, sendKey: key => { keys.push(key); return keyResult; }, snapshot: () => ({ canInput: true }), reconnect() { redrawn++; }, dispose() { disposed++; } }; };
+    async pasteText(text, { submit }) { pasted = [text, submit]; return { ok: true }; }, sendKey: key => { keys.push(key); return keyResult; }, snapshot: () => ({ canInput: true }), redraw() { redrawn++; return { ok: true }; }, dispose() { disposed++; } }; };
   vm.runInContext(`(${installNativeTerminalView.toString()})(createSession, () => '已连接', '')`, context);
   const record = { id: 'session', title: 'Claude', kind: 'claude', runtimeSessionId: 'pty', runtimeSummary: { id: 'pty', kind: 'claude', status: 'running' }, status: 'running' };
   assert.equal(window.__cccOpenNativeTerminal(record, host), true); assert.deepEqual([surface.style.value, surface.style.priority], ['0px', 'important']); assert.equal(original.style.display, 'none'); assert.equal(activated, 1);
@@ -38,6 +38,7 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   assert.equal(bar.parent, titleHost.shadowRoot); assert.equal(toolbar.children[1], nativeTitle, 'native header content stays for trailing actions');
   assert.equal(html.attributes['data-ccc-terminal-titlebar'], ''); assert.match(titleHost.shadowRoot.children[0].textContent, /\.bar button\{-webkit-app-region:no-drag;app-region:no-drag;pointer-events:auto\}/, 'every header button remains clickable in the native drag region'); assert.match(head.children[0].textContent, /:has\(\[data-app-shell-titlebar-content\]\)\{display:none!important\}/);
   sessionOptions.onUiCommand('redraw'); await Promise.resolve(); assert.equal(redrawn, 1);
+  created.find(node => node.className === 'redraw').onclick(); assert.equal(redrawn, 2);
   assert.equal(send.disabled, true, 'empty draft cannot be sent');
   draft.value = 'hello'; draft.oninput(); assert.equal(send.disabled, false); await send.onclick(); assert.deepEqual(pasted, ['hello', true]); assert.equal(draft.value, '');
   const chip = created.find(node => node.className === 'chip'), status = created.find(node => node.className === 'status');

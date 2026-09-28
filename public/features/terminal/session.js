@@ -18,6 +18,7 @@ export function createTerminalSession(initialSession, {
   let disposed = false;
   let retryTimer = null;
   let attempts = 0;
+  let lastSize = '';
   let pendingInput = null;
   let pasteOperation = null;
   let pendingOutputBytes = 0;
@@ -114,7 +115,8 @@ export function createTerminalSession(initialSession, {
   function fit() {
     if (!visible || disposed || host.getBoundingClientRect().width < 1 || host.getBoundingClientRect().height < 1) return;
     fitAddon.fit();
-    send({ type: "resize", cols: terminal.cols, rows: terminal.rows });
+    const size = `${terminal.cols}x${terminal.rows}`;
+    if (size !== lastSize && send({ type: "resize", cols: terminal.cols, rows: terminal.rows })) lastSize = size;
   }
   const inputSubscription = terminal.onData((data) => {
     const operation = pasteOperation;
@@ -174,11 +176,16 @@ export function createTerminalSession(initialSession, {
     if (issue) return { ok: false, message: issue };
     return send({ type: "input", data: keys[key] }) ? { ok: true } : { ok: false, message: interruptedInput };
   }
+  function redraw() {
+    if (session.kind !== 'claude' || !visible || !writable()) return { ok: false, message: 'Claude 终端暂时无法重绘。' };
+    return send({ type: 'redraw' }) ? { ok: true } : { ok: false, message: '重绘请求未送达，请检查终端连接。' };
+  }
 
   function connect() {
     if (disposed || socket && socket.readyState < 2) return;
     cancel(retryTimer);
     ready = false;
+    lastSize = '';
     choicePrompt = null; choiceSignature = '';
     cancelInput();
     terminal.options.disableStdin = true;
@@ -210,6 +217,7 @@ export function createTerminalSession(initialSession, {
           connection = "connected";
           terminal.options.disableStdin = session.status !== "running";
           fit();
+          if (session.replayTruncated && session.kind === 'claude' && session.status === 'running') redraw();
           publish();
         });
       } else if (frame.type === "data") {
@@ -247,7 +255,7 @@ export function createTerminalSession(initialSession, {
   }
 
   return {
-    snapshot, pasteText, sendKey,
+    snapshot, pasteText, sendKey, redraw,
     focus() { if (visible && !disposed) terminal.focus(); },
     update(value) { session = value; if (session.status !== "running") { cancelInput(); choicePrompt = null; choiceSignature = ''; } publish(); },
     activate() { visible = true; host.hidden = false; fit(); terminal.focus(); if (connection === "disconnected" && !attempts) connect(); else { publish(); refreshChoicePrompt(); } },
@@ -257,6 +265,7 @@ export function createTerminalSession(initialSession, {
       const previous = socket;
       socket = null;
       ready = false;
+      lastSize = '';
       choicePrompt = null; choiceSignature = '';
       cancelInput();
       if (previous) previous.close(1000, 'terminal display reconnect');
