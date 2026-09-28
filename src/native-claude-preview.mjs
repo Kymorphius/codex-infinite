@@ -30,9 +30,20 @@ export function buildNativeClaudePanelStyleScript() {
 }
 
 function installClaudePreview(createSelection, readThreadId, activateButton) {
-  if (window.__cccClaudePreviewInstalled && window.__cccClaudePreviewRefresh) { window.__cccClaudePreviewRefresh(); return; }
+  const version = 2;
+  if (window.__cccClaudePreviewInstalled && window.__cccClaudePreviewVersion === version && window.__cccClaudePreviewRefresh) {
+    window.__cccClaudePreviewRefresh(); return;
+  }
+  if (window.__cccClaudePreviewInstalled) {
+    if (typeof window.__cccClaudePreviewDispose === 'function') window.__cccClaudePreviewDispose();
+    else {
+      window.__codexControlConsoleMutationSubscribers?.delete(window.__cccClaudePreviewRefresh);
+      document.querySelector('[data-ccc-claude-preview-panel]')?.remove();
+    }
+  }
   document.querySelector('[data-ccc-claude-preview]')?.remove();
   window.__cccClaudePreviewInstalled = true;
+  window.__cccClaudePreviewVersion = version;
   let timer, panel, button;
   const selection = createSelection({
     storage: localStorage,
@@ -127,6 +138,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     document.addEventListener('pointerdown', outside, true);
   }
   function render() {
+    for (const stale of document.querySelectorAll('[data-ccc-claude-preview]')) if (stale !== button) stale.remove();
     const routing = document.querySelector('[data-codex-control-console-native-jev-current]');
     const host = routing?.parentElement;
     if (!host) { button?.remove(); return; }
@@ -149,7 +161,15 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
   function schedule() { clearTimeout(timer); timer = setTimeout(render, 60); }
   window.__cccClaudePreviewRefresh = schedule;
   (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(schedule);
-  window.addEventListener('popstate', () => { close(); schedule(); });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+  const onPopstate = () => { close(); schedule(); };
+  const onKeydown = event => { if (event.key === 'Escape') close(); };
+  window.addEventListener('popstate', onPopstate);
+  document.addEventListener('keydown', onKeydown);
+  window.__cccClaudePreviewDispose = () => {
+    clearTimeout(timer); close(); button?.remove();
+    window.__codexControlConsoleMutationSubscribers?.delete(schedule);
+    window.removeEventListener?.('popstate', onPopstate);
+    document.removeEventListener('keydown', onKeydown);
+  };
   render();
 }

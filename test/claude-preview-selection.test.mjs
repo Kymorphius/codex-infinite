@@ -126,19 +126,35 @@ test('failed rollback explicitly reports uncertainty', async () => {
 });
 test('renderer installs idempotently without polling or sending any request', () => {
   const subscribers = new Set(), window = { __codexControlConsoleMutationSubscribers: subscribers, addEventListener() {} };
-  const context = { window, localStorage: { getItem: () => null }, document: { getElementById: () => ({}), querySelector: () => null, addEventListener() {} },
+  const context = { window, localStorage: { getItem: () => null }, document: { getElementById: () => ({}), querySelector: () => null, querySelectorAll: () => [], addEventListener() {} },
     setTimeout, clearTimeout, setInterval() { throw new Error('polling forbidden'); } };
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
   assert.equal(subscribers.size, 1);
   assert.equal(window.__cccClaudePreviewBlocks(id), false);
 });
+test('a reloaded service replaces the older Claude panel closure without reloading the conversation', () => {
+  let removed = 0, oldRefreshes = 0;
+  const stale = { remove() { removed++; } }, oldRefresh = () => { oldRefreshes++; };
+  const subscribers = new Set([oldRefresh]);
+  const window = { __cccClaudePreviewInstalled: true, __cccClaudePreviewRefresh: oldRefresh,
+    __codexControlConsoleMutationSubscribers: subscribers, addEventListener() {} };
+  const document = { getElementById: () => ({}), querySelector: selector => selector === '[data-ccc-claude-preview]' ? stale : null,
+    querySelectorAll: () => [], addEventListener() {}, removeEventListener() {} };
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), { window, document,
+    localStorage: { getItem: () => null }, setTimeout: () => 1, clearTimeout() {} });
+  assert.ok(removed >= 1);
+  assert.equal(oldRefreshes, 0);
+  assert.equal(subscribers.has(oldRefresh), false);
+  assert.equal(window.__cccClaudePreviewVersion, 2);
+  assert.equal(typeof window.__cccClaudePreviewDispose, 'function');
+});
 
 test('early installation creates subscription and later injection requests a render', () => {
   let scheduled = 0;
   const window = { addEventListener() {} };
   const context = { window, localStorage: { getItem: () => null },
-    document: { getElementById: () => ({}), querySelector: () => null, addEventListener() {} },
+    document: { getElementById: () => ({}), querySelector: () => null, querySelectorAll: () => [], addEventListener() {} },
     setTimeout() { scheduled++; return 1; }, clearTimeout() {} };
   vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), context);
   assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
