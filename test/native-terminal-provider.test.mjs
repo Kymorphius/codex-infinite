@@ -101,3 +101,20 @@ test('native transport installs without a loopback frame and reads metadata imme
   vm.runInContext(`globalThis.provider = (${installNativeTerminalProvider.toString()})('http://127.0.0.1:47831', () => ({}), makeSidebar, makeActions)`, context);
   await tick(); assert.deepEqual(calls, ['list']); assert.equal(created, false); assert.equal(appended, false); context.provider.dispose();
 });
+
+test('native transport follows a rebuilt client instead of the one captured at install', async () => {
+  const calls = [];
+  const client = name => ({ async request(operation) { calls.push(name + ':' + operation); return { conversations: [] }; } });
+  const window = { __cccTerminalNative: client('old'), addEventListener() {}, removeEventListener() {} };
+  const context = vm.createContext({ URL, crypto: { randomUUID: () => 'channel' }, window,
+    document: { createElement() { throw Error('native mode must not create frames'); }, body: { append() {} }, documentElement: {} },
+    MutationObserver: class { observe() {} disconnect() {} }, setInterval: () => 1, clearInterval() {}, clearTimeout() {} });
+  context.makeSidebar = () => ({ render() {}, destroy() {} }); context.makeActions = () => ({ destroy() {} });
+  vm.runInContext(`globalThis.provider = (${installNativeTerminalProvider.toString()})('http://127.0.0.1:47831', () => ({}), makeSidebar, makeActions)`, context);
+  await tick();
+  window.__cccTerminalNative = client('new'); await context.provider.refresh();
+  assert.deepEqual(calls, ['old:list', 'new:list'], 'a runtime reinstall must not leave refresh on the disposed client');
+  window.__cccTerminalNative = null;
+  await assert.rejects(context.provider.request('list'), /正在重建/);
+  context.provider.dispose();
+});

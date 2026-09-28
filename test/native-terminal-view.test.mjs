@@ -124,3 +124,27 @@ test('opening a conversation opens it once: resume or attach automatically, neve
   assert.equal(failing.requests.length, 1, 'no automatic retry loop');
   for (const value of [stopped, background, terminal, codex, failing]) value.window.__cccNativeTerminalView?.dispose();
 });
+
+test('a rebuilt native client is used after remount, and a session lost without an exit reopens once', async () => {
+  const requests = [], sockets = [];
+  const client = name => ({ socketClass: () => { sockets.push(name); return class {}; }, async request(operation, input) { requests.push(name + ':' + operation); return { conversation: { ...running, runtimeSessionId: 'r2' } }; } });
+  const window = { __cccTerminalNative: client('old') };
+  let onChange = null;
+  const createSession = (summary, options) => { onChange = options.onChange; options.WebSocketCtor; return { dispose() {}, activate() {}, snapshot: () => ({ canInput: true }) }; };
+  const documentRef = { documentElement: new Node('html'), head: new Node('head'), body: new Node('body'), getElementById: () => null, querySelector: () => null, createElement: tag => new Node(tag) };
+  const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(),
+    sessionStorage: { getItem() {}, setItem() {} }, setTimeout: () => 1, clearTimeout: () => {}, createSession });
+  vm.runInContext(`(${installNativeTerminalView.toString()})(createSession, () => '', '')`, context);
+  const running = { id: 'c1', title: '看板会话交互', kind: 'claude', status: 'running', runtimeSessionId: 'r1', runtimeSummary: { id: 'r1', status: 'running' }, occupiedBy: null };
+  window.__cccOpenNativeTerminal(running, new Node('main'));
+  window.__cccTerminalNative = client('new'); window.__cccNativeTerminalView.remount();
+  assert.deepEqual(sockets, ['old', 'new'], 'the shown terminal reconnects through the rebuilt client');
+  window.__cccNativeTerminalView.update({ ...running, status: 'stopped', runtimeSessionId: null, runtimeSummary: null, occupiedElsewhere: true, occupiedBy: 'background' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(requests, ['new:start'], 'a backend restart that dropped the attach reopens it');
+  onChange({ session: { status: 'exited' }, connection: 'closed', canInput: false });
+  window.__cccNativeTerminalView.update({ ...running, status: 'stopped', runtimeSessionId: null, runtimeSummary: null });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requests.length, 1, 'a session you exited here is not restarted');
+  window.__cccNativeTerminalView.dispose();
+});

@@ -52,6 +52,14 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   immediately before every signal so a reused pid is never signalled. If any holder
   cannot be verified nothing is touched. If a holder survives or a new holder appears
   the start fails with 409. Only then is the session resumed here.
+- Native client reinstall (2026-09-28): the terminal runtime replaces
+  `window.__cccTerminalNative` (disposing the old client) whenever its source changes or
+  the page reloads the runtime. The provider and the view resolve the client on every
+  use; capturing it at install left the provider's refresh failing with
+  「终端连接已关闭」 forever and the view showing 「暂时无法连接终端」 against a runtime that
+  no longer existed. After a reinstall the shown view remounts through the new client.
+  A runtime that disappears without an exit shown in the view (backend restart,
+  disconnect) re-arms the one automatic open; an exit you made there does not.
 - Opening opens (2026-09-28): showing a Claude conversation that is not running
   starts it without a click, once per view: a stopped session resumes, a
   background-held one is attached (status 「正在连接…」). No automatic action when it

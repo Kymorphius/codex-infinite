@@ -1,8 +1,10 @@
 export function installNativeTerminalView(createSession, statusText, css) {
   window.__cccOpenNativeTerminal = (record, host) => {
     window.__cccNativeTerminalView?.dispose();
-    const api = window.__cccTerminalNative;
-    if (!host || !api) return false;
+    // Resolve the native client on use: it is replaced when the runtime is reinstalled.
+    const client = () => window.__cccTerminalNative;
+    const api = { request: (operation, input) => client().request(operation, input), socketClass: id => client().socketClass(id) };
+    if (!host || !client()) return false;
     let view = null, disposed = false, generation = 0, busy = false, notice = '', last = null, armed = null, autoOpen = true, starting = false;
     const saved = [...host.children].map(node => [node, node.style.display]);
     for (const [node] of saved) node.style.display = 'none';
@@ -149,7 +151,12 @@ export function installNativeTerminalView(createSession, statusText, css) {
       catch (error) { if (!disposed) { launch.hidden = false; disarm(); setNotice(error.message); } }
       finally { starting = false; if (!disposed) launch.disabled = false; }
     }
-    const state = { id: record.id, composer, update(value) { if (disposed || value.id !== record.id) return; if (value.archived) state.dispose(); else if (value.runtimeSessionId !== record.runtimeSessionId) mount(value); else { record = value; showRecord(); if (!view) showStopped(); } },
+    const state = { id: record.id, composer, update(value) { if (disposed || value.id !== record.id) return; if (value.archived) state.dispose(); else if (value.runtimeSessionId !== record.runtimeSessionId) {
+        // Lost without an exit shown here (backend restart, disconnect): open it again once.
+        if (record.runtimeSessionId && !value.runtimeSessionId && last?.session?.status !== 'exited') autoOpen = true;
+        mount(value); } else { record = value; showRecord(); if (!view) showStopped(); } },
+      // Reconnect the shown terminal through a rebuilt native client.
+      remount() { if (!disposed) mount(record); },
       dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
     window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;

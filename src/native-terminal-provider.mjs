@@ -4,13 +4,15 @@ import { createNativeTerminalActions } from './native-terminal-actions.mjs';
 
 export function installNativeTerminalProvider(dashboardUrl, readModel, makeSidebar, makeActions, prepareConnection = () => false) {
   window.__cccTerminalConversations?.dispose?.();
-  const native = window.__cccTerminalNative;
+  // The native client is rebuilt whenever the terminal runtime is reinstalled (the old one is
+  // disposed), so always use the current one; capturing it left refresh failing forever.
+  const nativeMode = Boolean(window.__cccTerminalNative), native = () => (nativeMode ? window.__cccTerminalNative : null);
   const origin = new URL(dashboardUrl).origin, channel = crypto.randomUUID(), pending = new Map();
-  let ready = Boolean(native), disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, acceptedVersion = 0;
-  const frame = native ? null : document.createElement('iframe');
+  let ready = nativeMode, disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, acceptedVersion = 0;
+  const frame = nativeMode ? null : document.createElement('iframe');
   if (frame) { frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', ''); frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel); }
   function request(operation, input = {}) {
-    if (native && !disposed) return native.request(operation, input);
+    if (nativeMode) return !disposed && native() ? native().request(operation, input) : Promise.reject(Error('终端连接正在重建，请稍后重试'));
     if (!ready || disposed) {
       if (!disposed && prepareConnection()) return Promise.reject(Error('正在准备会话管理，请页面恢复后再次操作'));
       return Promise.reject(Error('会话管理正在连接，请稍后重试'));
@@ -95,7 +97,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     select(id) { selected = id || ''; sidebar.render(records, selected); },
     dispose() { disposed = true; ready = false; clearInterval(interval); clearTimeout(timer); observer.disconnect(); window.removeEventListener('message', receive); frame?.remove(); sidebar.destroy(); actions.destroy(); for (const entry of pending.values()) { clearTimeout(entry.timeout); entry.reject(Error('会话管理已重新连接')); } pending.clear(); }
   };
-  if (native) void refresh();
+  if (nativeMode) void refresh();
   return window.__cccTerminalConversations;
 }
 

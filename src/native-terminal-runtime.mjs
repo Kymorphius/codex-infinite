@@ -13,5 +13,5 @@ const vendor = asset('../node_modules/@xterm/xterm/lib/xterm.js') + '\n' + asset
 const css = asset('../node_modules/@xterm/xterm/css/xterm.css');
 export async function prepareNativeTerminalRuntime(connection) {
   if (await connection.evaluate(`window.__cccTerminalNativeVersion === ${JSON.stringify(version)} && Boolean(window.__cccTerminalNative)`)) return;
-  await connection.evaluate(`(() => { (function(module,exports,define) { ${vendor}\n }).call(globalThis);\n${source}\ninstallNativeTerminalClient(); installNativeTerminalView(createTerminalSession, terminalStatus, ${JSON.stringify(css + viewStyle)}); window.__cccTerminalNativeVersion = ${JSON.stringify(version)}; })()`);
+  await connection.evaluate(`(() => { (function(module,exports,define) { ${vendor}\n }).call(globalThis);\n${source}\ninstallNativeTerminalClient(); installNativeTerminalView(createTerminalSession, terminalStatus, ${JSON.stringify(css + viewStyle)}); window.__cccTerminalNativeVersion = ${JSON.stringify(version)}; window.__cccNativeTerminalView?.remount?.(); })()`);
 }
