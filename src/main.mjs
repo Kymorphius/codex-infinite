@@ -23,6 +23,7 @@ import { createAppInstanceReader } from "./app-instance.mjs";
 import { createNativeRestartMarksBinding } from "./native-restart-marks.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { createDiscussionRuntime } from './discussion-runtime.mjs';
+import { createNativeDiscussionBinding } from './native-discussion-binding.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
 import { resolveRipgrepPath } from './ripgrep-path.mjs';
 import { withTerminalSentSearch } from './sent-message-search-composite.mjs';
@@ -266,7 +267,7 @@ export async function run() {
       reloadAfterCspBypass: config.cspReloadRequired,
       terminalConversations, terminalService,
       dashboardLauncher: nativeDashboardLaunchService,
-      extraBindings: [createNativeRestartMarksBinding(restartMarks)]
+      extraBindings: [createNativeRestartMarksBinding(restartMarks), createNativeDiscussionBinding(discussions)]
     });
     await injector.start();
     if (config.primaryCdpEnabled) {

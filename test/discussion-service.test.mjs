@@ -15,7 +15,8 @@ async function fixture(t) {
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const state = { answers: { claude: { turnId: 'c1', text: 'Claude 的方案', at: 't' }, gpt: { turnId: 'g1', text: 'GPT 的方案', at: 't' } },
     sent: [], refuse: null, cwd: { claude: '/proj', gpt: '/proj/' } };
-  const side = role => ({ resolve: async () => ({ cwd: state.cwd[role], title: role }), latestAnswer: async () => state.answers[role],
+  const peers = { claude: [{ id: 'c-free', title: '空闲 Claude' }, { id: CLAUDE, title: '已配对 Claude' }], gpt: [{ id: 'g-free', title: '空闲 GPT' }, { id: GPT, title: '已配对 GPT' }] };
+  const side = role => ({ resolve: async () => ({ cwd: state.cwd[role], title: role }), candidates: async cwd => { state.candidateCwd = cwd; return peers[role]; }, latestAnswer: async () => state.answers[role],
     deliver: async (id, text) => { if (state.refuse) throw state.refuse; state.sent.push({ role, id, text }); } });
   const filePath = path.join(directory, 'discussions.json');
   const make = () => new DiscussionService({ store: new DiscussionStore({ filePath, deviceId: 'owner' }), participants: { claude: side('claude'), gpt: side('gpt') } });
@@ -94,4 +95,21 @@ test('corrupt store fails closed without overwriting the original file', async t
   await fs.writeFile(filePath, 'not json');
   await assert.rejects(make().list(), { statusCode: 503 });
   assert.equal(await fs.readFile(filePath, 'utf8'), 'not json');
+});
+
+test('candidates lists the other kind in the same directory, minus conversations already paired', async t => {
+  const { service, state } = await fixture(t);
+  const other = randomUUID();
+  assert.deepEqual(await service.candidates({ conversationId: other, role: 'gpt' }), { role: 'claude', candidates: [{ id: 'c-free', title: '空闲 Claude' }] });
+  assert.equal(state.candidateCwd, '/proj/');
+  assert.deepEqual((await service.candidates({ conversationId: other, role: 'claude' })).candidates, [{ id: 'g-free', title: '空闲 GPT' }]);
+});
+
+test('for-conversation returns only live discussions with both titles', async t => {
+  const { service, discussion } = await fixture(t);
+  const found = (await service.forConversation({ conversationId: GPT })).discussions;
+  assert.deepEqual([found.length, found[0].id, found[0].titles], [1, discussion.id, { claude: 'claude', gpt: 'gpt' }]);
+  assert.deepEqual((await service.forConversation({ conversationId: randomUUID() })).discussions, []);
+  await service.stop({ id: discussion.id });
+  assert.deepEqual((await service.forConversation({ conversationId: CLAUDE })).discussions, []);
 });

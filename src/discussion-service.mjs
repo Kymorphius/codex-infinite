@@ -28,10 +28,26 @@ export class DiscussionService {
 
   async get({ id }) { return { discussion: view(await this.store.get(id)) }; }
 
-  // The discussions one conversation takes part in, for the shortcut-bar button.
+  // The live discussions one conversation takes part in, for the shortcut-bar button, with
+  // both participants' titles so the menu can name the counterpart.
   async forConversation({ conversationId }) {
     const id = discussionId(conversationId);
-    return { discussions: (await this.store.list()).filter(item => item.participants.some(p => p.conversationId === id)).map(view) };
+    const found = (await this.store.list()).filter(item => item.status !== 'stopped' && item.participants.some(p => p.conversationId === id));
+    return { discussions: await Promise.all(found.map(async item => {
+      const titles = {};
+      for (const { role, conversationId: participantId } of item.participants) titles[role] = (await this.participants[role].resolve(participantId).catch(() => null))?.title || '';
+      return { ...view(item), titles };
+    })) };
+  }
+
+  // Conversations of the other kind in the same directory that `conversationId` could pair with.
+  async candidates({ conversationId, role }) {
+    const self = await this.participants[role].resolve(conversationId);
+    if (!self?.cwd) throw httpError(404, '当前会话不存在');
+    const other = otherRole(role);
+    const taken = new Set((await this.store.list()).filter(item => item.status !== 'stopped').flatMap(item => item.participants.map(p => p.conversationId)));
+    const found = await this.participants[other].candidates(self.cwd);
+    return { role: other, candidates: found.filter(item => !taken.has(item.id)).slice(0, 20) };
   }
 
   async create({ claudeConversationId, gptConversationId }) {

@@ -270,7 +270,7 @@ export class CodexInjector {
           } else if (event.params?.name === PROJECT_CHECKLIST_SYNC_BINDING && event.params.payload === 'return') {
             this.checklistWake.request();
           } else {
-            void this.extraBindings.find(({ name }) => name === event.params?.name)?.handle(event.params.payload, this.connection).catch((error) => this.logger.warn(`[codex-control-console] ${event.params.name} failed: ${error.message}`));
+            void this.extraBindings.find(({ name }) => name === event.params?.name)?.handle(event.params.payload, this.connection, event.params).catch((error) => this.logger.warn(`[codex-control-console] ${event.params.name} failed: ${error.message}`));
           }
         });
         this.targetId = target.id;

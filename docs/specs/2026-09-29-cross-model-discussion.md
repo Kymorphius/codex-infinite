@@ -201,3 +201,18 @@ Phase 1 backend (shipped in the working tree, UI pending):
 - Delivery to Claude waits for the conversation to be running and not busy; otherwise it is refused
   with 409 and can be retried (cursor and comments are untouched on refusal).
 - Tests: `test/discussion-{policy,service,http,runtime}.test.mjs`, `test/claude-answer-source.test.mjs`.
+
+Phase 1 UI (in the working tree; not yet exercised in the real desktop app):
+
+- The `讨论` button (`src/native-discussion-button.mjs`) sits beside `新建`. Pairing lists
+  same-directory conversations of the other kind (`candidates`, minus ones already paired).
+  Forwarding is a panel in the button's menu (preview of the latest answer, comment box,
+  `转发`), not a control on each answer inside the native conversation; per-answer controls
+  belong with the room view in phase 3.
+- Transport is a native page bridge (`src/native-discussion-binding.mjs`, registered through the
+  injector's `extraBindings`), not HTTP. It calls the same validated operation table as HTTP
+  (`src/discussion-actions.mjs`) and, like the terminal bridge, answers only the top frame of the
+  `app://-` page. To know the calling context the injector now passes the CDP event params as a third
+  argument to a binding's `handle` (a 21-byte change; `injector.mjs` stays within its budget).
+- Candidate/title lookups add `candidates(cwd)` to each participant port.
+

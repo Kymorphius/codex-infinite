@@ -18,6 +18,8 @@ export function createClaudeParticipant({ terminalConversations, terminalService
   };
   return {
     resolve: async id => { const found = await record(id); return found?.kind === 'claude' ? { cwd: found.cwd, title: found.title } : null; },
+    candidates: async cwd => (await terminalConversations.list()).conversations
+      .filter(item => item.kind === 'claude' && !item.archived && item.cwd === cwd).map(({ id, title }) => ({ id, title })),
     latestAnswer: createClaudeAnswerSource({ userHome, sessionIds }),
     deliver: async (id, text) => {
       const found = await record(id);
@@ -35,9 +37,10 @@ export function createClaudeParticipant({ terminalConversations, terminalService
 
 // GPT side: a native Codex conversation. Delivery uses the same owner-native send path as
 // remote messages; "queue" starts a new turn when idle and queues behind a running one.
-export function createGptParticipant({ localAdapter, remoteMessageService, transcriptPathOf }) {
+export function createGptParticipant({ localAdapter, remoteMessageService, transcriptPathOf, listConversations = async () => [] }) {
   return {
     resolve: async id => { const task = await localAdapter.getTask(id).catch(() => null); return task ? { cwd: task.cwd, title: task.title } : null; },
+    candidates: async cwd => (await listConversations()).filter(item => !item.archived && !item.internal && item.cwd === cwd).map(({ id, title }) => ({ id, title })),
     latestAnswer: createGptAnswerSource({ transcriptPathOf }),
     deliver: async (id, text) => { await remoteMessageService.submit({ threadId: id, prompt: text, deliveryMode: 'queue' }); },
   };
@@ -52,7 +55,7 @@ export function createDiscussionRuntime({ config, terminalConversations, termina
     store: new DiscussionStore({ filePath: path.join(config.wrapperCodexHome, 'discussions.json'), deviceId: config.nodeDevice.id }),
     participants: {
       claude: createClaudeParticipant({ terminalConversations, terminalService, userHome: config.userHome }),
-      gpt: createGptParticipant({ localAdapter, remoteMessageService, transcriptPathOf }),
+      gpt: createGptParticipant({ localAdapter, remoteMessageService, transcriptPathOf, listConversations: async () => (await catalog.snapshot()).conversations }),
     },
   });
 }
