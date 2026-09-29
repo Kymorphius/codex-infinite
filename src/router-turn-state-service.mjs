@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { normalizeNativeRequestObservation } from "./native-request-observation.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SECRET = /^[A-Za-z0-9_-]{32,}$/;
@@ -18,7 +19,7 @@ function normalizedObservation(value) {
 function normalizedEntry(value) {
   const threadId = boundedText(value?.threadId, 64)?.toLowerCase();
   const turnId = boundedText(value?.turnId, 64)?.toLowerCase();
-  const turnState = normalizedObservation(value?.turnState);
+  const turnState = normalizedObservation(value?.turnState === undefined ? { present: false } : value.turnState);
   if (!threadId || !UUID.test(threadId) || !turnState) return null;
   const status = Number.isInteger(value?.status) && value.status >= 0 && value.status <= 599 ? value.status : null;
   const upstreamAttempts = Number.isSafeInteger(value?.upstreamAttempts) && value.upstreamAttempts >= 0 && value.upstreamAttempts <= 32 ? value.upstreamAttempts : null;
@@ -32,6 +33,7 @@ function normalizedEntry(value) {
     upstreamAttempts,
     startedAt,
     endedAt,
+    ...normalizeNativeRequestObservation(value),
     turnState
   });
 }
@@ -39,7 +41,7 @@ function normalizedEntry(value) {
 export function normalizeRouterTurnStateSnapshot(value, now = Date.now()) {
   const active = Array.isArray(value?.active) ? value.active : [];
   const recent = Array.isArray(value?.recent) ? value.recent : [];
-  const entries = [...active, ...recent].slice(-256).map(normalizedEntry).filter(Boolean);
+  const entries = [...recent, ...active].slice(-256).map(normalizedEntry).filter(Boolean);
   return Object.freeze({ available: true, observedAt: now, entries: Object.freeze(entries) });
 }
 

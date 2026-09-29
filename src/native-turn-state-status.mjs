@@ -1,4 +1,5 @@
 import { readNativeComposerThreadId } from "./native-composer-thread-id.mjs";
+import { normalizeNativeRequestObservation, renderNativeReasoningAdjustment } from "./native-request-observation.mjs";
 
 export function nativeTurnStateTone(entry) {
   if (!entry?.turnState?.present) return "#a7a7ad";
@@ -18,7 +19,7 @@ export function normalizeNativeTurnStateSnapshot(value) {
         ? { present: true, length: entry.turnState.length }
         : null;
     if (!/^[0-9a-f-]{36}$/.test(threadId) || !turnState) return [];
-    return [{ threadId, turnId: turnId && /^[0-9a-f-]{36}$/.test(turnId) ? turnId : null, model: typeof entry.model === "string" ? entry.model.slice(0, 120) : null, status: Number.isInteger(entry.status) ? entry.status : null, upstreamAttempts: Number.isSafeInteger(entry.upstreamAttempts) ? entry.upstreamAttempts : null, startedAt: Number.isSafeInteger(entry.startedAt) ? entry.startedAt : null, endedAt: Number.isSafeInteger(entry.endedAt) ? entry.endedAt : null, turnState }];
+    return [{ threadId, turnId: turnId && /^[0-9a-f-]{36}$/.test(turnId) ? turnId : null, model: typeof entry.model === "string" ? entry.model.slice(0, 120) : null, status: Number.isInteger(entry.status) ? entry.status : null, upstreamAttempts: Number.isSafeInteger(entry.upstreamAttempts) ? entry.upstreamAttempts : null, startedAt: Number.isSafeInteger(entry.startedAt) ? entry.startedAt : null, endedAt: Number.isSafeInteger(entry.endedAt) ? entry.endedAt : null, ...normalizeNativeRequestObservation(entry), turnState }];
   });
   return { available: value?.available === true, observedAt: Number.isSafeInteger(value?.observedAt) ? value.observedAt : Date.now(), entries };
 }
@@ -60,19 +61,20 @@ export function buildNativeTurnStateSnapshotScript(snapshot) {
 
 export function buildNativeTurnStateInjectionScript() {
   return `(() => {
-  if (window.__codexControlConsoleTurnStateVersion === '2026-09-23.1') return;
+  if (window.__codexControlConsoleTurnStateVersion === '2026-09-29.1') return;
   if (window.__codexControlConsoleTurnStateTimer) clearInterval(window.__codexControlConsoleTurnStateTimer);
   document.querySelector('[data-codex-control-console-turn-state]')?.remove();
   document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove();
   document.querySelector('[data-codex-control-console-global-turn-state]')?.remove();
   document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((node)=>node.remove());
-  window.__codexControlConsoleTurnStateVersion = '2026-09-23.1';
+  window.__codexControlConsoleTurnStateVersion = '2026-09-29.1';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const summarize = ${summarizeNativeTurnStates.toString()};
   const summarizeNativeTurnStates = summarize;
   const summarizeTurn = ${summarizeNativeTurnState.toString()};
   const summarizeGlobal = ${summarizeGlobalNativeTurnStates.toString()};
   const toneFor = ${nativeTurnStateTone.toString()};
+  const renderReasoningAdjustment = ${renderNativeReasoningAdjustment.toString()};
   let snapshot = { available:false, observedAt:Date.now(), entries:[] };
 
   function closePopover() { document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove(); }
@@ -111,6 +113,7 @@ export function buildNativeTurnStateInjectionScript() {
   }
 
   function render() {
+    renderReasoningAdjustment(snapshot,readThreadId(document));
     const jev=document.querySelector('button[data-codex-control-console-native-jev-current]');const host=jev?.parentElement;if(!host)return;
     const threadId=readThreadId(document);const summary=summarize(snapshot,threadId);let button=document.querySelector('[data-codex-control-console-turn-state]');if(!button){button=document.createElement('button');button.type='button';button.setAttribute('data-codex-control-console-turn-state','');button.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openPopover(button,summarize(snapshot,readThreadId(document)));});}
     const latest=summary.latest;const label=snapshot.available?labelFor(latest):'?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;position:relative;z-index:1;flex:0 0 auto;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
