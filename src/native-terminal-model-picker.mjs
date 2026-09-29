@@ -14,6 +14,8 @@ export function installNativeTerminalModelPicker() {
     trigger.append(label);
     trigger.insertAdjacentHTML?.('beforeend', '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>');
     const menu = el('div', 'model-menu'); menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Claude 模型与推理强度'); menu.hidden = true;
+    // A manual popover opens in the top layer, above the page-level fixed shortcut bar that sits over the composer.
+    const layered = typeof menu.showPopover === 'function'; if (layered) menu.setAttribute('popover', 'manual');
     const rows = [], efforts = el('div', 'effort-seg'), note = el('p', 'model-note');
     efforts.setAttribute('role', 'radiogroup'); efforts.setAttribute('aria-label', '推理强度');
     menu.append(el('span', 'model-heading', '模型'));
@@ -70,8 +72,17 @@ export function installNativeTerminalModelPicker() {
       note.textContent = hint(); note.setAttribute('data-tone', error ? 'bad' : 'muted');
       wrap.setAttribute('aria-busy', String(saving));
     }
+    // Top-layer menus are placed from the pill's rect: right-aligned, 10px above it, and no taller
+    // than the room above. Rects are rendered pixels; the page may be CSS-zoomed (see headerInset).
+    function place() {
+      if (!layered || !open) return;
+      const rect = trigger.getBoundingClientRect(), zoom = rect.height > 0 && trigger.offsetHeight > 0 ? rect.height / trigger.offsetHeight : 1;
+      const px = value => `${Math.max(0, value / zoom).toFixed(1)}px`;
+      Object.assign(menu.style, { right: px(window.innerWidth - rect.right), bottom: px(window.innerHeight - rect.top + 10), maxHeight: px(Math.min(500 * zoom, rect.top - 16)) });
+    }
     function setOpen(value, focus = false) {
       open = value; menu.hidden = !open; trigger.setAttribute('aria-expanded', String(open));
+      if (layered) { try { if (open) { menu.showPopover(); place(); } else menu.hidePopover(); } catch { /* Already in that state. */ } }
       if (open && focus) (rows.find(row => row.getAttribute('aria-checked') === 'true') || rows[0]).focus?.();
       if (!open && focus) trigger.focus?.();
     }
@@ -121,9 +132,9 @@ export function installNativeTerminalModelPicker() {
     // Any click outside (the composer, the relocated title bar, the native sidebar) or leaving the window closes it.
     const outside = event => { if (open && !event.composedPath?.().includes(wrap)) setOpen(false); }, blur = () => { if (open) setOpen(false); };
     for (const target of [root, document]) target?.addEventListener?.('pointerdown', outside, true);
-    window.addEventListener?.('blur', blur);
+    window.addEventListener?.('blur', blur); window.addEventListener?.('resize', place);
     render();
     return { element: wrap, update, close: () => setOpen(false),
-      dispose() { disposed = true; for (const target of [root, document]) target?.removeEventListener?.('pointerdown', outside, true); window.removeEventListener?.('blur', blur); } };
+      dispose() { disposed = true; for (const target of [root, document]) target?.removeEventListener?.('pointerdown', outside, true); window.removeEventListener?.('blur', blur); window.removeEventListener?.('resize', place); if (open) setOpen(false); } };
   };
 }

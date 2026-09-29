@@ -15,6 +15,8 @@ export const NATIVE_TERMINAL_MODEL_PICKER_STYLE = `
   border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;background:var(--color-background-primary,#202022);
   color:var(--fg);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px);font:400 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .model-menu[hidden]{display:none}
+/* In the top layer (popover) the menu is fixed to the viewport; place() sets right/bottom/max-height. */
+.model-menu:popover-open{position:fixed;inset:auto;margin:0;z-index:auto}
 .model-heading{padding:7px 8px 3px;color:var(--muted);font-size:11px;line-height:15px}
 .model-row{display:flex;align-items:center;gap:9px;width:100%;flex:0 0 auto;border:0;border-radius:8px;padding:7px 8px;background:transparent;
   text-align:left;font:500 13px/17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}

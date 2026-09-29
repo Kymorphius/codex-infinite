@@ -134,3 +134,21 @@ test('picker style copies the native menu surface and opens upward', () => {
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /box-shadow:0 14px 42px rgba\(0,0,0,\.28\);backdrop-filter:blur\(22px\)/);
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /\.model-row:hover:not\(:disabled\),\.model-row:focus-visible\{background:color-mix\(in srgb,currentColor 9%,transparent\)/);
 });
+
+test('where popovers exist the menu opens in the top layer above the pill, sized to the room above', t => {
+  const shown = [], proto = Node.prototype;
+  Object.assign(proto, { showPopover() { shown.push(['show', this.className]); }, hidePopover() { shown.push(['hide', this.className]); },
+    getBoundingClientRect: () => ({ top: 700, right: 1500, height: 24 }), offsetHeight: 20 });
+  t.after(() => { for (const key of ['showPopover', 'hidePopover', 'getBoundingClientRect', 'offsetHeight']) delete proto[key]; });
+  const { picker, find, window } = setup({ ...base, claudeSettings: { model: 'opus', effort: 'high', ultracode: false, updatedAt: 'x' } }, () => ({}));
+  Object.assign(window, { innerWidth: 1800, innerHeight: 900 });
+  const [trigger] = find(node => /model-pill/.test(node.className)), [menu] = find(node => node.className === 'model-menu');
+  menu.style = {}; assert.equal(menu.attributes.popover, 'manual');
+  trigger.onclick();
+  assert.deepEqual(shown, [['show', 'model-menu']]);
+  // Zoom 1.2 (rendered 24px for a 20px pill): right 300/1.2, bottom (900-700+10)/1.2, max-height min(600, 684)/1.2.
+  assert.deepEqual(menu.style, { right: '250.0px', bottom: '175.0px', maxHeight: '500.0px' });
+  trigger.onclick(); assert.deepEqual(shown.at(-1), ['hide', 'model-menu']); assert.equal(menu.hidden, true);
+  trigger.onclick(); picker.dispose(); assert.deepEqual(shown.at(-1), ['hide', 'model-menu'], 'dispose closes an open popover');
+  assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /\.model-menu:popover-open\{position:fixed;inset:auto;margin:0/);
+});
