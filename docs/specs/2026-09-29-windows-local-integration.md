@@ -62,3 +62,21 @@ deployment, service restart, force-push or overwrite of the Windows checkout.
   new rendering gates replace existing page closures without a page reload.
 - Keep Windows search regressions in their own file so concurrent local
   search UI changes stay outside this integration commit.
+
+## Verification results
+
+- Integrated clean source: syntax/module graph/structure checks pass;
+  1564/1564 tests pass on macOS.
+- Local main including the five preserved concurrent search files: checks pass;
+  1566/1566 tests pass. Those five files retained identical content hashes across
+  the fast-forward integration and remain uncommitted.
+- Windows isolated source: syntax/module graph/structure checks pass. Initial
+  full run: 1561 passed, 1 skipped, 2 failed. One worker had loaded the older
+  Claude injection-version assertion before its update; the other failure was
+  a POSIX mode-bit assertion in the new restart-mark test. That assertion now
+  applies only on POSIX, consistent with the other persistence tests; runtime
+  file creation permissions are unchanged (NTFS ACLs are not asserted here).
+- After both assertion corrections, all 167 focused Windows regressions pass,
+  covering every changed test module plus terminal binding/runtime and existing
+  search tests. A second full Windows run was not performed.
+- No live app restart, service configuration change, deployment or push.

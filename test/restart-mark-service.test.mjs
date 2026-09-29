@@ -60,7 +60,8 @@ test('marks toggle, persist privately, and turn into verify marks after an app r
   await f.service.set({ id: id(1), provider: 'local', title: 'One', marked: true });
   const second = await f.service.set({ id: id(2), provider: 'terminal', deviceId: 'dev', title: 'Two', marked: true });
   assert.deepEqual(second.marks.map((item) => item.id), [id(1), id(2)]);
-  assert.equal((await fs.stat(f.filePath)).mode & 0o777, 0o600);
+  // Windows exposes synthetic POSIX mode bits; NTFS access is controlled by ACLs.
+  if (process.platform !== 'win32') assert.equal((await fs.stat(f.filePath)).mode & 0o777, 0o600);
   const remarked = await f.service.set({ id: id(1), provider: 'local', title: 'One renamed', marked: true });
   assert.equal(remarked.marks.find((item) => item.id === id(1)).markedAt, '2026-09-29T12:00:00.000Z');
   assert.deepEqual((await f.service.set({ id: id(1), provider: 'local', marked: false })).marks.map((item) => item.id), [id(2)]);
