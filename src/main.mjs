@@ -1,3 +1,5 @@
+import { createNativeClaudeInteractionBinding } from './native-claude-interaction-binding.mjs';
+import { createRouterInteractionClient } from './router-interaction-client.mjs';
 import { TerminalService } from './terminal-service.mjs';
 import { TerminalConversationService } from './terminal-conversation-service.mjs';
 import { createClaudeCompanionSource } from './claude-companion-source.mjs';
@@ -228,6 +230,7 @@ export async function run() {
   const diagnosticsService = new RuntimeDiagnosticsService({ nodeRuntimeService, dispatchStore, auditStore: dispatchAuditStore, scheduler });
   let injector;
   let nativeOwnerInjector = null;
+  const claudeInteractionClient = createRouterInteractionClient({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
   const turnStateService = new RouterTurnStateService({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
   const terminalService = new TerminalService({ userHome: config.userHome, defaultCwd: config.userHome });
   const terminalConversations = new TerminalConversationService({ terminalService, deviceId: config.nodeDevice.id,
@@ -267,11 +270,11 @@ export async function run() {
       reloadAfterCspBypass: config.cspReloadRequired,
       terminalConversations, terminalService,
       dashboardLauncher: nativeDashboardLaunchService,
-      extraBindings: [createNativeRestartMarksBinding(restartMarks), createNativeDiscussionBinding(discussions)]
+      extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient), createNativeRestartMarksBinding(restartMarks), createNativeDiscussionBinding(discussions)]
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
-      nativeOwnerInjector = new NativeOwnerInjector({ cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboRuntime.policyProvider, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
+      nativeOwnerInjector = new NativeOwnerInjector({ extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient)], cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboRuntime.policyProvider, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
       await nativeOwnerInjector.start();
     }
     scheduler.start();

@@ -1,3 +1,4 @@
+import { installBindings } from './native-bindings.mjs';
 import { buildNativePinnedEmptyInjectionScript } from "./native-pinned-empty.mjs";
 import { buildNativeClaudePreviewInjectionScript } from './native-claude-preview.mjs';
 import { buildNativeClaudeToolRowsInjectionScript } from './native-claude-tool-rows.mjs';
@@ -66,8 +67,9 @@ export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
 }
 
 export class NativeOwnerInjector {
-  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, turnStateProvider = null, pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, turnStateProvider = null, extraBindings = [], pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
+    this.extraBindings = extraBindings;
     this.contextWindowStore = contextWindowStore;
     this.turboPolicyProvider = turboPolicyProvider;
     this.turboController = turboController;
@@ -117,6 +119,8 @@ export class NativeOwnerInjector {
     }
     this.removeBindingListener = connection.onEvent?.((event) => {
       if (event.method !== "Runtime.bindingCalled") return;
+      const extra = this.extraBindings.find(binding => binding.name === event.params?.name);
+      if (extra) { void extra.handle(event.params.payload, connection, event.params).catch(() => {}); return; }
       if (event.params?.name === NATIVE_CONTEXT_BINDING) {
         this.contextActionChain = this.contextActionChain
           .then(() => persistNativeContextAction(event.params.payload, this.contextWindowStore))
@@ -144,6 +148,7 @@ export class NativeOwnerInjector {
     try {
       const target = this.choose(await this.discover(this.cdpOrigin));
       if (target.id !== this.targetId || !this.connection) await this.attach(target);
+      await installBindings(this.connection, this.extraBindings);
       await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });

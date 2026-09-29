@@ -105,23 +105,10 @@ style composer. A separate terminal dashboard is not the user-facing workflow.
   Codex-hosted Claude model requests are separate permission surfaces. A
   `claude attach` viewer connects to an already-running daemon job and cannot
   change that job's permission mode; it retains the job's original mode.
-- Interactive Claude menus (2026-09-28): the native conversation mirrors a
-  *currently visible* numbered-choice menu from the xterm screen above the
-  composer. It shows the question and choices, highlights Claude's own current
-  selection, and offers previous/next/space/confirm/cancel controls that send PTY
-  keys through the same owned socket. The dock never decides for the user.
-  It appears only for a live Claude session with a numbered option group and
-  selection cursor; uncertain prompts remain fully operable in the terminal
-  and composer. This covers AskUserQuestion, plan choices and any permission
-  menu that Claude actually displays. In bypassPermissions most tool approvals
-  are auto-approved, so no permission menu is fabricated. The dock is cleared
-  on exit, disconnect, takeover, session switch and when the menu disappears.
-  Parsing is presentation-only; terminal text cannot create privileged actions.
-  Menus containing character-art examples retain their original spacing in an
-  optional monospace preview above the controls. The terminal remains the
-  full-fidelity rendering, including ANSI colors and cursor behavior; the
-  preview is plain text from the current visible screen, never a reconstructed
-  or fabricated diagram. Numbered choices may have example lines between them.
+- Interactive Claude menus (corrected 2026-09-29): standalone terminals retain
+  the actual CLI menu in xterm. The duplicate choice dock above their composer was
+  removed: the requested extra interaction surface belongs to GPT/Codex harness
+  sessions running Claude through Router. See `2026-09-29-claude-harness-interactions.md`.
 
 ## Native integration
 

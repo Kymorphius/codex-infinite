@@ -61,6 +61,11 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   terminal conversation layout, per-session composer state, and xterm input /
   display adapter. Composer controls and native terminal input share the same
   ready-gated socket; they never send messages through the Codex task bridge.
+- `src/router-interaction-client.mjs`, `src/native-claude-interaction-binding.mjs`,
+  `src/native-claude-interactions.mjs` — caller-authenticated, process-local Claude
+  questions/approvals from Router to the owning native composer. The backend keeps
+  credentials; the binding checks native top-frame and current thread on every
+  action. User answers return to the original CLI control channel, never a new turn.
 - `src/claude-companion-source.mjs` — read-only adapter over Router's public
   `claude-companions/<thread>/session.json`; companion sessions are adopted as
   Claude terminal records (`companionOf`) and shown under their Codex thread.

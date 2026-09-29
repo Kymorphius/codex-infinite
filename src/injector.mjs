@@ -1,3 +1,4 @@
+import { installBindings } from './native-bindings.mjs';
 import { buildNativeUnifiedSidebarInjectionScript } from './native-unified-sidebar.mjs';
 import { buildNativeClaudePreviewInjectionScript } from './native-claude-preview.mjs';
 import { buildNativeClaudeToolRowsInjectionScript } from './native-claude-tool-rows.mjs';
@@ -281,7 +282,7 @@ export class CodexInjector {
       if (this.dashboardLauncher) await this.connection.send("Runtime.addBinding", { name: NATIVE_DASHBOARD_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       await this.connection.send("Runtime.addBinding", { name: PROJECT_CHECKLIST_SYNC_BINDING });
-      for (const { name } of this.extraBindings) await this.connection.send("Runtime.addBinding", { name });
+      await installBindings(this.connection, this.extraBindings);
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];
       await installIntoTarget(this.connection, this.dashboardUrl, {

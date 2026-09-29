@@ -33,21 +33,14 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   draft.value = 'hello'; draft.oninput(); assert.equal(send.disabled, false); await send.onclick(); assert.deepEqual(pasted, ['hello', true]); assert.equal(draft.value, '');
   const chip = created.find(node => node.className === 'chip'), status = created.find(node => node.className === 'status');
   assert.equal(chip.textContent, 'Claude CLI'); assert.equal(status.attributes['data-tone'], 'ok');
-  const choiceDock = created.find(node => node.className === 'choice-dock');
   sessionOptions.onChange({ session: record.runtimeSummary, connection: 'connected', canInput: true,
-    choicePrompt: { question: 'Which plan?', selected: 1, preview: '┌───┐\n│ A │\n└───┘', options: [{ number: 1, label: 'A' }, { number: 2, label: 'B' }] } });
-  assert.equal(choiceDock.hidden, false); assert.equal(created.find(node => node.className === 'choice-title').textContent, 'Which plan?');
-  assert.equal(created.find(node => node.className === 'choice-preview').textContent, '┌───┐\n│ A │\n└───┘');
-  created.find(node => node.textContent === '↓ 下一项').onclick();
-  created.find(node => node.textContent === '确认当前项').onclick();
-  assert.deepEqual(keys, ['down', 'enter'], 'choice controls return PTY keys without inventing approval');
-  sessionOptions.onChange({ session: record.runtimeSummary, connection: 'connected', canInput: true, choicePrompt: null });
-  assert.equal(choiceDock.hidden, true);
+    choicePrompt: { question: 'Which plan?', selected: 1, options: [{ number: 1, label: 'A' }, { number: 2, label: 'B' }] } });
+  assert.equal(created.some(node => node.className === 'choice-dock'), false, 'harness interaction panel is not duplicated in standalone terminals');
   draft.value = 'ls'; draft.oninput(); created.find(node => node.className === 'paste').onclick();
   await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(pasted, ['ls', false]);
   const interrupt = created.find(node => node.textContent === '打断'); keyResult = { ok: false, message: '终端输入过快，请等待' }; interrupt.onclick();
-  assert.deepEqual(keys, ['down', 'enter', 'interrupt']); assert.equal(status.textContent, '终端输入过快，请等待'); assert.equal(status.attributes['data-tone'], 'bad');
-  keyResult = { ok: true }; created.find(node => node.textContent === 'Ctrl+D').onclick(); assert.deepEqual(keys, ['down', 'enter', 'interrupt', 'eof']); assert.equal(status.attributes['data-tone'], 'ok');
+  assert.deepEqual(keys, ['interrupt']); assert.equal(status.textContent, '终端输入过快，请等待'); assert.equal(status.attributes['data-tone'], 'bad');
+  keyResult = { ok: true }; created.find(node => node.textContent === 'Ctrl+D').onclick(); assert.deepEqual(keys, ['interrupt', 'eof']); assert.equal(status.attributes['data-tone'], 'ok');
   let imagePrevented = false;
   draft.listeners.get('paste')({ clipboardData: { items: [{ type: 'image/png' }] }, preventDefault() { imagePrevented = true; }, stopPropagation() {} });
   assert.equal(imagePrevented, true); assert.equal(keys.at(-1), 'paste-image');
