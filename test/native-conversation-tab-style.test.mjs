@@ -18,6 +18,7 @@ test('composer shortcuts use native surface tokens and quiet chrome with accessi
   const style = buildNativeConversationTabStyle('[data-tabs]', 'data-hidden', '', '');
   const rule = style.match(/\[data-codex-control-console-conversation-shortcuts\]\{([^}]+)\}/)[1];
   assert.match(rule, /border-radius:16px/);
+  assert.match(rule, /z-index:41;/, 'page chrome level: below native dialogs, menus and toasts');
   assert.match(rule, /--ccc-shortcut-surface/);
   assert.match(rule, /box-shadow:none;backdrop-filter:none/);
   assert.match(style, /min-height:30px/);
