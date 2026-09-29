@@ -21,6 +21,7 @@ export function parseClaudeNativeToolNotice(value) {
 export function installNativeClaudeToolRows(parseNotice) {
   const rootSelector = '[data-thread-user-message-navigation-content],[data-app-action-timeline-scroll]';
   const rowAttribute = 'data-ccc-claude-tool-row';
+  const inlineSelector = 'em,strong,b,i,code,span,a,del,s,br';
   const style = document.querySelector('style[data-ccc-claude-tool-style]') || document.createElement('style');
   style.setAttribute('data-ccc-claude-tool-style', '');
   style.textContent = `
@@ -110,7 +111,10 @@ export function installNativeClaudeToolRows(parseNotice) {
     const root = document.querySelector(rootSelector);
     if (!root) return;
     for (const source of root.querySelectorAll('p,div,span')) {
-      if (source.closest?.(`[${rowAttribute}]`) || source.children.length) continue;
+      // Markdown may render command globs as <em>/<code>; accept inline-only
+      // children but never an element that already wraps a converted notice.
+      if (source.closest?.(`[${rowAttribute}]`) || [...source.children].some(child => !child.matches?.(inlineSelector))) continue;
+      if (source.parentElement?.closest?.('[data-ccc-claude-tool-source]')) continue;
       const original = source.textContent || '';
       if (processed.get(source) === original) continue;
       const notice = parseNotice(original);

@@ -50,8 +50,17 @@ test('native activity rows merge start and finish without issuing client tool ca
   sources.push(node('p', 'Claude 原生工具：Read · /tmp/file.txt（已完成 · 退出码 0）'));
   window.__cccClaudeToolRows.render();
   assert.equal(rows[1].querySelector('pre').textContent, '/tmp/file.txt\n退出码：0');
+  const markdown = node('p', 'Claude 原生工具：Bash · grep x src/.mjs; ps aux | grep -o "port=[0-9]"（已完成）');
+  markdown.children.push({ matches: selector => selector.split(',').includes('em') });
+  const block = node('div', 'Claude 原生工具：Bash · ls（已完成）');
+  block.children.push({ matches: () => false });
+  sources.push(markdown, block);
+  window.__cccClaudeToolRows.render();
+  assert.equal(rows.length, 3);
+  assert.equal(markdown.style.display, 'none');
+  assert.equal(block.style.display, undefined);
   vm.runInNewContext(source, { document, window, queueMicrotask });
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
 });
 
 test('compact tool-only wrappers including old installed rows without shrinking prose or turn boundaries', () => {
