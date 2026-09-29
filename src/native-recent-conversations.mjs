@@ -1,4 +1,5 @@
 import { updateClaudeStatus, updateNativeRecentDraft, updateNativeRecentStatus } from './native-recent-status.mjs';
+import { NATIVE_NEW_CONVERSATION_STYLE } from './native-new-conversation-button.mjs';
 import { createNativeRecentRestartButton, nativeRecentRestartEligible, NATIVE_RECENT_RESTART_STYLE, updateNativeRecentRestartMark } from './native-recent-restart-mark.mjs';
 
 export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 40) {
@@ -293,7 +294,7 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.58}' +
   '.ccc-native-recent-empty{margin:0;padding:18px;text-align:center;font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.6}' +
   '@container ccc-native-tabs (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}}' +
-  '@media(max-width:720px){.ccc-native-recent-menu{left:-4px}}' + NATIVE_RECENT_RESTART_STYLE;
+  '@media(max-width:720px){.ccc-native-recent-menu{left:-4px}}' + NATIVE_RECENT_RESTART_STYLE + NATIVE_NEW_CONVERSATION_STYLE;
 
 export function buildNativeRecentConversationMenuInjectionSource() {
   return [

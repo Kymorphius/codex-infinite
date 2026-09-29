@@ -4,7 +4,7 @@ import { installNativeProjectSearchActions } from './native-project-search-actio
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
 export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
-  const VERSION = '2026-09-29.fixed-slot4';
+  const VERSION = '2026-09-29.fixed-slot6';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -227,6 +227,8 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     getState() { return { query: input?.value || '', expanded: [...expanded] }; },
     set(value) { snapshot = value && Array.isArray(value.projects) ? value : { projects: [], stale: true }; render(); },
     refresh() { render(); },
+    projectOfTask(id) { return snapshot.projects?.find(project => project.tasks?.some(task => task.id === id)) || null; },
+    projectOfDirectory(directory) { return snapshot.projects?.find(project => project.device?.kind !== 'remote-codex' && project.sourceDirectories?.includes(directory)) || null; },
     dispose() { disposed = true; observer.disconnect(); root?.remove(); }
   };
   render();

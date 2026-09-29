@@ -43,5 +43,14 @@ export function createNativeTerminalActions({ documentRef, windowRef, request, a
       return true;
     } catch (error) { notice(error.message || '无法创建会话'); return false; }
   }
-  return { menu, create, notice, destroy() { dialog?.remove(); } };
+  // A new Claude conversation in the same directory and project; the source stays untouched.
+  async function fresh(record) {
+    try {
+      if (record?.kind !== 'claude') throw Error('只有 Claude CLI 会话支持');
+      const result = await request('create', { cwd: record.cwd, kind: 'claude', projectRef: record.projectRef || null });
+      accept(result.conversation); windowRef.__codexControlConsoleOpenTerminalConversation?.(result.conversation);
+      return { ok: true };
+    } catch (error) { return { ok: false, message: error.message || '无法创建新会话' }; }
+  }
+  return { menu, create, fresh, notice, destroy() { dialog?.remove(); } };
 }

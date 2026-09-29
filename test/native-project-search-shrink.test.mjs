@@ -21,6 +21,10 @@ test('expanding a project with many sessions never lets flex shrink the project 
   const tasks = Array.from({ length: 40 }, (_, index) => ({ id: `t${index}`, title: `会话 ${index}`, updatedAt: '2026-09-29T10:00:00Z', status: 'completed' }));
   window.__codexControlConsoleProjectSearch.set({ stale: false, projects: [{ id: 'p', searchKey: 'local', name: '看板', sourceDirectories: ['/work/app'],
     device: { kind: 'local-codex', name: '本机', status: 'connected' }, tasks }] });
+  assert.equal(window.__codexControlConsoleProjectSearch.projectOfTask('t7').id, 'p');
+  assert.equal(window.__codexControlConsoleProjectSearch.projectOfTask('missing'), null);
+  assert.equal(window.__codexControlConsoleProjectSearch.projectOfDirectory('/work/app').id, 'p');
+  assert.equal(window.__codexControlConsoleProjectSearch.projectOfDirectory('/elsewhere'), null);
   const input = walk(parent).find(node => node.tag === 'input'); input.value = '看板'; input.listeners.input();
   const project = walk(parent).find(node => node.attrs['data-project-search-id'] === 'local');
   project.listeners.click();
