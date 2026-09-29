@@ -32,6 +32,17 @@ export function createNativeTerminalActions({ documentRef, windowRef, request, a
       else if (result?.id === 'runtime') accept((await request(record.status === 'running' ? 'stop' : 'start', { id: record.id })).conversation);
     } catch (error) { notice(error.message || '会话操作失败'); }
   }
+  // Creates and starts a conversation in a local project directory; `open: false` leaves the
+  // current view alone (a discussion being assembled). Returns the conversation, or throws.
+  async function createRecord(project, cwd, kind, { open = true } = {}) {
+    if (!project || project.cloud || (project.hostId && project.hostId !== 'local') || project.device?.kind === 'remote-codex' || !project.sourceDirectories?.includes(cwd)) throw Error('请选择本机项目的明确目录');
+    const model = readModel(documentRef), id = project.key || project.id;
+    const entry = [...model.projectByKey].find(([, value]) => value.group?.projectId === id && (value.group?.hostId || 'local') === 'local');
+    if (!entry) throw Error('项目还未就绪，请刷新项目后重试');
+    const result = await request('create', { cwd, kind, projectRef: { source: 'codex', key: entry[0], id, hostId: 'local' } });
+    accept(result.conversation); if (open) windowRef.__codexControlConsoleOpenTerminalConversation?.(result.conversation);
+    return result.conversation;
+  }
   async function create(project, cwd, kind) {
     try {
       if (!project || project.cloud || (project.hostId && project.hostId !== 'local') || project.device?.kind === 'remote-codex' || !project.sourceDirectories?.includes(cwd)) throw Error('请选择本机项目的明确目录');
@@ -52,5 +63,5 @@ export function createNativeTerminalActions({ documentRef, windowRef, request, a
       return { ok: true };
     } catch (error) { return { ok: false, message: error.message || '无法创建新会话' }; }
   }
-  return { menu, create, fresh, notice, destroy() { dialog?.remove(); } };
+  return { menu, create, createRecord, fresh, notice, destroy() { dialog?.remove(); } };
 }

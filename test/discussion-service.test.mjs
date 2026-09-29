@@ -113,3 +113,39 @@ test('for-conversation returns only live discussions with both titles', async t 
   await service.stop({ id: discussion.id });
   assert.deepEqual((await service.forConversation({ conversationId: CLAUDE })).discussions, []);
 });
+
+test('prepare returns the topic for the first responder and an opening message for the other side', async t => {
+  const { service } = await fixture(t);
+  const gptFirst = service.prepare({ first: 'gpt', topic: '缓存策略' });
+  assert.equal(gptFirst.gptText, '缓存策略');
+  assert.match(gptFirst.claudeText, /缓存策略[\s\S]*GPT 先回答[\s\S]*只回复"收到"/);
+  const claudeFirst = service.prepare({ first: 'claude', topic: '缓存策略' });
+  assert.equal(claudeFirst.claudeText, '缓存策略');
+  assert.match(claudeFirst.gptText, /Claude 先回答/);
+});
+
+test('begin pairs, records who started, waits for Claude and delivers its opening message', async t => {
+  const { service, state } = await fixture(t);
+  const claudeId = randomUUID(), gptId = randomUUID(); state.delivered = [];
+  const originalResolve = state.resolveCalls = { gpt: 0 };
+  service.participants.gpt.resolve = async () => (++originalResolve.gpt < 3 ? null : { cwd: '/proj', title: 'g' }); // not indexed for the first two tries
+  service.participants.claude.deliver = async (id, text, options) => state.delivered.push({ id, text, options });
+  service.wait = async () => {};
+  const result = await service.begin({ first: 'gpt', topic: '缓存策略', claudeConversationId: claudeId, gptConversationId: gptId });
+  assert.equal(result.deliveryError, null);
+  assert.deepEqual([result.discussion.first, result.discussion.topic], ['gpt', '缓存策略']);
+  assert.equal(state.delivered.length, 1);
+  assert.deepEqual([state.delivered[0].id, state.delivered[0].options], [claudeId, { waitIdle: true }]);
+  assert.match(state.delivered[0].text, /GPT 先回答/);
+});
+
+test('begin keeps the pairing and reports when Claude cannot take the opening message; an unindexed GPT gives up', async t => {
+  const { service } = await fixture(t);
+  service.wait = async () => {};
+  service.participants.claude.deliver = async () => { throw Object.assign(new Error('Claude 还没有就绪'), { statusCode: 409 }); };
+  const claudeId = randomUUID(), gptId = randomUUID();
+  const result = await service.begin({ first: 'claude', topic: 't', claudeConversationId: claudeId, gptConversationId: gptId });
+  assert.equal(result.deliveryError, 'Claude 还没有就绪'); assert.ok(result.discussion.id);
+  service.participants.gpt.resolve = async () => null;
+  await assert.rejects(service.begin({ first: 'claude', topic: 't', claudeConversationId: randomUUID(), gptConversationId: randomUUID() }), { statusCode: 404 });
+});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planForward, applyForward } from '../src/discussion-policy.mjs';
-import { forwardEnvelope, discussionForwardInput, discussionCreateInput, cleanText } from '../src/discussion-contract.mjs';
+import { forwardEnvelope, discussionForwardInput, discussionCreateInput, discussionPrepareInput, discussionBeginInput, cleanText } from '../src/discussion-contract.mjs';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const base = () => ({ id: ID, status: 'idle', round: 0, cursors: { claude: null, gpt: null }, pendingComments: [], messages: [], revision: 1 });
@@ -50,4 +50,15 @@ test('envelope refuses oversize text; inputs reject unknown fields, bad ids and 
   assert.throws(() => discussionCreateInput({ claudeConversationId: ID }), { statusCode: 400 });
   assert.equal(cleanText('a\u0000b\u001b', 10, '点评'), 'ab');
   assert.throws(() => cleanText('x'.repeat(5), 4, '点评'), { statusCode: 413 });
+});
+
+test('prepare and begin inputs need a topic, a role and exact fields', () => {
+  assert.deepEqual(discussionPrepareInput({ first: 'claude', topic: ' 议题\u0000 ' }), { first: 'claude', topic: '议题' });
+  assert.throws(() => discussionPrepareInput({ first: 'claude', topic: '  ' }), { statusCode: 400 });
+  assert.throws(() => discussionPrepareInput({ first: 'bard', topic: 'x' }), { statusCode: 400 });
+  assert.throws(() => discussionPrepareInput({ first: 'gpt', topic: 'x'.repeat(8001) }), { statusCode: 413 });
+  assert.throws(() => discussionPrepareInput({ first: 'gpt', topic: 'x', extra: 1 }), { statusCode: 400 });
+  const ids = { claudeConversationId: ID, gptConversationId: '33333333-3333-4333-8333-333333333333' };
+  assert.deepEqual(discussionBeginInput({ first: 'gpt', topic: 'x', ...ids }), { first: 'gpt', topic: 'x', ...ids });
+  assert.throws(() => discussionBeginInput({ first: 'gpt', topic: 'x', claudeConversationId: ID }), { statusCode: 400 });
 });

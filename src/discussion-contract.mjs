@@ -1,6 +1,6 @@
 import { httpError } from './http-utils.mjs';
 
-export const DISCUSSION_LIMITS = { discussions: 200, messages: 200, textChars: 12_000, commentChars: 4_000 };
+export const DISCUSSION_LIMITS = { discussions: 200, messages: 200, textChars: 12_000, commentChars: 4_000, topicChars: 8_000 };
 export const DISCUSSION_ROLES = ['claude', 'gpt'];
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
@@ -57,4 +57,26 @@ export function forwardEnvelope({ discussionId: id, from, round, answer, comment
   const text = `${head}\n${body}`;
   if (text.length > DISCUSSION_LIMITS.textChars) throw httpError(413, '转发内容过长，请缩短点评');
   return text;
+}
+
+export function discussionPrepareInput(input) {
+  exact(input, ['first', 'topic']);
+  const topic = cleanText(input.topic, DISCUSSION_LIMITS.topicChars, '议题');
+  if (!topic) throw httpError(400, '请先写下议题');
+  return { first: discussionRole(input.first), topic };
+}
+
+export function discussionBeginInput(input) {
+  exact(input, ['first', 'topic', 'claudeConversationId', 'gptConversationId']);
+  return { ...discussionPrepareInput({ first: input.first, topic: input.topic }),
+    ...discussionCreateInput({ claudeConversationId: input.claudeConversationId, gptConversationId: input.gptConversationId }) };
+}
+
+// What each side receives when a discussion starts. The first responder gets the topic as
+// typed. The other side cannot stay empty (a native GPT conversation only exists once its
+// first message is sent), so it is told the topic and to wait for the forwarded answer.
+export function discussionOpeningTexts({ first, topic }) {
+  const second = otherRole(first);
+  const primer = `[协作讨论 · 议题]\n${topic}\n\n这是你和 ${LABEL[first]} 的协作讨论，${LABEL[first]} 先回答。你现在先不要作答，只回复"收到"。等收到标有"[来自 ${LABEL[first]} …]"的转发消息后，再给出你的看法。`;
+  return { first, second, texts: { [first]: topic, [second]: primer } };
 }

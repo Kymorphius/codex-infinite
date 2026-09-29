@@ -36,6 +36,27 @@ themselves, and to watch the whole exchange in one place.
 - A **作战会议室** view merges the timeline of both participants and the user, and holds
   the composer for the user's messages and the controls (start, pause, stop, mode, rounds).
 
+## Starting a discussion from scratch (新建讨论)
+
+The `讨论` menu of an unpaired conversation starts with `新建讨论`: a topic box and two
+buttons, `GPT 先答` and `Claude 先答`. Choosing one creates both conversations in the active
+conversation's project, sends the topic, and pairs them.
+
+- Project: the active conversation's project, like `新建`. It must have exactly one directory,
+  because both new conversations must share it (a project with several directories is refused).
+- The first responder gets the topic as typed. The other side cannot stay empty (a native GPT
+  conversation does not exist until its first message is sent), so it gets a fixed opening
+  message: the topic, who answers first, and "reply only 收到; answer when a forwarded
+  message tagged 来自 … arrives". Until the first responder's answer is forwarded, that `收到` is the second side's latest answer (phase 1 does not filter it; the person simply forwards the first responder's answer; phase 2 must ignore it).
+- GPT is created first (through the native new-chat page, exactly like a checklist claim: the
+  composer must be empty), then Claude, then the pairing and the Claude message are done by the
+  host. If GPT creation fails nothing is created. If a later step fails, the conversations that
+  already exist stay and the toast says which step failed.
+- The topic comes from the box in the menu, not from the conversation's own composer draft;
+  reading and clearing two different composers (one inside a shadow DOM) is fragile.
+- After this the pair behaves like any other (phase 1: manual forward; phase 2: relay).
+- The discussion records `first` and `topic` so later phases and the room view know who started.
+
 ## Non-goals
 
 - More than two model participants, or other providers (ChatGPT web, shell, remote nodes).
@@ -215,4 +236,17 @@ Phase 1 UI (in the working tree; not yet exercised in the real desktop app):
   `app://-` page. To know the calling context the injector now passes the CDP event params as a third
   argument to a binding's `handle` (a 21-byte change; `injector.mjs` stays within its budget).
 - Candidate/title lookups add `candidates(cwd)` to each participant port.
+
+新建讨论 (in the working tree; not yet exercised in the real desktop app):
+
+- Page flow lives in `src/native-discussion-button.mjs` (`startNew`): `prepare` (host returns the two
+  texts) → native new chat + composer handoff (`createNativeChecklistThreadStarter`, reused as is) →
+  new Claude record via `__cccTerminalConversations.createRecord(..., { open: false })` (new; returns the
+  record instead of only opening it) → `begin` (host pairs and delivers Claude's text). Claude first
+  opens the new Claude tab at the end; GPT first stays on the new GPT conversation.
+- `begin` waits for a not-yet-indexed GPT conversation (up to ~10 s) before pairing, and for the new
+  Claude to report idle (up to ~20 s) before pasting. If Claude never becomes idle the pairing stays and
+  the result carries `deliveryError`, which the page shows so the topic can be sent by hand.
+- The discussion record now stores `first` and `topic` (both `null`/empty for pairings of existing
+  conversations).
 

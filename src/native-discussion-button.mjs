@@ -1,7 +1,9 @@
-// "讨论" beside 新建: pair the active Claude / GPT conversation with one of the other kind in
-// the same project, then forward either side's latest answer to the other with an optional
-// comment. It only calls the host bridge (`window.__cccDiscussions`); no storage formats here.
-export function installNativeDiscussionButton({ documentRef, root, activeTab }) {
+// "讨论" beside 新建: start a discussion from a topic (creating both conversations), or pair
+// the active Claude / GPT conversation with one of the other kind in the same project, then
+// forward either side's latest answer to the other with an optional comment. It only calls the
+// host bridge (`window.__cccDiscussions`); no storage formats here. `createThreadStarter` is the
+// native composer handoff that sends a first message and returns the new GPT conversation id.
+export function installNativeDiscussionButton({ documentRef, root, activeTab, createThreadStarter }) {
   const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   const NAME = { claude: 'Claude', gpt: 'GPT' };
   const other = (role) => role === 'claude' ? 'gpt' : 'claude';
@@ -79,8 +81,9 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab }) 
       if (discussions[0]) return showPaired(discussions[0], role, tab);
       const { candidates, role: candidateRole } = await api().request('candidates', { conversationId: tab.id, role });
       if (mine !== epoch) return;
-      clear(); heading('与 ' + NAME[candidateRole] + ' 会话配对');
-      if (!candidates.length) return note('这个项目里没有可配对的 ' + NAME[candidateRole] + ' 会话。先用「新建」创建一个。');
+      clear(); showStart(role, tab);
+      heading('或与已有的 ' + NAME[candidateRole] + ' 会话配对');
+      if (!candidates.length) return note('这个项目里没有可配对的 ' + NAME[candidateRole] + ' 会话。');
       for (const item of candidates) {
         choice(item.title || '未命名会话', '配对后可互相转发回答', async () => {
           close();
@@ -91,6 +94,72 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab }) 
         });
       }
     } catch (error) { if (mine === epoch) { clear(); note(String(error?.message || '读取失败')); } }
+  }
+
+  // Project of the active conversation, as the search catalog knows it (same lookup as 新建).
+  const search = () => window.__codexControlConsoleProjectSearch;
+  const projectOf = (tab, role) => {
+    if (role === 'claude') {
+      const record = window.__cccTerminalConversations?.records?.().find((item) => item.id === tab.id);
+      return record ? search()?.projectOfDirectory?.(record.cwd) : null;
+    }
+    const found = search()?.projectOfTask?.(tab.id);
+    if (found) return found;
+    const row = documentRef.querySelector('[data-app-action-sidebar-thread-id="local:' + tab.id + '"],[data-app-action-sidebar-thread-id="' + tab.id + '"]');
+    const listId = row?.closest?.('[data-app-action-sidebar-project-list-id]')?.getAttribute('data-app-action-sidebar-project-list-id') || '';
+    return listId ? search()?.projectOfTask?.(tab.id) || { id: listId.replace(/^local-/, '') } : null;
+  };
+  const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  let starting = false;
+
+  // Both conversations are created here: GPT first (the risky native step, so a failure leaves
+  // nothing behind), then Claude; the host pairs them and hands Claude its opening message.
+  async function startNew(first, topic, role, tab) {
+    if (starting) return;
+    const text = String(topic || '').trim();
+    if (!text) return notify('请先写下议题');
+    const project = projectOf(tab, role), directories = project?.sourceDirectories;
+    if (!project) return notify('找不到当前会话所属项目，请先在项目中展开它');
+    if (!Array.isArray(directories) || directories.length !== 1) return notify('新建讨论需要项目只有一个目录；这个项目有多个目录或找不到目录');
+    const terminals = window.__cccTerminalConversations;
+    if (!window.__cccProjectSearchActions?.create || !terminals?.createRecord || typeof createThreadStarter !== 'function') return notify('原生新建入口尚未就绪');
+    starting = true; close();
+    let gptId = null;
+    try {
+      const prepared = await api().request('prepare', { first, topic: text });
+      notify('正在创建讨论会话…');
+      if (!(await window.__cccProjectSearchActions.create(project))) return;
+      const starter = createThreadStarter();
+      let failure = null;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        try { starter.preflight(); failure = null; break; } catch (error) { failure = error; if (/已有内容/.test(error.message || '')) break; await pause(100); }
+      }
+      if (failure) throw failure;
+      gptId = await starter(prepared.gptText);
+      const claude = await terminals.createRecord(project, directories[0], 'claude', { open: false });
+      const result = await api().request('begin', { first, topic: text, claudeConversationId: claude.id, gptConversationId: gptId });
+      if (first === 'claude') window.__codexControlConsoleOpenTerminalConversation?.(claude);
+      notify(result.deliveryError ? '已配对，但 Claude 未收到开场消息：' + result.deliveryError + '。请手动把议题发给它' : '已新建讨论：' + NAME[first] + ' 先答，答完可用「讨论」转发给对方');
+    } catch (error) {
+      notify((gptId ? '已创建 GPT 会话，但后续步骤失败：' : '新建讨论失败：') + String(error?.message || error) + (gptId ? '。可用「与已有会话配对」补上' : ''));
+    } finally { starting = false; }
+  }
+
+  function showStart(role, tab) {
+    heading('新建讨论');
+    const topic = documentRef.createElement('textarea');
+    topic.className = 'ccc-native-discuss-comment';
+    topic.placeholder = '写下议题：会发给先答的一方，另一方会被告知议题并等待';
+    topic.rows = 3; topic.maxLength = 8000;
+    topic.setAttribute('aria-label', '议题');
+    const actions = el('div', 'ccc-native-discuss-actions');
+    for (const first of ['gpt', 'claude']) {
+      const start = el('button', 'ccc-native-discuss-primary', NAME[first] + ' 先答'); start.type = 'button';
+      start.dataset.discussStart = first;
+      start.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void startNew(first, topic.value, role, tab); });
+      actions.append(start);
+    }
+    menu.append(topic, actions);
   }
 
   function showPaired(discussion, role, tab) {

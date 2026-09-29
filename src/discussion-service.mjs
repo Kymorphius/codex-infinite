@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { httpError } from './http-utils.mjs';
-import { DISCUSSION_LIMITS, discussionId, otherRole } from './discussion-contract.mjs';
+import { DISCUSSION_LIMITS, discussionId, otherRole, discussionOpeningTexts } from './discussion-contract.mjs';
 import { planForward, applyForward } from './discussion-policy.mjs';
 
 const ROLE_LABEL = { claude: 'Claude', gpt: 'GPT' };
@@ -11,8 +11,9 @@ const ROLE_LABEL = { claude: 'Claude', gpt: 'GPT' };
 //   participants[role].deliver(id, text)                           (throws httpError on refusal)
 // Phase 1 is manual: a forward happens only when the person asks for it, once per answer.
 export class DiscussionService {
-  constructor({ store, participants, now = () => new Date(), idFactory = randomUUID } = {}) {
+  constructor({ store, participants, now = () => new Date(), idFactory = randomUUID, settle = { attempts: 20, delayMs: 500 }, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
     this.store = store; this.participants = participants; this.now = now; this.idFactory = idFactory;
+    this.settle = settle; this.wait = wait;
     this.locks = new Map();
   }
 
@@ -50,18 +51,45 @@ export class DiscussionService {
     return { role: other, candidates: found.filter(item => !taken.has(item.id)).slice(0, 20) };
   }
 
-  async create({ claudeConversationId, gptConversationId }) {
-    const [claude, gpt] = await Promise.all([this.participants.claude.resolve(claudeConversationId), this.participants.gpt.resolve(gptConversationId)]);
+  async create({ claudeConversationId, gptConversationId, first = null, topic = '', settle = false }) {
+    const [claude, gpt] = await Promise.all([this.participants.claude.resolve(claudeConversationId), this.resolveWhenIndexed('gpt', gptConversationId, settle)]);
     if (!claude) throw httpError(404, 'Claude 会话不存在');
     if (!gpt) throw httpError(404, 'GPT 会话不存在');
     if (!claude.cwd || normalizeDirectory(claude.cwd) !== normalizeDirectory(gpt.cwd)) throw httpError(409, 'Claude 和 GPT 会话必须在同一个项目目录里才能配对');
     const existing = (await this.store.list()).find(item => item.status !== 'stopped'
       && item.participants.some(p => p.conversationId === claudeConversationId) && item.participants.some(p => p.conversationId === gptConversationId));
     if (existing) return { discussion: view(existing) };
-    const record = await this.store.create({ projectCwd: claude.cwd, participants: [
+    const record = await this.store.create({ projectCwd: claude.cwd, first, topic, participants: [
       { role: 'claude', provider: 'terminal', conversationId: claudeConversationId },
       { role: 'gpt', provider: 'codex', conversationId: gptConversationId }] });
     return { discussion: view(record) };
+  }
+
+  // A conversation created a moment ago may not be indexed yet; wait a little before giving up.
+  async resolveWhenIndexed(role, id, settle) {
+    for (let attempt = 0; ; attempt++) {
+      const found = await this.participants[role].resolve(id);
+      if (found || !settle || attempt >= this.settle.attempts) return found;
+      await this.wait(this.settle.delayMs);
+    }
+  }
+
+  // The two opening messages for a new discussion; the page sends the GPT one itself (only
+  // the native app can create a GPT conversation), the host sends the Claude one in `begin`.
+  prepare({ first, topic }) {
+    const { texts } = discussionOpeningTexts({ first, topic });
+    return { gptText: texts.gpt, claudeText: texts.claude };
+  }
+
+  // Pair two just-created conversations and hand Claude its opening message once it is idle.
+  // Pairing succeeds even when Claude is not ready; then `deliveryError` says why and the
+  // person can send the topic by hand or forward later.
+  async begin({ first, topic, claudeConversationId, gptConversationId }) {
+    const { discussion } = await this.create({ claudeConversationId, gptConversationId, first, topic, settle: true });
+    const text = discussionOpeningTexts({ first, topic }).texts.claude;
+    try { await this.participants.claude.deliver(claudeConversationId, text, { waitIdle: true }); }
+    catch (error) { return { discussion, deliveryError: error.message || 'Claude 还没有收到开场消息' }; }
+    return { discussion, deliveryError: null };
   }
 
   conversationOf(discussion, role) { return discussion.participants.find(item => item.role === role).conversationId; }

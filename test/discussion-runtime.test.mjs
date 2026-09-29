@@ -43,3 +43,17 @@ test('Claude resolve accepts only Claude conversations; GPT sends through the re
   assert.deepEqual(sent, [{ threadId: ID, prompt: 'hello', deliveryMode: 'queue' }]);
   assert.equal(await gpt.latestAnswer(ID), null);
 });
+
+test('waitIdle holds a brand-new Claude until it reports idle, then pastes; it gives up if it never does', async () => {
+  const writes = []; let polls = 0;
+  const make = view => createClaudeParticipant({
+    terminalConversations: { store: { get: async () => ({ id: ID, kind: 'claude', cwd: '/p', title: 'C' }) }, view: async () => view(++polls), claudeTranscripts: { summary: async () => ({ ids: [ID] }) } },
+    terminalService: { get: () => ({ pty: { write: data => writes.push(data) } }) }, userHome: '/nowhere', delay: async () => {}, idleAttempts: 5 });
+  await make(n => n < 3 ? { status: 'running', runtimeSessionId: 'p', claudeStatus: null } : { status: 'running', runtimeSessionId: 'p', claudeStatus: 'idle' }).deliver(ID, '开场', { waitIdle: true });
+  assert.equal(writes[0], '\x1b[200~开场\x1b[201~');
+  writes.length = 0;
+  await assert.rejects(make(() => ({ status: 'running', runtimeSessionId: 'p', claudeStatus: null })).deliver(ID, '开场', { waitIdle: true }), { statusCode: 409 });
+  assert.deepEqual(writes, []);
+  await make(() => ({ status: 'running', runtimeSessionId: 'p', claudeStatus: null })).deliver(ID, '普通转发'); // an ordinary forward does not wait
+  assert.equal(writes.length, 2);
+});

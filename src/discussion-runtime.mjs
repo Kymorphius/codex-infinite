@@ -10,7 +10,7 @@ const PASTE_START = '\x1b[200~', PASTE_END = '\x1b[201~';
 // Claude side: a managed terminal conversation. Text goes to its running PTY exactly like
 // the composer's paste + Enter; nothing is sent to a conversation that is stopped, held by
 // another process, or mid-reply, so a forward never interleaves with Claude's own output.
-export function createClaudeParticipant({ terminalConversations, terminalService, userHome, delay = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
+export function createClaudeParticipant({ terminalConversations, terminalService, userHome, delay = ms => new Promise(resolve => setTimeout(resolve, ms)), idleAttempts = 40, idleDelayMs = 500 }) {
   const record = id => terminalConversations.store.get(id).catch(() => null);
   const sessionIds = async id => {
     const summary = await terminalConversations.claudeTranscripts.summary(id).catch(() => null);
@@ -21,12 +21,17 @@ export function createClaudeParticipant({ terminalConversations, terminalService
     candidates: async cwd => (await terminalConversations.list()).conversations
       .filter(item => item.kind === 'claude' && !item.archived && item.cwd === cwd).map(({ id, title }) => ({ id, title })),
     latestAnswer: createClaudeAnswerSource({ userHome, sessionIds }),
-    deliver: async (id, text) => {
+    deliver: async (id, text, { waitIdle = false } = {}) => {
       const found = await record(id);
       if (!found) throw httpError(404, 'Claude 会话不存在');
-      const view = await terminalConversations.view(found);
+      let view = await terminalConversations.view(found);
+      // A brand-new Claude is still starting: wait until it reports idle before pasting into it.
+      for (let attempt = 0; waitIdle && attempt < idleAttempts && !(view.status === 'running' && view.claudeStatus === 'idle'); attempt++) {
+        await delay(idleDelayMs); view = await terminalConversations.view(found);
+      }
       if (view.status !== 'running' || !view.runtimeSessionId) throw httpError(409, 'Claude 会话没有在运行，请先打开它');
       if (view.claudeStatus === 'busy') throw httpError(409, 'Claude 正在回复，等它结束后再转发');
+      if (waitIdle && view.claudeStatus !== 'idle') throw httpError(409, 'Claude 还没有就绪');
       const { pty } = terminalService.get(view.runtimeSessionId);
       pty.write(`${PASTE_START}${text}${PASTE_END}`);
       await delay(150); // let Claude finish the paste before Enter submits it

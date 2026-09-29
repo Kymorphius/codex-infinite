@@ -105,7 +105,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   window.addEventListener('message', receive); if (frame) document.body.append(frame);
   const interval = setInterval(refresh, 5000);
   window.__cccTerminalConversations = {
-    refresh, accept, create: actions.create, fresh: actions.fresh, request, records: () => records, companion,
+    refresh, accept, create: actions.create, createRecord: actions.createRecord, fresh: actions.fresh, request, records: () => records, companion,
     async open(reference) {
       try {
         const result = await request('open', { id: reference.conversationId || reference.id });
