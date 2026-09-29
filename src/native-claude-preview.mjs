@@ -78,7 +78,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
   const buttonNames = { opusplan: 'Claude OpusPlan 5.5', default: 'Claude 默认', best: 'Claude best',
     'opus-latest': 'Claude Opus 最新', 'sonnet-latest': 'Claude Sonnet 最新', 'haiku-latest': 'Claude Haiku 最新',
     'opusplan-latest': 'Claude OpusPlan 最新', 'opus-1m': 'Claude Opus 1M', 'sonnet-1m': 'Claude Sonnet 1M' };
-  const effortNames = { auto: '自动', low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高' };
+  const effortNames = { auto: '自动', low: '轻度', medium: '中', high: '高', xhigh: '超高', max: '最高', ultracode: 'Ultracode（多智能体）' };
   async function toggle() {
     const id = current();
     if (!id || running() || selection.busy(id)) return;

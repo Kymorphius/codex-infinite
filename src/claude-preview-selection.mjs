@@ -13,7 +13,9 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
   const preferenceKey = 'codex-control-console.claude-preview-preference.v1';
   const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
   const validModel = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value);
-  const efforts = ['auto', 'low', 'medium', 'high', 'xhigh', 'max'];
+  const efforts = ['auto', 'low', 'medium', 'high', 'xhigh', 'max', 'ultracode'];
+  // Codex has no ultracode rung; Router maps Claude models' "ultra" to CLI `--effort ultracode`.
+  const codexEffort = effort => effort === 'auto' ? 'medium' : effort === 'ultracode' ? 'ultra' : effort;
   const records = new Map(), preferences = new Map(), pending = new Set();
   try {
     const saved = JSON.parse(storage.getItem(key) || '[]');
@@ -59,7 +61,7 @@ export function createClaudePreviewSelection({ read, apply, storage, changed = (
         if (!previous && !validModel(before.model)) throw new Error('当前模型无法安全恢复，未启用预览');
         const original = previous?.original || { model: before.model, reasoningEffort: before.reasoningEffort };
         const next = effort === null ? original : { model: modelPrefix + modelFamily + (effort === 'auto' && !autoOnly.has(modelFamily) ? '-auto' : '') + (nativeTools ? '-native' : ''),
-          reasoningEffort: effort === 'auto' ? 'medium' : effort };
+          reasoningEffort: codexEffort(effort) };
         attempted = true;
         await apply(id, next);
         if (!matches(await read(id), next)) throw new Error('原生模型回读不一致');
