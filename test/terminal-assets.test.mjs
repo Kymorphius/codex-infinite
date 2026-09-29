@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { resolveStaticAsset, serveStaticAsset } from '../src/static-assets.mjs';
 
 test('terminal runtime serves only the three pinned browser assets', async () => {
   for (const url of ['/vendor/xterm.js', '/vendor/xterm-fit.js', '/vendor/xterm.css']) {
     const asset = resolveStaticAsset(url);
-    assert.ok(asset?.path.includes('/node_modules/@xterm/'));
+    assert.ok(asset?.path.split(path.sep).join('/').includes('/node_modules/@xterm/'));
     assert.ok((await fs.stat(asset.path)).size > 0);
     let body, status;
     await serveStaticAsset({ method: 'GET', url }, {

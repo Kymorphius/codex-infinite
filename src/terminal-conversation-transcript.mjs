@@ -4,7 +4,9 @@ import path from 'node:path';
 import { terminalConversationId } from './terminal-conversation-contract.mjs';
 
 // Inspect only the managed UUID's transcript; never load Claude settings or credentials.
-export async function hasClaudeTranscript({ userHome, sessionId }) {
+// withMessages: false matches Claude's own notion of an existing session. Claude writes mode and
+// permission records before the first message, and then refuses `--session-id` for that id.
+export async function hasClaudeTranscript({ userHome, sessionId, withMessages = true }) {
   sessionId = terminalConversationId(sessionId);
   const root = path.join(userHome, '.claude', 'projects');
   let directories, realRoot;
@@ -29,7 +31,7 @@ export async function hasClaudeTranscript({ userHome, sessionId }) {
       for (const line of buffer.subarray(0, bytesRead).toString('utf8').split('\n')) {
         try {
           const record = JSON.parse(line);
-          if (record.sessionId === sessionId && ['user', 'assistant'].includes(record.type)) return true;
+          if (record.sessionId === sessionId && (!withMessages || ['user', 'assistant'].includes(record.type))) return true;
         } catch {}
       }
     } catch (error) { if (!['ENOENT', 'ELOOP'].includes(error.code)) throw error; }

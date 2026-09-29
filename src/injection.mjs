@@ -26,6 +26,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const embeddedFrameRecoverySource = buildEmbeddedFrameRecoveryInjectionSource();
   const providerSource = buildNativeProviderNavigationSource();
   const providerDigest = createHash('sha256').update(providerSource).digest('hex').slice(0, 12);
+  const probeDigest = createHash('sha256').update(findNativeEntryAnchor.toString()).digest('hex').slice(0, 8);
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
@@ -40,7 +41,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.terminal-inline.tabs-${digest}.provider-${providerDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.terminal-inline.tabs-${digest}.provider-${providerDigest}.probe-${probeDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -72,7 +73,8 @@ ${placeNativeBoardBelowChecklist.toString()}
   let frame = null;
   const entryIcons = ${JSON.stringify(NATIVE_ENTRY_ICONS)};
 
-  const nativeAnchor = () => findNativeEntryAnchor(document, normalize);
+  const anchorCache = {};
+  const nativeAnchor = () => findNativeEntryAnchor(document, normalize, anchorCache);
 
   function workspaceCandidate() {
     const isVisibleCandidate = (element) => {

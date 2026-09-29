@@ -1,7 +1,13 @@
 import { Worker } from 'node:worker_threads';
 
+// Workers reject process-level flags (the Windows test runner expands dozens of them into execArgv,
+// and --input-type breaks module workers); forward only feature and warning switches.
+export function workerExecArgv(execArgv = process.execArgv) {
+  return execArgv.filter(arg => /^--(?:experimental-|no-warnings$|no-deprecation$)/.test(arg));
+}
+
 export class SentMessageIndex {
-  constructor({ databasePath, sessionRoots, workerFactory = options => new Worker(new URL('./sent-message-index-worker.mjs', import.meta.url), { ...options, execArgv: process.execArgv.filter(arg => !arg.startsWith('--input-type')) }), clock = Date.now } = {}) {
+  constructor({ databasePath, sessionRoots, workerFactory = options => new Worker(new URL('./sent-message-index-worker.mjs', import.meta.url), { ...options, execArgv: workerExecArgv() }), clock = Date.now } = {}) {
     this.clock = clock;
     this.worker = workerFactory({ workerData: { databasePath, sessionRoots } });
     this.progress = { indexed: 0, total: 0, ready: false };

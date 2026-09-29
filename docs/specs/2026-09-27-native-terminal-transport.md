@@ -13,7 +13,9 @@ Render the packaged xterm library and conversation composer directly in the nati
 main workspace. Reuse the terminal session controller for replay, input, paste,
 resize and reconnect behavior. Keep project rows and native conversation tabs.
 Do not add loopback frames, fetches or WebSockets to the macOS renderer, reload it,
-or enable CSP bypass. Windows retains the existing iframe transport.
+or enable CSP bypass. Windows now uses the same native transport and view; see
+`2026-09-29-windows-native-terminal.md`. The iframe transport remains only as the
+fallback when the runtime is absent.
 
 Verification: validate hostile contexts, malformed operations, stream ownership,
 disposal and bounded delivery; run repository checks and tests. Native visual

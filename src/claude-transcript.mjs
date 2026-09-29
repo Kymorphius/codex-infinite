@@ -31,13 +31,21 @@ export function scanClaudeTranscript(text, sessionId, found = emptySummary()) {
     if (record?.sessionId !== sessionId) continue;
     if (record.type === 'custom-title' && typeof record.customTitle === 'string') found.custom = record.customTitle;
     if (record.type === 'ai-title' && typeof record.aiTitle === 'string') found.generated = record.aiTitle;
-    if (claudeUserText(record, sessionId) && Number.isFinite(Date.parse(record.timestamp))) found.lastUserAt = new Date(record.timestamp).toISOString();
+    const typed = claudeUserText(record, sessionId);
+    if (typed && !found.firstUser) found.firstUser = typed;
+    if (typed && Number.isFinite(Date.parse(record.timestamp))) found.lastUserAt = new Date(record.timestamp).toISOString();
   }
   return found;
 }
-export const emptySummary = () => ({ custom: '', generated: '', lastUserAt: '', continued: [] });
+export const emptySummary = () => ({ custom: '', generated: '', lastUserAt: '', firstUser: '', continued: [] });
 export function claudeTitleText(found) {
   return (found.custom || found.generated).replace(/[\u0000-\u001f\u007f]/gu, ' ').trim().slice(0, 160);
+}
+// Claude titles only a fresh session at its first prompt; a session whose first message came after a
+// --resume (e.g. created while accepting bypass mode) never gets one. Name it by that first message.
+export function claudeFallbackTitle(text) {
+  const line = String(text || '').replace(/[\u0000-\u001f\u007f\s]+/gu, ' ').trim();
+  return line.length > 60 ? line.slice(0, 60) + '…' : line;
 }
 const normalize = value => String(value || '').normalize('NFKC').toLocaleLowerCase();
 
@@ -78,6 +86,7 @@ export function createClaudeTranscriptReader({ userHome, fullScanBytes = FULL_SC
       if (cut >= 0) chunk = chunk.subarray(cut + 1);
       const part = scanClaudeTranscript(chunk.toString('utf8'), sessionId);
       for (const key of ['custom', 'generated', 'lastUserAt']) if (!found[key] && part[key]) found[key] = part[key];
+      if (part.firstUser) found.firstUser = part.firstUser; // chunks run backwards: an earlier one wins
       for (const id of part.continued) if (!found.continued.includes(id)) found.continued.push(id);
     }
     return found;
@@ -124,7 +133,7 @@ export function createClaudeTranscriptReader({ userHome, fullScanBytes = FULL_SC
     const live = entries.reduce((best, entry) => entry.modified > best.modified ? entry : best);
     const origin = visited.get(sessionId);
     const custom = found => claudeTitleText({ custom: found.custom, generated: '' });
-    return { ...live, ids: [...visited.keys()], title: claudeTitleText(live.found) || (origin ? claudeTitleText(origin.found) : ''),
+    return { ...live, ids: [...visited.keys()], title: claudeTitleText(live.found) || (origin ? claudeTitleText(origin.found) : '') || claudeFallbackTitle(origin?.found.firstUser || live.found.firstUser),
       customTitle: custom(live.found) || (origin ? custom(origin.found) : ''), lastUserAt: live.found.lastUserAt || origin?.found.lastUserAt || '' };
   }
   async function summary(sessionId) {

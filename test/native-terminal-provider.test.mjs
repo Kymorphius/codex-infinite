@@ -118,3 +118,31 @@ test('native transport follows a rebuilt client instead of the one captured at i
   await assert.rejects(context.provider.request('list'), /正在重建/);
   context.provider.dispose();
 });
+
+test('startup restore of the active terminal keeps retrying until it really mounts, and stops', async () => {
+  // Regression: restore was attempted once, right after page load; if the main area did not exist yet the open was
+  // refused and never retried, so the app came back without its terminal (or, before the host fix, in a broken layout).
+  const h = harness(); h.receive({ type: 'codex-terminal-ready' });
+  const record = { id: 'conversation', provider: 'terminal', deviceId: 'windows-pc' }, attempts = [];
+  h.context.window.__codexControlConsoleConversationTabs.active = () => ({ kind: 'terminal', id: 'conversation', deviceId: 'windows-pc' });
+  h.context.window.__codexControlConsoleOpenTerminalConversation = async value => { attempts.push(value.id); return attempts.length >= 3; };
+  const list = async () => { const pending = h.provider.refresh(); h.receive({ type: 'codex-terminal-response', id: h.messages.at(-1).message.id, result: { conversations: [record] } }); await pending; };
+  const first = h.messages[0].message.id;
+  h.receive({ type: 'codex-terminal-response', id: first, result: { conversations: [record] } }); await tick();
+  assert.equal(attempts.length, 1, 'first attempt at startup');
+  await list(); assert.equal(attempts.length, 2, 'refused, so tried again');
+  await list(); assert.equal(attempts.length, 3, 'mounted on the third try');
+  await list(); await list(); assert.equal(attempts.length, 3, 'no further attempts once it mounted');
+  h.provider.dispose();
+});
+
+test('startup restore gives up after a bounded number of refused attempts', async () => {
+  const h = harness(); h.receive({ type: 'codex-terminal-ready' });
+  const record = { id: 'conversation', provider: 'terminal', deviceId: 'windows-pc' }; let attempts = 0;
+  h.context.window.__codexControlConsoleConversationTabs.active = () => ({ kind: 'terminal', id: 'conversation', deviceId: 'windows-pc' });
+  h.context.window.__codexControlConsoleOpenTerminalConversation = async () => { attempts++; return false; };
+  h.receive({ type: 'codex-terminal-response', id: h.messages[0].message.id, result: { conversations: [record] } }); await tick();
+  for (let i = 0; i < 20; i++) { const pending = h.provider.refresh(); h.receive({ type: 'codex-terminal-response', id: h.messages.at(-1).message.id, result: { conversations: [record] } }); await pending; }
+  assert.equal(attempts, 12, 'bounded at 12 attempts');
+  h.provider.dispose();
+});

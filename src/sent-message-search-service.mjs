@@ -10,13 +10,16 @@ const regexLiteral = value => [...value].map(char => {
   return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }).join('');
 
-export async function findSentMatchesInRoots(roots, query, allowed) {
+export async function findSentMatchesInRoots(roots, query, allowed, { command = 'rg' } = {}) {
   const term = regexLiteral(query);
   const patterns = [
     `^.{0,120}"type":"response_item","payload":\\{"type":"message".*"role":"user".*${term}`,
     `^.{0,120}"type":"event_msg","payload":\\{"type":"user_message".*${term}`
   ];
-  const child = spawn('rg', ['--json', '--no-ignore', '-i', '-g', '*.jsonl', ...patterns.flatMap(pattern => ['-e', pattern]), ...roots], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(command, ['--json', '--no-ignore', '-i', '-g', '*.jsonl', ...patterns.flatMap(pattern => ['-e', pattern]), ...roots], { stdio: ['ignore', 'pipe', 'pipe'] });
+  // Listen before reading: a missing rg emits 'error' at once, and unheard it crashes the service.
+  const exit = new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+  exit.catch(() => {});
   const matches = new Map();
   let skipped = false;
   let stderr = '';
@@ -46,7 +49,7 @@ export async function findSentMatchesInRoots(roots, query, allowed) {
       }
     }
   } finally { lines.close(); }
-  const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', resolve); });
+  const code = await exit;
   if (code !== 0 && code !== 1) throw new Error(`message search prefilter failed: ${stderr || code}`);
   return { matches, skipped };
 }
@@ -71,11 +74,19 @@ export async function findLatestSentMatch(file, query) {
 }
 
 export class SentMessageSearchService {
-  constructor({ catalog, index = null, readMatch = findLatestSentMatch, fastSearch = findSentMatchesInRoots } = {}) {
+  constructor({ catalog, index = null, readMatch = findLatestSentMatch, fastSearch = findSentMatchesInRoots, resolveRipgrep = async () => 'rg' } = {}) {
     this.catalog = catalog;
     this.index = index;
     this.readMatch = readMatch;
     this.fastSearch = fastSearch;
+    this.resolveRipgrep = resolveRipgrep;
+    this.ripgrep = null;
+  }
+
+  ripgrepCommand() {
+    // Resolved once: locating the Windows package costs a PowerShell query.
+    this.ripgrep ||= Promise.resolve().then(() => this.resolveRipgrep()).catch(() => 'rg');
+    return this.ripgrep;
   }
 
   async prepare() {
@@ -105,7 +116,7 @@ export class SentMessageSearchService {
     if (this.readMatch === findLatestSentMatch && this.catalog.sessionRoots?.length) {
       try {
         const byPath = new Map(conversations.map(item => [item.transcriptPath, item]));
-        const found = await this.fastSearch(this.catalog.sessionRoots, query, new Set(byPath.keys()));
+        const found = await this.fastSearch(this.catalog.sessionRoots, query, new Set(byPath.keys()), { command: await this.ripgrepCommand() });
         for (const [file, match] of found.matches) {
           const item = byPath.get(file);
           items.push({ id: item.id, title: item.title, excerpt: match.excerpt, at: match.at, updatedAt: item.updatedAt });

@@ -23,6 +23,7 @@ import { createAppInstanceReader } from "./app-instance.mjs";
 import { createNativeRestartMarksBinding } from "./native-restart-marks.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
+import { resolveRipgrepPath } from './ripgrep-path.mjs';
 import { withTerminalSentSearch } from './sent-message-search-composite.mjs';
 import { SentMessageIndex } from './sent-message-index.mjs';
 import { NativeThreadReadStateAdapter } from "./native-thread-read-state.mjs";
@@ -165,7 +166,8 @@ export async function run() {
   const newProjectService = new NewProjectService({ codexPath: config.codexPath, codexHome: config.nativeCodexHome, taskAdapter: localAdapter, statePath: path.join(config.wrapperCodexHome, "new-project-lifecycle.json"), projectStatePaths: [config.sourceCodexHome, config.wrapperCodexHome].map(home => path.join(home, ".codex-global-state.json")) });
   const sentMessageSearchService = new SentMessageSearchService({
     catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }),
-    index: new SentMessageIndex({ databasePath: path.join(config.wrapperCodexHome, 'sent-message-search.sqlite'), sessionRoots: [config.sessionRoot] })
+    index: new SentMessageIndex({ databasePath: path.join(config.wrapperCodexHome, 'sent-message-search.sqlite'), sessionRoots: [config.sessionRoot] }),
+    resolveRipgrep: () => resolveRipgrepPath({ config })
   });
   void sentMessageSearchService.prepare().catch(error => console.warn(`[codex-control-console] sent message indexing unavailable: ${error.message}`));
   const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, draftReader: createComposerDraftReader({ filePath: path.join(config.nativeCodexHome, ".codex-global-state.json") }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });

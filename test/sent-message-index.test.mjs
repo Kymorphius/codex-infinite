@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { SentMessageIndex } from '../src/sent-message-index.mjs';
+import { SentMessageIndex, workerExecArgv } from '../src/sent-message-index.mjs';
 import { SentMessageSearchService } from '../src/sent-message-search-service.mjs';
 
 async function untilReady(index) {
@@ -41,6 +41,11 @@ test('local FTS index builds once, includes appended sent text and removes archi
     index.sync([], { force: true });
     await untilReady(index);
     assert.deepEqual((await service.search('needle')).items, []);
-    assert.equal((await fs.stat(databasePath)).mode & 0o777, 0o600);
+    if (process.platform !== 'win32') assert.equal((await fs.stat(databasePath)).mode & 0o777, 0o600);
   } finally { await index.close(); await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('index worker receives only flags that workers accept', () => {
+  // Regression: the Windows test runner put --use-largepages and similar process flags in execArgv.
+  assert.deepEqual(workerExecArgv(['--use-largepages=off', '--input-type=module', '--experimental-sqlite', '--no-warnings', '--test-isolation=process']), ['--experimental-sqlite', '--no-warnings']);
 });

@@ -14,17 +14,23 @@ export function nativeChatgptConversationTrigger(row) {
 
 // ChatGPT 26 wraps some sections (Recents) in an extra drop-target node; the flex
 // item is the ancestor whose parent is the sidebar scroller or a display:contents box.
-export function nativeSidebarFlexItem(section, getStyle = getComputedStyle) {
+// Reading a computed style forces a full style recalc when anything changed (17k nodes: ~100ms),
+// and apply() runs on every sync while the terminal keeps styles dirty. The wrapper is stable, so
+// resolve it once per section and re-walk only after React replaces it.
+export function nativeSidebarFlexItem(section, getStyle = getComputedStyle, cache = null) {
+  const cached = section && cache?.get(section);
+  if (cached?.isConnected && cached.contains(section)) return cached;
   let node = section?.parentElement;
   while (node?.parentElement && !node.parentElement.matches('[data-app-action-sidebar-scroll]')
     && getStyle(node.parentElement).display !== 'contents') node = node.parentElement;
+  if (node && cache) cache.set(section, node);
   return node || null;
 }
 
 export function buildNativeChatgptChatSectionInjectionScript() {
   const conversationTriggerSource = nativeChatgptConversationTrigger.toString();
   return `(() => {
-  const VERSION = '2026-09-28.sidebar-groups';
+  const VERSION = '2026-09-29.render-gate';
   const SECTION_SELECTOR = 'section[data-app-action-sidebar-section-heading="Recents"]';
   const CLOUD_SECTION_SELECTOR = 'section[data-app-action-sidebar-section-heading="云工作"]';
   const CLOUD_CACHE_KEY = 'codex-control-console.cloud-work.v1';
@@ -46,7 +52,8 @@ export function buildNativeChatgptChatSectionInjectionScript() {
   const CLASSIFICATION_STYLE_MARKER = 'data-codex-control-console-chat-classification-style';
   const SECTION_ORDER = new Map(${JSON.stringify(NATIVE_SECTION_ORDER)});
   const USER_SECTION_ORDER = ${NATIVE_SIDEBAR_ORDER.userSection};
-  const flexItem = ${nativeSidebarFlexItem.toString()};
+  const resolveFlexItem = ${nativeSidebarFlexItem.toString()}, flexItemCache = new WeakMap();
+  const flexItem = section => resolveFlexItem(section, getComputedStyle, flexItemCache);
   const classifyRecentTarget = ${classifyNativeChatgptRecentTarget.toString()};
   const conversationTrigger = ${conversationTriggerSource};
   let classificationStyle = document.querySelector('style[' + CLASSIFICATION_STYLE_MARKER + ']');
@@ -55,8 +62,10 @@ export function buildNativeChatgptChatSectionInjectionScript() {
     classificationStyle.setAttribute(CLASSIFICATION_STYLE_MARKER, '');
     (document.head || document.documentElement).appendChild(classificationStyle);
   }
-  classificationStyle.textContent = SECTION_SELECTOR + ' [data-sidebar-chatgpt-conversation-key]:not([' + ROW_CLASSIFICATION_MARKER + ']) { display: none !important; }';
-  classificationStyle.textContent += SECTION_SELECTOR + ' [role="list"]:not([' + CHAT_PROXY_LIST + ']) { display: none !important; }';
+  // Rewriting a stylesheet invalidates every element's style; this runs on every sync, so only on change.
+  const classificationCss = SECTION_SELECTOR + ' [data-sidebar-chatgpt-conversation-key]:not([' + ROW_CLASSIFICATION_MARKER + ']) { display: none !important; }'
+    + SECTION_SELECTOR + ' [role="list"]:not([' + CHAT_PROXY_LIST + ']) { display: none !important; }';
+  if (classificationStyle.textContent !== classificationCss) classificationStyle.textContent = classificationCss;
   if (window.__codexControlConsoleChatSectionVersion === VERSION && window.__codexControlConsoleChatSectionObserver) {
     window.__codexControlConsoleApplyChatSection?.();
     return;

@@ -6,7 +6,7 @@ import { createChecklistDeliveryBridge } from './native-checklist-delivery.mjs';
 import { createChecklistConflictView } from './native-checklist-conflicts.mjs';
 
 export function installNativeProjectChecklist(readHeldTodos = () => [], readConversationChoices = () => [], readThreadId = () => null, createReturns, readTime, createTimePresentation, createTaskEditor, createSearch, createThreadStarter, createNewThreadClaim, syncBinding, normalizeInput, makeImageTools, assignedChecklistTasksForThread, makePasteImages, makeTaskModel) {
-  const VERSION = '2026-09-26.federated', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
+  const VERSION = '2026-09-29.render-gate', KEY = 'ccc.project-checklist.pending.v1', GENERAL_KEY = 'ccc:general-inbox:v1';
   if (window.__cccProjectChecklist?.version === VERSION) return;
   window.__cccProjectChecklist?.dispose();
   let project = null, items = [], generalItems = [], generalLoaded = false, held = [], heldLoaded = false, heldLoadScheduled = false, loaded = '', pending = [], error = '', claimWarning = '', storageError = '', renderVersion = 0;
@@ -44,7 +44,8 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
   function state() {
     const busy = pending.some(action => !action.conflict && action.projectKey === project?.key);
     conflicts.render();
-    status.textContent = storageError || claimWarning || error || (busy ? '正在保存…' : loaded === project?.key ? '已保存' : '正在读取…');
+    const message = storageError || claimWarning || error || (busy ? '正在保存…' : loaded === project?.key ? '已保存' : '正在读取…');
+    if (status.textContent !== message) status.textContent = message; // assigning the same text still replaces the node
     input.disabled = loaded !== project?.key; add.disabled = Boolean(taskPaste?.busy()) || loaded !== project?.key;
   }
   function act(type, item, projectKey = project.key, refresh = true, providedRequestId = null) {
@@ -170,7 +171,9 @@ export function installNativeProjectChecklist(readHeldTodos = () => [], readConv
       persist();
       taskModel.completeLegacySources(completed);
       for (const action of completed) if (action.executionState === 'delivered') { try { localStorage.removeItem('ccc.checklist.delivery.v1:' + action.assignedThreadId + ':' + action.id); localStorage.removeItem('ccc.checklist.new-thread.v1:' + action.id); } catch {} }
-      const first = loaded !== project?.key;
+      // With no project open (dialog closed) there is nothing to load; `loaded === ''` never equals the
+      // undefined key, which made every sync rebuild the hidden dialog's list.
+      const first = Boolean(project) && loaded !== project.key;
       if (result.projectKey === project?.key && Array.isArray(result.items)) { items = result.items; loaded = result.projectKey; if (result.projectKey === 'ccc:general-inbox:v1') { generalItems = result.items; generalLoaded = true; } }
       if (first || before !== JSON.stringify(view())) render(); else state();
       returns.accept(result);

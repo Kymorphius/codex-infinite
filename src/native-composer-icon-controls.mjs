@@ -10,7 +10,7 @@ export const NATIVE_COMPOSER_ICON_CONTROLS = [
   ['routing', '[data-codex-control-console-native-jev-current]', 'M1 8h5l3-4.5h3.5M6 8l3 4.5h3.5M10.5 1.5l2 2-2 2M10.5 10.5l2 2-2 2'],
   ['claude', '[data-ccc-claude-preview]', 'M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M3.4 3.4l2.1 2.1M10.5 10.5l2.1 2.1M3.4 12.6l2.1-2.1M10.5 5.5l2.1-2.1']
 ];
-export const NATIVE_COMPOSER_ICON_CONTROLS_VERSION = '2026-09-28.4';
+export const NATIVE_COMPOSER_ICON_CONTROLS_VERSION = '2026-09-29.1';
 
 export const NATIVE_COMPOSER_ICON_STYLE = NATIVE_COMPOSER_ICON_CONTROLS.map(([name, , paths]) => `[data-ccc-icon="${name}"]{--ccc-icon:${icon(paths)}}`).join('')
   + '[data-ccc-icon]{display:inline-flex!important;font-size:0!important;flex:0 0 28px!important;width:28px!important;min-width:28px!important;height:28px!important;padding:0!important;gap:0!important;'
@@ -22,10 +22,12 @@ export const NATIVE_COMPOSER_ICON_STYLE = NATIVE_COMPOSER_ICON_CONTROLS.map(([na
 
 // Derives icon, badge and tooltip from a control's current label. Pure, so it is tested
 // directly and shipped into the page.
-export function describeComposerIconControl(label, ownAriaLabel) {
+// An owner-written title (ownTitle) is the tooltip: the owner rewrites it on its own schedule, so
+// overwriting it here made the two modules trade values every sync.
+export function describeComposerIconControl(label, ownAriaLabel, ownTitle = null) {
   const text = String(label || '').replace(/\s+/gu, ' ').trim();
   const count = /\s(\d{1,4})$/u.exec(text)?.[1] || '';
-  return { badge: count === '0' ? '' : count, tooltip: ownAriaLabel || text, ariaLabel: ownAriaLabel ? null : text };
+  return { badge: count === '0' ? '' : count, tooltip: ownTitle || ownAriaLabel || text, ariaLabel: ownAriaLabel ? null : text };
 }
 
 export function installNativeComposerIconControls(controls, style, version, describe) {
@@ -38,8 +40,10 @@ export function installNativeComposerIconControls(controls, style, version, desc
     for (const [name, value] of controls) for (const node of document.querySelectorAll(value)) {
       // An aria-label we wrote is ours to refresh; one the owner wrote is kept.
       const own = node.getAttribute('aria-label'), ours = node.getAttribute('data-ccc-icon-label');
-      const { badge, tooltip, ariaLabel } = describe(node.textContent, own && own !== ours ? own : null);
-      set(node, 'data-ccc-icon', name); set(node, 'data-ccc-badge', badge); set(node, 'title', tooltip);
+      const title = node.getAttribute('title'), ourTitle = node.getAttribute('data-ccc-icon-title'), ownerTitle = title && title !== ourTitle ? title : null;
+      const { badge, tooltip, ariaLabel } = describe(node.textContent, own && own !== ours ? own : null, ownerTitle);
+      set(node, 'data-ccc-icon', name); set(node, 'data-ccc-badge', badge);
+      if (ownerTitle) set(node, 'data-ccc-icon-title', null); else { set(node, 'title', tooltip); set(node, 'data-ccc-icon-title', tooltip); }
       if (ariaLabel !== null) { set(node, 'aria-label', ariaLabel); set(node, 'data-ccc-icon-label', ariaLabel); }
     }
   }
@@ -54,7 +58,9 @@ export function installNativeComposerIconControls(controls, style, version, desc
   window.__cccComposerIconControls = { version, apply, dispose() {
     observer.disconnect(); sheet.remove();
     for (const node of document.querySelectorAll('[data-ccc-icon]')) {
-      node.removeAttribute('data-ccc-icon'); node.removeAttribute('data-ccc-badge'); node.removeAttribute('title');
+      node.removeAttribute('data-ccc-icon'); node.removeAttribute('data-ccc-badge');
+      if (node.getAttribute('title') === node.getAttribute('data-ccc-icon-title')) node.removeAttribute('title');
+      node.removeAttribute('data-ccc-icon-title');
       if (node.getAttribute('aria-label') === node.getAttribute('data-ccc-icon-label')) node.removeAttribute('aria-label');
       node.removeAttribute('data-ccc-icon-label');
     }

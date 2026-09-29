@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { createClaudeTranscriptReader, scanClaudeTranscript, claudeTitleText, claudeUserText } from '../src/claude-transcript.mjs';
+import { createClaudeTranscriptReader, scanClaudeTranscript, claudeTitleText, claudeUserText, claudeFallbackTitle } from '../src/claude-transcript.mjs';
 import { TerminalService } from '../src/terminal-service.mjs';
 import { TerminalConversationService } from '../src/terminal-conversation-service.mjs';
 import { withTerminalSentSearch } from '../src/sent-message-search-composite.mjs';
@@ -107,4 +107,23 @@ test('a transcript too large to scan whole still finds the typed message behind 
   assert.equal(summary.title, '看板会话交互'); assert.equal(summary.lastUserMessageAt, at);
   await fs.appendFile(file(id), said(id, '新消息', '2026-09-28T15:30:00.000Z'));
   assert.equal((await reader.summary(id)).lastUserMessageAt, '2026-09-28T15:30:00.000Z', 'then advances incrementally');
+});
+
+test('without a Claude title the session is named by its first typed message', async t => {
+  // Regression: a session created while accepting bypass mode got its first message only after
+  // --resume, so Claude never titled it and the console showed "Claude CLI" for 21 messages.
+  const { userHome, file, touch } = await home(t), origin = randomUUID(), live = randomUUID(), big = randomUUID();
+  const reader = createClaudeTranscriptReader({ userHome, fullScanBytes: 4096, chunkBytes: 1024 });
+  await fs.writeFile(file(origin), line({ type: 'mode', mode: 'normal', sessionId: origin }) + line({ type: 'permission-mode', permissionMode: 'bypassPermissions', sessionId: origin })
+    + line({ type: 'continued-in', sessionId: origin, continuedInSessionId: live }));
+  await fs.writeFile(file(live), said(live, '<command-name>/model</command-name>', '2026-09-28T19:55:00.000Z') + said(live, 'tool', '2026-09-28T19:55:10.000Z', { toolUseResult: {} })
+    + said(live, '我们继续来优化吧，\n刚在claude客户端里做的，能续上不', '2026-09-28T19:55:51.000Z') + said(live, '优化一下资产表格的交互和性能', '2026-09-28T19:56:40.000Z'));
+  await touch(origin, 1000); await touch(live, 2000);
+  assert.equal((await reader.summary(origin)).title, '我们继续来优化吧， 刚在claude客户端里做的，能续上不', 'first typed message of the chain, one line');
+  await fs.appendFile(file(live), line({ type: 'ai-title', aiTitle: '资产表格优化', sessionId: live })); await touch(live, 3000);
+  assert.equal((await reader.summary(origin)).title, '资产表格优化', 'a Claude title still wins');
+  assert.equal(claudeFallbackTitle('长'.repeat(80)), '长'.repeat(60) + '…');
+  // Backwards backfill of a large transcript still yields the earliest typed message.
+  await fs.writeFile(file(big), said(big, '最早的一句', '2026-09-28T01:00:00.000Z') + said(big, 'x'.repeat(300), '2026-09-28T01:01:00.000Z', { toolUseResult: {} }).repeat(30) + said(big, '最后一句', '2026-09-28T02:00:00.000Z'));
+  assert.equal((await reader.summary(big)).title, '最早的一句');
 });

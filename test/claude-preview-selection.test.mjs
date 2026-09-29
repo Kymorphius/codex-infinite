@@ -146,7 +146,7 @@ test('a reloaded service replaces the older Claude panel closure without reloadi
   assert.ok(removed >= 1);
   assert.equal(oldRefreshes, 0);
   assert.equal(subscribers.has(oldRefresh), false);
-  assert.equal(window.__cccClaudePreviewVersion, 2);
+  assert.equal(window.__cccClaudePreviewVersion, 3);
   assert.equal(typeof window.__cccClaudePreviewDispose, 'function');
 });
 

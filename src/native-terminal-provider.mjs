@@ -9,7 +9,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   // disposed), so always use the current one; capturing it left refresh failing forever.
   const nativeMode = Boolean(window.__cccTerminalNative), native = () => (nativeMode ? window.__cccTerminalNative : null);
   const origin = new URL(dashboardUrl).origin, channel = crypto.randomUUID(), pending = new Map();
-  let ready = nativeMode, disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, acceptedVersion = 0;
+  let ready = nativeMode, disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, restoreAttempts = 0, acceptedVersion = 0;
   const frame = nativeMode ? null : document.createElement('iframe');
   if (frame) { frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', ''); frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel); }
   function request(operation, input = {}, timeoutMs = 30000) {
@@ -58,10 +58,12 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
       records = next; sync();
       for (const record of changed) window.__codexControlConsoleTerminalChanged?.(record);
       if (restoreActive) {
-        restoreActive = false;
         const active = window.__codexControlConsoleConversationTabs?.active?.();
         const record = active?.kind === 'terminal' && records.find(value => value.id === active.id && value.deviceId === active.deviceId && !value.archived);
-        if (record && !document.querySelector('[data-codex-control-console-workspace]')) window.__codexControlConsoleOpenTerminalConversation?.(record);
+        // Done once it is mounted, or when there is nothing to restore. Right after a page load the main area may
+        // not exist yet and the open is refused, so keep trying on the next refresh (bounded).
+        if (!record || document.querySelector('[data-codex-control-console-workspace]') || ++restoreAttempts > 12) restoreActive = false;
+        else if (await window.__codexControlConsoleOpenTerminalConversation?.(record)) restoreActive = false;
       }
     }
     catch { /* Keep the last provider-owned snapshot while disconnected. */ }

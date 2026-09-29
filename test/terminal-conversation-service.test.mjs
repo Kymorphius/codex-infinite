@@ -39,7 +39,7 @@ test('managed identity persists across restarts without automatically starting a
   assert.equal(restored.runtimeSessionId, null); assert.equal(restored.status, 'stopped');
   assert.equal(processes.length, 1); assert.equal(processes[0].killed, 1);
   assert.equal((await fresh.list()).conversations.length, 1);
-  assert.equal((await fs.stat(options.filePath)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal((await fs.stat(options.filePath)).mode & 0o777, 0o600);
 });
 
 test('concurrent start is idempotent; stop and archive retain conversation independently', async t => {
@@ -123,6 +123,18 @@ test('managed Claude starts a stable UUID and resumes only a verified transcript
   assert.equal(processes[1].input.claudeSessionId, created.id); assert.equal(processes[1].input.resume, true);
   assert.equal(terminalLaunch({ ...processes[1].input, platform: 'win32' }).args[3], `claude --permission-mode bypassPermissions --resume ${created.id}`);
   assert.throws(() => terminalLaunch({ kind: 'claude', claudeSessionId: 'bad; command' }), { statusCode: 400 });
+});
+
+test('restarting a Claude session that has no messages yet resumes instead of reusing --session-id', async t => {
+  // Regression: Claude had written only mode records, so a message-only probe chose --session-id and
+  // Claude refused with "Session ID … is already in use".
+  let fileWritten = false;
+  const { service, directory, processes } = await fixture(t, { transcriptExists: async ({ withMessages = true }) => fileWritten && !withMessages });
+  const created = await service.create({ cwd: directory, kind: 'claude' });
+  assert.equal(processes[0].input.resume, false);
+  processes[0].exit(); fileWritten = true;
+  await service.start({ id: created.id });
+  assert.equal(processes[1].input.claudeSessionId, created.id); assert.equal(processes[1].input.resume, true);
 });
 
 for (const operation of ['start', 'stop']) test(`${operation} returns authoritative metadata after concurrent rename/archive`, async t => {

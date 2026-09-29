@@ -128,3 +128,14 @@ test('native new-chat buttons leave the terminal view; console controls do not',
   assert.equal(nativeNavigationControl(null), null);
   assert.match(buildNativeProviderNavigationSource(), /function nativeNavigationControl/);
 });
+
+test('the terminal is never mounted on #root or body while the page is still loading', () => {
+  // Regression: workspaceCandidate() falls back to #root/body before the app renders its main area; a terminal
+  // restored at startup then sat beside the whole app layout and pushed it 1040px out of the window.
+  assert.equal(nativeTerminalHost(() => ({ tagName: 'DIV', id: 'root' })), null);
+  assert.equal(nativeTerminalHost(() => ({ tagName: 'BODY', id: '' })), null);
+  assert.equal(nativeTerminalHost(() => ({ tagName: 'HTML', id: '' })), null);
+  assert.equal(nativeTerminalHost(() => null), null);
+  const main = { tagName: 'MAIN', id: '', closest: () => null };
+  assert.equal(nativeTerminalHost(() => main), main, 'a real main area is still used');
+});

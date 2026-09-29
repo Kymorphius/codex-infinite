@@ -30,7 +30,7 @@ export function buildNativeClaudePanelStyleScript() {
 }
 
 function installClaudePreview(createSelection, readThreadId, activateButton) {
-  const version = 2;
+  const version = 3;
   if (window.__cccClaudePreviewInstalled && window.__cccClaudePreviewVersion === version && window.__cccClaudePreviewRefresh) {
     window.__cccClaudePreviewRefresh(); return;
   }
@@ -151,11 +151,14 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     const id = current(), selected = selection.selected(id), family = selected?.modelFamily || 'opus';
     const text = selected ? buttonNames[family] || 'Claude ' + modelNames[family] : 'GPT';
     if (button.textContent !== text) button.textContent = text;
-    button.setAttribute('aria-pressed', String(Boolean(selected)));
+    const pressed = String(Boolean(selected));
+    if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
     button.style.color = selected ? '#e9a58d' : '';
     button.style.borderColor = selected ? '#d97757' : '';
     button.style.background = selected ? 'rgba(217,119,87,.16)' : '';
-    button.title = window.__cccClaudePreviewError || (selected ? 'Claude · 左键切回 GPT，右键设置' : 'GPT · 左键切换 Claude，右键设置');
+    // Written only on change: another module observing this button must not be woken every refresh.
+    const title = window.__cccClaudePreviewError || (selected ? 'Claude · 左键切回 GPT，右键设置' : 'GPT · 左键切换 Claude，右键设置');
+    if (button.title !== title) button.title = title;
     if (button.parentElement !== host) routing.after(button);
   }
   function schedule() { clearTimeout(timer); timer = setTimeout(render, 60); }

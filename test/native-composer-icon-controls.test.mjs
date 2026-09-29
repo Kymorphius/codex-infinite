@@ -45,6 +45,32 @@ test('the installer marks live controls, refreshes on change and restores on dis
   assert.equal(head.children[0].removed, true);
 });
 
+test("an owner's title is kept, so the icon layer and the owner stop trading values every sync", () => {
+  // Regression: claim-task and claude-preview each write their own title; the icon layer replaced it
+  // with a label-derived tooltip on every sync and the owner wrote it back (24 real changes per 10s).
+  const claim = new Node({ 'data-ccc-claim-task': '', title: '领取未指派任务，填入输入框并发送创建新会话' }, '领任务 33');
+  const claude = new Node({ 'data-ccc-claude-preview': '', 'aria-label': '切换 GPT 与 Claude；右键打开设置', title: 'GPT · 左键切换 Claude，右键设置' }, 'GPT');
+  const nodes = [claim, claude], head = { children: [], append(node) { this.children.push(node); } };
+  const document = { head, documentElement: {}, createElement: () => new Node(),
+    querySelectorAll: (selector) => selector === '[data-ccc-icon]' ? nodes.filter((node) => node.hasAttribute('data-ccc-icon')) : nodes.filter((node) => Object.keys(node.attrs).some((name) => selector === `[${name}]`)) };
+  const window = {}, writes = [];
+  for (const node of nodes) { const original = node.setAttribute.bind(node); node.setAttribute = (name, value) => { if (name === 'title') writes.push(value); original(name, value); }; }
+  vm.runInNewContext(buildNativeComposerIconControlsSource(), { window, document, MutationObserver: class { observe() {} disconnect() {} }, queueMicrotask });
+  for (let i = 0; i < 4; i++) window.__cccComposerIconControls.apply();
+  assert.equal(claim.attrs.title, '领取未指派任务，填入输入框并发送创建新会话'); assert.equal(claude.attrs.title, 'GPT · 左键切换 Claude，右键设置');
+  assert.deepEqual(writes, [], 'no title write when the owner already set one');
+  assert.equal(claim.attrs['data-ccc-badge'], '33', 'icon and badge are still ours');
+  claim.attrs.title = '综合任务清单当前没有未指派任务'; window.__cccComposerIconControls.apply();
+  assert.equal(claim.attrs.title, '综合任务清单当前没有未指派任务', "a changed owner title still wins");
+  delete claude.attrs.title; window.__cccComposerIconControls.apply();
+  assert.equal(claude.attrs.title, '切换 GPT 与 Claude；右键打开设置', 'without an owner title the derived tooltip fills in');
+  window.__cccComposerIconControls.apply();
+  assert.equal(writes.length, 1, 'and then stays put');
+  window.__cccComposerIconControls.dispose();
+  assert.equal(claim.attrs.title, '综合任务清单当前没有未指派任务', "dispose leaves an owner's title alone");
+  assert.equal(claude.attrs.title, undefined, 'and removes only the title it wrote');
+});
+
 test('both injectors install the icon layer', async () => {
   for (const file of ['src/injector.mjs', 'src/native-owner-injector.mjs']) assert.match(await fs.readFile(file, 'utf8'), /buildNativeComposerIconControlsSource\(\)/);
 });

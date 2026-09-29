@@ -5,26 +5,11 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { buildNativeProjectChecklistScript } from '../src/native-project-checklist.mjs';
+import { harness } from '../test-support/native-project-checklist-harness.mjs';
 import { readNativeChecklistHeldTodos } from '../src/native-checklist-held-todos.mjs';
 import { readNativeChecklistConversationChoices } from '../src/native-checklist-conversation-choices.mjs';
 import { ProjectChecklistStore } from '../src/project-checklist-store.mjs';
 import { assignedChecklistTasksForThread } from '../src/project-checklist-assignment.mjs';
-function harness(saved = '[]', conversationRows = []) {
-  class Node {
-    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.dataset = {}; this.listeners = {}; this.value = ''; }
-    append(...nodes) { for (const node of nodes) if (node && typeof node === 'object') node.parent = this; this.children.push(...nodes); }
-    replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
-    replaceWith(...nodes) { const index = this.parent?.children.indexOf(this) ?? -1; if (index >= 0) { for (const node of nodes) if (node && typeof node === 'object') node.parent = this.parent; this.parent.children.splice(index, 1, ...nodes); } }
-    setAttribute(k, v) { this.attrs[k] = v; }
-    addEventListener(k, fn) { this.listeners[k] = fn; }
-    focus() {} remove() {} showModal() { this.open = true; } close() { this.open = false; }
-  }
-  let storage = saved, id = 0;
-  const document = { body: new Node('body'), head: new Node('head'), createElement: tag => new Node(tag), querySelectorAll: () => conversationRows };
-  const context = vm.createContext({ document, window: { addEventListener() {}, removeEventListener() {} }, crypto: { randomUUID: () => 'id-' + ++id }, localStorage: { getItem: () => storage, setItem: (_, v) => { storage = v; } } });
-  vm.runInContext(buildNativeProjectChecklistScript(), context);
-  return { api: context.window.__cccProjectChecklist, dialog: document.body.children[0], storage: () => storage };
-}
 test('ack advances only unsent dependent revisions and conflicts keep a visible draft without blocking sync', () => {
   const sourceRef = { ownerDeviceId: 'windows', scopeId: 'a'.repeat(64), id: 'remote' }, projectKey = 'ccc:general-inbox:v1';
   const task = { id: 'federated-remote', text: '原文', done: false, assignedThreadId: null, sourceRef, expectedRevision: 'old' };
@@ -61,7 +46,7 @@ test('checklist numbers have a separate small card beside the task card', () => 
   assert.match(source, /ul\{list-style:none;padding:0;padding-inline-start:48px/);
   assert.match(source, /li\[data-checklist-row\]::before\{content:counter\(task\);position:absolute;inset-inline-start:-44px/);
   assert.match(source, /width:32px;height:34px;border-radius:9px;background:#8882/);
-  assert.match(source, /2026-09-26\.federated/);
+  assert.match(source, /2026-09-29\.render-gate/);
   assert.match(source, /checklistTaskId/);
 });
 test('project switching isolates visible items and restores pending drafts after reload', () => {

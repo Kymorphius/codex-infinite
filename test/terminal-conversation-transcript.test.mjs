@@ -34,3 +34,15 @@ test('transcript probe rejects file, directory and project-root symlink escapes'
   await fs.rm(root, { recursive: true }); await fs.symlink(external, root);
   assert.equal(await hasClaudeTranscript({ userHome, sessionId }), false);
 });
+
+test('a metadata-only session counts as existing when messages are not required', async t => {
+  // Regression: Claude writes mode records before the first message and then rejects --session-id
+  // ("Session ID … is already in use"), so the resume decision must not require messages.
+  const userHome = await fs.mkdtemp(path.join(os.tmpdir(), 'terminal-transcript-meta-')), sessionId = randomUUID();
+  t.after(() => fs.rm(userHome, { recursive: true, force: true }));
+  const directory = path.join(userHome, '.claude', 'projects', 'D--333----------'); await fs.mkdir(directory, { recursive: true });
+  await fs.writeFile(path.join(directory, `${sessionId}.jsonl`), [{ type: 'mode', mode: 'normal', sessionId }, { type: 'permission-mode', permissionMode: 'bypassPermissions', sessionId }].map(item => JSON.stringify(item)).join('\n') + '\n');
+  assert.equal(await hasClaudeTranscript({ userHome, sessionId }), false);
+  assert.equal(await hasClaudeTranscript({ userHome, sessionId, withMessages: false }), true);
+  assert.equal(await hasClaudeTranscript({ userHome, sessionId: randomUUID(), withMessages: false }), false);
+});

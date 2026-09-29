@@ -127,3 +127,19 @@ test("sidebar groups run search, attention, projects, user sections, then ChatGP
   assert.deepEqual(sequence, [...sequence].sort((a, b) => a - b));
   assert.equal(new Set(sequence).size, sequence.length);
 });
+
+test("sidebar flex wrapper is resolved once per section, without re-reading computed styles", () => {
+  // Regression: apply() walked ancestors reading computed display on every 1.2s sync; with the
+  // terminal keeping styles dirty each read forced a full ~100ms style recalc.
+  const scroll = { matches: selector => selector === "[data-app-action-sidebar-scroll]" };
+  const wrapper = { parentElement: scroll, matches: () => false, isConnected: true, contains: () => true };
+  const inner = { parentElement: wrapper, matches: () => false }, section = { parentElement: inner };
+  let reads = 0; const style = () => { reads++; return { display: "block" }; };
+  const cache = new WeakMap();
+  assert.equal(nativeSidebarFlexItem(section, style, cache), wrapper);
+  const first = reads; assert.ok(first > 0, "the first resolve walks and reads styles");
+  for (let i = 0; i < 5; i++) assert.equal(nativeSidebarFlexItem(section, style, cache), wrapper);
+  assert.equal(reads, first, "cached wrapper needs no style reads");
+  wrapper.isConnected = false; nativeSidebarFlexItem(section, style, cache);
+  assert.ok(reads >= first, "a replaced wrapper is resolved again");
+});

@@ -5,7 +5,8 @@ import {
   buildNativeRemoteSidebarSnapshotScript,
   NativeRemoteSidebarService,
   normalizeNativeRemoteSidebarItems,
-  projectNativeRemoteSidebar
+  projectNativeRemoteSidebar,
+  remoteSidebarRenderPlan
 } from "../src/native-remote-sidebar.mjs";
 
 const remoteOne = { id: "windows-pc", name: "Windows Desktop", kind: "remote-codex", status: "connected" };
@@ -187,4 +188,20 @@ test("remote sidebar injection owns one ordered subtree above cloud work and pre
   const snapshot = buildNativeRemoteSidebarSnapshotScript([{ id: "windows-pc", name: "Windows Desktop", status: "connected", projects: [] }]);
   assert.match(snapshot, /__codexControlConsoleSetRemoteSidebar/);
   assert.match(snapshot, /Windows Desktop/);
+});
+
+test("an unchanged snapshot does not rebuild the remote sidebar subtree", () => {
+  // Regression: SetRemoteSidebar rebuilt the whole remote subtree on every service sync (about once a
+  // second) although the data was identical, restyling the ~6k-element native sidebar each time (~100ms).
+  const devices = [{ id: "windows-pc", name: "Windows Desktop", status: "connected", projects: [] }];
+  const first = remoteSidebarRenderPlan(null, devices, false);
+  assert.equal(first.render, true, "nothing built yet");
+  assert.equal(remoteSidebarRenderPlan(first.signature, JSON.parse(JSON.stringify(devices)), true).render, false, "same data, already built");
+  assert.equal(remoteSidebarRenderPlan(first.signature, [{ ...devices[0], status: "error" }], true).render, true, "changed data is rendered");
+  assert.equal(remoteSidebarRenderPlan(first.signature, devices, false).render, true, "a missing root is rebuilt");
+  assert.deepEqual(remoteSidebarRenderPlan(first.signature, "not a list", true).devices, [], "junk is treated as no devices");
+  const source = buildNativeRemoteSidebarInjectionScript();
+  assert.match(source, /renderPlan\(renderedSignature, items, Boolean\(root\)\)/);
+  assert.match(source, /if \(plan\.render\) \{ renderedSignature = plan\.signature; render\(\); \} ensurePlacement\(\);/, "placement still runs every time");
+  assert.doesNotMatch(source, /devices = Array\.isArray\(items\) \? items : \[\]; render\(\); ensurePlacement/);
 });

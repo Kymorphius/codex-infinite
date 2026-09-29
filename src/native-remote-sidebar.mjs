@@ -8,6 +8,15 @@ import { normalizeNativeRemoteSidebarItems } from "./native-remote-sidebar-contr
 import { preserveOfflineProjects } from "./native-sidebar-cache.mjs";
 export { normalizeNativeRemoteSidebarItems, buildNativeRemoteSidebarSnapshotScript } from "./native-remote-sidebar-contract.mjs";
 const MAX_DEVICES = 8, MAX_PROJECTS_PER_DEVICE = 64, MAX_CONVERSATIONS_PER_PROJECT = 6;
+
+// The service republishes the sidebar snapshot on every sync, nearly always unchanged. Rebuilding the
+// whole remote subtree each time restyled the native sidebar (~100ms); rebuild only when the data
+// changed or nothing is built yet. Shipped into the page, so it must stay self-contained.
+export function remoteSidebarRenderPlan(previousSignature, items, hasRoot) {
+  const devices = Array.isArray(items) ? items : [];
+  const signature = JSON.stringify(devices);
+  return { devices, signature, render: !hasRoot || signature !== previousSignature };
+}
 function boundedText(value, maxLength) {
   return String(value || "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, maxLength);
 }
@@ -120,7 +129,7 @@ export class NativeRemoteSidebarService {
 
 export function buildNativeRemoteSidebarInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-28.sidebar-groups', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
+  const VERSION = '2026-09-29.render-gate', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
   const ROOT_SELECTOR = '[data-codex-control-console-remote-sidebar]';
   if (window.__codexControlConsoleRemoteSidebarVersion === VERSION && window.__codexControlConsoleRemoteSidebarObserver) return;
   window.__codexControlConsoleRemoteSidebarObserver?.disconnect?.(); if (window.__codexControlConsoleRemoteNativeSelectionListener) document.removeEventListener('click', window.__codexControlConsoleRemoteNativeSelectionListener, true);
@@ -128,6 +137,7 @@ export function buildNativeRemoteSidebarInjectionScript() {
   window.__codexControlConsoleRemoteSidebarVersion = VERSION;
   const expandedDevices = window.__codexControlConsoleExpandedRemoteDevices || new Set(), expandedProjects = window.__codexControlConsoleExpandedRemoteProjects || new Set(), expandedProjectLists = window.__codexControlConsoleExpandedRemoteProjectLists || new Set();
   let selectedConversationKey = window.__codexControlConsoleSelectedRemoteConversation || '', devices = [], root = null, placementPending = false, templateSignature = '';
+  let renderedSignature = null; const renderPlan = ${remoteSidebarRenderPlan.toString()};
   window.__codexControlConsoleExpandedRemoteDevices = expandedDevices; window.__codexControlConsoleExpandedRemoteProjects = expandedProjects; window.__codexControlConsoleExpandedRemoteProjectLists = expandedProjectLists;
   ${buildNativeRemoteProjectCopyUiSource()}
   ${buildNativeRemoteProjectListUiSource()}
@@ -272,7 +282,7 @@ export function buildNativeRemoteSidebarInjectionScript() {
 
   window.__codexControlConsoleRefreshLegacySidebar = () => { render(); ensurePlacement(); };
   window.__codexControlConsoleOpenUnifiedConversation = openRemoteConversation;
-  window.__codexControlConsoleSetRemoteSidebar = (items) => { devices = Array.isArray(items) ? items : []; render(); ensurePlacement(); return { count: devices.length }; };
+  window.__codexControlConsoleSetRemoteSidebar = (items) => { const plan = renderPlan(renderedSignature, items, Boolean(root)); devices = plan.devices; if (plan.render) { renderedSignature = plan.signature; render(); } ensurePlacement(); return { count: devices.length }; };
   window.__codexControlConsoleRemoteNativeSelectionListener = (event) => {
     if (!event.target?.closest?.('[data-app-action-sidebar-thread-id]') || !selectedConversationKey) return;
     selectedConversationKey = ''; window.__codexControlConsoleSelectedRemoteConversation = ''; document.documentElement.removeAttribute(REMOTE_SELECTED_ATTRIBUTE); render(); ensurePlacement();

@@ -61,13 +61,13 @@ export function buildNativeTurnStateSnapshotScript(snapshot) {
 
 export function buildNativeTurnStateInjectionScript() {
   return `(() => {
-  if (window.__codexControlConsoleTurnStateVersion === '2026-09-29.1') return;
+  if (window.__codexControlConsoleTurnStateVersion === '2026-09-29.integrated') return;
   if (window.__codexControlConsoleTurnStateTimer) clearInterval(window.__codexControlConsoleTurnStateTimer);
   document.querySelector('[data-codex-control-console-turn-state]')?.remove();
   document.querySelector('[data-codex-control-console-turn-state-popover]')?.remove();
   document.querySelector('[data-codex-control-console-global-turn-state]')?.remove();
   document.querySelectorAll('[data-codex-control-console-turn-state-turn]').forEach((node)=>node.remove());
-  window.__codexControlConsoleTurnStateVersion = '2026-09-29.1';
+  window.__codexControlConsoleTurnStateVersion = '2026-09-29.integrated';
   const readThreadId = ${readNativeComposerThreadId.toString()};
   const summarize = ${summarizeNativeTurnStates.toString()};
   const summarizeNativeTurnStates = summarize;
@@ -107,17 +107,29 @@ export function buildNativeTurnStateInjectionScript() {
   }
 
   function renderGlobal() {
-    const host=document.querySelector('header[data-app-shell-header-layout] [data-test-id="header-shell-slot"]')||document.querySelector('[data-test-id="header-shell-slot"]');if(!host)return;
+    // Windows draws its own in-page menu bar (文件 编辑 视图 帮助) and macOS has none. Where it exists the button joins
+    // that row and reuses the menu items' own classes, so size, radius, font and hover match; elsewhere it stays a pill
+    // in the header slot.
+    const help=document.querySelector('#application-menu-trigger-help-menu'),menuHost=help?.parentElement,mode=menuHost?'menu':'pill';
+    const host=menuHost||document.querySelector('header[data-app-shell-header-layout] [data-test-id="header-shell-slot"]')||document.querySelector('[data-test-id="header-shell-slot"]');if(!host)return;
     const summary=summarizeGlobal(snapshot);let button=document.querySelector('[data-codex-control-console-global-turn-state]');if(!button){button=document.createElement('button');button.type='button';button.setAttribute('data-codex-control-console-global-turn-state','');button.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openPopover(button,summarizeGlobal(snapshot),'全部会话 · Turn State');});}
-    const latest=summary.latest,label=snapshot.available?(latest?labelFor(latest):'—'):'?',color=snapshot.available?toneFor(latest):'#a7a7ad',signature=JSON.stringify([label,summary.conversationCount,summary.counts,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title='全局会话最近一次有效 turn state；点击查看各会话分布';button.setAttribute('aria-label',button.title);button.style.cssText='position:absolute;right:12px;top:50%;z-index:40;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:26px;padding:0 8px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.92;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}if(button.parentElement!==host)host.append(button);
+    const latest=summary.latest,label=snapshot.available?(latest?labelFor(latest):'—'):'?',color=snapshot.available?toneFor(latest):'#a7a7ad',signature=JSON.stringify([label,summary.conversationCount,summary.counts,mode]);
+    if(button.dataset.signature!==signature){
+      button.textContent=mode==='menu'?'质量 '+label:label;button.title='全局会话最近一次有效 turn state；点击查看各会话分布';button.setAttribute('aria-label',button.title);
+      if(mode==='menu'){button.className=help.className;button.style.cssText=(color==='#a7a7ad'?'':'color:'+color+';')+'-webkit-app-region:no-drag!important;pointer-events:auto!important;';}
+      else{button.className='';button.style.cssText='position:absolute;right:12px;top:50%;z-index:40;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:26px;padding:0 8px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.92;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';}
+      button.dataset.signature=signature;
+    }
+    if(mode==='menu'){if(button.parentElement!==menuHost||button.previousElementSibling!==help)help.after(button);}else if(button.parentElement!==host)host.append(button);
   }
 
   function render() {
     renderReasoningAdjustment(snapshot,readThreadId(document));
+    renderGlobal(); // independent of the composer: after a restore into a terminal the native composer never renders
     const jev=document.querySelector('button[data-codex-control-console-native-jev-current]');const host=jev?.parentElement;if(!host)return;
     const threadId=readThreadId(document);const summary=summarize(snapshot,threadId);let button=document.querySelector('[data-codex-control-console-turn-state]');if(!button){button=document.createElement('button');button.type='button';button.setAttribute('data-codex-control-console-turn-state','');button.addEventListener('click',(event)=>{event.preventDefault();event.stopPropagation();openPopover(button,summarize(snapshot,readThreadId(document)));});}
-    const latest=summary.latest;const label=snapshot.available?labelFor(latest):'?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length,snapshot.observedAt]);if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;position:relative;z-index:1;flex:0 0 auto;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
-    if(button.parentElement!==host||button.previousElementSibling!==jev)jev.after(button);decorateTurns(threadId);renderGlobal();
+    const latest=summary.latest;const label=snapshot.available?labelFor(latest):'?';const color=snapshot.available?toneFor(latest):'#a7a7ad';const signature=JSON.stringify([threadId,label,summary.entries.length]);const keepOrder=button.style.order;if(button.dataset.signature!==signature){button.textContent=label;button.title=snapshot.available?(latest?'当前会话最近一次 turn state 长度；点击查看分布':'当前会话暂未观测到 turn state；点击查看详情'):'Router turn state 观测暂不可用';button.setAttribute('aria-label',button.title);button.style.cssText='display:inline-flex;position:relative;z-index:1;flex:0 0 auto;justify-content:center;align-items:center;height:28px;padding:0 9px;border:1px solid '+color+'66;border-radius:999px;background:'+color+'18;color:'+color+';font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;cursor:pointer;opacity:.9;pointer-events:auto!important;-webkit-app-region:no-drag!important;app-region:no-drag!important;';button.dataset.signature=signature;}
+    if(keepOrder&&button.style.order!==keepOrder)button.style.order=keepOrder;if(button.parentElement!==host||button.previousElementSibling!==jev)jev.after(button);decorateTurns(threadId);
   }
   window.__codexControlConsoleSetTurnStateSnapshot=(value)=>{snapshot=value&&Array.isArray(value.entries)?value:{available:false,observedAt:Date.now(),entries:[]};render();return true;};
   window.__codexControlConsoleTurnStateTimer=setInterval(render,700);render();

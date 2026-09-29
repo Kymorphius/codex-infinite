@@ -47,7 +47,7 @@ test('adjustment appears only for latest current-thread request and clears on no
 
 test('render helper is embedded in updated injection without external dependencies', () => {
   const script = buildNativeTurnStateInjectionScript();
-  assert.match(script, /2026-09-29\.1/);
+  assert.match(script, /2026-09-29\.integrated/);
   assert.match(script, /renderReasoningAdjustment\(snapshot,readThreadId\(document\)\)/);
   new Function(script);
 });

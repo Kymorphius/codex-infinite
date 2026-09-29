@@ -172,7 +172,7 @@ export class TerminalConversationService {
           if (holders.length) await this.claudeTakeover(ids);
           // Resume the chain's live transcript, not the managed id (see claude-transcript resumeId).
           const target = resumeId && await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: resumeId }) ? resumeId : id;
-          options = { claudeSessionId: target, resume: target !== id || await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id }) };
+          options = { claudeSessionId: target, resume: target !== id || await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id, withMessages: false }) };
         }
       }
       try {

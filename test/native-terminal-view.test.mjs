@@ -2,18 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { installNativeTerminalView } from '../src/native-terminal-view.mjs';
-class Node {
-  constructor(tag) { this.tag = tag; this.children = []; this.style = {}; this.value = ''; this.attributes = {}; }
-  setAttribute(name, value) { this.attributes[name] = value; } addEventListener(name, callback) { (this.listeners ||= new Map()).set(name, callback); }
-  get parentNode() { return this.parent || null; }
-  removeAttribute(name) { delete this.attributes[name]; }
-  hasAttribute(name) { return name in this.attributes; } toggleAttribute(name, on) { if (on) this.attributes[name] = ''; else delete this.attributes[name]; }
-  append(...nodes) { for (const node of nodes) { node.remove(); node.parent = this; this.children.push(node); } }
-  prepend(...nodes) { for (const node of nodes.reverse()) { node.remove(); node.parent = this; this.children.unshift(node); } }
-  remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); this.parent = null; }
-  replaceChildren() { this.children = []; }
-  attachShadow() { this.shadowRoot = new Node('shadow'); return this.shadowRoot; }
-}
+import { Node } from '../test-support/native-terminal-view-node.mjs';
 test('native conversation mounts full terminal and composer, preserves draft, and restores host without stopping PTY', async () => {
   const surface = { style: { value: '', priority: '', getPropertyValue() { return this.value; }, getPropertyPriority() { return this.priority; }, setProperty(name, value, priority) { this.value = value; this.priority = priority; } } };
   const host = new Node('main'), original = new Node('conversation'); original.style.display = 'flex'; host.append(original); host.closest = selector => selector.includes('_MainContentSurface_') ? surface : null;
@@ -36,7 +25,7 @@ test('native conversation mounts full terminal and composer, preserves draft, an
   const bar = created.find(node => node.className === 'bar'), titleHost = toolbar.children[0];
   assert.equal(titleHost.attributes['data-ccc-terminal-titlebar-content'], '', 'terminal title takes the native header slot');
   assert.equal(bar.parent, titleHost.shadowRoot); assert.equal(toolbar.children[1], nativeTitle, 'native header content stays for trailing actions');
-  assert.equal(html.attributes['data-ccc-terminal-titlebar'], ''); assert.match(titleHost.shadowRoot.children[0].textContent, /\.bar button\{-webkit-app-region:no-drag;app-region:no-drag;pointer-events:auto\}/, 'every header button remains clickable in the native drag region'); assert.match(head.children[0].textContent, /:has\(\[data-app-shell-titlebar-content\]\)\{display:none!important\}/);
+  assert.equal(html.attributes['data-ccc-terminal-titlebar'], ''); assert.match(titleHost.shadowRoot.children[0].textContent, /\.bar button\{-webkit-app-region:no-drag;app-region:no-drag;pointer-events:auto\}/, 'every header button remains clickable in the native drag region'); assert.match(head.children[0].textContent, /\[data-app-shell-header-toolbar\]>:not\(\[data-ccc-terminal-titlebar-content\]\),html\[data-ccc-terminal-titlebar\] \[data-app-shell-header-slot="end"\],html\[data-ccc-terminal-titlebar\] \[class~="@container\/home-mode-toggle"\]\{display:none!important\}/, "the native header's own controls (incl. the home 聊天/工作 switch) belong to other conversations and are hidden, without :has()");
   assert.equal(sessionOptions.background, '#181818', 'terminal canvas uses the native page color (fallback without a DOM)');
   sessionOptions.onUiCommand('redraw'); await Promise.resolve(); assert.equal(redrawn, 1);
   created.find(node => node.className === 'redraw').onclick(); assert.equal(redrawn, 2);

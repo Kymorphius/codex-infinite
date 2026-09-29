@@ -55,16 +55,46 @@ export function installNativeTerminalView(createSession, statusText, css) {
     titleShadow.append(titleStyle);
     let headerStyle = document.getElementById('ccc-terminal-titlebar-style');
     if (!headerStyle) { headerStyle = el('style'); headerStyle.id = 'ccc-terminal-titlebar-style'; document.head.append(headerStyle); }
-    headerStyle.textContent = 'html[data-ccc-terminal-titlebar] [data-app-shell-header-toolbar]>:has([data-app-shell-titlebar-content]){display:none!important}';
+    // While this view owns the title bar, the native header's own controls (chat actions, pinned summary,
+    // new tab, and the home page's 聊天/工作 switch) belong to other conversations and stay hidden.
+    // Structural selectors only: :has() is costly on this page.
+    headerStyle.textContent = 'html[data-ccc-terminal-titlebar] [data-app-shell-header-toolbar]>:not([data-ccc-terminal-titlebar-content]),html[data-ccc-terminal-titlebar] [data-app-shell-header-slot="end"],html[data-ccc-terminal-titlebar] [class~="@container/home-mode-toggle"]{display:none!important}';
     let placing = false;
+    // Runs after every DOM change on the page, so it only writes when placement actually changes:
+    // re-setting the <html> attribute or re-reading header geometry each time restyled the whole page.
     function placeTitle() {
       placing = false; if (disposed) return;
-      const toolbar = document.querySelector('[data-app-shell-focus-area="main"] [data-app-shell-header-toolbar]');
-      if (!toolbar) { if (bar.parentNode !== layout) layout.prepend(bar); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); return; }
-      if (bar.parentNode !== titleShadow) titleShadow.append(bar);
-      if (titleHost.parentNode !== toolbar) toolbar.prepend(titleHost);
-      document.documentElement.setAttribute('data-ccc-terminal-titlebar', '');
+      const toolbar = document.querySelector('[data-app-shell-focus-area="main"] [data-app-shell-header-toolbar]'), html = document.documentElement;
+      if (!toolbar) {
+        if (bar.parentNode === layout && !titleHost.parentNode) return;
+        if (bar.parentNode !== layout) layout.prepend(bar);
+        titleHost.remove(); html.removeAttribute('data-ccc-terminal-titlebar'); headerInset(); return;
+      }
+      let moved = false;
+      if (bar.parentNode !== titleShadow) { titleShadow.append(bar); moved = true; }
+      if (titleHost.parentNode !== toolbar) { toolbar.prepend(titleHost); moved = true; }
+      if (!html.hasAttribute('data-ccc-terminal-titlebar')) { html.setAttribute('data-ccc-terminal-titlebar', ''); moved = true; }
+      if (moved) headerInset();
     }
+    // Windows ChatGPT pins its header (position:fixed) over the page and native pages pad beneath it;
+    // reserve the same rows or the terminal draws under the title bar. An in-flow header yields 0.
+    function headerInset() {
+      if (disposed) return;
+      const header = document.querySelector('[data-app-shell-focus-area="main"] [data-app-shell-header-toolbar]')?.closest?.('header');
+      const pinned = header && /^(fixed|absolute)$/.test(getComputedStyle(header).position);
+      const overlap = pinned ? Math.round(header.getBoundingClientRect().bottom - root.getBoundingClientRect().top) : 0;
+      // Rects are in rendered pixels but the page is CSS-zoomed (about 1.2 on Windows), so convert before
+      // writing CSS px; the unconverted value left an empty band of about 20% of the header height.
+      const cssHeight = overlap > 0 ? parseFloat(getComputedStyle(layout).height) : 0, renderedHeight = overlap > 0 ? layout.getBoundingClientRect().height : 0;
+      const zoom = cssHeight > 0 && renderedHeight > 0 ? renderedHeight / cssHeight : 1;
+      // Compact whenever the title bar lives in the native header (pinned or in flow): the terminal starts right
+      // under it instead of behind the default 10px + 10px of padding.
+      const placed = Boolean(titleHost.parentNode);
+      layout.style.paddingTop = overlap > 0 ? `${(overlap / zoom).toFixed(1)}px` : placed ? '0px' : '';
+      output.style.paddingTop = placed ? '2px' : '';
+    }
+    const insetObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(headerInset) : null;
+    insetObserver?.observe(root);
     const headerObserver = new MutationObserver(() => { if (!placing && !disposed) { placing = true; requestAnimationFrame(placeTitle); } });
     headerObserver.observe(document.body, { childList: true, subtree: true });
     placeTitle();
@@ -215,7 +245,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
       // A reinstalled runtime reopens the shown conversation with its own code; remount would
       // keep this closure's older session code until the conversation is opened again.
       reopen() { if (!disposed) window.__cccOpenNativeTerminal(record, host); },
-      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); split?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
+      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); split?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); insetObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
     window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;
   };

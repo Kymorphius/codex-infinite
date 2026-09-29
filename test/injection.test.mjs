@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { createHash } from "node:crypto";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
 import { buildNativeProviderNavigationSource } from "../src/native-terminal-navigation.mjs";
@@ -36,11 +37,41 @@ test("native entry anchor lookup retains its original label selection", () => {
   assert.equal(findNativeEntryAnchor({ querySelectorAll: () => [unrelated, anchor] }, value => value.trim()), anchor);
 });
 
+test("serialized native anchor probe has no module-scope dependencies", () => {
+  const anchor = { textContent: '插件' };
+  const context = vm.createContext({ document: { querySelectorAll: () => [anchor] } });
+  assert.equal(vm.runInContext(`(${findNativeEntryAnchor.toString()})(document, value => value.trim())`, context), anchor);
+});
+
+test("native entry anchor lookup never reads layout for ordinary buttons and reuses the anchor", () => {
+  // Regression: every scanned button's innerText was read after each page mutation; innerText forces a
+  // layout, and on a dirty page each read cost a full style recalc (85 per second, ~100ms each).
+  let layoutReads = 0;
+  const button = (text, extra = {}) => ({ textContent: text, get innerText() { layoutReads++; return text; }, isConnected: true, ...extra });
+  const ordinary = ["设置", "新聊天", "搜索", "Codex 帮助"].map((text) => button(text));
+  const anchor = button("插件");
+  const documentRef = { querySelectorAll: () => [...ordinary, anchor] };
+  const trim = (value) => value.trim();
+  assert.equal(findNativeEntryAnchor(documentRef, trim), anchor);
+  assert.equal(layoutReads, 0, "an exact label needs no layout");
+  const cache = {}; let scans = 0;
+  const counting = { querySelectorAll: (...args) => { scans++; return documentRef.querySelectorAll(...args); } };
+  for (let i = 0; i < 5; i++) assert.equal(findNativeEntryAnchor(counting, trim, cache), anchor);
+  assert.equal(scans, 1, "the anchor is scanned for once while it stays connected");
+  anchor.isConnected = false;
+  const replacement = button("Apps");
+  assert.equal(findNativeEntryAnchor({ querySelectorAll: () => [...ordinary, replacement] }, trim, cache), replacement, "a replaced anchor is found again");
+  assert.equal(findNativeEntryAnchor({ querySelectorAll: () => [button("Plugins for Apps")] }, trim), null);
+  const hidden = { textContent: "插件 (hidden)", innerText: "插件", isConnected: true };
+  assert.equal(findNativeEntryAnchor({ querySelectorAll: () => [hidden] }, trim), hidden, "a label followed by hidden text is confirmed by innerText, as before");
+});
+
 test("outer injection version tracks native tabs source so recent menu changes replace an old installation", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831");
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
   const providerDigest = createHash("sha256").update(buildNativeProviderNavigationSource()).digest("hex").slice(0, 12);
-  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.standalone-false"`));
+  const probeDigest = createHash("sha256").update(findNativeEntryAnchor.toString()).digest("hex").slice(0, 8);
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.probe-${probeDigest}\\.standalone-false"`));
   assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);
 });

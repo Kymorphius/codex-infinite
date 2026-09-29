@@ -5,7 +5,10 @@ import { buildNativeTerminalProviderSource } from './native-terminal-provider.mj
 export function nativeTerminalHost(fallback) {
   const main = fallback(), area = main?.closest?.('[data-app-shell-focus-area="main"]');
   const rect = area?.isConnected ? area.getBoundingClientRect() : null;
-  return rect && rect.width > 260 && rect.height > 180 ? area : main;
+  const host = rect && rect.width > 260 && rect.height > 180 ? area : main;
+  // While the page is still loading, workspaceCandidate() falls back to #root/body. Mounting there puts the
+  // terminal beside the whole app layout and pushes that layout out of the window, so wait for a real main area.
+  return host && !/^(BODY|HTML)$/.test(host.tagName || '') && host.id !== 'root' ? host : null;
 }
 
 // Native controls that replace the main page. The terminal view hides that page, so a

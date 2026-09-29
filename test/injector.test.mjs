@@ -42,6 +42,28 @@ test("injector reloads once after enabling target-scoped CSP bypass", async () =
   assert.equal(calls.at(-1).method, "evaluate");
 });
 
+test("the terminal runtime is prepared after the Windows CSP reload and right before each injection", async () => {
+  // Regression: the runtime was prepared before the reload, so the replaced document installed the
+  // provider without it and Windows stayed on the iframe terminal (no split/redraw, native header on top).
+  const calls = [];
+  const connection = {
+    async send(method) { calls.push(method); return {}; },
+    async evaluate(source) {
+      calls.push(source.includes("chatgpt26.terminal-inline") ? "inject" : "evaluate");
+      if (source.includes("CspDocumentToken")) return source.includes("document.readyState") ? true : "document-1";
+      if (source.includes("[data-codex-control-console-entry]")) return { hasEntry: true, hasFrame: false, frameReady: false, frameRecoveryManaged: false, frameRecoveryRequest: "" };
+      return source.includes("document.readyState") ? true : {};
+    }
+  };
+  const beforeInjection = async () => { calls.push("runtime"); };
+  await installIntoTarget(connection, "http://127.0.0.1:47831", { beforeInjection });
+  assert.ok(calls.indexOf("Page.reload") < calls.indexOf("runtime"));
+  assert.equal(calls[calls.indexOf("inject") - 1], "runtime");
+  calls.length = 0;
+  assert.equal((await installIntoTarget(connection, "http://127.0.0.1:47831", { beforeInjection })).status, "already-installed");
+  assert.deepEqual(calls.filter(call => call === "runtime" || call === "inject"), ["runtime", "inject"]);
+});
+
 test("injector reloads only once for the same document on one CDP connection", async () => {
   const calls = [];
   const connection = {
@@ -256,4 +278,23 @@ test("injector relaunches dedicated Codex when the CDP endpoint disappears durin
   assert.equal(recoveries, 1);
   assert.equal(fetches, 2);
   assert.equal(injector.targetId, null);
+});
+
+test("Windows (CSP reload mode) installs the native terminal binding", async () => {
+  // Regression: `!reloadAfterCspBypass` limited the native terminal to macOS, leaving Windows on the
+  // iframe view without split/redraw and with the previous conversation's header over the terminal.
+  const sent = [];
+  const injector = new CodexInjector({ cdpOrigin: "http://127.0.0.1:9241", dashboardUrl: "http://127.0.0.1:47831",
+    reloadAfterCspBypass: true, terminalConversations: {}, terminalService: {}, logger: { warn() {} } });
+  const originalFetch = globalThis.fetch, originalSocket = globalThis.WebSocket;
+  globalThis.fetch = async () => ({ ok: true, async json() { return [{ type: "page", id: "app", url: "app://-/index.html", webSocketDebuggerUrl: "ws://127.0.0.1:9241/app" }]; } });
+  globalThis.WebSocket = class {
+    constructor() { this.readyState = 1; queueMicrotask(() => this.listeners.open?.({})); }
+    addEventListener(name, listener) { this.listeners ||= {}; this.listeners[name] = listener; }
+    send(payload) { const { id, method, params } = JSON.parse(payload); sent.push({ method, name: params?.name }); const result = method === "Runtime.evaluate" ? { result: { value: true } } : {}; queueMicrotask(() => this.listeners.message?.({ data: JSON.stringify({ id, result }) })); }
+    close() { this.readyState = 3; }
+  };
+  try { await injector.sync(); }
+  finally { globalThis.fetch = originalFetch; globalThis.WebSocket = originalSocket; await injector.stop(); }
+  assert.ok(sent.some(call => call.method === "Runtime.addBinding" && call.name === "codexControlConsoleTerminal"));
 });

@@ -101,7 +101,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
 }
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "", hostActionBinding = standaloneDashboardBinding } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "", hostActionBinding = standaloneDashboardBinding, beforeInjection = null } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -167,6 +167,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
       await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
+      await beforeInjection?.();
       await connection.evaluate(buildInjectionScript(dashboardUrl, { standaloneDashboardBinding }));
       return { status: "already-installed" };
     }
@@ -176,6 +177,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     }
   }
   await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
+  await beforeInjection?.();
   await connection.evaluate(buildInjectionScript(dashboardUrl, { standaloneDashboardBinding }));
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
@@ -241,7 +243,7 @@ export class CodexInjector {
         await this.connection?.close();
         this.connection = new CdpConnection(target.webSocketDebuggerUrl);
         await this.connection.connect();
-        if (this.terminalConversations && !this.reloadAfterCspBypass) this.removeTerminalBinding = await installNativeTerminalBinding(this.connection, this.terminalConversations, this.terminalService);
+        if (this.terminalConversations) this.removeTerminalBinding = await installNativeTerminalBinding(this.connection, this.terminalConversations, this.terminalService);
         this.removeContextBindingListener = this.connection.onEvent((event) => {
           if (event.method !== "Runtime.bindingCalled") return;
           if (event.params?.name === NATIVE_CONTEXT_BINDING) {
@@ -280,7 +282,6 @@ export class CodexInjector {
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       await this.connection.send("Runtime.addBinding", { name: PROJECT_CHECKLIST_SYNC_BINDING });
       for (const { name } of this.extraBindings) await this.connection.send("Runtime.addBinding", { name });
-      if (this.terminalConversations && !this.reloadAfterCspBypass) await prepareNativeTerminalRuntime(this.connection);
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];
       await installIntoTarget(this.connection, this.dashboardUrl, {
@@ -297,7 +298,8 @@ export class CodexInjector {
         turnStateSnapshot: await this.turnStateProvider?.snapshot?.(),
         reloadAfterCspBypass: this.reloadAfterCspBypass,
         standaloneDashboardBinding: this.dashboardLauncher && !this.reloadAfterCspBypass ? NATIVE_DASHBOARD_BINDING : "",
-        hostActionBinding: this.dashboardLauncher ? NATIVE_DASHBOARD_BINDING : ""
+        hostActionBinding: this.dashboardLauncher ? NATIVE_DASHBOARD_BINDING : "",
+        beforeInjection: this.terminalConversations ? () => prepareNativeTerminalRuntime(this.connection) : null
       });
       await syncTurnAnnotations(this.connection, this.annotationStore, { targets, dashboardUrl: this.dashboardUrl });
       this.checklistWake.clear(); // The imminent periodic read includes earlier return signals.
