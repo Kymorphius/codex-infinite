@@ -212,6 +212,9 @@ export function installNativeTerminalView(createSession, statusText, css) {
         mount(value); } else { record = value; showRecord(); if (!view) showStopped(); } },
       // Reconnect the shown terminal through a rebuilt native client.
       remount() { if (!disposed) mount(record); },
+      // A reinstalled runtime reopens the shown conversation with its own code; remount would
+      // keep this closure's older session code until the conversation is opened again.
+      reopen() { if (!disposed) window.__cccOpenNativeTerminal(record, host); },
       dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); split?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
     window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;

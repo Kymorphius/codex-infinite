@@ -27,7 +27,7 @@ export function installNativeTerminalClient() {
   function socketClass(conversationId) {
     return class NativeSocket {
       constructor() {
-        this.readyState = 0; this.stream = crypto.randomUUID(); this.chain = Promise.resolve(); this.bufferedAmount = 0; sockets.set(this.stream, this);
+        this.readyState = 0; this.stream = crypto.randomUUID(); this.outbox = []; this.flushing = false; this.bufferedAmount = 0; sockets.set(this.stream, this);
         queueMicrotask(() => request('attach', { id: conversationId, stream: this.stream }).catch(error => this.fail(error)));
       }
       fail(error) { if (this.readyState >= 2) return; this.onerror?.(error); this.close(); this.onclose?.({ code: 4002, reason: error.message }); }
@@ -36,7 +36,20 @@ export function installNativeTerminalClient() {
         const frame = JSON.parse(payload), bytes = new TextEncoder().encode(payload).byteLength;
         if (this.bufferedAmount + bytes > 131072) throw Error('终端输入过快，请等待');
         this.bufferedAmount += bytes;
-        this.chain = this.chain.then(() => { if (this.readyState === 1) return request('input', { stream: this.stream, frame }); }).catch(error => this.fail(error)).finally(() => { this.bufferedAmount -= bytes; });
+        // One request is in flight at a time. Keystrokes and wheel reports queued behind it
+        // merge into one input frame, in order, so a burst costs one round trip instead of one each.
+        const last = this.outbox[this.outbox.length - 1];
+        if (frame.type === 'input' && last?.frame.type === 'input' && last.bytes + bytes <= 32768) { last.frame.data += frame.data; last.bytes += bytes; }
+        else this.outbox.push({ frame, bytes });
+        if (!this.flushing) this.flush();
+      }
+      flush() {
+        const next = this.outbox.shift();
+        this.flushing = Boolean(next); if (!next) return;
+        request('input', { stream: this.stream, frame: next.frame }).catch(error => this.fail(error)).finally(() => {
+          this.bufferedAmount -= next.bytes;
+          if (this.readyState === 1) this.flush(); else { for (const item of this.outbox) this.bufferedAmount -= item.bytes; this.outbox = []; this.flushing = false; }
+        });
       }
       close() {
         if (this.readyState >= 2) return;

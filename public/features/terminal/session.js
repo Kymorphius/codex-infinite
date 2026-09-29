@@ -1,5 +1,6 @@
 import { terminalMessage } from "./presentation.js";
 import { terminalChoicePrompt } from "./prompt.js";
+import { installTerminalWheel } from "./wheel.js";
 
 // A terminal owns its display and connection; the backend owns its process.
 export function createTerminalSession(initialSession, {
@@ -36,6 +37,7 @@ export function createTerminalSession(initialSession, {
   const fitAddon = new FitAddonCtor();
   terminal.loadAddon(fitAddon);
   terminal.open(host);
+  const wheel = installTerminalWheel(terminal);
   const clipboardHasImage = event => [
     ...Array.from(event.clipboardData?.items || []),
     ...Array.from(event.clipboardData?.files || []),
@@ -307,6 +309,7 @@ export function createTerminalSession(initialSession, {
       cancel(retryTimer);
       observer.disconnect();
       inputSubscription.dispose();
+      wheel.dispose();
       host.removeEventListener?.('paste', imagePaste, true);
       uiSubscription?.dispose?.();
       socket?.close();

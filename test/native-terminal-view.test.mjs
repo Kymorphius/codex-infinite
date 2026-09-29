@@ -176,3 +176,19 @@ test('a rebuilt native client is used after remount, and a session lost without 
   assert.equal(requests.length, 1, 'a session you exited here is not restarted');
   window.__cccNativeTerminalView.dispose();
 });
+
+test('a reinstalled runtime reopens the shown conversation with its own session code', () => {
+  const made = [];
+  const window = { __cccTerminalNative: { socketClass: () => class {}, async request() { return {}; } } };
+  const documentRef = { documentElement: new Node('html'), head: new Node('head'), body: new Node('body'), getElementById: () => null, querySelector: () => null, createElement: tag => new Node(tag) };
+  const install = name => vm.runInContext(`(${installNativeTerminalView.toString()})(createSession, () => '', '')`, vm.createContext({ window, document: documentRef,
+    MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(), sessionStorage: { getItem() {}, setItem() {} }, setTimeout: () => 1, clearTimeout: () => {},
+    createSession: (summary, options) => { made.push(name); options.WebSocketCtor; return { dispose() { made.push(name + ':disposed'); }, activate() {}, snapshot: () => ({ canInput: true }) }; } }));
+  const record = { id: 'c1', title: 't', kind: 'claude', status: 'running', runtimeSessionId: 'r1', runtimeSummary: { id: 'r1', status: 'running' }, occupiedBy: null };
+  install('old'); window.__cccOpenNativeTerminal(record, new Node('main'));
+  const oldView = window.__cccNativeTerminalView;
+  install('new'); oldView.reopen();
+  assert.deepEqual(made, ['old', 'old:disposed', 'new'], 'the old view is disposed and the new code mounts the same conversation');
+  assert.notEqual(window.__cccNativeTerminalView, oldView); assert.equal(window.__cccNativeTerminalView.id, 'c1');
+  window.__cccNativeTerminalView.dispose();
+});
