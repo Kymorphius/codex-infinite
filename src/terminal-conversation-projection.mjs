@@ -1,3 +1,5 @@
+import { claudeTerminalModel } from './claude-terminal-settings.mjs';
+
 // Managed providers join presentation catalogs without entering native indexes.
 export function projectTerminalConversations(snapshot, registry, localDevice, nativeProjects = []) {
   const conversations = registry?.conversations || [];
@@ -11,7 +13,7 @@ export function projectTerminalConversations(snapshot, registry, localDevice, na
     id: conversation.id, provider: 'terminal', title: conversation.title, cwd: conversation.cwd,
     project: projectName(conversation), projectDisplayName: projectName(conversation),
     createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
-    status: 'unknown', boardStatus: 'pending', model: null, reasoningEffort: null,
+    status: 'unknown', boardStatus: 'pending', ...claudeModelFields(conversation.claudeSettings),
     device, terminalConversation: conversation,
     capabilities: ['open', 'rename', 'pin', 'archive', 'manual-input', 'task-center'],
   }));
@@ -20,4 +22,10 @@ export function projectTerminalConversations(snapshot, registry, localDevice, na
   if (terminalTasks.length && !devices.some(value => value.id === device.id)) devices.push(device);
   return { ...snapshot, tasks, devices, terminalConversations: conversations,
     status: tasks.length ? 'connected' : snapshot.status };
+}
+
+// A Claude conversation's stored choice as the board's model fields (unset model and auto effort are null).
+function claudeModelFields(settings) {
+  const model = settings && claudeTerminalModel(settings.model);
+  return { model: model?.cliModel || null, reasoningEffort: settings && settings.effort !== 'auto' ? settings.effort : null };
 }

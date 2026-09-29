@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { terminalConversationId } from './terminal-conversation-contract.mjs';
+import { observeClaudeSettings, mergeClaudeSettingsObservations, claudeSettingsComplete } from './claude-transcript-settings.mjs';
 
 const CHUNK_BYTES = 512 * 1024, FULL_SCAN_BYTES = 64 * 1024 * 1024, BACKFILL_BYTES = 64 * 1024 * 1024, MAX_CONTINUATIONS = 16, MAX_DEPTH = 4;
 export const DEFAULT_CLAUDE_TITLE = 'Claude CLI';
@@ -29,6 +30,7 @@ export function scanClaudeTranscript(text, sessionId, found = emptySummary()) {
       continue;
     }
     if (record?.sessionId !== sessionId) continue;
+    observeClaudeSettings(record, found.settings);
     if (record.type === 'custom-title' && typeof record.customTitle === 'string') found.custom = record.customTitle;
     if (record.type === 'ai-title' && typeof record.aiTitle === 'string') found.generated = record.aiTitle;
     const typed = claudeUserText(record, sessionId);
@@ -37,7 +39,7 @@ export function scanClaudeTranscript(text, sessionId, found = emptySummary()) {
   }
   return found;
 }
-export const emptySummary = () => ({ custom: '', generated: '', lastUserAt: '', firstUser: '', continued: [] });
+export const emptySummary = () => ({ custom: '', generated: '', lastUserAt: '', firstUser: '', continued: [], settings: {} });
 export function claudeTitleText(found) {
   return (found.custom || found.generated).replace(/[\u0000-\u001f\u007f]/gu, ' ').trim().slice(0, 160);
 }
@@ -74,7 +76,8 @@ export function createClaudeTranscriptReader({ userHome, fullScanBytes = FULL_SC
   async function backfill(handle, size, sessionId) {
     const found = emptySummary();
     let end = size, carry = Buffer.alloc(0), read = 0;
-    while (end > 0 && read < BACKFILL_BYTES && !(found.lastUserAt && (found.custom || found.generated))) {
+    // Settings evidence of every kind is wanted too: an older /effort still matters while the stored effort is auto.
+    while (end > 0 && read < BACKFILL_BYTES && !(found.lastUserAt && (found.custom || found.generated) && claudeSettingsComplete(found.settings))) {
       const start = Math.max(0, end - chunkBytes), buffer = Buffer.alloc(end - start);
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
       let chunk = Buffer.concat([buffer.subarray(0, bytesRead), carry]);
@@ -88,6 +91,7 @@ export function createClaudeTranscriptReader({ userHome, fullScanBytes = FULL_SC
       for (const key of ['custom', 'generated', 'lastUserAt']) if (!found[key] && part[key]) found[key] = part[key];
       if (part.firstUser) found.firstUser = part.firstUser; // chunks run backwards: an earlier one wins
       for (const id of part.continued) if (!found.continued.includes(id)) found.continued.push(id);
+      found.settings = mergeClaudeSettingsObservations([found.settings, part.settings]);
     }
     return found;
   }
@@ -134,14 +138,15 @@ export function createClaudeTranscriptReader({ userHome, fullScanBytes = FULL_SC
     const origin = visited.get(sessionId);
     const custom = found => claudeTitleText({ custom: found.custom, generated: '' });
     return { ...live, ids: [...visited.keys()], title: claudeTitleText(live.found) || (origin ? claudeTitleText(origin.found) : '') || claudeFallbackTitle(origin?.found.firstUser || live.found.firstUser),
-      customTitle: custom(live.found) || (origin ? custom(origin.found) : ''), lastUserAt: live.found.lastUserAt || origin?.found.lastUserAt || '' };
+      customTitle: custom(live.found) || (origin ? custom(origin.found) : ''), lastUserAt: live.found.lastUserAt || origin?.found.lastUserAt || '',
+      settings: mergeClaudeSettingsObservations(entries.map(entry => entry.found.settings)) };
   }
   async function summary(sessionId) {
     const resolved = await resolve(sessionId);
     // resumeId is the live file's session: resuming the managed id would reload the
     // conversation only up to its first continuation and fork an old branch.
     // customTitle is only what the person set with /rename (a generated title may describe a program's prompt).
-    return resolved ? { title: resolved.title, customTitle: resolved.customTitle, lastUserMessageAt: resolved.lastUserAt || null, ids: resolved.ids, resumeId: resolved.sessionId }
+    return resolved ? { title: resolved.title, customTitle: resolved.customTitle, lastUserMessageAt: resolved.lastUserAt || null, ids: resolved.ids, resumeId: resolved.sessionId, settings: resolved.settings }
       : { title: '', customTitle: '', lastUserMessageAt: null, ids: [terminalConversationId(sessionId)], resumeId: null };
   }
   async function search(sessionId, rawQuery) {

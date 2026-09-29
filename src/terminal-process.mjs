@@ -4,6 +4,7 @@ import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { terminalError } from './terminal-contract.mjs';
+import { claudeLaunchArgs, claudeLaunchEnvironment, CLAUDE_CLI_MODEL_PATTERN } from './claude-terminal-settings.mjs';
 
 const execute = promisify(execFile);
 const ENV_KEYS = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'TMP', 'TEMP',
@@ -25,7 +26,7 @@ export async function validateTerminalCwd(cwd) {
   return cwd;
 }
 
-export function terminalLaunch({ kind, claudeSessionId, resume = false, attachJob, env = process.env, platform = process.platform } = {}) {
+export function terminalLaunch({ kind, claudeSessionId, resume = false, attachJob, claudeSettings = null, env = process.env, platform = process.platform } = {}) {
   if (claudeSessionId !== undefined && (typeof claudeSessionId !== 'string'
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(claudeSessionId))) {
     throw terminalError(400, 'Claude 会话标识无效');
@@ -33,8 +34,13 @@ export function terminalLaunch({ kind, claudeSessionId, resume = false, attachJo
   // A daemon-hosted background session is opened with `claude attach`, which shares it
   // with other viewers instead of resuming (which would fork a copy).
   if (attachJob !== undefined && (typeof attachJob !== 'string' || !/^[0-9a-f]{8}$/u.test(attachJob))) throw terminalError(400, 'Claude 后台会话标识无效');
+  // Model and effort come only from the settings catalog; the argument check also guards cmd /c,
+  // which has no quoting. An attached job keeps the model its owner started it with.
+  const modelArgs = kind === 'claude' && !attachJob ? claudeLaunchArgs(claudeSettings) : [];
+  if (modelArgs.length && !CLAUDE_CLI_MODEL_PATTERN.test(modelArgs[1])) throw terminalError(400, 'Claude 模型无效');
+  const model = modelArgs.map(value => `${platform === 'win32' || value.startsWith('--') ? value : shellQuote(value)} `).join('');
   const command = attachJob ? `claude attach ${attachJob}`
-    : claudeSessionId ? `claude ${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : 'claude';
+    : claudeSessionId ? `claude ${model}${resume ? '--resume' : '--session-id'} ${claudeSessionId}` : `claude${model ? ' ' + model.trimEnd() : ''}`;
   const withUiControls = kind === 'claude' && !attachJob && platform !== 'win32'
     ? command.replace(/^claude\b/u, `claude --append-system-prompt ${shellQuote(CLAUDE_TERMINAL_UI_PROMPT)}`) : command;
   const withPermissions = kind === 'claude' && !attachJob
@@ -82,16 +88,17 @@ export async function killTerminalProcess(pty, { platform = process.platform, ex
   try { pty.kill('SIGKILL'); } catch {}
 }
 
-export async function spawnTerminalProcess({ cwd, kind, cols, rows, claudeSessionId, resume, attachJob,
+export async function spawnTerminalProcess({ cwd, kind, cols, rows, claudeSessionId, resume, attachJob, claudeSettings = null,
   userHome = os.homedir(), env = process.env } = {}) {
   let library;
   try { library = await import('node-pty'); }
   catch { throw terminalError(503, '终端组件不可用，请重新安装本机依赖后重试'); }
-  const { shell, args } = terminalLaunch({ kind, claudeSessionId, resume, attachJob, env });
+  const { shell, args } = terminalLaunch({ kind, claudeSessionId, resume, attachJob, claudeSettings, env });
+  const extra = kind === 'claude' && !attachJob ? claudeLaunchEnvironment(claudeSettings) : {};
   let pty;
   try {
     pty = (library.spawn || library.default.spawn)(shell, args, {
-      name: 'xterm-256color', cwd, cols, rows, env: terminalEnvironment({ userHome, shell, env }),
+      name: 'xterm-256color', cwd, cols, rows, env: { ...terminalEnvironment({ userHome, shell, env }), ...extra },
     });
   } catch { throw terminalError(503, '无法启动本机终端，请检查登录 Shell 和终端组件'); }
   return { write: data => pty.write(data), resize: (width, height) => pty.resize(width, height),

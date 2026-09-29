@@ -2,6 +2,7 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { TERMINAL_LIMITS, terminalCreateInput, terminalClientFrame, terminalId, terminalError } from './terminal-contract.mjs';
 import { spawnTerminalProcess, validateTerminalCwd } from './terminal-process.mjs';
+import { cleanTerminalInputLine, terminalInputLine, terminalInputLineView } from './terminal-input-line.mjs';
 
 function summary(entry) {
   const { id, title, cwd, kind, status, cols, rows, exitCode, replayTruncated } = entry;
@@ -23,11 +24,11 @@ function readyFrame(entry) {
 export class TerminalService {
   constructor({ userHome = os.homedir(), defaultCwd = userHome, spawnProcess = spawnTerminalProcess,
     validateCwd = validateTerminalCwd, replayBytes = TERMINAL_LIMITS.replayBytes,
-    schedule = setTimeout, cancel = clearTimeout } = {}) {
+    schedule = setTimeout, cancel = clearTimeout, now = Date.now } = {}) {
     this.userHome = userHome; this.defaultCwd = defaultCwd;
     this.spawnProcess = spawnProcess; this.validateCwd = validateCwd;
     this.replayBytes = Math.max(1, Math.min(replayBytes, TERMINAL_LIMITS.replayBytes));
-    this.schedule = schedule; this.cancel = cancel;
+    this.schedule = schedule; this.cancel = cancel; this.now = now;
     this.sessions = new Map(); this.creations = new Set(); this.pending = 0; this.disposed = false;
   }
 
@@ -59,7 +60,8 @@ export class TerminalService {
       const pty = await this.spawnProcess({ ...options, ...launch, userHome: this.userHome });
       if (this.disposed) { await pty.kill(); throw terminalError(503, '终端服务已停止'); }
       const entry = { ...options, id: randomUUID(), title: options.kind === 'claude' ? 'Claude CLI' : '终端',
-        status: 'running', exitCode: null, replayTruncated: false, replay: Buffer.alloc(0), pty, writer: null, subscriptions: [] };
+        status: 'running', exitCode: null, replayTruncated: false, replay: Buffer.alloc(0), pty, writer: null, subscriptions: [],
+        inputLine: cleanTerminalInputLine() };
       this.sessions.set(entry.id, entry);
       entry.subscriptions.push(pty.onData(data => this.output(entry, data)));
       entry.subscriptions.push(pty.onExit(event => {
@@ -136,13 +138,25 @@ export class TerminalService {
         if (entry.writer !== writer) throw terminalError(409, '另一连接已接管终端');
         const input = terminalClientFrame(frame);
         if (entry.status !== 'running') throw terminalError(409, '终端进程已结束');
-        if (input.type === 'input') entry.pty.write(input.data);
+        if (input.type === 'input') { entry.pty.write(input.data); entry.inputLine = terminalInputLine(entry.inputLine, input.data, this.now()); }
         else if (input.type === 'redraw') this.redraw(entry);
         else { this.cancelRedraw(entry, false); entry.pty.resize(input.cols, input.rows); entry.cols = input.cols; entry.rows = input.rows; }
       },
       detach: () => { if (entry.writer === writer) { entry.writer = null; this.cancelRedraw(entry); } },
     };
   }
+
+  // Server-side input (e.g. Claude settings commands) goes through the same input-line tracking.
+  write(id, data) {
+    const entry = this.get(id);
+    if (entry.status !== 'running') throw terminalError(409, '终端进程已结束');
+    entry.pty.write(data); entry.inputLine = terminalInputLine(entry.inputLine, data, this.now());
+    return terminalInputLineView(entry.inputLine);
+  }
+
+  // { dirty, at, seq }: whether the input line may hold unsubmitted text, the last input time (ms)
+  // and a count of input frames (see terminal-input-line).
+  inputLine(id) { return terminalInputLineView(this.get(id).inputLine); }
 
   async close(id) {
     const entry = this.get(id);

@@ -109,13 +109,15 @@ export class TerminalConversationStore {
     });
   }
 
-  update(id, expectedRevision, changes) {
+  // touch: false keeps the record's updatedAt (and its place in the list) for changes the person
+  // did not make here, such as a model choice read back from Claude; the revision still moves.
+  update(id, expectedRevision, changes, { touch = true } = {}) {
     return this.mutate(async () => {
       const current = this.records.get(id);
       if (!current) throw terminalError(404, '终端会话不存在');
       if (current.revision !== expectedRevision) throw terminalError(409, '会话已变更，请刷新后重试');
       const record = terminalConversationRecord({ ...current, ...changes,
-        revision: current.revision + 1, updatedAt: this.now().toISOString() }, this.deviceId);
+        revision: current.revision + 1, updatedAt: touch ? this.now().toISOString() : current.updatedAt }, this.deviceId);
       const records = new Map(this.records); records.set(id, record);
       await this.save(records); return structuredClone(record);
     });

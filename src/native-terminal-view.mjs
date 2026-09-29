@@ -35,7 +35,9 @@ export function installNativeTerminalView(createSession, statusText, css) {
     const paste = el('button', 'paste', '仅粘贴，不按 Enter'); paste.type = 'button'; inputs.push(paste); paste.onclick = () => { keys.open = false; void submit(false); };
     more.insertAdjacentHTML?.('beforeend', '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 6.5 5 3.5l3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>');
     menu.append(el('span', '', '直接发送到终端'), grid, paste); keys.append(more, menu);
-    footer.append(keyButton('pill', '打断', 'interrupt', '⌃C'), keyButton('pill', 'Esc', 'escape'), keys, status, send);
+    // Claude only: model / effort / ultracode pill before send, where the native composer keeps its model control.
+    const picker = window.__cccCreateNativeTerminalModelPicker?.({ record, api, root: shadow });
+    footer.append(keyButton('pill', '打断', 'interrupt', '⌃C'), keyButton('pill', 'Esc', 'escape'), keys, status, ...(picker ? [picker.element] : []), send);
     const split = window.__cccCreateNativeTerminalSplit?.({ record, bar, output, api });
     const redraw = el('button', 'redraw', '重绘'); redraw.type = 'button'; redraw.title = '请求 Claude 重新绘制当前终端，不重连会话';
     redraw.onclick = () => { const result = view?.redraw(); if (result && !result.ok) setNotice(result.message); }; if (record.kind === 'claude') bar.append(redraw);
@@ -113,7 +115,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
       title.textContent = record.title; title.title = record.title;
       chip.textContent = record.kind === 'shell' ? 'Shell' : 'Claude CLI'; chip.setAttribute('data-kind', record.kind === 'shell' ? 'shell' : 'claude');
       chip.hidden = chip.textContent === record.title;
-      cwd.textContent = (record.cwd || '').replace(/^\/Users\/[^/]+(?=\/|$)/u, '~'); cwd.title = record.cwd || '';
+      cwd.textContent = (record.cwd || '').replace(/^\/Users\/[^/]+(?=\/|$)/u, '~'); cwd.title = record.cwd || ''; picker?.update(record);
     }
     // Takeover ends the other window's Claude, so it needs a second click within 4s.
     // Background-held sessions are opened (attached, shared); only a terminal window's hold needs takeover.
@@ -229,7 +231,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
       // A reinstalled runtime reopens the shown conversation with its own code; remount would
       // keep this closure's older session code until the conversation is opened again.
       reopen() { if (!disposed) window.__cccOpenNativeTerminal(record, host); },
-      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); split?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); insetObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
+      dispose() { if (disposed) return; disposed = true; generation++; if (armed) clearTimeout(armed); view?.dispose(); split?.dispose(); picker?.dispose(); root.remove(); headerObserver.disconnect(); composerObserver?.disconnect(); insetObserver?.disconnect(); titleHost.remove(); document.documentElement.removeAttribute('data-ccc-terminal-titlebar'); for (const [node, display] of saved) node.style.display = display; if (surface) surface.style.setProperty('padding-top', inset[0], inset[1]); if (window.__cccNativeTerminalView === state) window.__cccNativeTerminalView = null; window.__codexControlConsoleConversationTabs?.relayout?.(); }
     };
     window.__cccNativeTerminalView = state; mount(record); fit(); sync(); requestAnimationFrame(relayout); return true;
   };

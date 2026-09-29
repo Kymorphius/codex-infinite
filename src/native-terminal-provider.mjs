@@ -38,6 +38,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     const project = record.projectRef, runtime = record.runtimeSummary;
     return JSON.stringify([record.id, record.deviceId, record.provider, record.revision, record.title, record.cwd, record.kind, record.pinned, record.archived,
       record.createdAt, record.updatedAt, record.companionOf, record.status, record.runtimeSessionId, record.runtimeError, record.occupiedElsewhere, record.occupiedBy, record.claudeStatus, record.lastUserMessageAt,
+      record.claudeSettings || null, record.claudeObserved || null, record.claudeSettingsPending === true, record.claudeSettingsReadOnly || null,
       project && [project.source, project.key, project.id, project.hostId], runtime && [runtime.id, runtime.status, runtime.exitCode, runtime.cols, runtime.rows, runtime.replayTruncated]]);
   }
   function accept(record) {

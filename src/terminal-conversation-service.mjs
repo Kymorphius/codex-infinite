@@ -5,10 +5,21 @@ import { hasClaudeTranscript } from './terminal-conversation-transcript.mjs';
 import { createClaudeTranscriptReader, DEFAULT_CLAUDE_TITLE } from './claude-transcript.mjs';
 import { createClaudeSessionOccupancy } from './claude-session-occupancy.mjs';
 import { createClaudeSessionTakeover } from './claude-session-takeover.mjs';
+import { createClaudeSettingsApplier } from './claude-terminal-settings-apply.mjs';
+import { adoptClaudeSettings, observedClaudeSettings } from './claude-transcript-settings.mjs';
+
+const claudeStatusOf = holders => holders.some(item => item.status === 'busy') ? 'busy' : holders.some(item => item.status === 'idle') ? 'idle' : null;
+// Who else holds a Claude session that is not running here (see view).
+const occupantOf = (record, holders, running) => running || !holders.length ? null
+  : record.companionOf && holders.some(item => item.codexTurn) ? 'codex' : holders.every(item => item.jobId) ? 'background' : 'terminal';
+
+const READ_ONLY = { companion: '伴生会话的模型由 Router 决定，此处只读', attach: '后台共享打开的会话沿用它启动时的模型，此处只读',
+  elsewhere: '会话正在其他 Claude 进程中运行，此处只读；在这里打开后再选择' };
 
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
-    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '', companionCreator = null } = {}) {
+    transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '', companionCreator = null,
+    claudeSettings, now = () => new Date() } = {}) {
     this.companions = companions; this.codexTitle = codexTitle; this.currentCompanions = null; this.companionCreator = companionCreator;
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
@@ -16,7 +27,9 @@ export class TerminalConversationService {
       : { summary: async () => ({ title: '', lastUserMessageAt: null }), search: async () => null });
     this.claudeOccupancy = claudeOccupancy || (terminalService?.userHome ? createClaudeSessionOccupancy({ userHome: terminalService.userHome }) : async () => null);
     this.claudeTakeover = claudeTakeover || (this.claudeOccupancy.all ? createClaudeSessionTakeover({ holders: this.claudeOccupancy.all }) : null);
-    this.runtimes = new Map(); this.operations = new Map(); this.runtimeErrors = new Map();
+    this.runtimes = new Map(); this.operations = new Map(); this.runtimeErrors = new Map(); this.launches = new Map(); this.now = now;
+    this.claudeSettings = claudeSettings || createClaudeSettingsApplier({ inspect: id => this.claudeRuntimeState(id),
+      write: (runtimeId, data) => this.terminalService.write(runtimeId, data), inputLine: runtimeId => this.terminalService.inputLine(runtimeId) });
   }
 
   project(reference, cwd) {
@@ -40,10 +53,11 @@ export class TerminalConversationService {
   // generated) while the stored title is still the default, and the time of the last
   // message you sent. A title set here always wins; the store is unchanged.
   async view(record) {
-    const presented = this.present(record);
-    if (record.kind !== 'claude') return presented;
+    if (record.kind !== 'claude') return this.present(record);
     let summary = { title: '', lastUserMessageAt: null, ids: [record.id] };
     try { summary = await this.claudeTranscripts.summary(record.id); } catch { /* Keep stored metadata when the transcript is unreadable. */ }
+    record = await this.syncClaudeSettings(record, summary.settings || {});
+    const presented = this.present(record);
     // A Router companion is the Claude side of a Codex conversation: it carries that
     // conversation's name (or a /rename), never a title generated from Router's prompts.
     const title = record.title !== DEFAULT_CLAUDE_TITLE ? presented.title
@@ -57,10 +71,40 @@ export class TerminalConversationService {
     // busy/idle state, shown next to the conversation in 最近会话 / 最近发送.
     const holders = await this.holders(summary.ids || [record.id]), running = presented.status === 'running';
     // A companion held by Router's per-turn process is mid Codex turn: read-only here until it ends.
-    const occupiedBy = running || !holders.length ? null : record.companionOf && holders.some(item => item.codexTurn) ? 'codex'
-      : holders.every(item => item.jobId) ? 'background' : 'terminal';
-    const claudeStatus = holders.some(item => item.status === 'busy') ? 'busy' : holders.some(item => item.status === 'idle') ? 'idle' : null;
-    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus };
+    const occupiedBy = occupantOf(record, holders, running);
+    return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus: claudeStatusOf(holders),
+      claudeObserved: observedClaudeSettings(summary.settings || {}), claudeSettingsPending: this.claudeSettings.pending(record.id), claudeSettingsReadOnly: this.claudeSettingsReadOnly(record, occupiedBy) };
+  }
+
+  // Model choice is Router's for a companion, the job owner's for an attached background session,
+  // and the other process's while one holds the session (nothing here could type it, and that
+  // process's replies would read back over it).
+  claudeSettingsReadOnly(record, occupiedBy) {
+    return record.companionOf ? 'companion' : this.launches.get(record.id)?.attach && this.runtime(record)?.status === 'running' ? 'attach'
+      : occupiedBy ? 'elsewhere' : null;
+  }
+
+  // A change made inside Claude (newer than the stored choice) is written back; see claude-transcript-settings.
+  async syncClaudeSettings(record, observed) {
+    if (record.companionOf || !record.claudeSettings || this.claudeSettings.settling(record.id)) return record;
+    const adopted = adoptClaudeSettings(record.claudeSettings, observed);
+    if (!adopted) return record;
+    try {
+      const saved = await this.store.update(record.id, record.revision, { claudeSettings: adopted }, { touch: false });
+      this.claudeSettings.observed(record.id, adopted); return saved;
+    } catch { return record; /* A concurrent write wins; the next view retries. */ }
+  }
+
+  // For the settings applier: our own non-attached running Claude, its busy/idle state and input line.
+  async claudeRuntimeState(id) {
+    const runtimeId = this.runtimes.get(id), runtime = runtimeId && this.terminalService.list().sessions.find(session => session.id === runtimeId);
+    if (!runtime || runtime.status !== 'running' || this.launches.get(id)?.attach) return null;
+    let ids = [id];
+    try { ids = (await this.claudeTranscripts.summary(id)).ids || ids; } catch { /* Check the managed id alone. */ }
+    // Idle only when every holder says so: Claude reports "waiting" while a menu, dialog or prompt is open.
+    const holders = await this.holders(ids), status = claudeStatusOf(holders);
+    return { runtimeId, claudeStatus: status === 'idle' && !holders.every(item => item.status === 'idle') ? null : status,
+      inputLine: this.terminalService.inputLine(runtimeId) };
   }
 
   async codexTitleOf(threadId) {
@@ -172,12 +216,16 @@ export class TerminalConversationService {
           if (holders.length) await this.claudeTakeover(ids);
           // Resume the chain's live transcript, not the managed id (see claude-transcript resumeId).
           const target = resumeId && await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: resumeId }) ? resumeId : id;
-          options = { claudeSessionId: target, resume: target !== id || await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id, withMessages: false }) };
+          options = { claudeSessionId: target, resume: target !== id || await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: id, withMessages: false }),
+            claudeSettings: record.claudeSettings || null };
         }
       }
       try {
         const session = await this.terminalService.createManaged({ cwd: record.cwd, kind: record.kind }, options);
-        this.runtimes.set(id, session.id); this.runtimeErrors.delete(id);
+        this.runtimes.set(id, session.id); this.runtimeErrors.delete(id); this.launches.set(id, { attach: Boolean(options.attachJob) });
+        // Ultracode has no launch flag: the applier restores it once the new Claude is first idle.
+        if (record.kind === 'claude' && !options.attachJob) this.claudeSettings.launched(id, session.id, record.claudeSettings || null);
+        else this.claudeSettings.stopped(id);
         return this.view(await this.store.get(record.id));
       } catch (error) { this.runtimeErrors.set(id, error.message); throw error; }
     });
@@ -185,9 +233,28 @@ export class TerminalConversationService {
 
   async update(input) {
     const { id, expectedRevision, changes } = terminalConversationUpdate(input);
-    const record = await this.store.get(id);
-    if (Object.hasOwn(changes, 'projectRef')) await this.project(changes.projectRef, record.cwd);
-    return this.view(await this.store.update(id, expectedRevision, changes));
+    // A model choice runs after any start in progress, so it is queued for the Claude that start launched.
+    const apply = async () => {
+      const record = await this.store.get(id);
+      if (Object.hasOwn(changes, 'projectRef')) await this.project(changes.projectRef, record.cwd);
+      if (changes.claudeSettings) {
+        if (record.kind !== 'claude') throw terminalError(400, '只有 Claude 会话可以设置模型');
+        const readOnly = this.claudeSettingsReadOnly(record, await this.occupant(record));
+        if (readOnly) throw terminalError(409, READ_ONLY[readOnly]);
+        changes.claudeSettings = { ...changes.claudeSettings, updatedAt: this.now().toISOString() };
+      }
+      const updated = await this.store.update(id, expectedRevision, changes);
+      // Running here: typed into Claude once it is safe; stopped: the next launch passes the flags.
+      if (changes.claudeSettings) this.claudeSettings.request(id, updated.claudeSettings);
+      return this.view(updated);
+    };
+    return changes.claudeSettings ? this.exclusive(id, apply) : apply();
+  }
+
+  async occupant(record) {
+    let ids = [record.id];
+    try { ids = (await this.claudeTranscripts.summary(record.id)).ids || ids; } catch { /* Check the managed id alone. */ }
+    return occupantOf(record, await this.holders(ids), this.runtime(record)?.status === 'running');
   }
 
   stop({ id }) {
@@ -195,7 +262,8 @@ export class TerminalConversationService {
     return this.exclusive(id, async () => {
       const record = await this.store.get(id), runtime = this.runtime(record);
       if (runtime) await this.terminalService.close(runtime.id);
-      this.runtimes.delete(id); this.runtimeErrors.delete(id); return this.view(await this.store.get(record.id));
+      this.runtimes.delete(id); this.runtimeErrors.delete(id); this.launches.delete(id); this.claudeSettings.stopped(id);
+      return this.view(await this.store.get(record.id));
     });
   }
 }

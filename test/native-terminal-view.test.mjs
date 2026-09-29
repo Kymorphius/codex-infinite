@@ -174,3 +174,21 @@ test('a reinstalled runtime reopens the shown conversation with its own session 
   assert.notEqual(window.__cccNativeTerminalView, oldView); assert.equal(window.__cccNativeTerminalView.id, 'c1');
   window.__cccNativeTerminalView.dispose();
 });
+
+test('Claude conversations mount the model picker before send and keep it in sync', () => {
+  const host = new Node('main'), created = [], calls = [];
+  const window = { __cccTerminalNative: { socketClass: () => class {}, async request() {} },
+    __cccCreateNativeTerminalModelPicker: options => { calls.push(['create', options.record.id, Boolean(options.root)]); const element = new Node('picker');
+      return { element, update: record => calls.push(['update', record.revision]), dispose: () => calls.push(['dispose']) }; } };
+  const documentRef = { documentElement: new Node('html'), head: new Node('head'), body: new Node('body'), getElementById: () => null, querySelector: () => null,
+    createElement(tag) { const node = new Node(tag); created.push(node); return node; } };
+  const context = vm.createContext({ window, document: documentRef, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn(),
+    sessionStorage: { getItem: () => null, setItem() {} } });
+  vm.runInContext(`(${installNativeTerminalView.toString()})(() => null, () => '', '')`, context);
+  window.__cccOpenNativeTerminal({ id: 'c', title: 'Claude', kind: 'claude', revision: 1, status: 'stopped', runtimeError: 'x' }, host);
+  const footer = created.find(node => node.tag === 'footer'), classes = footer.children.map(node => node.className || node.tag);
+  assert.deepEqual(classes.slice(-3), ['status', 'picker', 'send']); assert.equal(calls[0].join(), 'create,c,true');
+  window.__cccNativeTerminalView.update({ id: 'c', title: 'Claude', kind: 'claude', revision: 2, status: 'stopped', runtimeError: 'x' });
+  assert.ok(calls.some(call => call[0] === 'update' && call[1] === 2));
+  window.__cccNativeTerminalView.dispose(); assert.deepEqual(calls.at(-1), ['dispose']);
+});

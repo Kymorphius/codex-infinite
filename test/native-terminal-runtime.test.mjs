@@ -14,6 +14,7 @@ test('packaged native terminal bootstraps without network, exports xterm and cor
   await prepareNativeTerminalRuntime(connection); await prepareNativeTerminalRuntime(connection);
   assert.equal(installs, 1); assert.equal(typeof context.Terminal, 'function'); assert.equal(typeof context.FitAddon.FitAddon, 'function');
   assert.equal(typeof context.__cccOpenNativeTerminal, 'function');
+  assert.equal(typeof context.__cccCreateNativeTerminalModelPicker, 'function', 'the Claude model picker is injected with the view');
   const promise = context.__cccTerminalNative.request('list');
   const message = sent.at(-1); context.__cccTerminalNativeReceive({ id: 'wrong', result: {} });
   context.__cccTerminalNativeReceive({ id: message.id, result: { conversations: [] } });

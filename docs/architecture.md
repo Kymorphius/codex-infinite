@@ -70,6 +70,12 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   `claude-companions/<thread>/session.json`; companion sessions are adopted as
   Claude terminal records (`companionOf`) and shown under their Codex thread.
   Codex turns (`sdk-cli` holders) make them read-only and are never taken over.
+- `src/claude-terminal-settings.mjs`, `src/claude-transcript-settings.mjs`,
+  `src/terminal-input-line.mjs` — pure model/effort catalog, launch flags, slash
+  command steps, transcript read-back rule and input-line safety rule for Claude
+  terminal conversations. `src/claude-terminal-settings-apply.mjs` types queued
+  choices into an idle, clean Claude PTY; `src/native-terminal-model-picker.mjs`
+  and its style module are the composer UI (see the 2026-09-29 spec and ADR).
 - `src/board.mjs`, `src/priority.mjs`, `public/core/project-priority.js` — pure
   derived domain views and the browser-compatible shared priority policy.
 - `src/context-window.mjs`, `src/dispatch-board.mjs` — application state and policies.

@@ -1,4 +1,5 @@
 import { assertTerminalObject, terminalError } from './terminal-contract.mjs';
+import { claudeTerminalSettingsInput, claudeTerminalSettingsStored } from './claude-terminal-settings.mjs';
 
 export const TERMINAL_CONVERSATION_LIMIT = 5000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -46,7 +47,7 @@ export function terminalConversationCreate(input) {
 }
 
 export function terminalConversationUpdate(input) {
-  assertTerminalObject(input, ['id', 'expectedRevision', 'title', 'pinned', 'archived', 'projectRef']);
+  assertTerminalObject(input, ['id', 'expectedRevision', 'title', 'pinned', 'archived', 'projectRef', 'claudeSettings']);
   const id = terminalConversationId(input.id), expectedRevision = input.expectedRevision;
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) throw terminalError(400, '会话版本无效');
   const changes = {};
@@ -56,13 +57,15 @@ export function terminalConversationUpdate(input) {
     changes[key] = input[key];
   }
   if (own(input, 'projectRef')) changes.projectRef = terminalProjectReference(input.projectRef);
+  // Model / effort / ultracode picker choice; the service stamps updatedAt and checks the kind.
+  if (own(input, 'claudeSettings')) changes.claudeSettings = claudeTerminalSettingsInput(input.claudeSettings);
   if (!Object.keys(changes).length) throw terminalError(400, '没有会话变更');
   return { id, expectedRevision, changes };
 }
 
 export function terminalConversationRecord(input, deviceId) {
   assertTerminalObject(input, ['id', 'provider', 'deviceId', 'cwd', 'kind', 'title', 'projectRef',
-    'pinned', 'archived', 'createdAt', 'updatedAt', 'revision', 'companionOf']);
+    'pinned', 'archived', 'createdAt', 'updatedAt', 'revision', 'companionOf', 'claudeSettings']);
   const normalized = terminalConversationCreate({ cwd: input.cwd, kind: input.kind, title: input.title, projectRef: input.projectRef });
   if (input.provider !== 'terminal' || input.deviceId !== deviceId || !Number.isSafeInteger(input.revision)
       || input.revision < 1 || typeof input.pinned !== 'boolean' || typeof input.archived !== 'boolean'
@@ -73,7 +76,10 @@ export function terminalConversationRecord(input, deviceId) {
   // Only adoption sets it; create/update inputs never accept it.
   const companionOf = input.companionOf === undefined ? undefined : terminalConversationId(input.companionOf);
   if (companionOf && normalized.kind !== 'claude') throw terminalError(400, '伴生会话必须是 Claude 会话');
+  // claudeSettings: optional per-conversation model choice (absent on older records). Read
+  // leniently: an unusable value is dropped instead of making the whole registry unreadable.
+  const claudeSettings = normalized.kind === 'claude' ? claudeTerminalSettingsStored(input.claudeSettings) : null;
   return { id: terminalConversationId(input.id), provider: 'terminal', deviceId, ...normalized,
     pinned: input.pinned, archived: input.archived, createdAt: input.createdAt, updatedAt: input.updatedAt, revision: input.revision,
-    ...(companionOf ? { companionOf } : {}) };
+    ...(companionOf ? { companionOf } : {}), ...(claudeSettings ? { claudeSettings } : {}) };
 }

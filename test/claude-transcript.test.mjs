@@ -46,7 +46,7 @@ test('reader follows continued-in to the most recently written transcript and ad
   await fs.writeFile(file(live), said(live, '现在', '2026-09-28T03:00:00.000Z'));
   await touch(origin, 1000); await touch(stale, 2000); await touch(live, 3000);
   const first = await reader.summary(origin);
-  assert.deepEqual({ ...first, ids: first.ids.slice(0, 3) }, { title: '原标题', customTitle: '', lastUserMessageAt: '2026-09-28T03:00:00.000Z', ids: [origin, stale, live], resumeId: live }, 'title falls back to the origin; resume targets the live file');
+  assert.deepEqual({ ...first, ids: first.ids.slice(0, 3) }, { title: '原标题', customTitle: '', lastUserMessageAt: '2026-09-28T03:00:00.000Z', ids: [origin, stale, live], resumeId: live, settings: {} }, 'title falls back to the origin; resume targets the live file');
   assert.equal(first.ids.length, 4, 'a missing continuation id still belongs to the chain');
   await fs.appendFile(file(live), line({ type: 'custom-title', customTitle: '改名', sessionId: live }) + JSON.stringify({ type: 'user', sessionId: live, timestamp: '2026-09-28T04:00:00.000Z', message: { content: '半行' } }));
   await touch(live, 4000);
