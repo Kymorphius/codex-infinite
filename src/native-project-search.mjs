@@ -228,6 +228,8 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     set(value) { snapshot = value && Array.isArray(value.projects) ? value : { projects: [], stale: true }; render(); },
     refresh() { render(); },
     projectOfTask(id) { return snapshot.projects?.find(project => project.tasks?.some(task => task.id === id)) || null; },
+    // Sidebar project identity (the row's data-app-action-sidebar-project-id, with or without "local-").
+    projectOfKey(key) { const bare = value => String(value || '').replace(/^local-/, ''); return key ? snapshot.projects?.find(project => project.device?.kind !== 'remote-codex' && [project.checklistKey, project.key, project.id].some(value => value && bare(value) === bare(key))) || null : null; },
     projectOfDirectory(directory) { return snapshot.projects?.find(project => project.device?.kind !== 'remote-codex' && project.sourceDirectories?.includes(directory)) || null; },
     dispose() { disposed = true; observer.disconnect(); root?.remove(); }
   };

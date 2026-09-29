@@ -40,6 +40,15 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
   };
   const roleOf = (tab) => tab?.kind === 'local' && UUID.test(tab.id || '') ? 'gpt' : tab?.kind === 'terminal' && tab.engine === 'claude' ? 'claude' : '';
   const api = () => window.__cccDiscussions;
+  // The native 新建聊天 page: a composer with no conversation mounted. Whatever tab the console
+  // remembers, a terminal or console view is not it.
+  const newChatEditor = () => {
+    const tab = activeTab();
+    if (tab && ['terminal', 'console', 'chatgpt', 'remote'].includes(tab.kind)) return null;
+    const editor = documentRef.querySelector('[data-codex-composer="true"][contenteditable="true"]');
+    return editor && !documentRef.querySelector('[data-above-composer-conversation-id]') ? editor : null;
+  };
+  const modeOf = () => newChatEditor() ? 'newchat' : roleOf(activeTab());
   let epoch = 0; // a newer render supersedes answers of an older request
 
   const close = ({ focus = false } = {}) => {
@@ -47,10 +56,11 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     if (focus) button.focus();
   };
   const update = () => {
-    const role = roleOf(activeTab());
-    const text = role ? '把 Claude 与 GPT 会话配对，互相转发回答并加上你的点评' : '打开一个 GPT 或 Claude 会话后可配对讨论';
-    if (button.disabled !== !role) button.disabled = !role;
-    if (!role && !menu.hidden) close();
+    const mode = modeOf();
+    const text = mode === 'newchat' ? '把输入框里的内容作为议题，新建 GPT 与 Claude 的协作讨论'
+      : mode ? '把 Claude 与 GPT 会话配对，互相转发回答并加上你的点评' : '打开一个 GPT 或 Claude 会话，或在新建聊天页写下议题后可讨论';
+    if (button.disabled !== !mode) button.disabled = !mode;
+    if (!mode && !menu.hidden) close();
     if (button.title !== text) { button.title = text; button.setAttribute('aria-label', '讨论：' + text); }
   };
 
@@ -70,9 +80,10 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
   const failure = (error) => notify(String(error?.message || error || '协作讨论操作失败'));
 
   async function render() {
-    const tab = activeTab(), role = roleOf(tab), mine = ++epoch;
-    clear(); if (!role) return close();
+    const tab = activeTab(), mode = modeOf(), role = mode === 'newchat' ? '' : mode, mine = ++epoch;
+    clear(); if (!mode) return close();
     if (!api()) { note('协作讨论功能尚未就绪'); return; }
+    if (mode === 'newchat') return showNewChat();
     note('读取中…');
     try {
       const { discussions } = await api().request('for-conversation', { conversationId: tab.id });
@@ -109,33 +120,54 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     const listId = row?.closest?.('[data-app-action-sidebar-project-list-id]')?.getAttribute('data-app-action-sidebar-project-list-id') || '';
     return listId ? search()?.projectOfTask?.(tab.id) || { id: listId.replace(/^local-/, '') } : null;
   };
+  // Project of the native new-chat page: the sidebar row marked current, confirmed by the
+  // composer's project picker ("更改项目：<name>") so a stale highlight is never trusted.
+  const newChatProject = () => {
+    const picker = Array.from(documentRef.querySelectorAll('button')).find((node) => /^更改项目[:：]/.test(node.getAttribute('aria-label') || ''));
+    const name = (picker?.getAttribute('aria-label') || '').replace(/^更改项目[:：]\s*/, '');
+    const row = documentRef.querySelector('[data-app-action-sidebar-project-id][aria-current="page"]');
+    if (!name || !row || row.getAttribute('data-app-action-sidebar-project-label') !== name) return null;
+    return search()?.projectOfKey?.(row.getAttribute('data-app-action-sidebar-project-id')) || null;
+  };
   const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  const composerText = (editor) => String(editor?.innerText || editor?.textContent || '').trim();
   let starting = false;
 
   // Both conversations are created here: GPT first (the risky native step, so a failure leaves
   // nothing behind), then Claude; the host pairs them and hands Claude its opening message.
-  async function startNew(first, topic, role, tab) {
+  // With `editor` the topic is that new-chat composer's content: it is emptied for the native
+  // handoff and put back if the native send fails before anything was submitted.
+  async function startNew({ first, topic, project, editor = null }) {
     if (starting) return;
     const text = String(topic || '').trim();
-    if (!text) return notify('请先写下议题');
-    const project = projectOf(tab, role), directories = project?.sourceDirectories;
-    if (!project) return notify('找不到当前会话所属项目，请先在项目中展开它');
+    if (!text) return notify(editor ? '请先在输入框里写下议题' : '请先写下议题');
+    const directories = project?.sourceDirectories;
+    if (!project) return notify(editor ? '这个新聊天不在任何项目里，请先选择项目' : '找不到当前会话所属项目，请先在项目中展开它');
     if (!Array.isArray(directories) || directories.length !== 1) return notify('新建讨论需要项目只有一个目录；这个项目有多个目录或找不到目录');
     const terminals = window.__cccTerminalConversations;
-    if (!window.__cccProjectSearchActions?.create || !terminals?.createRecord || typeof createThreadStarter !== 'function') return notify('原生新建入口尚未就绪');
+    if ((!editor && !window.__cccProjectSearchActions?.create) || !terminals?.createRecord || typeof createThreadStarter !== 'function') return notify('原生新建入口尚未就绪');
     starting = true; close();
-    let gptId = null;
+    let gptId = null, emptied = false;
     try {
       const prepared = await api().request('prepare', { first, topic: text });
       notify('正在创建讨论会话…');
-      if (!(await window.__cccProjectSearchActions.create(project))) return;
+      if (editor) {
+        editor.focus(); documentRef.execCommand('selectAll'); documentRef.execCommand('delete');
+        await pause(0);
+        if (composerText(editor)) throw Error('输入框未能清空，议题保留在输入框里，请检查后重试');
+        emptied = true;
+      } else if (!(await window.__cccProjectSearchActions.create(project))) return;
       const starter = createThreadStarter();
       let failure = null;
       for (let attempt = 0; attempt < 50; attempt += 1) {
         try { starter.preflight(); failure = null; break; } catch (error) { failure = error; if (/已有内容/.test(error.message || '')) break; await pause(100); }
       }
       if (failure) throw failure;
-      gptId = await starter(prepared.gptText);
+      try { gptId = await starter(prepared.gptText); }
+      catch (error) {
+        if (emptied && error?.nativeNotSubmitted) { editor.focus(); documentRef.execCommand('insertText', false, text); }
+        throw error;
+      }
       const claude = await terminals.createRecord(project, directories[0], 'claude', { open: false });
       const result = await api().request('begin', { first, topic: text, claudeConversationId: claude.id, gptConversationId: gptId });
       if (first === 'claude') window.__codexControlConsoleOpenTerminalConversation?.(claude);
@@ -145,6 +177,26 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     } finally { starting = false; }
   }
 
+  const startButtons = (onStart) => {
+    const actions = el('div', 'ccc-native-discuss-actions');
+    for (const first of ['gpt', 'claude']) {
+      const start = el('button', 'ccc-native-discuss-primary', NAME[first] + ' 先答'); start.type = 'button';
+      start.dataset.discussStart = first;
+      start.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); onStart(first); });
+      actions.append(start);
+    }
+    return actions;
+  };
+
+  // New-chat page: the composer's content is the topic; choose who answers first.
+  function showNewChat() {
+    heading('新建讨论');
+    const editor = newChatEditor(), text = composerText(editor);
+    note(text ? '议题（输入框里的内容）：' + (text.length > 80 ? text.slice(0, 80) + '…' : text) : '先在输入框里写下议题，再选择谁先答。');
+    menu.append(startButtons((first) => { const current = newChatEditor(); void startNew({ first, topic: composerText(current), project: newChatProject(), editor: current }); }));
+  }
+
+  // From an existing conversation: a topic box, in that conversation's project.
   function showStart(role, tab) {
     heading('新建讨论');
     const topic = documentRef.createElement('textarea');
@@ -152,14 +204,7 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     topic.placeholder = '写下议题：会发给先答的一方，另一方会被告知议题并等待';
     topic.rows = 3; topic.maxLength = 8000;
     topic.setAttribute('aria-label', '议题');
-    const actions = el('div', 'ccc-native-discuss-actions');
-    for (const first of ['gpt', 'claude']) {
-      const start = el('button', 'ccc-native-discuss-primary', NAME[first] + ' 先答'); start.type = 'button';
-      start.dataset.discussStart = first;
-      start.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void startNew(first, topic.value, role, tab); });
-      actions.append(start);
-    }
-    menu.append(topic, actions);
+    menu.append(topic, startButtons((first) => void startNew({ first, topic: topic.value, project: projectOf(tab, role) })));
   }
 
   function showPaired(discussion, role, tab) {

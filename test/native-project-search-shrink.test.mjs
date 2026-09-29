@@ -25,6 +25,9 @@ test('expanding a project with many sessions never lets flex shrink the project 
   assert.equal(window.__codexControlConsoleProjectSearch.projectOfTask('missing'), null);
   assert.equal(window.__codexControlConsoleProjectSearch.projectOfDirectory('/work/app').id, 'p');
   assert.equal(window.__codexControlConsoleProjectSearch.projectOfDirectory('/elsewhere'), null);
+  // The new-chat page names its project by sidebar row id, with or without the "local-" prefix.
+  for (const key of ['p', 'local-p']) assert.equal(window.__codexControlConsoleProjectSearch.projectOfKey(key).id, 'p');
+  for (const key of ['other', '', null]) assert.equal(window.__codexControlConsoleProjectSearch.projectOfKey(key), null);
   const input = walk(parent).find(node => node.tag === 'input'); input.value = '看板'; input.listeners.input();
   const project = walk(parent).find(node => node.attrs['data-project-search-id'] === 'local');
   project.listeners.click();

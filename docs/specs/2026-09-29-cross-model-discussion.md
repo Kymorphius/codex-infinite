@@ -38,6 +38,10 @@ themselves, and to watch the whole exchange in one place.
 
 ## Starting a discussion from scratch (新建讨论)
 
+On the native **新建聊天 page** (a composer with no conversation mounted) the `讨论` button is enabled and
+its menu is just the two buttons: the composer's current text is the topic, the project is the one the
+page is set to. On an existing conversation the same menu has a topic box instead. In both cases:
+
 The `讨论` menu of an unpaired conversation starts with `新建讨论`: a topic box and two
 buttons, `GPT 先答` and `Claude 先答`. Choosing one creates both conversations in the active
 conversation's project, sends the topic, and pairs them.
@@ -52,8 +56,10 @@ conversation's project, sends the topic, and pairs them.
   composer must be empty), then Claude, then the pairing and the Claude message are done by the
   host. If GPT creation fails nothing is created. If a later step fails, the conversations that
   already exist stay and the toast says which step failed.
-- The topic comes from the box in the menu, not from the conversation's own composer draft;
-  reading and clearing two different composers (one inside a shadow DOM) is fragile.
+- On the new-chat page the topic is that composer's text: it is emptied for the native handoff and
+  put back if the native send fails before anything was submitted. From an existing conversation the
+  topic comes from a box in the menu, not the conversation's own composer draft (reading and clearing
+  a Claude terminal composer inside a shadow DOM is fragile).
 - After this the pair behaves like any other (phase 1: manual forward; phase 2: relay).
 - The discussion records `first` and `topic` so later phases and the room view know who started.
 
@@ -249,4 +255,13 @@ Phase 1 UI (in the working tree; not yet exercised in the real desktop app):
   the result carries `deliveryError`, which the page shows so the topic can be sent by hand.
 - The discussion record now stores `first` and `topic` (both `null`/empty for pairings of existing
   conversations).
+
+新建聊天 page (working tree; not yet exercised in the real app):
+
+- Detected by DOM: a native composer, no `[data-above-composer-conversation-id]`, and an active tab that is
+  not a terminal/console view. Project: the sidebar row with `aria-current="page"`, accepted only when its
+  label equals the composer's project picker (`aria-label="更改项目：<name>"`), so a stale highlight or
+  "不在项目中工作" is refused. The project is then found by id with the new search API `projectOfKey`.
+- The new-chat page is already open, so the native "new chat" step is skipped; the rest of the flow is
+  the same. Attachments in the composer are not carried (the native handoff is text only).
 
