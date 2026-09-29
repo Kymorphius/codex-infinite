@@ -1,4 +1,5 @@
 import { updateClaudeStatus, updateNativeRecentDraft, updateNativeRecentStatus } from './native-recent-status.mjs';
+import { createNativeRecentRestartButton, nativeRecentRestartEligible, NATIVE_RECENT_RESTART_STYLE, updateNativeRecentRestartMark } from './native-recent-restart-mark.mjs';
 
 export function recentNativeConversationRecords(tabs = [], activeKey = "", limit = 40) {
   const boundedLimit = Math.max(1, Math.min(40, Number(limit) || 40));
@@ -31,7 +32,6 @@ export function installNativeRecentConversationMenu({
   state,
   keyFor,
   activate,
-  openWindow,
   limit = 40,
   label = "最近会话",
   icon = "↶",
@@ -99,8 +99,9 @@ export function installNativeRecentConversationMenu({
     const live = window.__codexControlConsoleAttentionConversations?.status?.(tab.id);
     updateNativeRecentStatus(documentRef, row, tab, live, () => window.__cccTerminalConversations?.records?.() || []);
     updateNativeRecentDraft(row, tab, live);
+    updateNativeRecentRestartMark(row, tab);
   };
-  const createRow = (tab, records) => {
+  const createRow = (tab) => {
     const row = documentRef.createElement("div");
     row.className = "ccc-native-recent-row";
     row.setAttribute("role", "none");
@@ -147,21 +148,14 @@ export function installNativeRecentConversationMenu({
       if (onSelect) onSelect(tab); else activate(tab.key);
     });
     row.append(select);
-    const windowButton = createNativeConversationWindowButton(documentRef, tab, tab.key);
-    if (windowButton) {
-      windowButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void openNativeConversationWindow({ state: { tabs: records }, keyFor, key: tab.key, button: windowButton, openWindow });
-      });
-      row.append(windowButton);
-    }
+    row.restartButton = createNativeRecentRestartButton(documentRef, tab);
+    if (row.restartButton) { row.append(row.restartButton); updateNativeRecentRestartMark(row, tab); }
     return row;
   };
   const appendPage = () => {
     const next = currentRecords.slice(renderedCount, renderedCount + 12);
     if (!next.length) return;
-    const rows = next.map((tab) => createRow(tab, currentRecords));
+    const rows = next.map(createRow);
     const height = menu.scrollHeight, top = menu.scrollTop;
     menu.prepend(...rows.slice().reverse());
     menu.scrollTop = top + menu.scrollHeight - height;
@@ -224,6 +218,7 @@ export function installNativeRecentConversationMenu({
     if (menu.scrollTop <= 48) { appendPage(); fillViewport(); }
   };
   menu.addEventListener("scroll", onScroll);
+  const unsubscribeMarks = window.__codexControlConsoleRestartMarks?.subscribe?.(() => visibleRows.forEach((row, index) => updateNativeRecentRestartMark(row, currentRecords[index])));
 
   trigger.addEventListener("click", (event) => {
     event.preventDefault();
@@ -231,6 +226,7 @@ export function installNativeRecentConversationMenu({
     const opening = menu.hidden;
     menu.hidden = !opening;
     if (opening) {
+      void window.__codexControlConsoleRestartMarks?.refresh?.();
       const previousSignature = renderedSignature;
       render();
       if (previousSignature === renderedSignature) visibleRows.forEach((row, index) => updateStatusIcon(row, currentRecords[index]));
@@ -258,6 +254,7 @@ export function installNativeRecentConversationMenu({
     close,
     destroy() {
       menu.removeEventListener("scroll", onScroll);
+      unsubscribeMarks?.();
       documentRef.removeEventListener("pointerdown", outside, true);
       documentRef.removeEventListener("keydown", keyboard, true);
       host.remove();
@@ -296,13 +293,16 @@ export const NATIVE_RECENT_CONVERSATION_STYLE =
   '.ccc-native-recent-detail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.58}' +
   '.ccc-native-recent-empty{margin:0;padding:18px;text-align:center;font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;opacity:.6}' +
   '@container ccc-native-tabs (max-width:430px){.ccc-native-recent-trigger>span:nth-child(2){display:none}}' +
-  '@media(max-width:720px){.ccc-native-recent-menu{left:-4px}}';
+  '@media(max-width:720px){.ccc-native-recent-menu{left:-4px}}' + NATIVE_RECENT_RESTART_STYLE;
 
 export function buildNativeRecentConversationMenuInjectionSource() {
   return [
     updateClaudeStatus,
     updateNativeRecentStatus,
     updateNativeRecentDraft,
+    nativeRecentRestartEligible,
+    createNativeRecentRestartButton,
+    updateNativeRecentRestartMark,
     recentNativeConversationRecords,
     openNativeConversationPages,
     installNativeRecentConversationMenu

@@ -182,7 +182,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, terminalConversations = null, terminalService = null, pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, terminalConversations = null, terminalService = null, extraBindings = [], pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -202,7 +202,7 @@ export class CodexInjector {
     this.turnStateProvider = turnStateProvider;
     this.recoverTarget = recoverTarget;
     this.reloadAfterCspBypass = reloadAfterCspBypass;
-    this.dashboardLauncher = dashboardLauncher; this.terminalConversations = terminalConversations; this.terminalService = terminalService;
+    this.dashboardLauncher = dashboardLauncher; this.terminalConversations = terminalConversations; this.terminalService = terminalService; this.extraBindings = extraBindings;
     this.running = false;
     this.timer = null;
     this.syncing = false;
@@ -242,10 +242,6 @@ export class CodexInjector {
         this.connection = new CdpConnection(target.webSocketDebuggerUrl);
         await this.connection.connect();
         if (this.terminalConversations && !this.reloadAfterCspBypass) this.removeTerminalBinding = await installNativeTerminalBinding(this.connection, this.terminalConversations, this.terminalService);
-        await this.connection.send("Runtime.addBinding", { name: NATIVE_CONTEXT_BINDING });
-        await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
-        await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
-        if (this.dashboardLauncher) await this.connection.send("Runtime.addBinding", { name: NATIVE_DASHBOARD_BINDING });
         this.removeContextBindingListener = this.connection.onEvent((event) => {
           if (event.method !== "Runtime.bindingCalled") return;
           if (event.params?.name === NATIVE_CONTEXT_BINDING) {
@@ -271,6 +267,8 @@ export class CodexInjector {
               .catch((error) => this.logger.warn(`[codex-control-console] sent message search failed: ${error.message}`));
           } else if (event.params?.name === PROJECT_CHECKLIST_SYNC_BINDING && event.params.payload === 'return') {
             this.checklistWake.request();
+          } else {
+            void this.extraBindings.find(({ name }) => name === event.params?.name)?.handle(event.params.payload, this.connection).catch((error) => this.logger.warn(`[codex-control-console] ${event.params.name} failed: ${error.message}`));
           }
         });
         this.targetId = target.id;
@@ -281,6 +279,7 @@ export class CodexInjector {
       if (this.dashboardLauncher) await this.connection.send("Runtime.addBinding", { name: NATIVE_DASHBOARD_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
       await this.connection.send("Runtime.addBinding", { name: PROJECT_CHECKLIST_SYNC_BINDING });
+      for (const { name } of this.extraBindings) await this.connection.send("Runtime.addBinding", { name });
       if (this.terminalConversations && !this.reloadAfterCspBypass) await prepareNativeTerminalRuntime(this.connection);
       const sidebarLabels = await this.sidebarLabelProvider?.read?.() || [];
       const remoteSidebar = await this.remoteSidebarProvider?.read?.() || [];

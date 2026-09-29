@@ -17,6 +17,10 @@ import { NativeDashboardLaunchService } from "./native-dashboard-launch.mjs";
 import { AttentionConversationService } from "./attention-conversation-service.mjs";
 import { createComposerDraftReader } from "./native-composer-drafts.mjs";
 import { RecentSentConversationService } from "./recent-sent-conversation-service.mjs";
+import { RestartMarkService } from "./restart-mark-service.mjs";
+import { RestartMarkStore } from "./restart-mark-store.mjs";
+import { createAppInstanceReader } from "./app-instance.mjs";
+import { createNativeRestartMarksBinding } from "./native-restart-marks.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
 import { withTerminalSentSearch } from './sent-message-search-composite.mjs';
@@ -165,6 +169,7 @@ export async function run() {
   });
   void sentMessageSearchService.prepare().catch(error => console.warn(`[codex-control-console] sent message indexing unavailable: ${error.message}`));
   const attentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: nativeConversationAdapter, draftReader: createComposerDraftReader({ filePath: path.join(config.nativeCodexHome, ".codex-global-state.json") }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.cdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
+  const restartMarks = new RestartMarkService({ store: new RestartMarkStore({ filePath: path.join(config.wrapperCodexHome, "restart-marks.json") }), readAppInstance: createAppInstanceReader({ config }) });
   const recentSentConversations = new RecentSentConversationService({ taskAdapter: localAdapter, archivedSessionRoot: config.archivedSessionRoot });
   const primaryAttentionConversations = new AttentionConversationService({ taskAdapter: localAdapter, runtimeStatusProvider: new NativeConversationAdapter({ cdpOrigin: config.primaryCdpOrigin }), draftReader: createComposerDraftReader({ filePath: path.join(config.sourceCodexHome, ".codex-global-state.json") }), unreadStateProvider: new NativeThreadReadStateAdapter({ cdpOrigin: config.primaryCdpOrigin }), archivedSessionRoot: config.archivedSessionRoot });
   const turboPolicyStore = new TurboPolicyStore({ filePath: path.join(config.wrapperCodexHome, "turbo-policy.json") });
@@ -256,7 +261,8 @@ export async function run() {
       recoverTarget: () => ensureDedicatedCodex(config),
       reloadAfterCspBypass: config.cspReloadRequired,
       terminalConversations, terminalService,
-      dashboardLauncher: nativeDashboardLaunchService
+      dashboardLauncher: nativeDashboardLaunchService,
+      extraBindings: [createNativeRestartMarksBinding(restartMarks)]
     });
     await injector.start();
     if (config.primaryCdpEnabled) {

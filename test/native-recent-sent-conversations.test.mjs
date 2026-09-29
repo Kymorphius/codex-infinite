@@ -132,16 +132,11 @@ test("recent sent rows reuse a rendered native status SVG and fall back only to 
   assert.equal(active.dataset.status, "active");
 });
 
-test("select and new-window actions work for sent conversations absent from opened history", async () => {
+test("sent conversations absent from opened history are selectable and rows carry no new-window button", async () => {
   const f = fixture({ items: [record(2)] });
   f.trigger.dispatch("click");
-  const row = f.menu.children[0], windowButton = row.children[1];
-  windowButton.dispatch("click");
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(f.opened.length, 1);
-  assert.equal(f.opened[0].tab.id, id(2));
-  assert.deepEqual(plain(f.opened[0].request), { type: "open-in-new-window", path: `/local/${id(2)}` });
-  assert.equal(windowButton.getAttribute("data-window-opened"), "");
+  const row = f.menu.children[0];
+  assert.deepEqual(row.children.map((child) => child.className), ["ccc-native-recent-select", "ccc-native-recent-restart"]);
   row.children[0].dispatch("click");
   assert.equal(f.selected.length, 1);
   assert.equal(f.selected[0].id, id(2));

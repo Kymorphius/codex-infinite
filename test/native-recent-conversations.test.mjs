@@ -33,7 +33,7 @@ test("recent menu injection is bounded, dismissable, and route-oriented", () => 
   assert.match(source, /最近会话/);
   assert.match(source, /暂无最近会话/);
   assert.match(source, /activate\(tab\.key\)/);
-  assert.match(source, /openNativeConversationWindow/);
+  assert.doesNotMatch(source, /openNativeConversationWindow|createNativeConversationWindowButton/);
   assert.match(source, /event\.key === "Escape"/);
   assert.match(source, /pointerdown/);
   assert.match(source, /textContent = tab\.title/);

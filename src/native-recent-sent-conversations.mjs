@@ -25,9 +25,9 @@ export function mergeRecentSentRecords(nativeItems = [], terminalRecords = [], l
     .sort((a, b) => Date.parse(b.lastUserMessageAt) - Date.parse(a.lastUserMessageAt)).slice(0, limit);
 }
 
-export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, openLocal, openTerminal, openWindow, readSnapshot, readTerminal = () => [] }) {
+export function installNativeRecentSentMenu({ documentRef, root, state, keyFor, openLocal, openTerminal, readSnapshot, readTerminal = () => [] }) {
   const menu = installNativeRecentConversationMenu({
-    documentRef, root, state, keyFor, openWindow,
+    documentRef, root, state, keyFor,
     label: "最近发送", icon: "↑", hint: "本机 Codex 与 Claude CLI 会话，按你最近发送消息的时间排序",
     readRecords: () => mergeRecentSentRecords(readSnapshot()?.items || [], readTerminal()),
     readStatus: () => {

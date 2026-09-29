@@ -4,6 +4,7 @@ import { buildVersionedNativeTabsSource } from "./native-tabs-injection-version.
 import { NATIVE_ENTRY_ICONS } from "./native-entry-icons.mjs";
 import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-recovery.mjs";
 import { installNativeProjectManagementEntry } from "./native-project-management-entry.mjs";
+import { installNativeRestartNeedsEntry } from "./native-restart-needs-panel.mjs";
 import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "./native-entry-probe.mjs";
 import { openNativeChecklistTask } from './native-checklist-board-jump.mjs';
@@ -245,6 +246,7 @@ ${providerSource}
     if (!document.body) return;
     (${installNativeProjectManagementEntry.toString()})(() => openWorkspace('projects'));
     (${installNativeConversationBoardEntry.toString()})(() => openWorkspace('conversations'));
+    (${installNativeRestartNeedsEntry.toString()})();
     const anchor = nativeAnchor();
     const fallback = document.querySelector('[data-codex-control-console-fallback]');
     const definitions = [
