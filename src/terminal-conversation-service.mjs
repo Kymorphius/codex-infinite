@@ -7,6 +7,8 @@ import { createClaudeSessionOccupancy } from './claude-session-occupancy.mjs';
 import { createClaudeSessionTakeover } from './claude-session-takeover.mjs';
 import { createClaudeSettingsApplier } from './claude-terminal-settings-apply.mjs';
 import { adoptClaudeSettings, observedClaudeSettings } from './claude-transcript-settings.mjs';
+import { locateClaudeTranscript, readClaudeMirror } from './claude-mirror.mjs';
+import { createClaudeMirrorTurns } from './claude-mirror-turn.mjs';
 
 const claudeStatusOf = holders => holders.some(item => item.status === 'busy') ? 'busy' : holders.some(item => item.status === 'idle') ? 'idle' : null;
 // Who else holds a Claude session that is not running here (see view).
@@ -22,7 +24,7 @@ const runningSince = holders => holders.length ? Math.max(0, ...holders.map(item
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
     transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '', companionCreator = null,
-    claudeSettings, now = () => new Date() } = {}) {
+    claudeSettings, mirrorTurns, now = () => new Date() } = {}) {
     this.companions = companions; this.codexTitle = codexTitle; this.currentCompanions = null; this.companionCreator = companionCreator;
     this.terminalService = terminalService; this.deviceId = deviceId; this.validateProject = validateProject;
     this.store = store || new TerminalConversationStore({ filePath, deviceId }); this.transcriptExists = transcriptExists;
@@ -30,6 +32,7 @@ export class TerminalConversationService {
       : { summary: async () => ({ title: '', lastUserMessageAt: null }), search: async () => null });
     this.claudeOccupancy = claudeOccupancy || (terminalService?.userHome ? createClaudeSessionOccupancy({ userHome: terminalService.userHome }) : async () => null);
     this.claudeTakeover = claudeTakeover || (this.claudeOccupancy.all ? createClaudeSessionTakeover({ holders: this.claudeOccupancy.all }) : null);
+    this.mirrorTurns = mirrorTurns || (terminalService?.userHome ? createClaudeMirrorTurns({ userHome: terminalService.userHome, holders: ids => this.holders(ids) }) : null);
     this.runtimes = new Map(); this.operations = new Map(); this.runtimeErrors = new Map(); this.launches = new Map(); this.now = now;
     this.claudeSettings = claudeSettings || createClaudeSettingsApplier({ inspect: id => this.claudeRuntimeState(id),
       write: (runtimeId, data) => this.terminalService.write(runtimeId, data), inputLine: runtimeId => this.terminalService.inputLine(runtimeId) });
@@ -252,6 +255,29 @@ export class TerminalConversationService {
       return this.view(updated);
     };
     return changes.claudeSettings ? this.exclusive(id, apply) : apply();
+  }
+
+  // Companion mirror (docs/specs/2026-09-29-claude-companion-mirror.md): the chain's live transcript.
+  async companionTarget(id) {
+    const record = await this.store.get(terminalConversationId(id));
+    if (record.kind !== 'claude' || !record.companionOf) throw terminalError(400, '只有伴生 Claude 会话提供镜像');
+    let ids = [record.id], resumeId = null;
+    try { const chain = await this.claudeTranscripts.summary(record.id); ids = chain.ids || ids; resumeId = chain.resumeId || null; } catch { /* The managed id alone. */ }
+    const target = resumeId && await this.transcriptExists({ userHome: this.terminalService.userHome, sessionId: resumeId }) ? resumeId : record.id;
+    return { record, ids, target };
+  }
+
+  async mirror({ id, cursor }) {
+    const { record, ids, target } = await this.companionTarget(id);
+    const result = await readClaudeMirror({ file: await locateClaudeTranscript(this.terminalService.userHome, target), sessionId: target, cursor });
+    return { ...result, turn: this.mirrorTurns?.state(record.id) || null, occupiedBy: occupantOf(record, await this.holders(ids), this.runtime(record)?.status === 'running') };
+  }
+
+  async mirrorSend({ id, text }) {
+    const { record, ids, target } = await this.companionTarget(id);
+    if (this.runtime(record)?.status === 'running') throw terminalError(409, '交互模式运行中，请直接在终端里输入');
+    if (!this.mirrorTurns) throw terminalError(503, '镜像发送不可用');
+    return { turn: this.mirrorTurns.send({ id: record.id, ids, target, cwd: record.cwd, text }) };
   }
 
   async occupant(record) {

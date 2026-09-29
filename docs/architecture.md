@@ -66,6 +66,9 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   questions/approvals from Router to the owning native composer. The backend keeps
   credentials; the binding checks native top-frame and current thread on every
   action. User answers return to the original CLI control channel, never a new turn.
+- `src/claude-mirror.mjs`, `src/claude-mirror-turn.mjs`, `public/features/terminal/mirror.js` — live
+  read-only mirror of a companion Claude transcript and one-shot `claude -p --resume` turns sent from it
+  (no process keeps holding the session; see docs/specs/2026-09-29-claude-companion-mirror.md).
 - `src/claude-companion-source.mjs` — read-only adapter over Router's public
   `claude-companions/<thread>/session.json`; companion sessions are adopted as
   Claude terminal records (`companionOf`) and shown under their Codex thread.

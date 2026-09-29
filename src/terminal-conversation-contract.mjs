@@ -17,6 +17,20 @@ export function terminalStartInput(input) {
   return { id: terminalConversationId(input.id), takeover: input.takeover === true };
 }
 
+export function terminalMirrorInput(input) {
+  assertTerminalObject(input, ['id', 'cursor']);
+  const cursor = input.cursor ?? null;
+  if (cursor !== null && (typeof cursor !== 'object' || Array.isArray(cursor) || Object.keys(cursor).some(key => !['sessionId', 'offset'].includes(key))
+    || typeof cursor.sessionId !== 'string' || !Number.isSafeInteger(cursor.offset) || cursor.offset < 0)) throw terminalError(400, '镜像游标无效');
+  return { id: terminalConversationId(input.id), cursor };
+}
+
+export function terminalMirrorSendInput(input) {
+  assertTerminalObject(input, ['id', 'text']);
+  if (typeof input.text !== 'string' || !input.text.trim() || input.text.length > 20000) throw terminalError(400, '消息为空或过长');
+  return { id: terminalConversationId(input.id), text: input.text };
+}
+
 // Create (or open) the Router companion Claude session of a native Codex thread.
 export function terminalCompanionCreateInput(input) {
   assertTerminalObject(input, ['threadId']);

@@ -33,6 +33,8 @@ Codex 会话选用 Router 的 Claude 订阅模型后，Router 会为这个线程
 
 ## 轮流占用
 
+> 2026-09-29 起终端默认改为实时镜像、按需交互，见 `2026-09-29-claude-companion-mirror.md`；下述规则仍适用于交互模式。
+
 两个同时运行的 Claude 进程写同一会话会分叉：常驻终端看不到之后的 Codex 轮次，Codex 下一轮也可能接不到终端里的新消息（已实测）。因此：
 
 - Codex 一轮进行中：Router 的 `claude -p` 进程在 `~/.claude/sessions` 登记为 `entrypoint: "sdk-cli"`。

@@ -2,6 +2,7 @@ import { requestJson } from '../../core/transport.js';
 import { createTerminalSession } from './session.js';
 import { createTerminalComposer, isAbsoluteTerminalDirectory, shouldSubmitTerminalDraft, terminalMessage, terminalStatus } from './presentation.js';
 import { createTerminalTasks, renderTerminalTasks } from './tasks.js';
+import { createTerminalMirror } from './mirror.js';
 
 export function createManagedTerminalFeature({ state, $, showToast, request = requestJson, createView = createTerminalSession }) {
   const panel = $('[data-module-panel="terminal"]'), viewport = $('[data-testid="terminal-viewport"]');
@@ -15,6 +16,9 @@ export function createManagedTerminalFeature({ state, $, showToast, request = re
   const tasks = createTerminalTasks({ request, getConversation: () => selected, getDraft: composer.draft,
     setDraft: text => composer.setDraft(text), onChange: renderTasks, storage });
   const post = (operation, body) => request(`/api/terminal-conversations/${operation}`, { method: 'POST', body });
+  const mirror = createTerminalMirror({ host: $('[data-testid="terminal-mirror"]'), request, onChange: () => renderComposer() });
+  // A companion Claude session is mirrored while no interactive Claude runs here (see mirror.js).
+  const mirroring = () => Boolean(selected?.companionOf && !selected.archived && !(selected.runtimeSessionId && selected.status === 'running'));
   function announce(type, conversation) {
     if (typeof window !== 'undefined' && window.parent !== window) window.parent.postMessage({ type: `codex-control-console-terminal-conversation-${type}`, conversation }, 'app://-');
   }
@@ -43,12 +47,14 @@ export function createManagedTerminalFeature({ state, $, showToast, request = re
     if (input.value !== snapshot.draft) input.value = snapshot.draft;
     input.placeholder = selected?.kind === 'claude' ? '输入消息或 /命令…' : '输入命令…';
     input.style.height = 'auto'; input.style.height = `${Math.min(112, Math.max(58, input.scrollHeight))}px`;
-    for (const button of form.querySelectorAll('[data-terminal-send], [data-terminal-paste]')) button.disabled = busy || !snapshot.canSend || !snapshot.draft.trim();
-    for (const button of form.querySelectorAll('[data-terminal-key]')) button.disabled = busy || !snapshot.canInput;
-    $('[data-terminal-focus]').disabled = !snapshot.canInput;
+    const mirrored = mirroring(), view = mirror.snapshot();
+    for (const button of form.querySelectorAll('[data-terminal-send], [data-terminal-paste]')) button.disabled = busy || !snapshot.draft.trim() || (mirrored ? view.sending || button.hasAttribute('data-terminal-paste') : !snapshot.canSend);
+    for (const button of form.querySelectorAll('[data-terminal-key]')) button.disabled = busy || mirrored || !snapshot.canInput;
+    $('[data-terminal-focus]').disabled = mirrored || !snapshot.canInput;
     $('[data-terminal-send]').setAttribute('aria-busy', String(snapshot.sending));
     $('[data-testid="terminal-session-kind"]').textContent = selected?.kind === 'claude' ? 'Claude CLI' : 'Shell';
-    $('[data-testid="terminal-composer-hint"]').textContent = snapshot.sending ? '正在交给终端…' : !snapshot.canInput ? '终端未就绪，仍可编辑草稿或存待办' : 'Enter 发送 · Shift+Enter 换行';
+    $('[data-testid="terminal-composer-hint"]').textContent = mirrored ? (view.sending ? '正在发送…' : view.status || 'Enter 发送 · 每条消息单独执行，Codex 随时可发')
+      : snapshot.sending ? '正在交给终端…' : !snapshot.canInput ? '终端未就绪，仍可编辑草稿或存待办' : 'Enter 发送 · Shift+Enter 换行';
     if (bound) renderTasks();
   }
   function render() {
@@ -62,13 +68,16 @@ export function createManagedTerminalFeature({ state, $, showToast, request = re
     $('[data-terminal-reconnect]').classList.toggle('hidden', !selected?.runtimeSessionId || !['disconnected', 'takenover', 'error'].includes(snapshot?.connection));
     $('[data-testid="terminal-replay-note"]').classList.toggle('hidden', !snapshot?.session.replayTruncated);
     const stopped = selected && (!selected.runtimeSessionId || selected.status === 'stopped');
-    const restartable = selected && (stopped || selected.status === 'exited');
-    $('[data-testid="terminal-empty"]').classList.toggle('hidden', Boolean(selected && !stopped));
+    const restartable = selected && (stopped || selected.status === 'exited'), mirrored = mirroring();
+    if (mirrored && active) mirror.show(selected.id); else mirror.hide();
+    if (mirrored) $('[data-testid="terminal-status"]').textContent = '实时镜像';
+    $('[data-testid="terminal-empty"]').classList.toggle('hidden', Boolean(selected && (!stopped || mirrored)));
     $('[data-testid="terminal-empty-message"]').textContent = selected?.archived ? '会话已归档，可在会话管理中恢复。' : stopped ? '会话已保留。启动后继续使用终端。' : requestedId ? '正在打开会话…' : '从项目或会话列表打开 Claude CLI 与终端会话。';
     $('[data-terminal-start]').classList.toggle('hidden', !restartable || selected.archived);
-    $('[data-terminal-start]').textContent = selected?.status === 'exited' ? '重新启动' : '启动会话';
+    $('[data-terminal-start]').textContent = mirrored ? '交互模式' : selected?.status === 'exited' ? '重新启动' : '启动会话';
+    $('[data-terminal-start]').title = mirrored ? '启动完整的交互式 Claude（斜杠命令等）；期间 Codex 会提示会话被占用，退出后回到镜像' : '';
     $('[data-terminal-start]').disabled = busy;
-    viewport.classList.toggle('hidden', !selected || Boolean(stopped));
+    viewport.classList.toggle('hidden', !selected || Boolean(stopped) || mirrored);
     const tabs = $('[data-testid="terminal-tabs"]');
     tabs.replaceChildren(...records.filter(item => !item.archived && (!reference.cwd || item.cwd === reference.cwd)).map(item => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'terminal-tab';
@@ -159,7 +168,14 @@ export function createManagedTerminalFeature({ state, $, showToast, request = re
     finally { busy = false; render(); }
   }
   async function send(submit) {
-    const id = selected?.id; error(); const result = await composer.send({ submit });
+    const id = selected?.id; error();
+    if (mirroring()) {
+      const text = composer.draft();
+      if (!submit || !text.trim()) return;
+      try { await mirror.send(text); if (selected?.id === id) composer.setDraft(''); } catch (failure) { error(terminalMessage(failure, '发送失败，请重试。')); }
+      return;
+    }
+    const result = await composer.send({ submit });
     if (selected?.id !== id || disposed) return;
     if (!result.ok) error(result.message);
     else if (!submit) { showToast('已粘贴到终端，尚未发送 Enter'); views.get(id)?.focus(); }
@@ -227,6 +243,6 @@ export function createManagedTerminalFeature({ state, $, showToast, request = re
     if (state.module === 'terminal') openReference({ provider: 'terminal', conversationId: params.get('conversationId') || '', cwd: params.get('cwd') || '' });
   }
   return { bind, load, openReference, acceptUpdate,
-    deactivate() { active = false; document.body?.classList.remove('terminal-conversation-view'); for (const view of views.values()) view.deactivate(); },
-    dispose() { window.removeEventListener('message', receiveUpdate); disposed = true; ++generation; for (const view of views.values()) view.dispose(); views.clear(); composer.clear(); } };
+    deactivate() { active = false; mirror.hide(); document.body?.classList.remove('terminal-conversation-view'); for (const view of views.values()) view.deactivate(); },
+    dispose() { window.removeEventListener('message', receiveUpdate); disposed = true; mirror.dispose(); ++generation; for (const view of views.values()) view.dispose(); views.clear(); composer.clear(); } };
 }
