@@ -282,3 +282,16 @@ Menu rework (in the working tree; not yet exercised in the real app):
 - The flows moved to `src/native-discussion-start.mjs` (injected like the other page modules and handed
   to the button as `createStarter`) to keep both files inside the structure budget.
 
+Sidebar pairing (chosen with the person: "Claude under GPT"; working tree, not yet exercised in the real app):
+
+- A Claude conversation that is in a live discussion is mounted directly under its GPT conversation's row,
+  exactly like a Router companion: same placement helper, indented row, `↳` glyph. Unlike a companion it is
+  always expanded (no disclosure), and its row carries a `⇄ n` badge (n = forwards so far).
+- The GPT row gets a `⇄` marker in the left gutter (where a companion's disclosure sits). It does not touch
+  the native row; it is a sibling element positioned over the gutter, and clicking it opens the Claude side.
+- If the GPT row is not rendered (project collapsed, GPT archived or in another list) or the Claude
+  conversation is a Router companion, the Claude row stays wherever it was placed before.
+- Pairs come from the discussion list through the page bridge on each terminal refresh (every 5 s) and after
+  the 讨论 button creates, begins or stops a discussion. Stopped discussions are ignored, so unpairing puts
+  the Claude row back. Several Claude sessions paired with one GPT stack under it with a single marker.
+

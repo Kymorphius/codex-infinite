@@ -119,7 +119,7 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
           close();
           try {
             await api().request('create', role === 'gpt' ? { claudeConversationId: item.id, gptConversationId: tab.id } : { claudeConversationId: tab.id, gptConversationId: item.id });
-            notify('已配对：' + (item.title || NAME[candidateRole]));
+            notify('已配对：' + (item.title || NAME[candidateRole])); window.__cccTerminalConversations?.refresh?.();
           } catch (error) { failure(error); }
         }, list);
       }
@@ -193,7 +193,7 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     choice('把 ' + NAME[peer] + ' 的回答转给这边…', '可先写点评，一起发送', () => showForward(discussion, peer, role, tab));
     choice('解除配对', '之后不再转发，已发送的消息保留', async () => {
       close();
-      try { await api().request('stop', { id: discussion.id }); notify('已解除配对'); } catch (error) { failure(error); }
+      try { await api().request('stop', { id: discussion.id }); notify('已解除配对'); window.__cccTerminalConversations?.refresh?.(); } catch (error) { failure(error); }
     });
   }
 
@@ -226,7 +226,7 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
       send.disabled = true;
       try {
         await api().request('forward', { id: discussion.id, from, comment: comment.value });
-        close(); notify('已把 ' + NAME[from] + ' 的回答转给 ' + NAME[to]);
+        close(); notify('已把 ' + NAME[from] + ' 的回答转给 ' + NAME[to]); window.__cccTerminalConversations?.refresh?.();
       } catch (error) { failure(error); send.disabled = false; }
     };
     back.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); showPaired(discussion, role, tab); });

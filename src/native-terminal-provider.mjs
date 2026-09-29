@@ -1,5 +1,5 @@
 import { readNativeSidebarModel } from './native-sidebar-model.mjs';
-import { nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar } from './native-terminal-sidebar.mjs';
+import { nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, nativeDiscussionPairs, createNativeTerminalSidebar } from './native-terminal-sidebar.mjs';
 import { createNativeTerminalActions } from './native-terminal-actions.mjs';
 import { installNativeCompanionMenu } from './native-companion-menu.mjs';
 
@@ -9,7 +9,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   // disposed), so always use the current one; capturing it left refresh failing forever.
   const nativeMode = Boolean(window.__cccTerminalNative), native = () => (nativeMode ? window.__cccTerminalNative : null);
   const origin = new URL(dashboardUrl).origin, channel = crypto.randomUUID(), pending = new Map();
-  let ready = nativeMode, disposed = false, reading = false, records = [], timer = null, selected = '', restoreActive = true, restoreAttempts = 0, acceptedVersion = 0;
+  let ready = nativeMode, disposed = false, reading = false, records = [], pairs = new Map(), timer = null, selected = '', restoreActive = true, restoreAttempts = 0, acceptedVersion = 0;
   const frame = nativeMode ? null : document.createElement('iframe');
   if (frame) { frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', ''); frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel); }
   function request(operation, input = {}, timeoutMs = 30000) {
@@ -29,7 +29,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     if (disposed) return;
     window.__codexControlConsoleConversationTabs?.syncTerminal?.(records);
     const active = window.__codexControlConsoleConversationTabs?.active?.();
-    sidebar.render(records, active?.kind === 'terminal' ? active.id : '');
+    sidebar.render(records, active?.kind === 'terminal' ? active.id : '', pairs);
     window.__codexControlConsoleProjectSearch?.refresh?.();
     window.__codexControlConsoleConversationTabs?.updateRecentSent?.();
   }
@@ -54,6 +54,9 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     reading = true; const version = acceptedVersion;
     try {
       const result = await request('list'); if (disposed || version !== acceptedVersion) return;
+      // Discussion pairs are optional decoration: keep the last known ones if the bridge is missing or slow.
+      try { const found = await window.__cccDiscussions?.request('list'); if (found) pairs = nativeDiscussionPairs(found.discussions); } catch { /* keep previous pairs */ }
+      if (disposed || version !== acceptedVersion) return;
       const next = result.conversations || [], changed = next.filter(record => signature(record) !== signature(records.find(value => value.id === record.id && value.deviceId === record.deviceId)));
       records = next; sync();
       for (const record of changed) window.__codexControlConsoleTerminalChanged?.(record);
@@ -122,5 +125,5 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
 }
 
 export function buildNativeTerminalProviderSource() {
-  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, createNativeTerminalSidebar, createNativeTerminalActions, installNativeCompanionMenu, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
+  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, nativeDiscussionPairs, createNativeTerminalSidebar, createNativeTerminalActions, installNativeCompanionMenu, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
 }

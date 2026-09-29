@@ -55,6 +55,7 @@ export function createNativeDiscussionStarter({ documentRef, api, notify, close,
         claudeId = claude.id; created = 'Claude 会话';
       }
       const result = await api().request('begin', { first, topic: text, claudeConversationId: claudeId, gptConversationId: gptId, sendGpt: role === 'gpt' });
+      window.__cccTerminalConversations?.refresh?.();
       // Leave the person with whoever answers first (a GPT that answers first is already on screen,
       // or was never left).
       if (first === 'claude') {
