@@ -77,6 +77,7 @@
   - assistant 的解析后模型 ID（如 `claude-opus-5-5`）：当前选择是别名或 `opusplan`（CLI ID 不以 `claude-` 开头）且同系（或 `default`、`best` 的通配）时保持当前选择；固定版本只认自己的 ID；否则改为 CLI ID 完全相同的固定版本，未知模型忽略。模型未设置（`null`）时回复不改变它（Claude 默认可以解释任何回复），只有 `/model` 会设置。
   - `/effort <级别>` 设置强度并关闭 Ultracode（与 applier 的假设一致：新级别结束 Ultracode，因此 applier 在 Ultracode 开启时改强度会再发一次 `/effort ultracode`）；之后的 `/effort ultracode` 再打开。当前强度为自动时忽略 assistant 的解析后强度。只能自动的模型强制为自动。
 - 采纳结果以观察时间为新的 `updatedAt` 写回记录（版本冲突则放弃，下次再试），同时更新 applier 的已知设置并清除排队。读回写入只增加记录版本，不改变记录自身的 `updatedAt`，会话在列表中的位置不变；版本增加可能使同时进行的改名等操作收到「会话已变更」，选择器会读取最新记录后重试。没有 `claudeSettings` 的旧记录只在视图 `claudeObserved` 中展示，不写记录，也不改变其启动参数。
+- Ultracode 只对单个 Claude 进程有效：`claudeObserved.ultracode` 只采信晚于当前持有该会话的 Claude 进程启动时间（`~/.claude/sessions/<pid>.json` 的 `startedAt`）的命令；没有进程运行或命令早于启动时显示为关闭，避免恢复后仍按旧命令显示为开启。
 
 ## Security and privacy
 

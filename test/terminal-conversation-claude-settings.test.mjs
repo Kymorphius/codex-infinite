@@ -81,7 +81,7 @@ test('a newer change made inside Claude is written back once; older evidence and
   const created = await service.create({ cwd: directory, kind: 'claude' });
   settings = { assistant: { model: 'claude-opus-5-5', effort: 'medium', at: '2026-09-29T09:00:00.000Z' } };
   const observedOnly = await service.open({ id: created.id });
-  assert.deepEqual(observedOnly.claudeObserved, { model: 'opus', effort: 'medium', ultracode: null }); assert.equal(observedOnly.revision, 1, 'no choice stored: nothing written');
+  assert.deepEqual(observedOnly.claudeObserved, { model: 'opus', effort: 'medium', ultracode: false }, 'no Claude runs: ultracode is off'); assert.equal(observedOnly.revision, 1, 'no choice stored: nothing written');
   await service.update({ id: created.id, expectedRevision: 1, claudeSettings: { model: 'opus-latest', effort: 'auto', ultracode: false } });
   settings = { assistant: { model: 'claude-opus-5-5', effort: 'high', at: '2026-09-29T10:05:00.000Z' }, effortCommand: { value: 'low', at: '2026-09-29T10:04:00.000Z' } };
   settling = true; assert.equal((await service.open({ id: created.id })).revision, 2, 'a queued or just-typed change defers read-back');

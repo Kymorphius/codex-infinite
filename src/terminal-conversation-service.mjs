@@ -16,6 +16,9 @@ const occupantOf = (record, holders, running) => running || !holders.length ? nu
 const READ_ONLY = { companion: '伴生会话的模型由 Router 决定，此处只读', attach: '后台共享打开的会话沿用它启动时的模型，此处只读',
   elsewhere: '会话正在其他 Claude 进程中运行，此处只读；在这里打开后再选择' };
 
+// Start (ms) of the newest live Claude holding the session (0 if unknown), or null when none runs.
+const runningSince = holders => holders.length ? Math.max(0, ...holders.map(item => item.startedAt || 0)) : null;
+
 export class TerminalConversationService {
   constructor({ terminalService, filePath, deviceId, validateProject = async () => false, store,
     transcriptExists = hasClaudeTranscript, claudeTranscripts, claudeOccupancy, claudeTakeover, companions = null, codexTitle = async () => '', companionCreator = null,
@@ -73,7 +76,7 @@ export class TerminalConversationService {
     // A companion held by Router's per-turn process is mid Codex turn: read-only here until it ends.
     const occupiedBy = occupantOf(record, holders, running);
     return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus: claudeStatusOf(holders),
-      claudeObserved: observedClaudeSettings(summary.settings || {}), claudeSettingsPending: this.claudeSettings.pending(record.id), claudeSettingsReadOnly: this.claudeSettingsReadOnly(record, occupiedBy) };
+      claudeObserved: observedClaudeSettings(summary.settings || {}, { runningSince: runningSince(holders) }), claudeSettingsPending: this.claudeSettings.pending(record.id), claudeSettingsReadOnly: this.claudeSettingsReadOnly(record, occupiedBy) };
   }
 
   // Model choice is Router's for a companion, the job owner's for an attached background session,

@@ -72,6 +72,16 @@ test('observed settings describe what Claude used for records without a choice',
   assert.deepEqual(observedClaudeSettings(observe([assistant('claude-opus-4-1', 'low', 1), command('effort', 'ultracode', 2)])), { model: null, effort: 'low', ultracode: true });
 });
 
+test('observed ultracode counts only after the running Claude started; it is off otherwise', () => {
+  const observed = observe([assistant('claude-opus-5-5', 'medium', 1), command('effort', 'ultracode', 2)]);
+  const expect = ultracode => ({ model: 'opus', effort: 'medium', ultracode });
+  assert.deepEqual(observedClaudeSettings(observed, { runningSince: Date.parse(at(1)) }), expect(true), 'turned on in this process');
+  assert.deepEqual(observedClaudeSettings(observed, { runningSince: Date.parse(at(3)) }), expect(false), 'a resumed process starts without it');
+  assert.deepEqual(observedClaudeSettings(observed, { runningSince: null }), expect(false), 'nothing runs');
+  assert.deepEqual(observedClaudeSettings(observed, { runningSince: 0 }), expect(true), 'unknown start keeps the evidence');
+  assert.deepEqual(observedClaudeSettings(observe([assistant('claude-opus-5-5', 'medium', 1)]), { runningSince: null }), expect(false));
+});
+
 test('transcript summary reports settings evidence from the live chain', async t => {
   const userHome = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-settings-')); t.after(() => fs.rm(userHome, { recursive: true, force: true }));
   const directory = path.join(userHome, '.claude', 'projects', '-work'), id = randomUUID(); await fs.mkdir(directory, { recursive: true });

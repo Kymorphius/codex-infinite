@@ -11,7 +11,7 @@ test('a live Claude registration for any id in the chain marks the session occup
   const userHome = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-occupancy-'));
   t.after(() => fs.rm(userHome, { recursive: true, force: true }));
   const sessions = path.join(userHome, '.claude', 'sessions'); await fs.mkdir(sessions, { recursive: true });
-  await fs.writeFile(path.join(sessions, '101.json'), JSON.stringify({ pid: 101, sessionId: 'AAAA-live' }));
+  await fs.writeFile(path.join(sessions, '101.json'), JSON.stringify({ pid: 101, sessionId: 'AAAA-live', startedAt: 1790694773928 }));
   await fs.writeFile(path.join(sessions, '202.json'), JSON.stringify({ pid: 202, sessionId: 'dead' }));
   await fs.writeFile(path.join(sessions, '303.json'), JSON.stringify({ pid: 999, sessionId: 'mismatched-name' }));
   await fs.writeFile(path.join(sessions, '404.abc.key'), 'secret-material');
@@ -19,7 +19,7 @@ test('a live Claude registration for any id in the chain marks the session occup
   let reads = 0; const alive = pid => { reads++; return pid !== 202; };
   let clock = 0;
   const occupiedBy = createClaudeSessionOccupancy({ userHome, isAlive: alive, now: () => clock });
-  assert.deepEqual(await occupiedBy(['other', 'aaaa-live']), { pid: 101, sessionId: 'aaaa-live' });
+  assert.deepEqual(await occupiedBy(['other', 'aaaa-live']), { pid: 101, sessionId: 'aaaa-live', startedAt: 1790694773928 });
   assert.equal(await occupiedBy(['dead']), null, 'a registration whose process exited is free');
   assert.equal(await occupiedBy(['mismatched-name']), null, 'the file name must match its pid');
   await fs.rm(path.join(sessions, '101.json'));

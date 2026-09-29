@@ -73,7 +73,13 @@ export function adoptClaudeSettings(current, observed) {
 }
 
 // What Claude last used, for display when no choice is stored (unknown parts stay null).
-export function observedClaudeSettings(observed) {
-  const next = fold({ model: null, effort: null, ultracode: null }, observed, null, true);
+// Ultracode lasts only for one Claude process: with `runningSince` (ms, the running process's
+// start, or null when none runs) only commands after it count and it is otherwise off.
+export function observedClaudeSettings(observed, { runningSince } = {}) {
+  if (runningSince !== undefined && observed?.ultracode) {
+    const live = runningSince !== null && Date.parse(observed.ultracode.at) > runningSince;
+    observed = { ...observed, ultracode: live ? observed.ultracode : { value: false, at: observed.ultracode.at } };
+  }
+  const next = fold({ model: null, effort: null, ultracode: runningSince === undefined ? null : false }, observed, null, true);
   return next.last && (next.model || next.effort || next.ultracode !== null) ? { model: next.model, effort: next.effort, ultracode: next.ultracode } : null;
 }
