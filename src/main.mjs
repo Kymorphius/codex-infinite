@@ -22,6 +22,7 @@ import { RestartMarkStore } from "./restart-mark-store.mjs";
 import { createAppInstanceReader } from "./app-instance.mjs";
 import { createNativeRestartMarksBinding } from "./native-restart-marks.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
+import { createDiscussionRuntime } from './discussion-runtime.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
 import { resolveRipgrepPath } from './ripgrep-path.mjs';
 import { withTerminalSentSearch } from './sent-message-search-composite.mjs';
@@ -232,6 +233,7 @@ export async function run() {
     filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter),
     companions: createClaudeCompanionSource({ routerStateDirectory: config.routerStateDirectory }), codexTitle: createCodexTitleLookup({ filePath: config.sessionTitleIndexPath }),
     companionCreator: createRouterCompanionClient({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath }) });
+  const discussions = createDiscussionRuntime({ config, terminalConversations, terminalService, localAdapter, remoteMessageService, catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }) });
   const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const nativeDashboardLaunchService = new NativeDashboardLaunchService({ restart: () => restartService.request(), launchOriginal: () => nativeAppLaunchService.launch() });
@@ -239,7 +241,7 @@ export async function run() {
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
   const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers, terminalConversations });
   const personalPanelTaskAdapter = new PersonalPanelTaskAdapter({ scriptPath: config.personalPanelTaskBridgePath });
-  const dashboard = createDashboardServer({ config, terminalService, terminalConversations, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const dashboard = createDashboardServer({ config, terminalService, terminalConversations, discussions, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
   const detachTerminal = attachTerminalWebSocket({ server: dashboard.server, service: terminalService, dashboardOrigin: config.dashboardOrigin });
   try {
     await dashboard.listen();

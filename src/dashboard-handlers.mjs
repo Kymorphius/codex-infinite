@@ -1,5 +1,6 @@
 import { createTerminalHttpHandler } from './terminal-http.mjs';
 import { createTerminalConversationHttpHandler } from './terminal-conversation-http.mjs';
+import { createDiscussionHttpHandler } from './discussion-http.mjs';
 import { createExperimentsHttpHandler } from './experiments-http.mjs';
 import { createSidebarHttpHandler } from './sidebar-http.mjs';
 import { createTaskCenterHttpHandler } from './task-center-http.mjs';
@@ -23,11 +24,12 @@ import { createPersonalPanelTaskHttpHandler } from './personal-panel-task-http.m
 import { AccountUsageReader } from './account-usage.mjs';
 import { createAccountUsageHttpHandler } from './account-usage-http.mjs';
 
-export function createDashboardHandlers({ config, terminalService = null, terminalConversations = null, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
+export function createDashboardHandlers({ config, terminalService = null, terminalConversations = null, discussions = null, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
   const health = createHealthHttpHandler(config);
   return [
     createTerminalHttpHandler({ service: terminalService, dashboardOrigin: config.dashboardOrigin }),
     createTerminalConversationHttpHandler({ service: terminalConversations, dashboardOrigin: config.dashboardOrigin }),
+    createDiscussionHttpHandler({ service: discussions, dashboardOrigin: config.dashboardOrigin }),
     async (_request, response, requestUrl) => health(response, requestUrl),
     createRuntimeRestartHttpHandler({ service: restartService, dashboardOrigin: config.dashboardOrigin }),
     createNativeAppLaunchHttpHandler({ service: nativeAppLaunchService, dashboardOrigin: config.dashboardOrigin }),
