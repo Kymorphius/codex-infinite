@@ -63,7 +63,7 @@ export function installNativeTerminalView(createSession, statusText, css) {
     // Runs after every DOM change on the page, so it only writes when placement actually changes:
     // re-setting the <html> attribute or re-reading header geometry each time restyled the whole page.
     function placeTitle() {
-      placing = false; if (disposed) return;
+      placing = false; if (disposed) return; if (root.isConnected === false) { window.__cccNativeTerminalView?.dispose(); return; }
       const toolbar = document.querySelector('[data-app-shell-focus-area="main"] [data-app-shell-header-toolbar]'), html = document.documentElement;
       if (!toolbar) {
         if (bar.parentNode === layout && !titleHost.parentNode) return;

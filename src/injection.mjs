@@ -6,7 +6,7 @@ import { buildEmbeddedFrameRecoveryInjectionSource } from "./embedded-frame-reco
 import { installNativeProjectManagementEntry } from "./native-project-management-entry.mjs";
 import { installNativeRestartNeedsEntry } from "./native-restart-needs-panel.mjs";
 import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
-import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "./native-entry-probe.mjs";
+import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall, nativeLayoutTransition } from "./native-entry-probe.mjs";
 import { openNativeChecklistTask } from './native-checklist-board-jump.mjs';
 import { placeNativeBoardBelowChecklist } from './native-board-below-checklist.mjs';
 
@@ -26,7 +26,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const embeddedFrameRecoverySource = buildEmbeddedFrameRecoveryInjectionSource();
   const providerSource = buildNativeProviderNavigationSource();
   const providerDigest = createHash('sha256').update(providerSource).digest('hex').slice(0, 12);
-  const probeDigest = createHash('sha256').update(findNativeEntryAnchor.toString()).digest('hex').slice(0, 8);
+  const probeDigest = createHash('sha256').update(findNativeEntryAnchor.toString() + nativeLayoutTransition.toString()).digest('hex').slice(0, 8);
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
@@ -52,7 +52,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
 ${nativeConversationTabsSource}
 ${embeddedFrameRecoverySource}
-${findNativeEntryAnchor.toString()}
+${findNativeEntryAnchor.toString()}${nativeLayoutTransition.toString()}
 ${nativeEntryMutationNeedsInstall.toString()}
 ${openNativeChecklistTask.toString()}
 ${placeNativeBoardBelowChecklist.toString()}
@@ -73,7 +73,7 @@ ${placeNativeBoardBelowChecklist.toString()}
   let frame = null;
   const entryIcons = ${JSON.stringify(NATIVE_ENTRY_ICONS)};
 
-  const anchorCache = {};
+  let wasNormalLayout = false; const anchorCache = {};
   const nativeAnchor = () => findNativeEntryAnchor(document, normalize, anchorCache);
 
   function workspaceCandidate() {
@@ -143,7 +143,7 @@ ${placeNativeBoardBelowChecklist.toString()}
       window[STANDALONE_DASHBOARD_BINDING](JSON.stringify({ module: ['console', 'sessions', 'priority', 'projects', 'conversations', 'terminal'].includes(module) ? module : 'board' }));
       return;
     }
-    if (requestEmbeddedFramePreparation(module, terminalTarget)) return;
+    if (requestEmbeddedFramePreparation(module, terminalTarget)) return; window.__cccNativeTerminalView?.dispose();
     if (activateConsole) window.__codexControlConsoleConversationTabs?.showConsole?.(module);
     let existing = document.querySelector(WORKSPACE_SELECTOR);
     const candidate = workspaceCandidate();
@@ -249,7 +249,7 @@ ${providerSource}
     (${installNativeProjectManagementEntry.toString()})(() => openWorkspace('projects'));
     (${installNativeConversationBoardEntry.toString()})(() => openWorkspace('conversations'));
     (${installNativeRestartNeedsEntry.toString()})();
-    const anchor = nativeAnchor();
+    const layout = nativeLayoutTransition(document, wasNormalLayout); wasNormalLayout = layout.normal; if (layout.leftNormal) { cancelTerminalNavigation(); restoreWorkspace(); } const anchor = layout.normal ? nativeAnchor() : null;
     const fallback = document.querySelector('[data-codex-control-console-fallback]');
     const definitions = [
       { attribute: ENTRY_ATTRIBUTE, text: ENTRY_TEXT, module: 'console' },

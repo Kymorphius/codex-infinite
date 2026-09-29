@@ -4,7 +4,7 @@ import vm from "node:vm";
 import { createHash } from "node:crypto";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
 import { buildNativeProviderNavigationSource } from "../src/native-terminal-navigation.mjs";
-import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall } from "../src/native-entry-probe.mjs";
+import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall, nativeLayoutTransition } from "../src/native-entry-probe.mjs";
 import {
   buildInjectionScript,
   injectionDecision,
@@ -70,7 +70,7 @@ test("outer injection version tracks native tabs source so recent menu changes r
   const source = buildInjectionScript("http://127.0.0.1:47831");
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
   const providerDigest = createHash("sha256").update(buildNativeProviderNavigationSource()).digest("hex").slice(0, 12);
-  const probeDigest = createHash("sha256").update(findNativeEntryAnchor.toString()).digest("hex").slice(0, 8);
+  const probeDigest = createHash("sha256").update(findNativeEntryAnchor.toString() + nativeLayoutTransition.toString()).digest("hex").slice(0, 8);
   assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.probe-${probeDigest}\\.standalone-false"`));
   assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);

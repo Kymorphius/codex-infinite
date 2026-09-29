@@ -23,3 +23,9 @@ export function injectionDecision({ hasEntry, hasAnchor }) {
   if (hasAnchor) return 'install-native-entry';
   return 'wait-for-native-entry';
 }
+
+// Settings replaces the sidebar scroll container, so its absence means we left the normal layout.
+export function nativeLayoutTransition(documentRef, wasNormal) {
+  const normal = Boolean(documentRef.querySelector('[data-app-action-sidebar-scroll]'));
+  return { normal, leftNormal: Boolean(wasNormal) && !normal };
+}
