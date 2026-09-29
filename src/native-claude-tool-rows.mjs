@@ -19,12 +19,14 @@ export function parseClaudeNativeToolNotice(value) {
 }
 
 export function installNativeClaudeToolRows(parseNotice) {
-  if (window.__cccClaudeToolRows) { window.__cccClaudeToolRows.render(); return; }
   const rootSelector = '[data-thread-user-message-navigation-content],[data-app-action-timeline-scroll]';
   const rowAttribute = 'data-ccc-claude-tool-row';
-  const style = document.createElement('style');
+  const style = document.querySelector('style[data-ccc-claude-tool-style]') || document.createElement('style');
+  style.setAttribute('data-ccc-claude-tool-style', '');
   style.textContent = `
-    [${rowAttribute}] { margin:5px 0;color:#a6a6aa;font:500 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    [${rowAttribute}] { margin:2px 0!important;color:#a6a6aa;font:500 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    [data-ccc-claude-tool-container] { margin-block:0!important;padding-block:0!important;row-gap:0!important;min-height:0!important; }
+    [data-ccc-claude-tool-container="empty"] { display:none!important; }
     [${rowAttribute}] summary { display:flex;align-items:center;gap:10px;max-width:100%;cursor:pointer;list-style:none; }
     [${rowAttribute}] summary::-webkit-details-marker { display:none; }
     [${rowAttribute}] summary:hover { color:#ddd; }
@@ -33,6 +35,32 @@ export function installNativeClaudeToolRows(parseNotice) {
     [${rowAttribute}] pre { margin:7px 0 10px 27px;padding:8px 10px;border-radius:7px;background:#ffffff0b;color:#bbb;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
   `;
   document.head.append(style);
+  if (window.__cccClaudeToolRows) {
+    window.__cccClaudeToolRows.render();
+    compact(document.querySelector(rootSelector));
+    if (!window.__cccClaudeToolRows.compact) {
+      window.__cccClaudeToolRows.compact = () => compact(document.querySelector(rootSelector));
+      (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(window.__cccClaudeToolRows.compact);
+    }
+    return;
+  }
+  // Only collapse wrappers containing tool notices exclusively, never prose or turns.
+  function compact(node) {
+    if (!node) return false;
+    if (node.hasAttribute?.(rowAttribute)) return true;
+    if (node.hasAttribute?.('data-ccc-claude-tool-source')) return true;
+    if (!node.children?.length && node.style?.display === 'none' && parseNotice(node.textContent)) return true;
+    const children = [...(node.children || [])];
+    const pure = children.length > 0 && children.map(compact).every(Boolean)
+      && ![...(node.childNodes || [])].some(child => child.nodeType === 3 && child.textContent.trim());
+    const boundary = node.matches?.(rootSelector) || node.matches?.('[data-turn-key],[data-content-search-turn-key]');
+    const value = node.querySelector?.(`[${rowAttribute}]`) ? 'rows' : 'empty';
+    if (pure && !boundary) {
+      if (node.getAttribute('data-ccc-claude-tool-container') !== value) node.setAttribute('data-ccc-claude-tool-container', value);
+    } else if (node.hasAttribute?.('data-ccc-claude-tool-container')) node.removeAttribute('data-ccc-claude-tool-container');
+    return pure && !boundary;
+  }
+
   const processed = new WeakMap(), pending = new Map();
   let queued = false;
   function key(source, notice) {
@@ -76,9 +104,12 @@ export function installNativeClaudeToolRows(parseNotice) {
         const queue = pending.get(identity) || []; queue.push(row); pending.set(identity, queue);
       }
       source.style.display = 'none';
+      source.setAttribute('data-ccc-claude-tool-source', '');
       processed.set(source, original);
     }
+    compact(root);
   }
+
   function schedule() {
     if (queued) return;
     queued = true;

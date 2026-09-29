@@ -30,7 +30,7 @@ test('native activity rows merge start and finish without issuing client tool ca
     };
   }
   const root = { querySelectorAll: () => sources };
-  const document = { documentElement: {}, head: { append() {} }, createElement: tag => node(tag), querySelector: () => root };
+  const document = { documentElement: {}, head: { append() {} }, createElement: tag => node(tag), querySelector: selector => selector.startsWith('style') ? null : root };
   const window = { __codexControlConsoleObserver: true };
   sources.push(node('p', 'Claude 原生工具：Bash · npm test（执行中）'));
   sources.push(node('p', 'ordinary assistant text'));
@@ -52,4 +52,41 @@ test('native activity rows merge start and finish without issuing client tool ca
   assert.equal(rows[1].querySelector('pre').textContent, '/tmp/file.txt\n退出码：0');
   vm.runInNewContext(source, { document, window, queueMicrotask });
   assert.equal(rows.length, 2);
+});
+
+test('compact tool-only wrappers including old installed rows without shrinking prose or turn boundaries', () => {
+  function node(attrs = {}, children = []) {
+    return { children, childNodes: children, style: {}, attrs, textContent: '',
+      hasAttribute(name) { return Object.hasOwn(this.attrs, name); },
+      getAttribute(name) { return this.attrs[name]; },
+      setAttribute(name, value) { this.attrs[name] = value; },
+      removeAttribute(name) { delete this.attrs[name]; },
+      matches(selector) { return Object.keys(this.attrs).some(name => selector.includes(`[${name}]`)); },
+      querySelector(selector) { return this.children.find(child => child.matches(selector)) || this.children.map(child => child.querySelector(selector)).find(Boolean); },
+    };
+  }
+  const row = node({ 'data-ccc-claude-tool-row': '' });
+  const oldSource = node(); oldSource.style.display = 'none'; oldSource.textContent = 'Claude 原生工具：Bash（已完成）';
+  const wrapper = node({}, [node({}, [row, oldSource])]);
+  const empty = node({}, [oldSource]);
+  const prose = node(); prose.textContent = 'ordinary response';
+  const mixed = node({}, [wrapper, prose]);
+  const root = node({ 'data-turn-key': '' }, [mixed, empty]);
+  const style = node();
+  const document = { querySelector: selector => selector.startsWith('style') ? style : root, head: { append() {} } };
+  let renders = 0;
+  const window = { __cccClaudeToolRows: { render() { renders++; } } };
+  const script = buildNativeClaudeToolRowsInjectionScript();
+  vm.runInNewContext(script, { document, window });
+  assert.equal(wrapper.attrs['data-ccc-claude-tool-container'], 'rows');
+  assert.equal(empty.attrs['data-ccc-claude-tool-container'], 'empty');
+  assert.equal(mixed.hasAttribute('data-ccc-claude-tool-container'), false);
+  assert.equal(root.hasAttribute('data-ccc-claude-tool-container'), false);
+  assert.match(style.textContent, /margin-block:0!important/);
+  wrapper.children.push(prose);
+  window.__cccClaudeToolRows.compact();
+  assert.equal(wrapper.hasAttribute('data-ccc-claude-tool-container'), false);
+  vm.runInNewContext(script, { document, window });
+  assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
+  assert.equal(renders, 2);
 });
