@@ -99,7 +99,6 @@ test('the pairing list comes first, then the section for this conversation; it i
   await f.open();
   const texts = f.texts();
   assert.ok(texts.findIndex(text => /与已有的 Claude 会话配对（共 3 个）/.test(text)) < texts.findIndex(text => /与本会话讨论：本会话标题/.test(text)));
-  assert.equal(f.menu.scrollHeight, f.menu.scrollTop, 'the menu starts at the part nearest the button');
   const search = f.menu.all().find(node => node.tag === 'input');
   const titles = () => f.menu.all().filter(node => node.className === 'ccc-native-recent-title').map(node => node.textContent);
   assert.deepEqual(titles(), ['缓存方案评审', '登录流程', '缓存失效']);
@@ -118,4 +117,13 @@ test('with no candidates there is no search box, only a note, and this-conversat
   assert.equal(f.menu.all().some(node => node.tag === 'input'), false);
   assert.ok(f.texts().some(text => /没有可配对的 GPT 会话/.test(text)));
   assert.ok(f.texts().some(text => /与本会话讨论：C/.test(text)));
+});
+
+test('the panel style is one coherent system: valid fonts, a single scroller, neutral buttons, native width', () => {
+  const css = NATIVE_DISCUSSION_STYLE;
+  assert.equal(/font:[^;}]*\binherit\b/.test(css), false, '`font` shorthand cannot take inherit as a family; the whole declaration would be dropped');
+  assert.equal(/#2f6fed|#fff\b|--color-accent/.test(css), false, 'no solid accent button inside a quiet menu');
+  assert.equal(/width:340px/.test(css), false, 'width comes from the shared menu');
+  assert.match(css, /\.ccc-native-discuss-menu\{[^}]*overflow:hidden/); assert.match(css, /\.ccc-native-discuss-list\{[^}]*overflow:auto/);
+  assert.match(css, /\.ccc-native-discuss-menu\[hidden\]\{display:none\}/, 'display:flex must not defeat the hidden attribute');
 });
