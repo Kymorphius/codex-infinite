@@ -11,6 +11,11 @@ test('only bounded Claude CLI notices become tool activity descriptions', () => 
   assert.equal(parseClaudeNativeToolNotice('Claude 原生工具：Edit · src/a.mjs（未成功）').label, '未能修改文件 a.mjs');
   assert.equal(parseClaudeNativeToolNotice('用户说：Claude 原生工具：Bash（已完成）'), null);
   assert.equal(parseClaudeNativeToolNotice('Claude 原生工具：Bash · ' + 'x'.repeat(800) + '（已完成）'), null);
+  const truncated = 'x'.repeat(700) + '…';
+  assert.equal(parseClaudeNativeToolNotice(`Claude 原生工具：Bash · ${truncated}（执行中）`).detail, truncated);
+  assert.equal(parseClaudeNativeToolNotice(`Claude 原生工具：Bash · ${truncated}（已完成 · 退出码 0）`).label, '已运行命令');
+  assert.equal(parseClaudeNativeToolNotice('Claude 原生工具：Bash · ' + 'x'.repeat(701) + '（已完成）'), null);
+  assert.equal(parseClaudeNativeToolNotice(`Claude 原生工具：Bash · ${truncated}`), null);
 });
 
 test('native activity rows merge start and finish without issuing client tool calls', () => {
@@ -61,6 +66,20 @@ test('native activity rows merge start and finish without issuing client tool ca
   assert.equal(block.style.display, undefined);
   vm.runInNewContext(source, { document, window, queueMicrotask });
   assert.equal(rows.length, 3);
+  // Long CLI commands are truncated by the Router at 700 characters plus ….
+  // The streamed source first arrives without its status suffix.
+  const long = node('p', 'Claude 原生工具：Bash · ' + 'x'.repeat(700) + '…');
+  sources.push(long);
+  window.__cccClaudeToolRows.render();
+  assert.equal(rows.length, 3);
+  long.textContent += '（执行中）';
+  window.__cccClaudeToolRows.render();
+  assert.equal(rows.length, 4);
+  assert.equal(rows[3].querySelector('pre').textContent.length, 701);
+  sources.push(node('p', long.textContent.replace('（执行中）', '（已完成 · 退出码 0）')));
+  window.__cccClaudeToolRows.render();
+  assert.equal(rows.length, 4);
+  assert.equal(rows[3].querySelector('[data-ccc-claude-tool-label]').textContent, '已运行命令');
 });
 
 test('compact tool-only wrappers including old installed rows without shrinking prose or turn boundaries', () => {

@@ -2,7 +2,9 @@
 // These rows never create a Codex tool call or send tool output back to Claude.
 export function parseClaudeNativeToolNotice(value) {
   if (typeof value !== 'string' || value.length > 850) return null;
-  const match = /^Claude 原生工具：([A-Za-z][A-Za-z0-9_]{0,79})(?: · (.{1,700}))?（(执行中|已完成|未成功)(?: · 退出码 (-?\d{1,5}))?）$/u.exec(value.trim());
+  // Router bounds the detail to 700 characters, then appends a truncation
+  // ellipsis. Keep accepting that 701st character without unbounding notices.
+  const match = /^Claude 原生工具：([A-Za-z][A-Za-z0-9_]{0,79})(?: · (.{1,700}…?))?（(执行中|已完成|未成功)(?: · 退出码 (-?\d{1,5}))?）$/u.exec(value.trim());
   if (!match) return null;
   const [, name, detail = '', status, exitCode] = match;
   const action = name === 'Bash' ? '运行命令'
@@ -25,9 +27,9 @@ export function installNativeClaudeToolRows(parseNotice) {
   const style = document.querySelector('style[data-ccc-claude-tool-style]') || document.createElement('style');
   style.setAttribute('data-ccc-claude-tool-style', '');
   style.textContent = `
-    [${rowAttribute}] { margin:2px 0!important;color:#a6a6aa;font:500 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    [${rowAttribute}] { margin:3px 0!important;color:#a6a6aa;font:500 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     [data-ccc-claude-tool-container] { margin-block:0!important;padding-block:0!important;row-gap:0!important;min-height:0!important; }
-    [data-ccc-claude-tool-adjacent] { margin-block-start:calc(4px - var(--ccc-claude-tool-parent-gap, 0px))!important; }
+    [data-ccc-claude-tool-adjacent] { margin-block-start:calc(6px - var(--ccc-claude-tool-parent-gap, 0px))!important; }
     [data-ccc-claude-tool-container="empty"] { display:none!important; }
     [${rowAttribute}] summary { display:flex;align-items:center;gap:10px;max-width:100%;cursor:pointer;list-style:none; }
     [${rowAttribute}] summary::-webkit-details-marker { display:none; }
@@ -70,7 +72,7 @@ export function installNativeClaudeToolRows(parseNotice) {
       const tool = child.hasAttribute?.(rowAttribute) || child.getAttribute?.('data-ccc-claude-tool-container') === 'rows';
       const gap = !pure && !boundary && previousTool && tool && typeof getComputedStyle === 'function'
         ? parseFloat(getComputedStyle(node).rowGap) : 0;
-      if (gap > 4) {
+      if (gap > 6) {
         const value = `${gap}px`;
         if (child.style.getPropertyValue('--ccc-claude-tool-parent-gap') !== value) child.style.setProperty('--ccc-claude-tool-parent-gap', value);
         if (!child.hasAttribute('data-ccc-claude-tool-adjacent')) child.setAttribute('data-ccc-claude-tool-adjacent', '');
