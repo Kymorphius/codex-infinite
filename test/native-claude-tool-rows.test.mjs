@@ -61,13 +61,15 @@ test('compact tool-only wrappers including old installed rows without shrinking 
       getAttribute(name) { return this.attrs[name]; },
       setAttribute(name, value) { this.attrs[name] = value; },
       removeAttribute(name) { delete this.attrs[name]; },
-      matches(selector) { return Object.keys(this.attrs).some(name => selector.includes(`[${name}]`)); },
+      matches(selector) { return (this.attrs.class === 'sr-only' && selector.includes('.sr-only')) || Object.keys(this.attrs).some(name => selector.includes(`[${name}]`)); },
       querySelector(selector) { return this.children.find(child => child.matches(selector)) || this.children.map(child => child.querySelector(selector)).find(Boolean); },
     };
   }
   const row = node({ 'data-ccc-claude-tool-row': '' });
   const oldSource = node(); oldSource.style.display = 'none'; oldSource.textContent = 'Claude 原生工具：Bash（已完成）';
-  const wrapper = node({}, [node({}, [row, oldSource])]);
+  const speaker = node({ class: 'sr-only' }); speaker.textContent = 'Assistant';
+  const announcement = node({ hidden: '' }); announcement.textContent = 'tool announcement';
+  const wrapper = node({}, [speaker, announcement, node(), node({}, [row, oldSource])]);
   const empty = node({}, [oldSource]);
   const prose = node(); prose.textContent = 'ordinary response';
   const second = node({ 'data-content-search-turn-key': 'message-2' }, [node({ 'data-ccc-claude-tool-row': '' })]);
@@ -80,6 +82,9 @@ test('compact tool-only wrappers including old installed rows without shrinking 
   const script = buildNativeClaudeToolRowsInjectionScript();
   vm.runInNewContext(script, { document, window, getComputedStyle: () => ({ rowGap: '32px' }) });
   assert.equal(wrapper.attrs['data-ccc-claude-tool-container'], 'rows');
+  assert.equal(speaker.hasAttribute('data-ccc-claude-tool-container'), false);
+  assert.equal(speaker.textContent, 'Assistant');
+  assert.equal(announcement.hasAttribute('data-ccc-claude-tool-container'), false);
   assert.equal(empty.attrs['data-ccc-claude-tool-container'], 'empty');
   assert.equal(second.attrs['data-ccc-claude-tool-container'], 'rows');
   assert.equal(second.hasAttribute('data-ccc-claude-tool-adjacent'), true);

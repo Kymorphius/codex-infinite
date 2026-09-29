@@ -50,9 +50,12 @@ export function installNativeClaudeToolRows(parseNotice) {
     if (node.hasAttribute?.(rowAttribute)) return true;
     if (node.hasAttribute?.('data-ccc-claude-tool-source')) return true;
     if (!node.children?.length && node.style?.display === 'none' && parseNotice(node.textContent)) return true;
+    if (node.matches?.('.sr-only,[hidden]')) return null;
     const children = [...(node.children || [])];
-    const pure = children.length > 0 && children.map(compact).every(Boolean)
-      && ![...(node.childNodes || [])].some(child => child.nodeType === 3 && child.textContent.trim());
+    if (!children.length && !node.textContent?.trim() && !node.matches?.('button,input,textarea,select,img,svg,canvas,video,iframe,[role]')) return null;
+    const kinds = children.map(compact);
+    const directText = [...(node.childNodes || [])].some(child => child.nodeType === 3 && child.textContent.trim());
+    const pure = !directText && kinds.includes(true) && kinds.every(kind => kind !== false);
     const boundary = node.matches?.(rootSelector) || node.matches?.('[data-turn-key]');
     const value = node.querySelector?.(`[${rowAttribute}]`) ? 'rows' : 'empty';
     if (pure && !boundary) {
@@ -76,6 +79,7 @@ export function installNativeClaudeToolRows(parseNotice) {
       }
       previousTool = Boolean(tool);
     }
+    if (!boundary && !directText && kinds.length && kinds.every(kind => kind === null)) return null;
     return pure && !boundary;
   }
 
