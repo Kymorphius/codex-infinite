@@ -113,6 +113,11 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   device/project selection, version-bound previews, Git-object staging and
   fast-forward application, signed node transport and exact-origin browser
   routes. Code synchronization does not transfer native task ownership.
+- `src/project-replica-service.mjs`, `src/local-project-replica-adapter.mjs`,
+  `src/project-replica-path.mjs`, `src/native-project-registration.mjs` — explicit
+  new checkout creation in configured parents, exclusive directory creation,
+  preserved failure receipts and live native project registration with independent
+  readback. The coordinator owns no filesystem or native runtime details.
 - `src/approval-contract.mjs` — pure bounded contract for owner-issued approval
   capabilities; only one-turn acceptance and denial cross the node boundary.
 - `src/execution-transcript.mjs` — pure, bounded full-fidelity projection and

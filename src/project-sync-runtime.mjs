@@ -1,14 +1,21 @@
 import path from 'node:path';
-import { LocalProjectIdentityAdapter } from './local-project-identity-adapter.mjs';
+import { LocalProjectReplicaAdapter } from './local-project-replica-adapter.mjs';
+import { NativeProjectRegistration } from './native-project-registration.mjs';
 import { ProjectIdentityStore } from './project-identity-store.mjs';
 import { SshProjectSyncAdapter } from './ssh-project-sync-adapter.mjs';
-import { ProjectSyncService } from './project-sync-service.mjs';
+import { ProjectReplicaService } from './project-replica-service.mjs';
 import { syncError } from './project-sync-contract.mjs';
 
-export function createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeConversationAdapter, localAdapter, peers }) {
-  const localProjectSyncAdapter = new LocalProjectIdentityAdapter({
+export function createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeConversationAdapter, localAdapter, peers, nativeProjectRegistrar = null }) {
+  const registrar = nativeProjectRegistrar || new NativeProjectRegistration({ cdpOrigin: config.cdpOrigin, sidebar: nativeSidebarAdapter });
+  const localProjectSyncAdapter = new LocalProjectReplicaAdapter({
+    creationRoots: config.projectCopyRoots || [],
+    receiptDirectory: config.wrapperCodexHome ? path.join(config.wrapperCodexHome, 'project-replica-receipts') : null,
+    registrar,
     identityStore: config.wrapperCodexHome ? new ProjectIdentityStore({ filePath: path.join(config.wrapperCodexHome, 'project-identities.json') }) : null,
     projectProvider: async () => {
+      try { return (await registrar.catalog()).map(({ path, name }) => ({ path, name })); }
+      catch { /* Preserve existing sync on native versions without the project registry API. */ }
       const snapshot = await nativeSidebarAdapter.read();
       const projects = new Map();
       for (const project of snapshot.projects) {
@@ -33,7 +40,7 @@ export function createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeC
       return tasks;
     }
   });
-  const projectSyncService = new ProjectSyncService({
+  const projectSyncService = new ProjectReplicaService({
     localAdapter: localProjectSyncAdapter, localDevice: config.nodeDevice,
     peers: peers.map(peer => new SshProjectSyncAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }))
   });

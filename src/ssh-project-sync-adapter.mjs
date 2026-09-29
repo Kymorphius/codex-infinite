@@ -3,7 +3,7 @@ import { spawn as nodeSpawn } from "node:child_process";
 import { ACTION_HEADERS, loadActionKey, signPeerAction } from "./peer-action-auth.mjs";
 import { PROJECT_SYNC_NODE_PREFIX, PROJECT_SYNC_PACKAGE_BYTES, PROJECT_SYNC_SMALL_BODY_BYTES, sshProjectSyncArguments } from "./project-sync-peer-commands.mjs";
 
-const MUTATIONS = new Set(["prepare", "apply", "associate", "dissociate"]);
+const MUTATIONS = new Set(["prepare", "apply", "associate", "dissociate", "createPrepare", "createApply", "createResume"]);
 const REQUEST_TIMEOUT_MS = 65_000;
 
 function syncError(message, statusCode = 503, code = "PROJECT_SYNC_UNAVAILABLE") {
@@ -52,6 +52,11 @@ export class SshProjectSyncAdapter {
     Object.assign(this, { peer, actionKeyPath, spawn: spawnImpl, logger });
   }
 
+  createOptions(input = {}) { return this.request("createOptions", input); }
+  createPrepare(input) { return this.request("createPrepare", input); }
+  createResume(input) { return this.request("createResume", input); }
+  createApply(input) { return this.request("createApply", input); }
+
   catalog() { return this.request("catalog", {}); }
   inspect(input) { return this.request("inspect", input); }
   export(input) { return this.request("export", input); }
@@ -63,7 +68,7 @@ export class SshProjectSyncAdapter {
   async request(action, input) {
     const mutation = MUTATIONS.has(action);
     const body = Buffer.from(JSON.stringify(input ?? {}), "utf8");
-    const maxRequestBytes = action === "prepare" ? PROJECT_SYNC_PACKAGE_BYTES : PROJECT_SYNC_SMALL_BODY_BYTES;
+    const maxRequestBytes = ["prepare", "createPrepare"].includes(action) ? PROJECT_SYNC_PACKAGE_BYTES : PROJECT_SYNC_SMALL_BODY_BYTES;
     if (body.length > maxRequestBytes) throw syncError("项目同步请求过大", 413, "PROJECT_SYNC_TOO_LARGE");
     const key = await loadActionKey(this.actionKeyPath);
     const maxResponseBytes = action === "export" ? PROJECT_SYNC_PACKAGE_BYTES : action === "catalog" ? 2 * 1024 * 1024 : 64 * 1024;

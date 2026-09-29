@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><script src="/theme.js"></script><title>创建项目副本 · Codex</title><link rel="stylesheet" href="/styles/project-sync.css"><link rel="stylesheet" href="/styles/project-create.css"></head>
+<body><main class="workspace"><header class="page-header"><div><h1>在另一台设备创建副本</h1><p>复制已提交代码，并在目标设备登记为项目。</p><a href="/project-sync.html">返回项目同步</a></div></header>
+<section class="selection replica-selection"><article class="project-choice"><h2>源项目</h2><label for="replica-source">设备与项目</label><select id="replica-source"><option value="">正在读取…</option></select></article>
+<article class="project-choice"><h2>新副本放在哪里</h2><label for="replica-device">目标设备</label><select id="replica-device"></select><label for="replica-parent">创建目录</label><select id="replica-parent"></select><label for="replica-name">新目录名</label><input id="replica-name" maxlength="80" autocomplete="off" placeholder="例如 my-project"></article></section>
+<p>目标目录必须尚不存在。各设备的登录、依赖和 Git 配置保持独立；会话与任务仍在原设备。</p>
+<p id="replica-status" role="status"></p><p id="replica-error" class="notice error" role="alert"></p><pre id="replica-preview" hidden></pre>
+<div class="actions"><button class="button" id="replica-refresh">刷新设备</button><button class="button primary" id="replica-check">检查创建条件</button><button class="button primary" id="replica-create" hidden>确认创建并登记</button><button class="button" id="replica-resume" hidden>继续登记已有副本</button></div>
+<label for="replica-recovery">保留的待登记副本</label><select id="replica-recovery"><option value="">无待登记副本</option></select>
+<p>执行时目标桌面可能要求确认目录访问。请在目标设备处理原生确认；不要重复点击创建。</p>
+<p>成功后返回项目同步页刷新，可预检并关联这两个副本。</p></main><script type="module" src="/features/project-sync/create.js"></script></body></html>

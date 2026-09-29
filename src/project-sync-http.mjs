@@ -7,7 +7,11 @@ const BROWSER_PATHS = Object.freeze({
   "/api/project-sync/preflight": "preflight",
   "/api/project-sync/execute": "execute",
   "/api/project-sync/link": "link",
-  "/api/project-sync/unlink": "unlink"
+  "/api/project-sync/unlink": "unlink",
+  "/api/project-sync/create-options": "createOptions",
+  "/api/project-sync/create-preflight": "createPreflight",
+  "/api/project-sync/create-execute": "createExecute",
+  "/api/project-sync/create-resume": "createResume"
 });
 
 function assertJson(request) {
@@ -45,7 +49,7 @@ export function createProjectSyncHttpHandler({ service, localAdapter, dashboardO
     if (request.headers.origin !== undefined || Object.keys(request.headers).some((name) => name.startsWith("sec-fetch-"))) throw httpError(403, "项目同步节点接口仅接受设备通道请求");
     assertJson(request);
     if (!localAdapter) throw httpError(503, "本机项目同步服务未配置");
-    const body = await readRequestBody(request, nodeAction === "prepare" ? PROJECT_SYNC_PACKAGE_BYTES : PROJECT_SYNC_SMALL_BODY_BYTES);
+    const body = await readRequestBody(request, ["prepare", "createPrepare"].includes(nodeAction) ? PROJECT_SYNC_PACKAGE_BYTES : PROJECT_SYNC_SMALL_BODY_BYTES);
     const key = await loadActionKey(nodeActionKeyPath);
     const verification = verifyPeerAction({ key, method: request.method, path: requestUrl.pathname, headers: request.headers, body, replayWindow });
     if (!verification.ok) throw httpError(401, "项目同步节点认证失败");

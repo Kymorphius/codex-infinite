@@ -151,3 +151,19 @@ test('identity actions require exact origin or signed non-browser transport with
   }
   assert.deepEqual(f.calls.map(([action]) => action), ['link', 'unlink', 'associate', 'dissociate']);
 });
+
+test('replica browser actions require exact origin and node creation actions require signatures', async t => {
+  const { request, signed } = await fixture(t, {
+    service: { createOptions: async () => ({ roots: ['/allowed'] }), createPreflight: async () => ({ token: 'preview' }), createExecute: async () => ({ verified: true }), createResume: async () => ({ verified: true }) },
+    localAdapter: { createOptions: async () => ({ roots: ['/allowed'] }), createPrepare: async input => ({ bytes: input.bundle.length }), createApply: async () => ({ verified: true }) }
+  });
+  for (const action of ['create-options', 'create-preflight', 'create-execute', 'create-resume']) {
+    assert.equal((await request(`/api/project-sync/${action}`, { headers: { 'content-type': 'application/json' } })).status, 403);
+    assert.equal((await request(`/api/project-sync/${action}`, { headers: { origin, 'content-type': 'application/json' } })).status, 200);
+  }
+  const url = '/api/node/project-sync/createPrepare', body = JSON.stringify({ bundle: 'a'.repeat(10000) });
+  assert.equal((await request(url, { body, headers: { 'content-type': 'application/json' } })).status, 401);
+  const headers = signed(url, body);
+  assert.equal((await request(url, { body, headers })).body.result.bytes, 10000);
+  assert.equal((await request(url, { body, headers })).status, 409);
+});

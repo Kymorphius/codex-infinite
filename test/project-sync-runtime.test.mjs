@@ -36,3 +36,10 @@ test('live active tasks override stale completed metadata and unknown active pat
     { id: 'known', cwd: '/one', status: 'active' }, { id: 'missing', status: 'active', cwd: null }
   ]);
 });
+
+test('new empty native projects remain selectable even when absent from sidebar rows', async () => {
+  const runtime = createProjectSyncRuntime({ config: { nodeDevice: { id: 'local', name: 'Local' }, peerActionKeyDirectory: '/unused' }, peers: [],
+    nativeProjectRegistrar: { catalog: async () => [{ id: 'empty', path: '/new-empty-project', name: 'New project' }] },
+    nativeSidebarAdapter: { read: async () => { throw Error('empty project not rendered'); } }, nativeConversationAdapter: {}, localAdapter: {} });
+  assert.deepEqual(await runtime.localProjectSyncAdapter.projectProvider(), [{ path: '/new-empty-project', name: 'New project' }]);
+});
