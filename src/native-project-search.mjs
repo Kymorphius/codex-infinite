@@ -122,7 +122,7 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     }
     if (backdrop === 'transparent') backdrop = 'var(--color-background-primary, #202020)';
     root.style.position = 'relative';
-    if (fixed) Object.assign(results.style, { position: 'absolute', top: '100%', left: '0', right: '0', zIndex: '30', maxHeight: '65vh', overflowY: 'auto', overscrollBehavior: 'contain', backgroundColor: 'color-mix(in srgb, ' + backdrop + ' 72%, transparent)', backdropFilter: 'blur(18px) saturate(1.4)', webkitBackdropFilter: 'blur(18px) saturate(1.4)', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,.4)' });
+    if (fixed) Object.assign(results.style, { position: 'absolute', top: '100%', left: '0', right: '0', zIndex: '30', maxHeight: '65vh', overflowY: 'auto', overscrollBehavior: 'contain', backgroundColor: 'color-mix(in srgb, ' + backdrop + ' 90%, transparent)', backdropFilter: 'blur(18px) saturate(1.4)', webkitBackdropFilter: 'blur(18px) saturate(1.4)', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,.4)' });
     results.style.display = query.trim() ? '' : 'none';
     if (signature === next) return;
     signature = next;
