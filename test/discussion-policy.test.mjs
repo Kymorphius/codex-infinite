@@ -59,6 +59,8 @@ test('prepare and begin inputs need a topic, a role and exact fields', () => {
   assert.throws(() => discussionPrepareInput({ first: 'gpt', topic: 'x'.repeat(8001) }), { statusCode: 413 });
   assert.throws(() => discussionPrepareInput({ first: 'gpt', topic: 'x', extra: 1 }), { statusCode: 400 });
   const ids = { claudeConversationId: ID, gptConversationId: '33333333-3333-4333-8333-333333333333' };
-  assert.deepEqual(discussionBeginInput({ first: 'gpt', topic: 'x', ...ids }), { first: 'gpt', topic: 'x', ...ids });
+  assert.deepEqual(discussionBeginInput({ first: 'gpt', topic: 'x', ...ids }), { first: 'gpt', topic: 'x', sendGpt: false, ...ids });
+  assert.equal(discussionBeginInput({ first: 'gpt', topic: 'x', sendGpt: true, ...ids }).sendGpt, true);
+  assert.throws(() => discussionBeginInput({ first: 'gpt', topic: 'x', sendGpt: 'yes', ...ids }), { statusCode: 400 });
   assert.throws(() => discussionBeginInput({ first: 'gpt', topic: 'x', claudeConversationId: ID }), { statusCode: 400 });
 });

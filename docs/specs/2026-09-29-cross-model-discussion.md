@@ -265,3 +265,20 @@ Phase 1 UI (in the working tree; not yet exercised in the real desktop app):
 - The new-chat page is already open, so the native "new chat" step is skipped; the rest of the flow is
   the same. Attachments in the composer are not carried (the native handoff is text only).
 
+Menu rework (in the working tree; not yet exercised in the real app):
+
+- From an existing conversation the menu is, top to bottom: the searchable list of existing conversations
+  of the other kind (newest first, up to 300, with last-update time) and then `与本会话讨论` (topic box +
+  `GPT 先答` / `Claude 先答`). The menu opens upward from the button, so the section nearest the button is
+  the one for this conversation; the menu scrolls to it on open.
+- `与本会话讨论` replaces the earlier "create both new conversations" section on an existing conversation:
+  this conversation is one side and a new conversation of the other kind is created. The topic goes to
+  whoever answers first; the other side gets the opening message (this conversation included, so it
+  will answer `收到` once). Creating both new conversations stays on the new-chat page.
+  - Current is Claude: a new GPT is created through the native new-chat page (this moves the window off
+    the Claude tab; with `Claude 先答` the flow returns to it at the end).
+  - Current is GPT: a new Claude is created quietly and the host sends GPT its message (`begin` with
+    `sendGpt`), using the same owner-native send as a forward.
+- The flows moved to `src/native-discussion-start.mjs` (injected like the other page modules and handed
+  to the button as `createStarter`) to keep both files inside the structure budget.
+

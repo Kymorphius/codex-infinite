@@ -67,8 +67,10 @@ export function discussionPrepareInput(input) {
 }
 
 export function discussionBeginInput(input) {
-  exact(input, ['first', 'topic', 'claudeConversationId', 'gptConversationId']);
-  return { ...discussionPrepareInput({ first: input.first, topic: input.topic }),
+  exact(input, ['first', 'topic', 'claudeConversationId', 'gptConversationId', 'sendGpt']);
+  if (input.sendGpt !== undefined && typeof input.sendGpt !== 'boolean') throw httpError(400, '开场消息标记无效');
+  // sendGpt: the GPT side is an existing conversation (not created with its message), so the host sends it.
+  return { sendGpt: input.sendGpt === true, ...discussionPrepareInput({ first: input.first, topic: input.topic }),
     ...discussionCreateInput({ claudeConversationId: input.claudeConversationId, gptConversationId: input.gptConversationId }) };
 }
 

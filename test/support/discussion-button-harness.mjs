@@ -1,5 +1,6 @@
 // Shared fake DOM and fixtures for the 讨论 button tests (pairing/forwarding and 新建讨论).
 import { installNativeDiscussionButton } from '../../src/native-discussion-button.mjs';
+import { createNativeDiscussionStarter } from '../../src/native-discussion-start.mjs';
 
 export const GPT = '00000000-0000-4000-8000-000000000001';
 export const CLAUDE = '00000000-0000-4000-8000-000000000002';
@@ -45,7 +46,7 @@ export function setup(tab, responses = {}, { starter = null, project = null, rec
     __codexControlConsoleOpenTerminalConversation: value => native.opened.push(value.id) });
   const createThreadStarter = starter && (() => Object.assign(async text => { native.sent.push(text); if (starter.sendFails) throw Object.assign(Error('原生发送失败'), { nativeNotSubmitted: starter.notSubmitted === true }); return GPT_NEW; }, { preflight() { if (starter.preflightFails) throw Error('输入框已有内容，请先处理原有草稿'); } }));
   let active = tab;
-  const button = installNativeDiscussionButton({ documentRef, root, activeTab: () => active, createThreadStarter });
+  const button = installNativeDiscussionButton({ documentRef, root, activeTab: () => active, createThreadStarter, createStarter: createNativeDiscussionStarter });
   const [trigger, menu] = root.children[0].children;
   const texts = () => menu.all().map(node => node.textContent).filter(Boolean);
   const find = text => menu.all().find(node => node.tag === 'button' && node.all().some(child => child.textContent.includes(text)));

@@ -19,7 +19,7 @@ export function createClaudeParticipant({ terminalConversations, terminalService
   return {
     resolve: async id => { const found = await record(id); return found?.kind === 'claude' ? { cwd: found.cwd, title: found.title } : null; },
     candidates: async cwd => (await terminalConversations.list()).conversations
-      .filter(item => item.kind === 'claude' && !item.archived && item.cwd === cwd).map(({ id, title }) => ({ id, title })),
+      .filter(item => item.kind === 'claude' && !item.archived && item.cwd === cwd).map(({ id, title, updatedAt }) => ({ id, title, updatedAt: updatedAt || null })),
     latestAnswer: createClaudeAnswerSource({ userHome, sessionIds }),
     deliver: async (id, text, { waitIdle = false } = {}) => {
       const found = await record(id);
@@ -45,7 +45,7 @@ export function createClaudeParticipant({ terminalConversations, terminalService
 export function createGptParticipant({ localAdapter, remoteMessageService, transcriptPathOf, listConversations = async () => [] }) {
   return {
     resolve: async id => { const task = await localAdapter.getTask(id).catch(() => null); return task ? { cwd: task.cwd, title: task.title } : null; },
-    candidates: async cwd => (await listConversations()).filter(item => !item.archived && !item.internal && item.cwd === cwd).map(({ id, title }) => ({ id, title })),
+    candidates: async cwd => (await listConversations()).filter(item => !item.archived && !item.internal && item.cwd === cwd).map(({ id, title, updatedAt }) => ({ id, title, updatedAt: updatedAt || null })),
     latestAnswer: createGptAnswerSource({ transcriptPathOf }),
     deliver: async (id, text) => { await remoteMessageService.submit({ threadId: id, prompt: text, deliveryMode: 'queue' }); },
   };

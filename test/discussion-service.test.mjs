@@ -149,3 +149,30 @@ test('begin keeps the pairing and reports when Claude cannot take the opening me
   service.participants.gpt.resolve = async () => null;
   await assert.rejects(service.begin({ first: 'claude', topic: 't', claudeConversationId: randomUUID(), gptConversationId: randomUUID() }), { statusCode: 404 });
 });
+
+test('begin with sendGpt also delivers GPT its opening message and reports each side that could not take it', async t => {
+  const { service } = await fixture(t);
+  const sent = [], claudeId = randomUUID(), gptId = randomUUID();
+  service.participants.gpt.deliver = async (id, text) => sent.push(['gpt', id, text]);
+  service.participants.claude.deliver = async (id, text) => sent.push(['claude', id, text]);
+  const ok = await service.begin({ first: 'claude', topic: '缓存', claudeConversationId: claudeId, gptConversationId: gptId, sendGpt: true });
+  assert.equal(ok.deliveryError, null);
+  assert.deepEqual(sent.map(item => [item[0], item[1]]), [['gpt', gptId], ['claude', claudeId]]);
+  assert.match(sent[0][2], /Claude 先回答/); assert.equal(sent[1][2], '缓存');
+  service.participants.gpt.deliver = async () => { throw Error('这个会话正在处理上一条远端消息'); };
+  service.participants.claude.deliver = async () => { throw Error('Claude 还没有就绪'); };
+  const failed = await service.begin({ first: 'gpt', topic: '缓存', claudeConversationId: randomUUID(), gptConversationId: randomUUID(), sendGpt: true });
+  assert.equal(failed.deliveryError, 'GPT：这个会话正在处理上一条远端消息；Claude 还没有就绪');
+  const untouched = []; service.participants.gpt.deliver = async id => untouched.push(id);
+  await service.begin({ first: 'gpt', topic: '缓存', claudeConversationId: randomUUID(), gptConversationId: randomUUID() });
+  assert.deepEqual(untouched, [], 'a GPT created with its message is not messaged again');
+});
+
+test('candidates are newest first, keep everything up to 300 and drop nothing to a short cap', async t => {
+  const { service } = await fixture(t);
+  const many = Array.from({ length: 120 }, (_, index) => ({ id: `g${index}`, title: `会话 ${index}`, updatedAt: new Date(Date.UTC(2026, 8, 1) + index * 60_000).toISOString() }));
+  service.participants.gpt.candidates = async () => [{ id: 'none', title: '没有时间', updatedAt: null }, ...many];
+  const { candidates } = await service.candidates({ conversationId: randomUUID(), role: 'claude' });
+  assert.equal(candidates.length, 121);
+  assert.equal(candidates[0].id, 'g119'); assert.equal(candidates.at(-1).id, 'none');
+});

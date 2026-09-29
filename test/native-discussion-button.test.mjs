@@ -84,9 +84,38 @@ test('a refused forward keeps the panel open with an error toast; unpair stops t
 test('the injected tabs source ships the button, the client and the style', () => {
   const source = buildNativeConversationTabsInjectionSource();
   assert.match(source, /function installNativeDiscussionButton/);
-  assert.match(source, /installNativeDiscussionButton\(\{ documentRef: document, root: shortcutRoot, activeTab, createThreadStarter: createNativeChecklistThreadStarter \}\)/);
+  assert.match(source, /installNativeDiscussionButton\(\{ documentRef: document, root: shortcutRoot, activeTab, createThreadStarter: createNativeChecklistThreadStarter, createStarter: createNativeDiscussionStarter \}\)/);
   assert.match(source, /function createNativeChecklistThreadStarter/);
+  assert.match(source, /function createNativeDiscussionStarter/);
+  assert.match(source, /createStarter: createNativeDiscussionStarter/);
   assert.match(source, /__cccDiscussions/);
   assert.match(source, /discussionButton\?\.destroy\(\)/);
   assert.ok(source.includes('ccc-native-discuss-preview') && NATIVE_DISCUSSION_STYLE.includes('ccc-native-discuss-comment'));
+});
+
+test('the pairing list comes first, then the section for this conversation; it is searchable and shows the time', async () => {
+  const candidates = [{ id: 'a', title: '缓存方案评审', updatedAt: '2026-09-29T08:00:00Z' }, { id: 'b', title: '登录流程', updatedAt: '2026-09-28T08:00:00Z' }, { id: 'c', title: '缓存失效', updatedAt: null }];
+  const f = setup({ kind: 'local', id: GPT, title: '本会话标题' }, { 'for-conversation': { discussions: [] }, candidates: { role: 'claude', candidates }, create: {} });
+  await f.open();
+  const texts = f.texts();
+  assert.ok(texts.findIndex(text => /与已有的 Claude 会话配对（共 3 个）/.test(text)) < texts.findIndex(text => /与本会话讨论：本会话标题/.test(text)));
+  assert.equal(f.menu.scrollHeight, f.menu.scrollTop, 'the menu starts at the part nearest the button');
+  const search = f.menu.all().find(node => node.tag === 'input');
+  const titles = () => f.menu.all().filter(node => node.className === 'ccc-native-recent-title').map(node => node.textContent);
+  assert.deepEqual(titles(), ['缓存方案评审', '登录流程', '缓存失效']);
+  search.value = ' 缓存 '; search.listeners.input();
+  assert.deepEqual(titles(), ['缓存方案评审', '缓存失效']);
+  search.value = '不存在'; search.listeners.input();
+  assert.deepEqual(titles(), []); assert.ok(f.texts().includes('没有匹配的会话'));
+  search.value = '登录'; search.listeners.input();
+  f.find('登录流程').listeners.click(event); await tick();
+  assert.deepEqual(f.requests.at(-1), { operation: 'create', input: { claudeConversationId: 'b', gptConversationId: GPT } });
+});
+
+test('with no candidates there is no search box, only a note, and this-conversation section remains', async () => {
+  const f = setup({ kind: 'terminal', id: CLAUDE, engine: 'claude', title: 'C' }, { 'for-conversation': { discussions: [] }, candidates: { role: 'gpt', candidates: [] } });
+  await f.open();
+  assert.equal(f.menu.all().some(node => node.tag === 'input'), false);
+  assert.ok(f.texts().some(text => /没有可配对的 GPT 会话/.test(text)));
+  assert.ok(f.texts().some(text => /与本会话讨论：C/.test(text)));
 });

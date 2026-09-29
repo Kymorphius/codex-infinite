@@ -9,6 +9,7 @@ import { buildNativeRecentConversationMenuInjectionSource, NATIVE_RECENT_CONVERS
 import { buildNativeRecentSentMenuInjectionSource } from "./native-recent-sent-conversations.mjs";
 import { installNativeNewConversationButton } from "./native-new-conversation-button.mjs";
 import { installNativeDiscussionButton, NATIVE_DISCUSSION_STYLE } from "./native-discussion-button.mjs";
+import { createNativeDiscussionStarter } from "./native-discussion-start.mjs";
 import { buildNativeDiscussionClientSource } from "./native-discussion-binding.mjs";
 import { createNativeChecklistThreadStarter } from "./native-checklist-new-thread-claim.mjs";
 import { buildNativeRestartMarksStoreSource } from "./native-restart-marks.mjs";
@@ -47,6 +48,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${installNativeDiscussionButton.toString()}
   ${buildNativeDiscussionClientSource()}
   ${createNativeChecklistThreadStarter.toString()}
+  ${createNativeDiscussionStarter.toString()}
   ${buildNativeRecentConversationMenuInjectionSource()}
   ${buildNativeRecentSentMenuInjectionSource()}
   ${buildNativeConversationTabTransitionSource()}
@@ -242,7 +244,7 @@ export function buildNativeConversationTabsInjectionSource() {
     recentMenu = installNativeRecentConversationMenu({ documentRef: document, root: shortcutRoot, state, keyFor, activate });
     recentSentMenu = installNativeRecentSentMenu({ documentRef: document, root: shortcutRoot, state, keyFor, openLocal: (tab) => request(tab, true), openTerminal: (tab) => window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find((record) => record.id === tab.id) || { provider: 'terminal', conversationId: tab.id, deviceId: tab.deviceId }), readSnapshot: () => window.__codexControlConsoleRecentSentSnapshot, readTerminal: () => window.__cccTerminalConversations?.records?.() || [] });
     newButton = installNativeNewConversationButton({ documentRef: document, root: shortcutRoot, activeTab });
-    discussionButton = installNativeDiscussionButton({ documentRef: document, root: shortcutRoot, activeTab, createThreadStarter: createNativeChecklistThreadStarter });
+    discussionButton = installNativeDiscussionButton({ documentRef: document, root: shortcutRoot, activeTab, createThreadStarter: createNativeChecklistThreadStarter, createStarter: createNativeDiscussionStarter });
     transition = createNativeConversationTabTransition(root, () => { render(); syncLocal(); });
 
     const nativeClick = (event) => {

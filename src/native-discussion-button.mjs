@@ -1,9 +1,10 @@
-// "讨论" beside 新建: start a discussion from a topic (creating both conversations), or pair
-// the active Claude / GPT conversation with one of the other kind in the same project, then
-// forward either side's latest answer to the other with an optional comment. It only calls the
-// host bridge (`window.__cccDiscussions`); no storage formats here. `createThreadStarter` is the
-// native composer handoff that sends a first message and returns the new GPT conversation id.
-export function installNativeDiscussionButton({ documentRef, root, activeTab, createThreadStarter }) {
+// "讨论" beside 新建: pair the active Claude / GPT conversation with an existing one of the other
+// kind (searchable list) or discuss with a newly created one, start a discussion from the native
+// new-chat page, then forward either side's latest answer to the other with an optional comment.
+// It only calls the host bridge (`window.__cccDiscussions`); no storage formats here.
+// `createStarter` builds the 新建讨论 flows (native-discussion-start.mjs) around
+// `createThreadStarter`, the native composer handoff that returns a new GPT conversation id.
+export function installNativeDiscussionButton({ documentRef, root, activeTab, createThreadStarter, createStarter }) {
   const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   const NAME = { claude: 'Claude', gpt: 'GPT' };
   const other = (role) => role === 'claude' ? 'gpt' : 'claude';
@@ -67,7 +68,7 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
   const clear = () => { while (menu.children.length) menu.children[0].remove(); };
   const heading = (text) => { const node = el('div', 'ccc-native-discuss-heading', text); menu.append(node); return node; };
   const note = (text) => menu.append(el('div', 'ccc-native-discuss-note', text));
-  const choice = (title, detail, onClick) => {
+  const choice = (title, detail, onClick, parent = menu) => {
     const entry = el('button', 'ccc-native-recent-select');
     entry.type = 'button'; entry.setAttribute('role', 'menuitem');
     const copy = el('span', 'ccc-native-recent-copy');
@@ -75,7 +76,7 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     if (detail) copy.append(el('span', 'ccc-native-recent-detail', detail));
     entry.append(copy);
     entry.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); onClick(); });
-    menu.append(entry); return entry;
+    parent.append(entry); return entry;
   };
   const failure = (error) => notify(String(error?.message || error || '协作讨论操作失败'));
 
@@ -92,19 +93,40 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
       if (discussions[0]) return showPaired(discussions[0], role, tab);
       const { candidates, role: candidateRole } = await api().request('candidates', { conversationId: tab.id, role });
       if (mine !== epoch) return;
-      clear(); showStart(role, tab);
-      heading('或与已有的 ' + NAME[candidateRole] + ' 会话配对');
-      if (!candidates.length) return note('这个项目里没有可配对的 ' + NAME[candidateRole] + ' 会话。');
-      for (const item of candidates) {
-        choice(item.title || '未命名会话', '配对后可互相转发回答', async () => {
+      clear(); showCandidates(role, tab, candidates, candidateRole); showStart(role, tab);
+      menu.scrollTop = menu.scrollHeight; // the menu opens upward: start at the part nearest the button
+    } catch (error) { if (mine === epoch) { clear(); note(String(error?.message || '读取失败')); } }
+  }
+
+  const when = (value) => {
+    const date = new Date(value || '');
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  // Existing conversations of the other kind in this project, newest first, filtered by a search box.
+  function showCandidates(role, tab, candidates, candidateRole) {
+    heading('与已有的 ' + NAME[candidateRole] + ' 会话配对' + (candidates.length ? '（共 ' + candidates.length + ' 个）' : ''));
+    if (!candidates.length) return note('这个项目里没有可配对的 ' + NAME[candidateRole] + ' 会话。');
+    const filter = documentRef.createElement('input');
+    filter.type = 'search'; filter.className = 'ccc-native-discuss-search'; filter.placeholder = '搜索会话标题';
+    filter.setAttribute('aria-label', '搜索可配对的会话');
+    const list = el('div', 'ccc-native-discuss-list');
+    const draw = () => {
+      while (list.children.length) list.children[0].remove();
+      const query = filter.value.trim().toLowerCase();
+      const shown = candidates.filter((item) => !query || String(item.title || '').toLowerCase().includes(query));
+      if (!shown.length) list.append(el('div', 'ccc-native-discuss-note', '没有匹配的会话'));
+      for (const item of shown) {
+        choice(item.title || '未命名会话', when(item.updatedAt) || '配对后可互相转发回答', async () => {
           close();
           try {
             await api().request('create', role === 'gpt' ? { claudeConversationId: item.id, gptConversationId: tab.id } : { claudeConversationId: tab.id, gptConversationId: item.id });
             notify('已配对：' + (item.title || NAME[candidateRole]));
           } catch (error) { failure(error); }
-        });
+        }, list);
       }
-    } catch (error) { if (mine === epoch) { clear(); note(String(error?.message || '读取失败')); } }
+    };
+    filter.addEventListener('input', draw);
+    menu.append(filter, list); draw();
   }
 
   // Project of the active conversation, as the search catalog knows it (same lookup as 新建).
@@ -129,59 +151,14 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     if (!name || !row || row.getAttribute('data-app-action-sidebar-project-label') !== name) return null;
     return search()?.projectOfKey?.(row.getAttribute('data-app-action-sidebar-project-id')) || null;
   };
-  const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   const composerText = (editor) => String(editor?.innerText || editor?.textContent || '').trim();
-  let starting = false;
+  const startNew = typeof createStarter === 'function' ? createStarter({ documentRef, api, notify, close, createThreadStarter }) : () => notify('原生新建入口尚未就绪');
 
-  // Both conversations are created here: GPT first (the risky native step, so a failure leaves
-  // nothing behind), then Claude; the host pairs them and hands Claude its opening message.
-  // With `editor` the topic is that new-chat composer's content: it is emptied for the native
-  // handoff and put back if the native send fails before anything was submitted.
-  async function startNew({ first, topic, project, editor = null }) {
-    if (starting) return;
-    const text = String(topic || '').trim();
-    if (!text) return notify(editor ? '请先在输入框里写下议题' : '请先写下议题');
-    const directories = project?.sourceDirectories;
-    if (!project) return notify(editor ? '这个新聊天不在任何项目里，请先选择项目' : '找不到当前会话所属项目，请先在项目中展开它');
-    if (!Array.isArray(directories) || directories.length !== 1) return notify('新建讨论需要项目只有一个目录；这个项目有多个目录或找不到目录');
-    const terminals = window.__cccTerminalConversations;
-    if ((!editor && !window.__cccProjectSearchActions?.create) || !terminals?.createRecord || typeof createThreadStarter !== 'function') return notify('原生新建入口尚未就绪');
-    starting = true; close();
-    let gptId = null, emptied = false;
-    try {
-      const prepared = await api().request('prepare', { first, topic: text });
-      notify('正在创建讨论会话…');
-      if (editor) {
-        editor.focus(); documentRef.execCommand('selectAll'); documentRef.execCommand('delete');
-        await pause(0);
-        if (composerText(editor)) throw Error('输入框未能清空，议题保留在输入框里，请检查后重试');
-        emptied = true;
-      } else if (!(await window.__cccProjectSearchActions.create(project))) return;
-      const starter = createThreadStarter();
-      let failure = null;
-      for (let attempt = 0; attempt < 50; attempt += 1) {
-        try { starter.preflight(); failure = null; break; } catch (error) { failure = error; if (/已有内容/.test(error.message || '')) break; await pause(100); }
-      }
-      if (failure) throw failure;
-      try { gptId = await starter(prepared.gptText); }
-      catch (error) {
-        if (emptied && error?.nativeNotSubmitted) { editor.focus(); documentRef.execCommand('insertText', false, text); }
-        throw error;
-      }
-      const claude = await terminals.createRecord(project, directories[0], 'claude', { open: false });
-      const result = await api().request('begin', { first, topic: text, claudeConversationId: claude.id, gptConversationId: gptId });
-      if (first === 'claude') window.__codexControlConsoleOpenTerminalConversation?.(claude);
-      notify(result.deliveryError ? '已配对，但 Claude 未收到开场消息：' + result.deliveryError + '。请手动把议题发给它' : '已新建讨论：' + NAME[first] + ' 先答，答完可用「讨论」转发给对方');
-    } catch (error) {
-      notify((gptId ? '已创建 GPT 会话，但后续步骤失败：' : '新建讨论失败：') + String(error?.message || error) + (gptId ? '。可用「与已有会话配对」补上' : ''));
-    } finally { starting = false; }
-  }
-
-  const startButtons = (onStart) => {
+  const startButtons = (onStart, hint = () => '') => {
     const actions = el('div', 'ccc-native-discuss-actions');
     for (const first of ['gpt', 'claude']) {
       const start = el('button', 'ccc-native-discuss-primary', NAME[first] + ' 先答'); start.type = 'button';
-      start.dataset.discussStart = first;
+      start.dataset.discussStart = first; start.title = hint(first);
       start.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); onStart(first); });
       actions.append(start);
     }
@@ -196,15 +173,18 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
     menu.append(startButtons((first) => { const current = newChatEditor(); void startNew({ first, topic: composerText(current), project: newChatProject(), editor: current }); }));
   }
 
-  // From an existing conversation: a topic box, in that conversation's project.
+  // From an existing conversation: this conversation is one side, a new one of the other kind is
+  // the other; the topic goes to whoever answers first.
   function showStart(role, tab) {
-    heading('新建讨论');
+    heading('与本会话讨论：' + (tab.title || '当前会话'));
+    note('会新建一个 ' + NAME[other(role)] + ' 会话作为对方，议题发给先答的一方。');
     const topic = documentRef.createElement('textarea');
     topic.className = 'ccc-native-discuss-comment';
     topic.placeholder = '写下议题：会发给先答的一方，另一方会被告知议题并等待';
     topic.rows = 3; topic.maxLength = 8000;
     topic.setAttribute('aria-label', '议题');
-    menu.append(topic, startButtons((first) => void startNew({ first, topic: topic.value, project: projectOf(tab, role) })));
+    menu.append(topic, startButtons((first) => void startNew({ first, topic: topic.value, project: projectOf(tab, role), current: { role, tab } }),
+      (first) => first === role ? '本会话先答，新建的 ' + NAME[other(role)] + ' 等它' : '新建的 ' + NAME[first] + ' 会话先答，本会话等它'));
   }
 
   function showPaired(discussion, role, tab) {
@@ -281,4 +261,4 @@ export function installNativeDiscussionButton({ documentRef, root, activeTab, cr
   };
 }
 
-export const NATIVE_DISCUSSION_STYLE = '.ccc-native-discuss-menu{width:340px;max-width:calc(100vw - 24px);padding:6px}.ccc-native-discuss-heading{padding:6px 10px;font-weight:600;font-size:12px;opacity:.85}.ccc-native-discuss-note{padding:6px 10px;font-size:12px;opacity:.7;white-space:normal}.ccc-native-discuss-preview{margin:2px 10px 6px;padding:8px;max-height:150px;overflow:auto;border-radius:8px;background:var(--color-background-secondary,rgba(127,127,127,.12));font-size:12px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere}.ccc-native-discuss-comment{box-sizing:border-box;display:block;width:calc(100% - 20px);margin:4px 10px;padding:8px;resize:vertical;border-radius:8px;border:1px solid var(--color-border,rgba(127,127,127,.35));background:transparent;color:inherit;font:12px/18px inherit}.ccc-native-discuss-actions{display:flex;justify-content:flex-end;gap:8px;padding:4px 10px 6px}.ccc-native-discuss-actions button{padding:5px 12px;border-radius:7px;border:1px solid var(--color-border,rgba(127,127,127,.35));background:transparent;color:inherit;font-size:12px;cursor:pointer}.ccc-native-discuss-actions .ccc-native-discuss-primary{background:var(--color-accent,#2f6fed);border-color:transparent;color:#fff}.ccc-native-discuss-actions button:disabled{opacity:.4;cursor:default}';
+export const NATIVE_DISCUSSION_STYLE = '.ccc-native-discuss-menu{width:340px;max-width:calc(100vw - 24px);padding:6px}.ccc-native-discuss-search{box-sizing:border-box;display:block;width:calc(100% - 20px);margin:2px 10px 4px;padding:6px 8px;border-radius:8px;border:1px solid var(--color-border,rgba(127,127,127,.35));background:transparent;color:inherit;font:12px/18px inherit}.ccc-native-discuss-list{max-height:min(46vh,380px);overflow:auto;margin-bottom:8px}.ccc-native-discuss-heading{padding:6px 10px;font-weight:600;font-size:12px;opacity:.85}.ccc-native-discuss-note{padding:6px 10px;font-size:12px;opacity:.7;white-space:normal}.ccc-native-discuss-preview{margin:2px 10px 6px;padding:8px;max-height:150px;overflow:auto;border-radius:8px;background:var(--color-background-secondary,rgba(127,127,127,.12));font-size:12px;line-height:18px;white-space:pre-wrap;overflow-wrap:anywhere}.ccc-native-discuss-comment{box-sizing:border-box;display:block;width:calc(100% - 20px);margin:4px 10px;padding:8px;resize:vertical;border-radius:8px;border:1px solid var(--color-border,rgba(127,127,127,.35));background:transparent;color:inherit;font:12px/18px inherit}.ccc-native-discuss-actions{display:flex;justify-content:flex-end;gap:8px;padding:4px 10px 6px}.ccc-native-discuss-actions button{padding:5px 12px;border-radius:7px;border:1px solid var(--color-border,rgba(127,127,127,.35));background:transparent;color:inherit;font-size:12px;cursor:pointer}.ccc-native-discuss-actions .ccc-native-discuss-primary{background:var(--color-accent,#2f6fed);border-color:transparent;color:#fff}.ccc-native-discuss-actions button:disabled{opacity:.4;cursor:default}';

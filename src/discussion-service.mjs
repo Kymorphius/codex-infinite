@@ -48,7 +48,8 @@ export class DiscussionService {
     const other = otherRole(role);
     const taken = new Set((await this.store.list()).filter(item => item.status !== 'stopped').flatMap(item => item.participants.map(p => p.conversationId)));
     const found = await this.participants[other].candidates(self.cwd);
-    return { role: other, candidates: found.filter(item => !taken.has(item.id)).slice(0, 20) };
+    const free = found.filter(item => !taken.has(item.id)).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+    return { role: other, candidates: free.slice(0, 300) };
   }
 
   async create({ claudeConversationId, gptConversationId, first = null, topic = '', settle = false }) {
@@ -84,12 +85,16 @@ export class DiscussionService {
   // Pair two just-created conversations and hand Claude its opening message once it is idle.
   // Pairing succeeds even when Claude is not ready; then `deliveryError` says why and the
   // person can send the topic by hand or forward later.
-  async begin({ first, topic, claudeConversationId, gptConversationId }) {
+  async begin({ first, topic, claudeConversationId, gptConversationId, sendGpt = false }) {
     const { discussion } = await this.create({ claudeConversationId, gptConversationId, first, topic, settle: true });
-    const text = discussionOpeningTexts({ first, topic }).texts.claude;
-    try { await this.participants.claude.deliver(claudeConversationId, text, { waitIdle: true }); }
-    catch (error) { return { discussion, deliveryError: error.message || 'Claude 还没有收到开场消息' }; }
-    return { discussion, deliveryError: null };
+    const { texts } = discussionOpeningTexts({ first, topic }), errors = [];
+    if (sendGpt) {
+      try { await this.participants.gpt.deliver(gptConversationId, texts.gpt); }
+      catch (error) { errors.push(`GPT：${error.message || '没有收到开场消息'}`); }
+    }
+    try { await this.participants.claude.deliver(claudeConversationId, texts.claude, { waitIdle: true }); }
+    catch (error) { errors.push(error.message || 'Claude 没有收到开场消息'); }
+    return { discussion, deliveryError: errors.length ? errors.join('；') : null };
   }
 
   conversationOf(discussion, role) { return discussion.participants.find(item => item.role === role).conversationId; }
