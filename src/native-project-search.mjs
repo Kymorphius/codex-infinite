@@ -4,7 +4,7 @@ import { installNativeProjectSearchActions } from './native-project-search-actio
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
 export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
-  const VERSION = '2026-09-28.companions';
+  const VERSION = '2026-09-29.fixed-slot4';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -74,8 +74,14 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
   }
   function render() {
     if (disposed) return;
+    // Preferred mount: the fixed rows above the scrolling sections (checklist, then board), so the
+    // search box never scrolls away. Fall back to the old slot before the Projects section.
     const native = document.querySelector('section[data-app-action-sidebar-section-heading="Projects"]');
-    const parent = native?.parentElement?.parentElement;
+    const checklist = document.querySelector('[data-ccc-general-checklist-entry]');
+    const board = document.querySelector('[data-codex-control-console-kanban-entry]');
+    const anchor = checklist && board?.parentElement === checklist.parentElement ? board : checklist;
+    const fixed = Boolean(anchor?.parentElement);
+    const parent = fixed ? anchor.parentElement : native?.parentElement?.parentElement;
     if (!parent) return;
     if (!root) {
       root = make('div', 'py-1'); root.setAttribute(ATTR, ''); root.style.order = String(order);
@@ -92,7 +98,8 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
       root.addEventListener('pointerdown', event => event.stopPropagation());
       root.addEventListener('dragstart', event => { event.preventDefault(); event.stopPropagation(); });
     }
-    if (root.parentElement !== parent) parent.insertBefore(root, native.parentElement);
+    if (fixed) { if (root.parentElement !== parent || root.previousElementSibling !== anchor) parent.insertBefore(root, anchor.nextSibling); }
+    else if (root.parentElement !== parent) parent.insertBefore(root, native.parentElement);
     const query = input.value || '';
     const style = templates();
     const terminals = (window.__cccTerminalConversations?.records?.() || []).map(record => ({ id: record.id, deviceId: record.deviceId, provider: record.provider,
@@ -103,11 +110,24 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     const companions = new Map(terminals.filter(record => record.companionOf && !record.archived).map(record => [record.companionOf, record]));
     const companionOpen = companionExpanded();
     const next = JSON.stringify([query, snapshot, [...expanded], style.signature, terminals, [...companionOpen]]);
-    const rootClassName = (native.className || 'relative px-row-x') + ' py-1';
+    const rootClassName = (native?.className || 'relative px-row-x') + ' py-1';
     if (root.className !== rootClassName) root.className = rootClassName;
+    // Fixed slot: results float over the sidebar in their own scroller, so the list's scroll
+    // position and the results never affect each other. Backdrop is borrowed from the nearest
+    // ancestor that paints one.
+    let backdrop = 'transparent';
+    if (fixed) for (let node = parent; node; node = node.parentElement) {
+      const color = getComputedStyle(node).backgroundColor;
+      if (color && color !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(color)) { backdrop = color; break; }
+    }
+    if (backdrop === 'transparent') backdrop = 'var(--color-background-primary, #202020)';
+    root.style.position = 'relative';
+    if (fixed) Object.assign(results.style, { position: 'absolute', top: '100%', left: '0', right: '0', zIndex: '30', maxHeight: '65vh', overflowY: 'auto', overscrollBehavior: 'contain', backgroundColor: 'color-mix(in srgb, ' + backdrop + ' 72%, transparent)', backdropFilter: 'blur(18px) saturate(1.4)', webkitBackdropFilter: 'blur(18px) saturate(1.4)', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,.4)' });
+    results.style.display = query.trim() ? '' : 'none';
     if (signature === next) return;
     signature = next;
     clear.hidden = !query;
+    const scrollTop = results.scrollTop;
     results.replaceChildren();
     if (!query.trim()) return;
     const projects = filter(snapshot.projects, query);
@@ -192,6 +212,10 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
       }
       if (project.hiddenConversationCount) results.append(make('div', 'ps-6 py-1 text-sm text-tertiary', '另有 ' + project.hiddenConversationCount + ' 个会话未在此列出'));
     }
+    // The list is height-limited; without this the overflow-hidden project rows are the only
+    // flex items allowed to shrink, so an expanded project with many sessions squeezed them to 0.
+    for (const child of results.children) child.style.flexShrink = '0';
+    results.scrollTop = scrollTop;
   }
   const observer = new MutationObserver(() => {
     if (scheduled || disposed) return; scheduled = true;

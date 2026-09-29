@@ -89,3 +89,35 @@ test('a Codex task with a companion gets the collapsed disclosure and the ↳ ro
   assert.equal(walk(row()).find(node => node.attrs['data-terminal-glyph'] === '').textContent, '↳');
   assert.equal(walk(parent).filter(node => node.attrs['data-project-search-terminal-id'] === 'c1').length, 1, 'listed once, under its task');
 });
+
+test('project search mounts in the fixed slot under the board entry and floats results in their own scroller', () => {
+  class Node {
+    constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.listeners = {}; this.parentElement = null; }
+    append(...nodes) { for (const node of nodes) { node.remove(); this.children.push(node); node.parentElement = this; } }
+    insertBefore(node, before) { node.remove(); const at = before ? this.children.indexOf(before) : -1; this.children.splice(at < 0 ? this.children.length : at, 0, node); node.parentElement = this; }
+    remove() { if (this.parentElement) this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1); this.parentElement = null; }
+    get nextSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) + 1] || null; }
+    get previousElementSibling() { return this.parentElement?.children[this.parentElement.children.indexOf(this) - 1] || null; }
+    setAttribute(k, v) { this.attrs[k] = v; } getAttribute(k) { return this.attrs[k] ?? null; }
+    get attributes() { return []; } addEventListener(k, fn) { this.listeners[k] = fn; } replaceChildren() { this.children = []; }
+  }
+  const nav = new Node('nav'), checklist = new Node('button'), board = new Node('button'), scroller = new Node('div'), section = new Node('section');
+  nav.append(checklist, board); scroller.append(section);
+  const walk = node => [node, ...node.children.flatMap(walk)];
+  const window = { __cccTerminalConversations: { records: () => [] } };
+  const pick = { '[data-ccc-general-checklist-entry]': checklist, '[data-codex-control-console-kanban-entry]': board };
+  const context = vm.createContext({ window, getComputedStyle: () => ({ backgroundColor: 'rgb(20, 20, 20)' }),
+    document: { documentElement: new Node('html'), querySelector: selector => pick[selector] || (selector.startsWith('section') ? section : null),
+      querySelectorAll: () => [], createElement: tag => new Node(tag), createElementNS: (_, tag) => new Node(tag) },
+    MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: fn => fn() });
+  vm.runInContext(buildNativeProjectSearchInjectionScript(), context);
+  assert.equal(nav.children[2].attrs['data-codex-control-console-project-search'], '');
+  assert.equal(scroller.children.length, 1, 'nothing is inserted into the scrolling list');
+  const results = nav.children[2].children[1];
+  assert.equal(results.style.display, 'none');
+  window.__codexControlConsoleProjectSearch.set({ stale: false, projects: [{ id: 'p', searchKey: 'p', name: 'alpha', sourceDirectories: [], device: { kind: 'local-codex', name: '本机', status: 'connected' }, tasks: [] }] });
+  const input = walk(nav).find(node => node.tag === 'input'); input.value = 'alpha'; input.listeners.input();
+  assert.equal(results.style.position, 'absolute');
+  assert.equal(results.style.overflowY, 'auto');
+  assert.equal(results.style.display, '');
+});

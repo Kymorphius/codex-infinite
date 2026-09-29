@@ -79,7 +79,7 @@ test('native injection compiles and binding returns bounded result to renderer',
   assert.equal(script.includes('<safe>'), false);
 });
 
-test('sidebar and composer shortcuts open one panel and a result navigates to its conversation', () => {
+test('composer shortcut opens one panel and a result navigates to its conversation', () => {
   class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.style = {}; this.attrs = {}; this.parentElement = null; if (tag === 'input') this.value = ''; }
     append(...nodes) { for (const node of nodes) { this.children.push(node); node.parentElement = this; } }
@@ -103,8 +103,7 @@ test('sidebar and composer shortcuts open one panel and a result navigates to it
   const window = { __codexControlConsoleSearchSentMessages: value => calls.push(JSON.parse(value)), postMessage: value => routes.push(value.path) };
   const context = vm.createContext({ document, window, localStorage, setTimeout: fn => { fn(); return 1; }, clearTimeout() {} });
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
-  const launch = parent.children[1].children[0];
-  assert.equal(launch.textContent, '搜索发送内容');
+  assert.equal(parent.children.length, 1);
   const topLaunch = shortcuts.children[0];
   assert.equal(topLaunch.attrs['aria-label'], '搜索已发送消息');
   assert.equal(topLaunch.children[0].tag, 'svg');
@@ -112,7 +111,7 @@ test('sidebar and composer shortcuts open one panel and a result navigates to it
   topLaunch.listeners.click({ currentTarget: topLaunch });
   assert.equal(body.children[0].hidden, false);
   body.children[0].children[0].children[0].children[1].listeners.click();
-  launch.listeners.click();
+  topLaunch.listeners.click({ currentTarget: topLaunch });
   const panel = body.children[0];
   assert.equal(panel.hidden, false);
   const dialog = panel.children[0], input = dialog.children[1].children[0], historyPanel = dialog.children[3], results = dialog.children[4];
@@ -134,18 +133,15 @@ test('sidebar and composer shortcuts open one panel and a result navigates to it
   results.children[1].listeners.click();
   assert.equal(panel.hidden, true);
   assert.deepEqual(routes, ['/local/one']);
-  launch.listeners.click({ currentTarget: launch });
+  topLaunch.listeners.click({ currentTarget: topLaunch });
   assert.equal(input.value, '');
   historyPanel.children[0].children[1].listeners.click();
   assert.equal(saved.size, 0);
   assert.equal(historyPanel.hidden, true);
   input.value = 'unfinished query';
-  parent.children[1].remove();
   topLaunch.remove();
-  assert.equal(parent.children.length, 1);
   assert.equal(shortcuts.children.includes(topLaunch), false);
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
-  assert.equal(parent.children[1].children[0], launch);
   assert.equal(shortcuts.children[0], topLaunch);
   assert.equal(body.children[0], panel);
   assert.equal(input.value, 'unfinished query');
@@ -176,6 +172,5 @@ test('composer search launcher mounts before project search becomes available', 
   assert.equal(parent.children.length, 0);
   parent.append(projectSearch);
   vm.runInContext(buildNativeSentMessageSearchInjectionScript(), context);
-  assert.equal(parent.children[1].attrs['data-codex-control-console-sent-message-search'], '');
-  assert.equal(parent.children[1].className, 'project-search');
+  assert.equal(parent.children.length, 1);
 });

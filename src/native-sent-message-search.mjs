@@ -17,14 +17,14 @@ export async function respondToSentMessageSearch(payload, connection, service) {
 }
 
 export function installNativeSentMessageSearch(order = 11) {
-  const VERSION = '2026-09-28.terminal-shortcuts';
+  const VERSION = '2026-09-29.no-sidebar-launcher';
   if (window.__codexControlConsoleSentMessageSearch?.version === VERSION) {
     window.__codexControlConsoleSentMessageSearch.ensure?.();
     return;
   }
   window.__codexControlConsoleSentMessageSearch?.dispose?.();
   const HISTORY_KEY = 'codex-control-console.sent-message-search.history.v1';
-  let root, topLaunch, panel, input, results, historyPanel, timer, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
+  let topLaunch, panel, input, results, historyPanel, timer, requestId = 0, active = false, lastLauncher = null, searchedQuery = '';
   let history = [];
   try {
     const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -134,10 +134,10 @@ export function installNativeSentMessageSearch(order = 11) {
     panel.style.display = 'none';
     requestId++;
     clearTimeout(timer);
-    (lastLauncher?.isConnected ? lastLauncher : root?.querySelector?.('button'))?.focus?.();
+    (lastLauncher?.isConnected ? lastLauncher : topLaunch)?.focus?.();
   }
   function open(event) {
-    lastLauncher = event?.currentTarget || root?.querySelector?.('button');
+    lastLauncher = event?.currentTarget || topLaunch;
     requestId++;
     clearTimeout(timer);
     searchedQuery = '';
@@ -149,15 +149,9 @@ export function installNativeSentMessageSearch(order = 11) {
     input.focus();
   }
   function install() {
-    const projectSearch = document.querySelector('[data-codex-control-console-project-search]');
     const shortcuts = document.querySelector('[data-codex-control-console-conversation-shortcuts]');
-    if (!projectSearch?.parentElement && !shortcuts) return;
-    if (!root) {
-      root = make('div', projectSearch?.className || 'group/nav-section relative px-row-x py-1', null);
-      root.setAttribute('data-codex-control-console-sent-message-search', '');
-      const launch = make('button', 'sidebar-item w-full rounded-md px-2 py-1 text-start text-sm text-default hover:bg-primary-ghost-hover', '搜索发送内容');
-      launch.type = 'button'; launch.setAttribute('aria-haspopup', 'dialog'); launch.addEventListener('click', open);
-      root.append(launch);
+    if (!shortcuts) return;
+    if (!topLaunch) {
       topLaunch = make('button', 'ccc-native-recent-trigger', null);
       topLaunch.type = 'button';
       topLaunch.setAttribute('data-codex-control-console-tab-message-search', '');
@@ -223,12 +217,6 @@ export function installNativeSentMessageSearch(order = 11) {
       Object.assign(scope.style, { margin: '10px 0', color: '#aaa', fontSize: '12px' });
       bar.append(input); dialog.append(heading, bar, scope, historyPanel, results);
       panel.append(dialog); document.body.append(panel);
-      root.addEventListener('pointerdown', event => event.stopPropagation());
-    }
-    if (projectSearch?.parentElement && (root.parentElement !== projectSearch.parentElement || root.previousSibling !== projectSearch)) {
-      root.className = projectSearch.className;
-      root.style.order = String(order);
-      projectSearch.parentElement.insertBefore(root, projectSearch.nextSibling);
     }
     if (shortcuts) {
       const recent = shortcuts.querySelector('[data-recent-menu]');
@@ -242,7 +230,7 @@ export function installNativeSentMessageSearch(order = 11) {
       install();
     },
     receive(value) { if (value?.id === requestId && input?.value.trim()) show(value); },
-    dispose() { active = false; clearTimeout(timer); root?.remove(); topLaunch?.remove(); panel?.remove(); }
+    dispose() { active = false; clearTimeout(timer); topLaunch?.remove(); panel?.remove(); }
   };
   active = true;
   install();
