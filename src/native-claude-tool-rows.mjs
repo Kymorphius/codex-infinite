@@ -26,6 +26,7 @@ export function installNativeClaudeToolRows(parseNotice) {
   style.textContent = `
     [${rowAttribute}] { margin:2px 0!important;color:#a6a6aa;font:500 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     [data-ccc-claude-tool-container] { margin-block:0!important;padding-block:0!important;row-gap:0!important;min-height:0!important; }
+    [data-ccc-claude-tool-adjacent] { margin-block-start:calc(4px - var(--ccc-claude-tool-parent-gap, 0px))!important; }
     [data-ccc-claude-tool-container="empty"] { display:none!important; }
     [${rowAttribute}] summary { display:flex;align-items:center;gap:10px;max-width:100%;cursor:pointer;list-style:none; }
     [${rowAttribute}] summary::-webkit-details-marker { display:none; }
@@ -38,10 +39,9 @@ export function installNativeClaudeToolRows(parseNotice) {
   if (window.__cccClaudeToolRows) {
     window.__cccClaudeToolRows.render();
     compact(document.querySelector(rootSelector));
-    if (!window.__cccClaudeToolRows.compact) {
-      window.__cccClaudeToolRows.compact = () => compact(document.querySelector(rootSelector));
-      (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(window.__cccClaudeToolRows.compact);
-    }
+    window.__codexControlConsoleMutationSubscribers?.delete(window.__cccClaudeToolRows.compact);
+    window.__cccClaudeToolRows.compact = () => compact(document.querySelector(rootSelector));
+    (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(window.__cccClaudeToolRows.compact);
     return;
   }
   // Only collapse wrappers containing tool notices exclusively, never prose or turns.
@@ -53,11 +53,29 @@ export function installNativeClaudeToolRows(parseNotice) {
     const children = [...(node.children || [])];
     const pure = children.length > 0 && children.map(compact).every(Boolean)
       && ![...(node.childNodes || [])].some(child => child.nodeType === 3 && child.textContent.trim());
-    const boundary = node.matches?.(rootSelector) || node.matches?.('[data-turn-key],[data-content-search-turn-key]');
+    const boundary = node.matches?.(rootSelector) || node.matches?.('[data-turn-key]');
     const value = node.querySelector?.(`[${rowAttribute}]`) ? 'rows' : 'empty';
     if (pure && !boundary) {
       if (node.getAttribute('data-ccc-claude-tool-container') !== value) node.setAttribute('data-ccc-claude-tool-container', value);
     } else if (node.hasAttribute?.('data-ccc-claude-tool-container')) node.removeAttribute('data-ccc-claude-tool-container');
+    // Native search keys also wrap individual assistant messages. Their parent
+    // retains a large flex gap even when its tool-only children have no margins.
+    let previousTool = false;
+    for (const child of children) {
+      if (child.getAttribute?.('data-ccc-claude-tool-container') === 'empty') continue;
+      const tool = child.hasAttribute?.(rowAttribute) || child.getAttribute?.('data-ccc-claude-tool-container') === 'rows';
+      const gap = !pure && !boundary && previousTool && tool && typeof getComputedStyle === 'function'
+        ? parseFloat(getComputedStyle(node).rowGap) : 0;
+      if (gap > 4) {
+        const value = `${gap}px`;
+        if (child.style.getPropertyValue('--ccc-claude-tool-parent-gap') !== value) child.style.setProperty('--ccc-claude-tool-parent-gap', value);
+        if (!child.hasAttribute('data-ccc-claude-tool-adjacent')) child.setAttribute('data-ccc-claude-tool-adjacent', '');
+      } else if (child.hasAttribute?.('data-ccc-claude-tool-adjacent')) {
+        child.removeAttribute('data-ccc-claude-tool-adjacent');
+        child.style.removeProperty('--ccc-claude-tool-parent-gap');
+      }
+      previousTool = Boolean(tool);
+    }
     return pure && !boundary;
   }
 

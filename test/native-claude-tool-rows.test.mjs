@@ -56,7 +56,7 @@ test('native activity rows merge start and finish without issuing client tool ca
 
 test('compact tool-only wrappers including old installed rows without shrinking prose or turn boundaries', () => {
   function node(attrs = {}, children = []) {
-    return { children, childNodes: children, style: {}, attrs, textContent: '',
+    return { children, childNodes: children, style: { getPropertyValue(name) { return this[name]; }, setProperty(name, value) { this[name] = value; }, removeProperty(name) { delete this[name]; } }, attrs, textContent: '',
       hasAttribute(name) { return Object.hasOwn(this.attrs, name); },
       getAttribute(name) { return this.attrs[name]; },
       setAttribute(name, value) { this.attrs[name] = value; },
@@ -70,23 +70,29 @@ test('compact tool-only wrappers including old installed rows without shrinking 
   const wrapper = node({}, [node({}, [row, oldSource])]);
   const empty = node({}, [oldSource]);
   const prose = node(); prose.textContent = 'ordinary response';
-  const mixed = node({}, [wrapper, prose]);
+  const second = node({ 'data-content-search-turn-key': 'message-2' }, [node({ 'data-ccc-claude-tool-row': '' })]);
+  const mixed = node({}, [wrapper, second, prose]);
   const root = node({ 'data-turn-key': '' }, [mixed, empty]);
   const style = node();
   const document = { querySelector: selector => selector.startsWith('style') ? style : root, head: { append() {} } };
   let renders = 0;
   const window = { __cccClaudeToolRows: { render() { renders++; } } };
   const script = buildNativeClaudeToolRowsInjectionScript();
-  vm.runInNewContext(script, { document, window });
+  vm.runInNewContext(script, { document, window, getComputedStyle: () => ({ rowGap: '32px' }) });
   assert.equal(wrapper.attrs['data-ccc-claude-tool-container'], 'rows');
   assert.equal(empty.attrs['data-ccc-claude-tool-container'], 'empty');
+  assert.equal(second.attrs['data-ccc-claude-tool-container'], 'rows');
+  assert.equal(second.hasAttribute('data-ccc-claude-tool-adjacent'), true);
+  assert.equal(second.style['--ccc-claude-tool-parent-gap'], '32px');
+  assert.equal(prose.hasAttribute('data-ccc-claude-tool-adjacent'), false);
   assert.equal(mixed.hasAttribute('data-ccc-claude-tool-container'), false);
   assert.equal(root.hasAttribute('data-ccc-claude-tool-container'), false);
   assert.match(style.textContent, /margin-block:0!important/);
   wrapper.children.push(prose);
   window.__cccClaudeToolRows.compact();
   assert.equal(wrapper.hasAttribute('data-ccc-claude-tool-container'), false);
-  vm.runInNewContext(script, { document, window });
+  assert.equal(second.hasAttribute('data-ccc-claude-tool-adjacent'), false);
+  vm.runInNewContext(script, { document, window, getComputedStyle: () => ({ rowGap: '32px' }) });
   assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
   assert.equal(renders, 2);
 });
