@@ -76,4 +76,7 @@ native identity/handler preservation and zero movement after repeated settled
 placement passes. Repository syntax/module/structure checks pass and all 1,866
 tests pass. A clean HEAD export with only the staged owned changes also passes
 its full check and 137 focused tests, including the sidebar and installer paths.
-Activation and affected-window visual acceptance remain in progress.
+The dedicated native host and backend service were fully restarted. Process
+identity and the new backend instance were confirmed, health is normal, and the
+original native host remains running. The user was asked to confirm Alfred's
+position in the affected window; visual acceptance is pending.

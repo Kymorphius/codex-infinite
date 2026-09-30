@@ -138,6 +138,17 @@ one stylesheet write, one head append and one initial scan across eleven calls;
 retain a bounded cooldown even when the fallback succeeds, avoiding retry and log
 storms without changing mutation routing or peer failure handling.
 
-Activation will replace the dedicated native document to retire previous private
-observers that cannot be safely identified during a hot upgrade. Runtime health
-and process ownership will be checked separately from visual sidebar acceptance.
+Activation fully restarted the dedicated native host and backend service, retiring
+previous private observers that cannot be safely identified during a hot upgrade.
+The exact dedicated profile, changed host/service processes and new backend
+instance were confirmed; the original native host remains running. There were no
+service terminals before or after restart. Health, runtime status and model-policy
+requests all returned HTTP 200. Follow-up endpoint samples were about 1-6 ms;
+the first fresh health connection took about 37 ms. GPT-6.1 Sol remains available
+with all six configured reasoning levels. New service logs contain no syntax,
+reference, type or missing-module errors.
+
+Runtime health and process ownership are separate from visual sidebar acceptance.
+The affected-window position of Alfred still awaits user confirmation. Short
+process samples do not establish long-term memory behavior or a causal reduction
+in overall CPU load.
