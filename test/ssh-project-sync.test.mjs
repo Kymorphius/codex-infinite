@@ -74,6 +74,107 @@ test("reads fall back to another transport using a fresh replay nonce", async (t
   assert.equal(logs.join(" ").includes("private-key-material"), false);
 });
 
+test("a successful signed read fallback selects the same configured route for a later mutation", async (t) => {
+  const { adapter, calls, key } = await fixture(t, [
+    { exitCode: 255 },
+    { status: "ok", result: { operations: [] } },
+    { status: "ok", result: { operationId: "existing-operation" } }
+  ]);
+  assert.deepEqual(await adapter.conversationOperations(), { operations: [] });
+  assert.deepEqual(await adapter.conversationResume({ operationId: "existing-operation" }), { operationId: "existing-operation" });
+  assert.equal(calls.length, 3);
+  assert.ok(calls[0].args.includes("dev@host.example"));
+  assert.ok(calls[1].args.includes("dev@relay.example"));
+  assert.ok(calls[2].args.includes("dev@relay.example"));
+  const headers = parseHeaders(calls[2].args);
+  const pathname = new URL(calls[2].args.at(-1)).pathname;
+  assert.equal(headers[ACTION_HEADERS.signature], signPeerAction(key, { method: "POST", path: pathname, timestamp: headers[ACTION_HEADERS.timestamp], nonce: headers[ACTION_HEADERS.nonce], body: calls[2].body }));
+});
+
+test("a failed mutation on a read-verified fallback route never tries another route", async (t) => {
+  for (const reply of [{ exitCode: 255 }, { data: "invalid-json" }, { pipeError: true }]) {
+    const { adapter, calls } = await fixture(t, [
+      { exitCode: 255 },
+      { status: "ok", result: { operations: [] } },
+      reply,
+      { status: "ok", result: { accidentallyRetried: true } }
+    ]);
+    await adapter.conversationOperations();
+    await assert.rejects(adapter.conversationResume({ operationId: "existing-operation" }), (error) => error.code === "PROJECT_SYNC_RESULT_UNKNOWN");
+    assert.equal(calls.length, 3);
+    assert.ok(calls[2].args.includes("dev@relay.example"));
+  }
+});
+
+test("malformed reads and explicit remote rejection do not select a fallback route", async (t) => {
+  const { adapter, calls } = await fixture(t, [
+    { data: "invalid-json" },
+    { status: "error", message: "目标无法读取会话" },
+    { status: "ok", result: { operationId: "existing-operation" } }
+  ]);
+  await assert.rejects(adapter.conversationOperations(), (error) => error.code === "PROJECT_SYNC_REJECTED");
+  await adapter.conversationResume({ operationId: "existing-operation" });
+  assert.equal(calls.length, 3);
+  assert.ok(calls[1].args.includes("dev@relay.example"));
+  assert.ok(calls[2].args.includes("dev@host.example"));
+});
+
+test("a remote rejection on an already verified fallback clears its preference before the next mutation", async (t) => {
+  const { adapter, calls } = await fixture(t, [
+    { exitCode: 255 },
+    { status: "ok", result: { operations: [] } },
+    { status: "error", message: "目标暂时无法读取会话" },
+    { status: "ok", result: { operationId: "existing-operation" } }
+  ]);
+  await adapter.conversationOperations();
+  await assert.rejects(adapter.conversationOperations(), (error) => error.code === "PROJECT_SYNC_REJECTED");
+  assert.equal(calls.length, 3);
+  assert.ok(calls[2].args.includes("dev@relay.example"));
+  await adapter.conversationResume({ operationId: "existing-operation" });
+  assert.equal(calls.length, 4);
+  assert.ok(calls[3].args.includes("dev@host.example"));
+});
+
+test("when all read routes fail the next mutation no longer prefers the previously verified fallback", async (t) => {
+  const { adapter, calls } = await fixture(t, [
+    { exitCode: 255 },
+    { status: "ok", result: { operations: [] } },
+    { exitCode: 255 },
+    { exitCode: 255 },
+    { status: "ok", result: { operationId: "existing-operation" } }
+  ]);
+  await adapter.conversationOperations();
+  await assert.rejects(adapter.conversationOperations(), (error) => error.code === "PROJECT_SYNC_UNAVAILABLE");
+  assert.equal(calls.length, 4);
+  assert.ok(calls[2].args.includes("dev@relay.example"));
+  assert.ok(calls[3].args.includes("dev@host.example"));
+  await adapter.conversationResume({ operationId: "existing-operation" });
+  assert.equal(calls.length, 5);
+  assert.ok(calls[4].args.includes("dev@host.example"));
+});
+
+test("a verified fallback preference expires at 60 seconds and mutations do not extend it", async (t) => {
+  const verifiedAt = 1_790_760_000_000;
+  let now = verifiedAt;
+  t.mock.method(Date, "now", () => now);
+  t.after(() => t.mock.restoreAll());
+  const { adapter, calls } = await fixture(t, [
+    { exitCode: 255 },
+    { status: "ok", result: { operations: [] } },
+    { status: "ok", result: { operationId: "before-expiry" } },
+    { status: "ok", result: { operationId: "at-expiry" } }
+  ]);
+  await adapter.conversationOperations();
+  now = verifiedAt + 59_999;
+  await adapter.conversationResume({ operationId: "before-expiry" });
+  assert.equal(calls.length, 3);
+  assert.ok(calls[2].args.includes("dev@relay.example"));
+  now = verifiedAt + 60_000;
+  await adapter.conversationResume({ operationId: "at-expiry" });
+  assert.equal(calls.length, 4);
+  assert.ok(calls[3].args.includes("dev@host.example"));
+});
+
 for (const action of ["prepare", "apply", "associate", "dissociate", "createPrepare", "createApply", "createResume", "conversationPrepare", "conversationApply", "conversationResume"]) {
   test(`${action} never retries after SSH failure, invalid response or EPIPE`, async (t) => {
     for (const reply of [{ exitCode: 255, stderr: "private-key-material" }, { data: "invalid-json" }, { pipeError: true }]) {

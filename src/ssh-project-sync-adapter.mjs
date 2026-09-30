@@ -5,6 +5,7 @@ import { PROJECT_SYNC_NODE_PREFIX, PROJECT_SYNC_PACKAGE_BYTES, PROJECT_SYNC_SMAL
 
 const MUTATIONS = new Set(["prepare", "apply", "associate", "dissociate", "createPrepare", "createApply", "createResume", "conversationPrepare", "conversationApply", "conversationResume"]);
 const REQUEST_TIMEOUT_MS = 65_000;
+const VERIFIED_TRANSPORT_TTL_MS = 60_000;
 
 function syncError(message, statusCode = 503, code = "PROJECT_SYNC_UNAVAILABLE") {
   return Object.assign(new Error(message), { statusCode, code });
@@ -48,6 +49,9 @@ function execute(spawnImpl, args, body, maxBytes, timeoutMs) {
 }
 
 export class SshProjectSyncAdapter {
+  #verifiedTransport;
+  #verifiedUntil = 0;
+
   constructor({ peer, actionKeyPath, spawnImpl = nodeSpawn, logger = console } = {}) {
     Object.assign(this, { peer, actionKeyPath, spawn: spawnImpl, logger });
   }
@@ -79,7 +83,9 @@ export class SshProjectSyncAdapter {
     const key = await loadActionKey(this.actionKeyPath);
     const maxResponseBytes = ["export", "conversationExport"].includes(action) ? PROJECT_SYNC_PACKAGE_BYTES : ["catalog", "conversationList", "conversationOperations"].includes(action) ? 2 * 1024 * 1024 : 64 * 1024;
     const deadline = Date.now() + REQUEST_TIMEOUT_MS;
-    for (const transport of this.peer.transports) {
+    const preferred = Date.now() < this.#verifiedUntil && this.peer.transports.includes(this.#verifiedTransport) ? this.#verifiedTransport : null;
+    const transports = preferred ? [preferred, ...this.peer.transports.filter((transport) => transport !== preferred)] : this.peer.transports;
+    for (const transport of transports) {
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0) break;
       const timestamp = String(Date.now());
@@ -98,8 +104,13 @@ export class SshProjectSyncAdapter {
           throw error;
         }
         if (payload?.status !== "ok" || !Object.hasOwn(payload, "result")) throw syncError("所属设备返回的项目同步响应无效", 502);
+        if (!mutation) {
+          this.#verifiedTransport = transport;
+          this.#verifiedUntil = Date.now() + VERIFIED_TRANSPORT_TTL_MS;
+        }
         return payload.result;
       } catch (error) {
+        if (!mutation && transport === this.#verifiedTransport) this.#verifiedUntil = 0;
         if (error.remoteRejected) throw error;
         this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} project sync ${action} transport unavailable`);
         if (mutation) throw syncError("项目同步请求结果未知，请刷新并重新预检；不会自动重试写入。", 503, "PROJECT_SYNC_RESULT_UNKNOWN");
