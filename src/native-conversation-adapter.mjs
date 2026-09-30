@@ -120,6 +120,7 @@ export class NativeConversationAdapter {
     this.connectionFactory = connectionFactory;
     this.selectAllModifiers = platform === "win32" ? 2 : 4;
     this.active = false;
+    this.pendingThreadStatuses = null;
   }
 
   async waitFor(connection, expression, predicate = Boolean) {
@@ -151,18 +152,25 @@ export class NativeConversationAdapter {
     }
   }
 
+  readThreadStatusItems() {
+    if (!this.pendingThreadStatuses) this.pendingThreadStatuses = (async () => {
+      let connection;
+      try {
+        connection = await this.connect();
+        return await connection.evaluate(nativeThreadStatusExpression);
+      } finally { await connection?.close().catch(() => {}); }
+    })().finally(() => { this.pendingThreadStatuses = null; });
+    return this.pendingThreadStatuses;
+  }
+
   async readThreadStatuses({ strict = false } = {}) {
-    let connection;
     try {
-      connection = await this.connect();
-      const items = await connection.evaluate(nativeThreadStatusExpression);
+      const items = await this.readThreadStatusItems();
       if (strict && !Array.isArray(items)) throw new Error("Native runtime status unavailable");
       return normalizeNativeThreadStatuses(items);
     } catch (error) {
       if (strict) throw error;
       return new Map();
-    } finally {
-      await connection?.close().catch(() => {});
     }
   }
 

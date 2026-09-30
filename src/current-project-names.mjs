@@ -17,11 +17,9 @@ function normalized(value) {
 }
 
 function contains(root, cwd) {
-  const normalizedRoot = normalized(root);
-  const normalizedCwd = normalized(cwd);
-  if (normalizedRoot.api !== normalizedCwd.api) return false;
-  const relative = normalizedRoot.api.relative(normalizedRoot.value, normalizedCwd.value);
-  return relative === "" || (relative !== ".." && !relative.startsWith(`..${normalizedRoot.api.sep}`) && !normalizedRoot.api.isAbsolute(relative));
+  if (root.api !== cwd.api) return false;
+  const relative = root.api.relative(root.value, cwd.value);
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${root.api.sep}`) && !root.api.isAbsolute(relative));
 }
 
 function worktreeCheckoutName(cwd) {
@@ -41,6 +39,8 @@ function projectEntries(state) {
 
 export function createCurrentProjectNameLookup(state = {}) {
   const projects = projectEntries(state);
+  const roots = projects.flatMap(project => project.roots.map(root => ({ name: project.name, root: normalized(root) })))
+    .sort((left, right) => right.root.value.length - left.root.value.length);
   const worktreeNames = new Map();
   for (const project of projects) {
     for (const root of project.roots) {
@@ -52,9 +52,8 @@ export function createCurrentProjectNameLookup(state = {}) {
   return Object.freeze({
     nameFor(cwd) {
       if (typeof cwd !== "string" || !cwd.trim()) return null;
-      const direct = projects.flatMap((project) => project.roots.map((root) => ({ ...project, root })))
-        .filter((project) => contains(project.root, cwd))
-        .sort((left, right) => normalized(right.root).value.length - normalized(left.root).value.length)[0];
+      const query = normalized(cwd);
+      const direct = roots.find(project => contains(project.root, query));
       if (direct) return direct.name;
       const checkout = worktreeCheckoutName(cwd);
       if (!checkout) return null;

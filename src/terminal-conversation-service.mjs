@@ -58,7 +58,7 @@ export class TerminalConversationService {
   // Claude conversations follow Claude's own transcript: its title (/rename, else
   // generated) while the stored title is still the default, and the time of the last
   // message you sent. A title set here always wins; the store is unchanged.
-  async view(record) {
+  async view(record, listingHolders = null) {
     if (record.kind !== 'claude') return this.present(record);
     let summary = { title: '', lastUserMessageAt: null, ids: [record.id] };
     try { summary = await this.claudeTranscripts.summary(record.id); } catch { /* Keep stored metadata when the transcript is unreadable. */ }
@@ -75,7 +75,7 @@ export class TerminalConversationService {
     // shared; one held by a terminal window needs an explicit takeover.
     // Holders include our own running Claude; their registration also carries Claude's
     // busy/idle state, shown next to the conversation in 最近会话 / 最近发送.
-    const holders = await this.holders(summary.ids || [record.id]), running = presented.status === 'running';
+    const holders = await (listingHolders ? listingHolders(summary.ids || [record.id]) : this.holders(summary.ids || [record.id])), running = presented.status === 'running';
     // A companion held by Router's per-turn process is mid Codex turn: read-only here until it ends.
     const occupiedBy = occupantOf(record, holders, running);
     return { ...presented, title, lastUserMessageAt: summary.lastUserMessageAt || null, occupiedElsewhere: Boolean(occupiedBy), occupiedBy, claudeStatus: claudeStatusOf(holders),
@@ -176,7 +176,15 @@ export class TerminalConversationService {
   async list() {
     await this.syncCompanions();
     const records = (await this.store.list()).filter(record => !this.superseded(record));
-    return { conversations: await Promise.all(records.map(record => this.view(record))), deviceId: this.deviceId,
+    let snapshot = null;
+    const listingHolders = typeof this.claudeOccupancy.snapshot === 'function' ? async ids => {
+      try {
+        // Lazily share only this list's scan, including synchronous failures. Actions never use it.
+        const read = await (snapshot ||= Promise.resolve().then(() => this.claudeOccupancy.snapshot()));
+        return await read(ids);
+      } catch { return []; }
+    } : null;
+    return { conversations: await Promise.all(records.map(record => this.view(record, listingHolders))), deviceId: this.deviceId,
       defaultCwd: this.terminalService.defaultCwd };
   }
 
