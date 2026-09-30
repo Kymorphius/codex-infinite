@@ -59,7 +59,10 @@ function fixture() {
   const all = node => [node, ...node.children.flatMap(all)];
   const documentRef = {
     createElement: tag => new Node(tag),
-    querySelectorAll: selector => all(root).filter(node => node.getAttribute(selector.slice(1, -1)) !== null),
+    querySelectorAll: selector => {
+      const match = /^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(selector);
+      return all(root).filter(node => node.getAttribute(match[1]) !== null && (match[2] == null || node.getAttribute(match[1]) === match[2]));
+    },
     querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   };
   const add = (parent, attributes = {}, className = 'sidebar-item flex w-full hover:bg-primary-ghost-hover') => {
@@ -143,6 +146,19 @@ test('duplicate owned entries are removed and damaged content is repaired', () =
   assert.equal(entries[1].children[0].tagName, 'DIV'); assert.match(entries[2].style.cssText, /display:flex/);
   f.resetWrites(); installNativeSidebarModuleEntries(f.documentRef, f.anchor, definitions, NATIVE_ENTRY_ICONS, () => {});
   assert.equal(f.writes, 0);
+});
+
+test('without checklist, module fallback preserves the native dot pair and ready top actions', () => {
+  for (const ready of ['dot', 'butler', 'open']) {
+    const f = fixture(), dot = f.add(f.group, { 'data-sidebar-destination': 'builtin:orbit' });
+    const actions = [dot];
+    if (ready !== 'dot') actions.push(f.add(f.group, { 'data-codex-control-console-butler-entry': '' }));
+    if (ready === 'open') actions.push(f.add(f.group, { 'data-codex-control-console-open-local-project': '' }));
+    const entries = installNativeSidebarModuleEntries(f.documentRef, f.anchor, definitions, NATIVE_ENTRY_ICONS, () => {});
+    assert.deepEqual(f.group.children, [f.anchor, ...actions, ...entries]);
+    f.resetWrites(); installNativeSidebarModuleEntries(f.documentRef, f.anchor, definitions, NATIVE_ENTRY_ICONS, () => {});
+    assert.equal(f.writes, 0);
+  }
 });
 
 test('serialized helper is self-contained and a rail anchor cannot receive module entries', () => {

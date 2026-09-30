@@ -4,7 +4,7 @@ import { installNativeProjectSearchActions } from './native-project-search-actio
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
 export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
-  const VERSION = '2026-09-30.layout-surface1';
+  const VERSION = '2026-09-30.shortcut-search-tail1';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -74,12 +74,13 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
   }
   function render() {
     if (disposed) return;
-    // Preferred mount: the fixed rows above the scrolling sections (checklist, then board), so the
-    // search box never scrolls away. Fall back to the old slot before the Projects section.
+    // Search follows the complete shortcut group; keep the old project-section fallback.
     const native = document.querySelector('section[data-app-action-sidebar-section-heading="Projects"]');
     const checklist = document.querySelector('[data-ccc-general-checklist-entry]');
-    const board = document.querySelector('[data-codex-control-console-kanban-entry]');
-    const anchor = checklist && board?.parentElement === checklist.parentElement ? board : checklist;
+    const shortcuts = ['data-codex-control-console-priority-entry', 'data-codex-control-console-session-entry', 'data-codex-control-console-entry', 'data-codex-control-console-kanban-entry']
+      .map(attribute => document.querySelector('[' + attribute + ']')).filter(node => node?.parentElement);
+    const actionParent = checklist?.parentElement || shortcuts[0]?.parentElement;
+    const anchor = shortcuts.find(node => node.parentElement === actionParent) || checklist;
     const fixed = Boolean(anchor?.parentElement);
     const parent = fixed ? anchor.parentElement : native?.parentElement?.parentElement;
     if (!parent) return;

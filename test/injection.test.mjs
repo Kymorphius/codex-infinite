@@ -6,6 +6,7 @@ import { buildNativeConversationTabsInjectionSource } from "../src/native-conver
 import { buildNativeProviderNavigationSource } from "../src/native-terminal-navigation.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall, nativeLayoutTransition } from "../src/native-entry-probe.mjs";
 import { installNativeSidebarModuleEntries } from "../src/native-sidebar-module-entries.mjs";
+import { positionNativeSidebarDot } from "../src/native-sidebar-dot-position.mjs";
 import {
   buildInjectionScript,
   injectionDecision,
@@ -72,7 +73,7 @@ test("outer injection version tracks native tabs source so recent menu changes r
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
   const providerDigest = createHash("sha256").update(buildNativeProviderNavigationSource()).digest("hex").slice(0, 12);
   const probeDigest = createHash("sha256").update(findNativeEntryAnchor.toString() + nativeLayoutTransition.toString()).digest("hex").slice(0, 8);
-  const sidebarDigest = createHash("sha256").update(installNativeSidebarModuleEntries.toString()).digest("hex").slice(0, 8);
+  const sidebarDigest = createHash("sha256").update(installNativeSidebarModuleEntries.toString() + positionNativeSidebarDot.toString()).digest("hex").slice(0, 8);
   assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.probe-${probeDigest}\\.sidebar-${sidebarDigest}\\.standalone-false"`));
   assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);

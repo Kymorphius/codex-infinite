@@ -9,6 +9,7 @@ import { installNativeConversationBoardEntry } from "./native-conversation-board
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall, nativeLayoutTransition } from "./native-entry-probe.mjs";
 import { openNativeChecklistTask } from './native-checklist-board-jump.mjs';
 import { installNativeSidebarModuleEntries } from './native-sidebar-module-entries.mjs';
+import { positionNativeSidebarDot } from './native-sidebar-dot-position.mjs';
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -27,7 +28,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const providerSource = buildNativeProviderNavigationSource();
   const providerDigest = createHash('sha256').update(providerSource).digest('hex').slice(0, 12);
   const probeDigest = createHash('sha256').update(findNativeEntryAnchor.toString() + nativeLayoutTransition.toString()).digest('hex').slice(0, 8);
-  const sidebarDigest = createHash('sha256').update(installNativeSidebarModuleEntries.toString()).digest('hex').slice(0, 8);
+  const sidebarDigest = createHash('sha256').update(installNativeSidebarModuleEntries.toString() + positionNativeSidebarDot.toString()).digest('hex').slice(0, 8);
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
@@ -57,6 +58,7 @@ ${findNativeEntryAnchor.toString()}${nativeLayoutTransition.toString()}
 ${nativeEntryMutationNeedsInstall.toString()}
 ${openNativeChecklistTask.toString()}
 ${installNativeSidebarModuleEntries.toString()}
+${positionNativeSidebarDot.toString()}
   if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
@@ -263,6 +265,7 @@ ${providerSource}
       return;
     }
     fallback?.remove();
+    positionNativeSidebarDot(document, anchor);
     installNativeSidebarModuleEntries(document, anchor, definitions, entryIcons, module => openWorkspace(module));
     scheduleEmbeddedFrameRecovery(
       () => !document.querySelector(WORKSPACE_SELECTOR) && Boolean(nativeAnchor()),
