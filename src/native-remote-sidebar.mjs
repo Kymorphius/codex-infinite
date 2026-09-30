@@ -1,5 +1,6 @@
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 import { createNativeRemoteTemplates } from './native-remote-sidebar-templates.mjs';
+import { nativeSidebarMutationPlan } from './native-sidebar-mutation.mjs';
 import { buildNativeRemoteSidebarRenderSource } from "./native-remote-sidebar-render.mjs";
 import { calculateProjectPriority } from "../public/core/project-priority.js";
 import { buildNativeRemoteProjectCopyUiSource } from "./native-remote-project-copy-ui.mjs";
@@ -129,7 +130,7 @@ export class NativeRemoteSidebarService {
 
 export function buildNativeRemoteSidebarInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-30.layout-surface1', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
+  const VERSION = '2026-09-30.scoped-placement1', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
   const ROOT_SELECTOR = '[data-codex-control-console-remote-sidebar]';
   if (window.__codexControlConsoleRemoteSidebarVersion === VERSION && window.__codexControlConsoleRemoteSidebarObserver) return;
   window.__codexControlConsoleRemoteSidebarObserver?.disconnect?.(); if (window.__codexControlConsoleRemoteNativeSelectionListener) document.removeEventListener('click', window.__codexControlConsoleRemoteNativeSelectionListener, true);
@@ -138,6 +139,8 @@ export function buildNativeRemoteSidebarInjectionScript() {
   const expandedDevices = window.__codexControlConsoleExpandedRemoteDevices || new Set(), expandedProjects = window.__codexControlConsoleExpandedRemoteProjects || new Set(), expandedProjectLists = window.__codexControlConsoleExpandedRemoteProjectLists || new Set();
   let selectedConversationKey = window.__codexControlConsoleSelectedRemoteConversation || '', devices = [], root = null, placementPending = false, templateSignature = '';
   let renderedSignature = null; const renderPlan = ${remoteSidebarRenderPlan.toString()};
+  const mutationPlan = ${nativeSidebarMutationPlan.toString()};
+  let placedRoots = [], lastUnified = Boolean(window.__codexControlConsoleUnifiedSidebar?.enabled), refreshTemplates = false;
   window.__codexControlConsoleExpandedRemoteDevices = expandedDevices; window.__codexControlConsoleExpandedRemoteProjects = expandedProjects; window.__codexControlConsoleExpandedRemoteProjectLists = expandedProjectLists;
   ${buildNativeRemoteProjectCopyUiSource()}
   ${buildNativeRemoteProjectListUiSource()}
@@ -206,18 +209,22 @@ export function buildNativeRemoteSidebarInjectionScript() {
     return node;
   }
   function ensurePlacement() {
-    if (window.__codexControlConsoleUnifiedSidebar?.enabled) { root?.remove(); return; }
-    document.querySelectorAll(ROOT_SELECTOR).forEach((node) => { if (node !== root) node.remove(); }); if (!devices.length) { root?.remove(); return; }
+    lastUnified = Boolean(window.__codexControlConsoleUnifiedSidebar?.enabled);
+    if (lastUnified) { root?.remove(); placedRoots = []; return; }
+    document.querySelectorAll(ROOT_SELECTOR).forEach((node) => { if (node !== root) node.remove(); }); if (!devices.length) { root?.remove(); placedRoots = []; return; }
     const templates = nativeTemplates();
     if (root && templatesSignature(templates) !== templateSignature) render();
     const nativeProjects = nativeProjectsSection();
     const nativeProjectsWrapper = nativeProjects?.parentElement;
     const sectionsContainer = nativeProjectsWrapper?.parentElement;
-    if (!sectionsContainer) return;
+    if (!sectionsContainer) { placedRoots = []; return; }
     if (!root) render();
     if (root) {
-      root.style.order = '${NATIVE_SIDEBAR_ORDER.remote}';
-      if (root.parentElement !== sectionsContainer) sectionsContainer.insertBefore(root, nativeProjectsWrapper);
+      const order = '${NATIVE_SIDEBAR_ORDER.remote}';
+      if (root.style.order !== '${NATIVE_SIDEBAR_ORDER.remote}') root.style.order = '${NATIVE_SIDEBAR_ORDER.remote}';
+      let following = root; while (following && following !== nativeProjectsWrapper) following = following.nextSibling;
+      if (root.parentElement !== sectionsContainer || !following) sectionsContainer.insertBefore(root, nativeProjectsWrapper);
+      placedRoots = [{ node: root, parent: root.parentElement, next: root.nextSibling, order }];
     }
   }
   function leafWithText(root) {
@@ -274,10 +281,17 @@ export function buildNativeRemoteSidebarInjectionScript() {
 
   ${buildNativeRemoteSidebarRenderSource()}
 
-  function schedulePlacement() {
+  function schedulePlacement(records) {
+    const plan = mutationPlan(records, document, { ownSelector: ROOT_SELECTOR, ownedRoots: placedRoots });
+    if (!plan.refresh && lastUnified === Boolean(window.__codexControlConsoleUnifiedSidebar?.enabled)) return;
+    refreshTemplates ||= plan.templates;
     if (placementPending) return;
     placementPending = true;
-    requestAnimationFrame(() => { placementPending = false; ensurePlacement(); });
+    requestAnimationFrame(() => {
+      placementPending = false;
+      if (refreshTemplates && root && devices.length && !window.__codexControlConsoleUnifiedSidebar?.enabled) render();
+      refreshTemplates = false; ensurePlacement();
+    });
   }
 
   window.__codexControlConsoleRefreshLegacySidebar = () => { render(); ensurePlacement(); };
@@ -289,7 +303,8 @@ export function buildNativeRemoteSidebarInjectionScript() {
   };
   document.addEventListener('click', window.__codexControlConsoleRemoteNativeSelectionListener, true);
   window.__codexControlConsoleRemoteSidebarObserver = new MutationObserver(schedulePlacement);
-  window.__codexControlConsoleRemoteSidebarObserver.observe(document.documentElement, { childList: true, subtree: true });
+  window.__codexControlConsoleRemoteSidebarObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true,
+    attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'data-theme', 'data-color-scheme', 'data-app-action-sidebar-section-collapsed', 'data-app-action-sidebar-project-collapsed', 'data-app-action-sidebar-thread-selected', 'aria-selected', 'aria-current', 'aria-expanded'] });
   schedulePlacement();
 })()`;
 }

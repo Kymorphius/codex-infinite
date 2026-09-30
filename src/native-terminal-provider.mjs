@@ -2,6 +2,7 @@ import { readNativeSidebarModel } from './native-sidebar-model.mjs';
 import { nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, nativeDiscussionPairs, createNativeTerminalSidebar } from './native-terminal-sidebar.mjs';
 import { createNativeTerminalActions } from './native-terminal-actions.mjs';
 import { installNativeCompanionMenu } from './native-companion-menu.mjs';
+import { nativeSidebarMutationPlan } from './native-sidebar-mutation.mjs';
 
 export function installNativeTerminalProvider(dashboardUrl, readModel, makeSidebar, makeActions, prepareConnection = () => false) {
   window.__cccTerminalConversations?.dispose?.();
@@ -9,7 +10,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
   // disposed), so always use the current one; capturing it left refresh failing forever.
   const nativeMode = Boolean(window.__cccTerminalNative), native = () => (nativeMode ? window.__cccTerminalNative : null);
   const origin = new URL(dashboardUrl).origin, channel = crypto.randomUUID(), pending = new Map();
-  let ready = nativeMode, disposed = false, reading = false, records = [], pairs = new Map(), timer = null, selected = '', restoreActive = true, restoreAttempts = 0, acceptedVersion = 0;
+  let ready = nativeMode, disposed = false, reading = false, records = [], pairs = new Map(), timer = null, selected = '', restoreActive = true, restoreAttempts = 0, acceptedVersion = 0, ownedRoots = [];
   const frame = nativeMode ? null : document.createElement('iframe');
   if (frame) { frame.hidden = true; frame.setAttribute('data-ccc-terminal-bridge', ''); frame.src = origin + '/terminal-bridge.html?channel=' + encodeURIComponent(channel); }
   function request(operation, input = {}, timeoutMs = 30000) {
@@ -25,11 +26,16 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
       frame.contentWindow.postMessage({ type: 'codex-terminal-request', channel, id, operation, input }, origin);
     });
   }
+  function captureRoots() {
+    ownedRoots = Array.from(document.querySelectorAll?.('[data-ccc-terminal-sidebar]') || [])
+      .map(node => ({ node, parent: node.parentElement, next: node.nextSibling }));
+  }
   function sync() {
     if (disposed) return;
     window.__codexControlConsoleConversationTabs?.syncTerminal?.(records);
     const active = window.__codexControlConsoleConversationTabs?.active?.();
     sidebar.render(records, active?.kind === 'terminal' ? active.id : '', pairs);
+    captureRoots();
     window.__codexControlConsoleProjectSearch?.refresh?.();
     window.__codexControlConsoleConversationTabs?.updateRecentSent?.();
   }
@@ -100,12 +106,17 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
     pending.delete(event.data.id); clearTimeout(entry.timeout);
     if (event.data.error) entry.reject(Error(event.data.error)); else entry.resolve(event.data.result);
   }
-  function schedule(records) {
-    if (timer || disposed || records?.every(record => record.target?.closest?.('[data-ccc-terminal-sidebar]'))) return;
+  function schedule(changes) {
+    if (timer || disposed) return;
+    const relevant = typeof nativeSidebarMutationPlan === 'function'
+      ? nativeSidebarMutationPlan(changes, document, { ownSelector: '[data-ccc-terminal-sidebar]', ownedRoots, terminalTabs: true }).refresh
+      : !changes?.every(record => record.target?.closest?.('[data-ccc-terminal-sidebar]'));
+    if (!relevant) return;
     timer = setTimeout(() => { timer = null; sync(); }, 200);
   }
   const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-app-action-sidebar-project-collapsed', 'data-app-action-sidebar-section-collapsed', 'aria-selected'] });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'data-theme', 'data-color-scheme', 'data-app-action-sidebar-project-collapsed', 'data-app-action-sidebar-section-collapsed', 'data-app-action-sidebar-thread-selected', 'aria-selected', 'aria-current', 'aria-expanded'] });
   window.addEventListener('message', receive); if (frame) document.body.append(frame);
   const interval = setInterval(refresh, 5000);
   window.__cccTerminalConversations = {
@@ -118,7 +129,7 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
       }
       catch (error) { actions.notice(error.message); return null; }
     },
-    select(id) { selected = id || ''; sidebar.render(records, selected); },
+    select(id) { selected = id || ''; sidebar.render(records, selected); captureRoots(); },
     dispose() { disposed = true; ready = false; companionMenu?.dispose(); clearInterval(interval); clearTimeout(timer); observer.disconnect(); window.removeEventListener('message', receive); frame?.remove(); sidebar.destroy(); actions.destroy(); for (const entry of pending.values()) { clearTimeout(entry.timeout); entry.reject(Error('会话管理已重新连接')); } pending.clear(); }
   };
   if (nativeMode) void refresh();
@@ -126,5 +137,5 @@ export function installNativeTerminalProvider(dashboardUrl, readModel, makeSideb
 }
 
 export function buildNativeTerminalProviderSource() {
-  return [readNativeSidebarModel, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, nativeDiscussionPairs, createNativeTerminalSidebar, createNativeTerminalActions, installNativeCompanionMenu, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
+  return [readNativeSidebarModel, nativeSidebarMutationPlan, nativeTerminalProjectList, nativeTerminalProjectPlacement, nativeCompanionPlacement, nativeDiscussionPairs, createNativeTerminalSidebar, createNativeTerminalActions, installNativeCompanionMenu, installNativeTerminalProvider].map(fn => fn.toString()).join('\n');
 }

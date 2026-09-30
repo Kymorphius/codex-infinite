@@ -100,7 +100,64 @@ time 251.35 ms before and 87.12 ms after. This is an isolated algorithm measurem
 not a native-window speed or CPU claim. An independent 1,200-query differential
 check preserves the existing path results.
 
-Sidebar implementation, repository-wide validation and activation are in progress.
+## Sidebar results
+
+Both native builders serialize a shared mutation filter. It checks the changed
+subtree, native fold/selection markers, sidebar ancestors and known owned-root
+placement before scheduling work. Rendering keeps reading the live React model;
+no final-model or template TTL cache was introduced. Remote placement writes its
+order only when different and repairs external movement within the same parent.
+
+The actual terminal builder/provider/sidebar/model fixture has 1,000 React fibers
+and a mounted terminal row. Across 500 unrelated message-area child/class batches,
+the old provider performs 500 model reads, 500,000 fiber visits and 500 refreshes
+each for tabs, search and recent messages. The new provider performs zero of these
+operations. A root-run comparison uses the provider from commit `56845b8` with the
+same final fixture; this verifies the baseline independently of the implementation
+lane. Six new regressions preserve native selection and bare fold controls,
+ancestor visibility, tab coalescing, row removal/movement, ancestor remount,
+explicit metadata acceptance, the 5-second refresh, client replacement and disposal.
+Existing tests retain bounded startup restoration and request safety coverage.
+
+The actual remote injection fixture records mutations from its own rendering and
+drains them to a bounded settled state. Across 500 unrelated message-area batches,
+the new implementation adds zero section scans, template/icon clones, style reads,
+order assignments or subtree replacements. The earlier baseline recorded 1,000
+section scans, 500 project clones, 500 thread clones, 1,000 icon clones and 500 order
+assignments. Six new regressions cover repeated explicit snapshots, template
+descendant/source changes, theme and ancestor visibility, native collapse/selection,
+root removal/movement/order repair, remounts, temporarily absent sections, unified
+mode transitions and repeated installation. The last fixture installs both actual
+builders with a terminal row inside a native project list and an expanded selected
+remote thread carrying a native selection marker. An external terminal descendant
+class change settles after at most one remote render and one provider sync; the
+next 500 message-area batches add no native scans, model reads or scheduled timers.
+Independent review also checks an old injection upgraded while its RAF is pending:
+it settles with one observer, one root and the intended order.
+
+These are reproducible operation counts from synthetic page fixtures, not a claim
+about observed native-window CPU or frame rate.
+
+## Validation results
+
+- `npm run check`: syntax 865 files, browser module graph 71 modules and structure
+  909 files passed. No structure budget changed. The final remote subscription and
+  dual-observer test also pass fresh syntax and structure checks.
+- Final focused run: 62/62 passed across the three backend changes and both native
+  observers, including the actual dual-builder fixture. Independent remote review
+  passed 16/16 and found no blocking issue.
+- A default-concurrency full run encountered one timeout in the existing real PTY
+  output test: 1,946 passed, 14 skipped and one failed. The unchanged PTY test passed
+  alone in 0.4 seconds. A complete subsequent `npm test -- --test-concurrency=4`
+  passed with 1,951 passed, 14 conditional skips and zero failures. No timeout or
+  production behavior was relaxed to obtain this result.
+- Owned staged changes pass `git diff --check`. No native UI/CDP access or real
+  managed Claude session manipulation was used for these validations.
+
+Source validation is complete. Activation remains pending while three managed
+Claude terminals are running. Restarting the backend reloads its code and changes
+the content-derived provider installer version; remote installation has its own
+new version. This does not establish rendered UI acceptance or live CPU savings.
 
 ## Validation and activation
 
