@@ -3,7 +3,7 @@ import { createSourceSidebarRenderer } from './native-sidebar-render.mjs';
 import { installSidebarMenu } from './native-sidebar-menu.mjs';
 
 export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, createMenu) {
-  const VERSION = '2026-09-21.owner.7';
+  const VERSION = '2026-09-30.layout-surface1';
   if (window.__codexControlConsoleUnifiedSidebar?.version === VERSION) return;
   window.__codexControlConsoleUnifiedSidebar?.dispose();
   document.querySelectorAll('[data-codex-control-console-unified-list]').forEach(node => node.remove());
@@ -15,7 +15,7 @@ export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, c
   const control = document.createElement('div'); control.setAttribute('data-codex-control-console-unified-control', '');
   const toggle = document.createElement('button'); toggle.textContent = '统一'; toggle.setAttribute('data-codex-control-console-unified-toggle', '');
   const manage = document.createElement('button'); manage.textContent = '管理'; manage.title = '管理各设备原生分区';
-  for (const button of [toggle, manage]) { button.style.cssText = 'border:1px solid #8885;border-radius:6px;padding:3px 7px;font:inherit;font-size:12px;color:inherit;background:var(--color-background-primary,#252525);-webkit-app-region:no-drag'; control.append(button); }
+  for (const button of [toggle, manage]) { button.style.cssText = 'border:1px solid #8885;border-radius:6px;padding:3px 7px;font:inherit;font-size:12px;color:inherit;background:var(--color-surface,#252525);-webkit-app-region:no-drag'; control.append(button); }
   function request(operation, input) {
     if (!ready) return Promise.reject(Error('侧边栏连接尚未就绪'));
     const id = crypto.randomUUID();
@@ -62,7 +62,7 @@ export function installUnifiedSidebar(dashboardUrl, readModel, createRenderer, c
         control.style.cssText = 'position:fixed;z-index:60;display:' + (rect.width > 100 && rect.height > 0 ? 'flex' : 'none') + ';gap:3px;left:' + (rect.right - (enabled ? 96 : 52)) + 'px;top:' + (rect.top + Math.max(0, (rect.height - 28) / 2)) + 'px';
       }
     }
-    const pressed = String(enabled), background = enabled ? 'var(--color-background-selected,#555)' : 'var(--color-background-primary,#252525)';
+    const pressed = String(enabled), background = enabled ? 'color-mix(in srgb,currentColor 12%,var(--color-surface,#252525))' : 'var(--color-surface,#252525)';
     if (toggle.getAttribute('aria-pressed') !== pressed) toggle.setAttribute('aria-pressed', pressed);
     if (toggle.style.background !== background) toggle.style.background = background;
     if (manage.hidden === enabled) manage.hidden = !enabled;

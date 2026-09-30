@@ -1,6 +1,6 @@
 // Claude model picker in the terminal composer (shadow root). The pill follows the native
 // composer's borderless model control; the menu copies .ccc-native-recent-menu (12px radius,
-// primary background, 0 14px 42px shadow, blurred) and its 8px rows with a 9% hover fill.
+// native elevated surface, 0 14px 42px shadow, blurred) and its 8px rows with a 9% hover fill.
 const CHECK = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6l4.5-5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat`;
 
 export const NATIVE_TERMINAL_MODEL_PICKER_STYLE = `
@@ -12,7 +12,7 @@ export const NATIVE_TERMINAL_MODEL_PICKER_STYLE = `
 .model-pill[aria-expanded="true"]>svg{transform:rotate(180deg)}
 .model-menu{position:absolute;right:0;bottom:calc(100% + 10px);z-index:6;display:flex;flex-direction:column;gap:1px;
   width:min(320px,calc(100vw - 32px));max-height:min(500px,calc(100vh - 140px));overflow:auto;overscroll-behavior:contain;padding:6px;
-  border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;background:var(--color-background-primary,#202022);
+  border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;background:var(--color-surface-elevated,var(--color-surface,#202022));
   color:var(--fg);box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(22px);font:400 12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .model-menu[hidden]{display:none}
 /* In the top layer (popover) the menu is fixed to the viewport; place() sets right/bottom/max-height. */

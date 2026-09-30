@@ -54,6 +54,21 @@ test('entry sits left of the sidebar header controls, needs the store, and insta
   globalThis.window = original;
 });
 
+test('an older layout is removed and replaced even when its store is unchanged', () => {
+  const f = setup();
+  const oldEntry = installNativeRestartNeedsEntry(f.doc);
+  const oldPanel = oldEntry.panel;
+  oldEntry.cccRestartNeedsVersion = 'old-layout';
+  const entry = installNativeRestartNeedsEntry(f.doc);
+  assert.notEqual(entry, oldEntry);
+  assert.equal(oldEntry.parentElement, null);
+  assert.equal(oldPanel.parentElement, null);
+  assert.equal(f.listeners.size, 1, 'only the new subscription remains');
+  assert.equal(f.doc.head.children.length, 1, 'the old stylesheet is removed');
+  assert.match(f.doc.head.children[0].textContent, /--color-surface-elevated/);
+  assert.equal(installNativeRestartNeedsEntry(f.doc), entry);
+});
+
 test('badge counts marks; panel lists them, opens a conversation, unmarks, and shows an empty state', () => {
   const marks = [{ id: '00000000-0000-0000-0000-000000000001', provider: 'terminal', title: 'Claude 一', markedAt: '2026-09-29T10:00:00.000Z', status: 'restart' }];
   const f = setup(marks);

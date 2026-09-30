@@ -1,6 +1,6 @@
 // Native menu integration owns no React nodes and never changes native menu actions.
 export function installNativeProjectPathMenu() {
-  const VERSION = '2026-09-26.terminal-conversations';
+  const VERSION = '2026-09-30.layout-surface1';
   const KEY = '__codexControlConsoleProjectPathMenu';
   if (window[KEY]?.version === VERSION && window[KEY]?.ready) return;
   window[KEY]?.dispose();
@@ -53,7 +53,7 @@ export function installNativeProjectPathMenu() {
   }
   function notice(message) {
     const node = document.createElement('div'); node.textContent = message; node.setAttribute('role', 'status');
-    node.style.cssText = 'position:fixed;z-index:2147483647;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 12px;border-radius:9px;background:var(--color-background-primary,#252525);color:var(--color-text);box-shadow:0 8px 24px #0004;font:13px/20px system-ui;';
+    node.style.cssText = 'position:fixed;z-index:2147483647;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 12px;border-radius:9px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text);box-shadow:0 8px 24px #0004;font:13px/20px system-ui;';
     document.body.append(node); setTimeout(() => node.remove(), 1600);
   }
   async function copy(path, message = '项目路径已复制') {

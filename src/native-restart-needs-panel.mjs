@@ -1,6 +1,7 @@
 // Top-left sidebar entry: a count badge and a panel of conversations marked as needing a
 // restart. Idempotent; called on every entry-install tick. Data comes from the page store.
 export function installNativeRestartNeedsEntry(documentRef = document) {
+  const VERSION = '2026-09-30.layout-surface1';
   const attribute = 'data-codex-control-console-restart-needs';
   const search = documentRef.querySelector('button[aria-label="搜索"],button[aria-label="Search"]');
   const host = search?.parentElement?.parentElement?.parentElement;
@@ -8,8 +9,15 @@ export function installNativeRestartNeedsEntry(documentRef = document) {
   const store = window.__codexControlConsoleRestartMarks;
   if (!row || !store) return null;
   let entry = documentRef.querySelector('[' + attribute + ']');
+  if (entry && entry.cccRestartNeedsVersion !== VERSION) {
+    entry.unsubscribe?.();
+    entry.panel?.remove();
+    entry.remove();
+    entry = null;
+  }
   if (!entry) {
     entry = documentRef.createElement('button');
+    entry.cccRestartNeedsVersion = VERSION;
     entry.type = 'button';
     entry.setAttribute(attribute, '');
     entry.setAttribute('aria-haspopup', 'dialog');
@@ -28,7 +36,7 @@ export function installNativeRestartNeedsEntry(documentRef = document) {
   entry.panel?.remove();
   const style = documentRef.createElement('style');
   style.textContent = '[data-restart-needs-badge]{position:absolute;top:1px;right:0;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:#e89a6c;color:#1b1b1d;font:700 10px/14px -apple-system,sans-serif;text-align:center}[data-restart-needs-badge][hidden]{display:none}[data-restart-needs-badge][data-verify-only="true"]{background:#7da9ff}' +
-    '[data-restart-needs-panel]{position:fixed;z-index:2147483000;width:min(340px,calc(100vw - 24px));max-height:min(480px,calc(100vh - 100px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-background-primary,#202022);color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}[data-restart-needs-panel][hidden]{display:none}' +
+    '[data-restart-needs-panel]{position:fixed;z-index:2147483000;width:min(340px,calc(100vw - 24px));max-height:min(480px,calc(100vh - 100px));overflow:auto;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:6px;background:var(--color-surface-elevated,var(--color-surface,#202022));color:var(--color-text,#eee);box-shadow:0 14px 42px rgba(0,0,0,.28);font:12px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}[data-restart-needs-panel][hidden]{display:none}' +
     '[data-restart-needs-panel] h3{margin:0;padding:6px 8px;font:600 12px/18px inherit;opacity:.7}[data-restart-needs-panel] p{margin:0;padding:16px;text-align:center;opacity:.6}' +
     '.ccc-restart-needs-row{display:flex;align-items:center;gap:4px;border-radius:8px}.ccc-restart-needs-open{display:flex;min-width:0;flex:1;flex-direction:column;border:0;border-radius:8px;padding:7px 8px;background:transparent;color:inherit;text-align:left;cursor:pointer}' +
     '.ccc-restart-needs-open:hover,.ccc-restart-needs-open:focus-visible,.ccc-restart-needs-clear:hover{background:color-mix(in srgb,currentColor 9%,transparent);outline:none}.ccc-restart-needs-open b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 13px/17px inherit}.ccc-restart-needs-open span{font-size:11px;opacity:.58}' +

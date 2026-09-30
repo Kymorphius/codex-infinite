@@ -4,7 +4,7 @@ import { installNativeProjectSearchActions } from './native-project-search-actio
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
 export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
-  const VERSION = '2026-09-29.fixed-slot6';
+  const VERSION = '2026-09-30.layout-surface1';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -120,7 +120,7 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
       const color = getComputedStyle(node).backgroundColor;
       if (color && color !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(color)) { backdrop = color; break; }
     }
-    if (backdrop === 'transparent') backdrop = 'var(--color-background-primary, #202020)';
+    if (backdrop === 'transparent') backdrop = 'var(--color-surface,#202020)';
     root.style.position = 'relative';
     if (fixed) Object.assign(results.style, { position: 'absolute', top: '100%', left: '0', right: '0', zIndex: '30', maxHeight: '65vh', overflowY: 'auto', overscrollBehavior: 'contain', backgroundColor: 'color-mix(in srgb, ' + backdrop + ' 90%, transparent)', backdropFilter: 'blur(18px) saturate(1.4)', webkitBackdropFilter: 'blur(18px) saturate(1.4)', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,.4)' });
     results.style.display = query.trim() ? '' : 'none';

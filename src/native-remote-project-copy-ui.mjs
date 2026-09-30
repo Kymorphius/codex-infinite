@@ -3,7 +3,7 @@ export function buildNativeRemoteProjectCopyUiSource() {
   let projectMenu = null;
   function closeProjectMenu() { projectMenu?.remove(); projectMenu = null; }
   function showCopyNotice(message) {
-    const notice = element('div', message, 'position:fixed;z-index:2147483647;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 12px;border-radius:9px;background:var(--color-background-primary,#252525);color:var(--color-text);box-shadow:0 8px 24px rgba(0,0,0,.25);font:13px/20px -apple-system,system-ui,"Segoe UI",sans-serif;');
+    const notice = element('div', message, 'position:fixed;z-index:2147483647;left:50%;bottom:28px;transform:translateX(-50%);padding:8px 12px;border-radius:9px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text);box-shadow:0 8px 24px rgba(0,0,0,.25);font:13px/20px -apple-system,system-ui,"Segoe UI",sans-serif;');
     notice.setAttribute('role', 'status'); document.body.append(notice); setTimeout(() => notice.remove(), 1600);
   }
   async function copyMenuText(value, successMessage) {
@@ -28,7 +28,7 @@ export function buildNativeRemoteProjectCopyUiSource() {
   function openProjectMenu(event, device, project) {
     event.preventDefault(); event.stopPropagation(); closeProjectMenu();
     const available = device.status === 'connected' && Boolean(project.sourceDirectory);
-    const menu = element('div', null, 'position:fixed;z-index:2147483646;min-width:190px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:5px;border:1px solid rgba(128,128,128,.24);border-radius:10px;background:var(--color-background-primary,#252525);color:var(--color-text);box-shadow:0 10px 30px rgba(0,0,0,.24);font:13px/20px -apple-system,system-ui,"Segoe UI",sans-serif;');
+    const menu = element('div', null, 'position:fixed;z-index:2147483646;min-width:190px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:5px;border:1px solid rgba(128,128,128,.24);border-radius:10px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text);box-shadow:0 10px 30px rgba(0,0,0,.24);font:13px/20px -apple-system,system-ui,"Segoe UI",sans-serif;');
     menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', project.name + ' 项目操作');
     const action = element('button', available ? '复制项目到本机…' : device.status !== 'connected' ? '设备离线，无法复制' : '项目包含多个工作目录');
     action.type = 'button'; action.disabled = !available; action.setAttribute('role', 'menuitem');
@@ -57,7 +57,7 @@ export function buildNativeRemoteProjectCopyUiSource() {
   }
   function openConversationMenu(event, conversation) {
     event.preventDefault(); event.stopPropagation(); closeProjectMenu();
-    const menu = element('div', null, 'position:fixed;z-index:2147483646;min-width:190px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:5px;border:1px solid rgba(128,128,128,.24);border-radius:10px;background:var(--color-background-primary,#252525);color:var(--color-text);box-shadow:0 10px 30px rgba(0,0,0,.24);font:13px/20px -apple-system,system-ui,"Segoe UI",sans-serif;');
+    const menu = element('div', null, 'position:fixed;z-index:2147483646;min-width:190px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:5px;border:1px solid rgba(128,128,128,.24);border-radius:10px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text);box-shadow:0 10px 30px rgba(0,0,0,.24);font:13px/20px -apple-system,system-ui,"Segoe UI",sans-serif;');
     menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', conversation.title + ' 会话操作');
     const action = element('button', '复制会话 ID'); action.type = 'button'; action.setAttribute('role', 'menuitem');
     action.style.cssText = 'display:block;width:100%;padding:7px 10px;border:0;border-radius:7px;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer;';

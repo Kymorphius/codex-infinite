@@ -29,7 +29,7 @@ export function installNativeNewConversationButton({ documentRef, root, activeTa
   const notify = (message) => {
     const node = documentRef.createElement('div');
     node.textContent = message; node.setAttribute('role', 'status');
-    node.style.cssText = 'position:fixed;z-index:2147483647;bottom:28px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:var(--color-background-primary,#252525);color:var(--color-text);font:13px/20px -apple-system,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28)';
+    node.style.cssText = 'position:fixed;z-index:2147483647;bottom:28px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text);font:13px/20px -apple-system,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28)';
     documentRef.body.append(node); setTimeout(() => node.remove(), 3000);
   };
   const close = ({ focus = false } = {}) => {

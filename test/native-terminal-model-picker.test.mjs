@@ -130,7 +130,7 @@ test('picker style copies the native menu surface and opens upward', () => {
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /\.model-menu\{position:absolute;right:0;bottom:calc\(100% \+ 10px\)/);
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /\.model-picker\{[^}]*min-width:0;max-width:min\(280px,42vw\)\}/, 'the width cap is on the shrinkable wrapper');
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /\.model-pill\{flex:0 1 auto;max-width:100%;min-width:0/);
-  assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /border-radius:12px;background:var\(--color-background-primary,#202022\)/);
+  assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /border-radius:12px;background:var\(--color-surface-elevated,var\(--color-surface,#202022\)\)/);
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /box-shadow:0 14px 42px rgba\(0,0,0,\.28\);backdrop-filter:blur\(22px\)/);
   assert.match(NATIVE_TERMINAL_MODEL_PICKER_STYLE, /\.model-row:hover:not\(:disabled\),\.model-row:focus-visible\{background:color-mix\(in srgb,currentColor 9%,transparent\)/);
 });

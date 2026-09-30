@@ -3,7 +3,7 @@ export function nativeChecklistStyles() {
   const addIcon = icon('<path d="M12 5v14M5 12h14"/>');
   const searchIcon = icon('<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>');
   return `
-    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(760px,calc(100vw - 40px));max-height:82vh;padding:22px;border:1px solid #8885;border-radius:18px;background:var(--color-background-primary,#252525);color:var(--color-text,#eee);box-shadow:0 24px 80px #0008;font:14px/1.5 system-ui}
+    [data-ccc-checklist]{position:fixed;inset:0;margin:auto;width:min(760px,calc(100vw - 40px));max-height:82vh;padding:22px;border:1px solid #8885;border-radius:18px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text,#eee);box-shadow:0 24px 80px #0008;font:14px/1.5 system-ui}
     [data-ccc-checklist]::backdrop{background:#0006}
     [data-ccc-checklist][open]{display:flex;flex-direction:column;gap:10px}
     [data-ccc-checklist] header{display:flex;align-items:center;justify-content:space-between;gap:16px;order:0}

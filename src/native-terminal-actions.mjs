@@ -2,7 +2,7 @@ export function createNativeTerminalActions({ documentRef, windowRef, request, a
   let dialog = null;
   function notice(text) {
     const node = documentRef.createElement('div'); node.textContent = text; node.setAttribute('role', 'status');
-    node.style.cssText = 'position:fixed;z-index:2147483647;bottom:28px;left:50%;transform:translateX(-50%);padding:10px 14px;border-radius:10px;background:var(--color-background-primary,#252525);color:var(--color-text-primary,#eee);font:13px system-ui';
+    node.style.cssText = 'position:fixed;z-index:2147483647;bottom:28px;left:50%;transform:translateX(-50%);padding:10px 14px;border-radius:10px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text-primary,#eee);font:13px system-ui';
     documentRef.body.append(node); setTimeout(() => node.remove(), 4000);
   }
   async function update(record, fields) {
@@ -11,7 +11,7 @@ export function createNativeTerminalActions({ documentRef, windowRef, request, a
   }
   function rename(record) {
     dialog?.remove(); dialog = documentRef.createElement('dialog'); dialog.setAttribute('aria-label', '重命名会话');
-    dialog.style.cssText = 'padding:20px;border:1px solid #8885;border-radius:14px;background:var(--color-background-primary,#252525);color:var(--color-text-primary,#eee);min-width:320px';
+    dialog.style.cssText = 'padding:20px;border:1px solid #8885;border-radius:14px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text-primary,#eee);min-width:320px';
     const form = documentRef.createElement('form'), title = documentRef.createElement('h3'), input = documentRef.createElement('input'), save = documentRef.createElement('button'), cancel = documentRef.createElement('button');
     title.textContent = '重命名会话'; input.value = record.title; input.maxLength = 160; input.required = true; input.setAttribute('aria-label', '会话名称'); input.style.cssText = 'display:block;width:100%;padding:8px;margin:12px 0;color:inherit;background:transparent;border:1px solid #8887;border-radius:6px';
     save.type = 'submit'; save.textContent = '保存'; cancel.type = 'button'; cancel.textContent = '取消'; cancel.onclick = () => dialog?.close();

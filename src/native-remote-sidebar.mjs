@@ -129,7 +129,7 @@ export class NativeRemoteSidebarService {
 
 export function buildNativeRemoteSidebarInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-29.render-gate', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
+  const VERSION = '2026-09-30.layout-surface1', REMOTE_SELECTED_ATTRIBUTE = 'data-codex-control-console-remote-thread-selected';
   const ROOT_SELECTOR = '[data-codex-control-console-remote-sidebar]';
   if (window.__codexControlConsoleRemoteSidebarVersion === VERSION && window.__codexControlConsoleRemoteSidebarObserver) return;
   window.__codexControlConsoleRemoteSidebarObserver?.disconnect?.(); if (window.__codexControlConsoleRemoteNativeSelectionListener) document.removeEventListener('click', window.__codexControlConsoleRemoteNativeSelectionListener, true);

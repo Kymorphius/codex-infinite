@@ -1,13 +1,13 @@
 // Adapter for owned project aliases; native Codex owns drafts and file opening.
 export function installNativeProjectSearchActions(resolveServices) {
-  const VERSION = '2026-09-23.3';
+  const VERSION = '2026-09-30.layout-surface1';
   if (window.__cccProjectSearchActions?.version === VERSION) return;
   let servicePromise;
   const local = project => project?.device?.kind !== 'remote-codex';
   function notice(message) {
     const node = document.createElement('div');
     node.textContent = message; node.setAttribute('role', 'status');
-    node.style.cssText = 'position:fixed;z-index:2147483647;bottom:28px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:var(--color-background-primary,#252525);color:var(--color-text);font:13px/20px system-ui;';
+    node.style.cssText = 'position:fixed;z-index:2147483647;bottom:28px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:var(--color-surface-elevated,var(--color-surface,#252525));color:var(--color-text);font:13px/20px system-ui;';
     document.body.append(node); setTimeout(() => node.remove(), 3000);
   }
   async function services() {
