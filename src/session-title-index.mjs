@@ -19,30 +19,45 @@ export function parseSessionTitleIndex(content) {
 }
 
 export class SessionTitleIndex {
-  constructor({ filePath } = {}) {
+  constructor({ filePath, fsImpl = fs } = {}) {
     this.filePath = filePath;
+    this.fs = fsImpl;
+    this.cached = null;
+    this.inflight = null;
   }
 
   async read() {
+    return new Map(await this.readShared());
+  }
+
+  readShared() {
+    if (!this.inflight) this.inflight = this.readFresh().finally(() => { this.inflight = null; });
+    return this.inflight;
+  }
+
+  async readFresh() {
     if (!this.filePath) return new Map();
     try {
-      return parseSessionTitleIndex(await fs.readFile(this.filePath, "utf8"));
-    } catch (error) {
-      if (error.code === "ENOENT") return new Map();
+      const stat = await this.fs.stat(this.filePath);
+      const signature = `${stat.dev}:${stat.ino}:${stat.ctimeMs}:${stat.mtimeMs}:${stat.size}`;
+      if (this.cached?.signature === signature) return this.cached.titles;
+      const titles = parseSessionTitleIndex(await this.fs.readFile(this.filePath, "utf8"));
+      this.cached = { signature, titles };
+      return titles;
+    } catch {
+      this.cached = null;
       return new Map();
     }
+  }
+
+  async titleOf(threadId) {
+    const titles = await this.readShared();
+    return titles.get(String(threadId || '').toLowerCase()) || titles.get(String(threadId || '')) || '';
   }
 }
 
 // Title of one Codex conversation, re-reading the index only when it changes.
-export function createCodexTitleLookup({ filePath } = {}) {
-  let cached = { key: '', titles: new Map() };
-  return async function titleOf(threadId) {
-    if (!filePath) return '';
-    try {
-      const stat = await fs.stat(filePath), key = `${stat.mtimeMs}:${stat.size}`;
-      if (cached.key !== key) cached = { key, titles: parseSessionTitleIndex(await fs.readFile(filePath, "utf8")) };
-    } catch { return ''; }
-    return cached.titles.get(String(threadId || '').toLowerCase()) || cached.titles.get(String(threadId || '')) || '';
-  };
+export function createCodexTitleLookup(options = {}) {
+  const index = new SessionTitleIndex(options);
+  return threadId => index.titleOf(threadId);
 }

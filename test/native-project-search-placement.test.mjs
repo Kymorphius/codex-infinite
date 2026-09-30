@@ -4,7 +4,8 @@ import vm from 'node:vm';
 import { installNativeProjectSearch } from '../src/native-project-search.mjs';
 
 function fixture(ready = ['checklist', 'board', 'console', 'sessions', 'priority']) {
-  let moves = 0;
+  let moves = 0, styleReads = 0, terminalReads = 0, serializations = 0, backdrop = 'rgb(20, 20, 20)';
+  const observers = [];
   class Node {
     constructor(tag = 'div') { this.tag = tag; this.children = []; this.attrs = {}; this.style = {}; this.listeners = {}; }
     append(...nodes) { for (const node of nodes) this.insertBefore(node, null); }
@@ -18,6 +19,10 @@ function fixture(ready = ['checklist', 'board', 'console', 'sessions', 'priority
     setAttribute(key, value) { this.attrs[key] = value; }
     getAttribute(key) { return this.attrs[key] ?? null; }
     get attributes() { return []; }
+    get isConnected() { let node = this; while (node.parentElement) node = node.parentElement; return node.tag === 'html'; }
+    matches(selector) { return selector.split(',').some(value => select(value).includes(this)); }
+    querySelector(selector) { return select(selector).find(node => node !== this && walk(this).includes(node)) || null; }
+    closest(selector) { for (let node = this; node; node = node.parentElement) if (node.matches(selector)) return node; return null; }
     addEventListener(type, handler) { this.listeners[type] = handler; }
     replaceChildren() { for (const child of this.children) child.parentElement = null; this.children = []; }
     focus() { this.focused = true; }
@@ -35,14 +40,17 @@ function fixture(ready = ['checklist', 'board', 'console', 'sessions', 'priority
   };
   const document = { documentElement: root, querySelector: selector => select(selector)[0] || null, querySelectorAll: select,
     createElement: tag => new Node(tag), createElementNS: (_, tag) => new Node(tag) };
-  const window = { __cccTerminalConversations: { records: () => [] } };
-  const context = vm.createContext({ window, document, getComputedStyle: () => ({ backgroundColor: 'rgb(20, 20, 20)' }),
-    localStorage: { getItem: () => null }, MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: callback => callback(),
+  const window = { __cccTerminalConversations: { records: () => { terminalReads++; return []; } } };
+  const context = vm.createContext({ window, document, getComputedStyle: () => { styleReads++; return { backgroundColor: backdrop }; },
+    JSON: { parse: JSON.parse, stringify: value => { serializations++; return JSON.stringify(value); } },
+    localStorage: { getItem: () => null }, MutationObserver: class { constructor(callback) { this.callback = callback; observers.push(this); } observe() {} disconnect() { this.disposed = true; } }, requestAnimationFrame: callback => callback(),
     filter: (projects, query) => projects.filter(project => project.name.includes(query)) });
   const install = () => vm.runInContext(`(${installNativeProjectSearch.toString()})(filter)`, context);
   install();
   return { root, group, scroller, wrapper, section, window, walk, addActions, install, makeGroup() { const next = new Node(); root.insertBefore(next, scroller); return next; },
-    actions, search: () => document.querySelector('[data-codex-control-console-project-search]'), reset() { moves = 0; }, get moves() { return moves; } };
+    actions, search: () => document.querySelector('[data-codex-control-console-project-search]'), reset() { moves = 0; styleReads = 0; terminalReads = 0; serializations = 0; }, get moves() { return moves; },
+    get counts() { return { styleReads, terminalReads, serializations }; }, node: () => new Node(), setBackdrop(value) { backdrop = value; },
+    emit(records) { for (const observer of observers) if (!observer.disposed) observer.callback(records); } };
 }
 
 test('search follows the complete shortcut group and settles without repeated moves', () => {
@@ -94,4 +102,34 @@ test('installer refresh keeps query and expansion while Escape still clears the 
   assert.notEqual(replacement, old); assert.equal(nextInput.value, 'alpha'); assert.equal(f.window.__codexControlConsoleProjectSearch.getState().expanded[0], 'p');
   let stopped = 0; nextInput.listeners.keydown({ key: 'Escape', stopPropagation() { stopped++; } });
   assert.equal(stopped, 1); assert.equal(nextInput.value, ''); assert.equal(f.window.__codexControlConsoleProjectSearch.getState().expanded.length, 0);
+});
+
+test('closed search ignores unrelated streaming batches and does no catalog or style work', () => {
+  const f = fixture(), timeline = f.node(), text = f.node(); f.root.append(timeline); timeline.append(text);
+  f.window.__codexControlConsoleProjectSearch.set({ projects: [{ id: 'p', name: 'alpha' }], stale: false }); f.reset();
+  for (let index = 0; index < 500; index++) f.emit([{ type: 'childList', target: timeline, addedNodes: [text], removedNodes: [] }]);
+  for (let index = 0; index < 5; index++) f.window.__codexControlConsoleProjectSearch.refresh();
+  assert.deepEqual(f.counts, { styleReads: 0, terminalReads: 0, serializations: 0 }); assert.equal(f.moves, 0);
+});
+
+test('open search caches backdrop across settled refreshes and repaints when theme changes', () => {
+  const f = fixture(), search = f.search(), input = search.children[0].children[0], results = search.children[1];
+  input.value = 'alpha'; input.listeners.input(); assert.equal(f.counts.styleReads, 1); f.reset();
+  for (let index = 0; index < 5; index++) f.window.__codexControlConsoleProjectSearch.refresh();
+  assert.equal(f.counts.styleReads, 0); assert.equal(f.moves, 0);
+  f.setBackdrop('rgb(220, 220, 220)'); f.emit([{ type: 'attributes', target: f.root, attributeName: 'class' }]);
+  assert.equal(f.counts.styleReads, 1); assert.match(results.style.backgroundColor, /220, 220, 220/);
+  input.value = ''; input.listeners.input(); f.reset();
+  f.emit([{ type: 'attributes', target: f.root, attributeName: 'class' }]);
+  assert.deepEqual(f.counts, { styleReads: 0, terminalReads: 0, serializations: 0 });
+  input.value = 'alpha'; input.listeners.input(); assert.equal(f.counts.styleReads, 1);
+});
+
+test('sidebar child-list remount repairs placement while preserving open search state', () => {
+  const f = fixture(), search = f.search(), input = search.children[0].children[0]; input.value = 'alpha'; input.listeners.input();
+  const old = f.group; old.remove(); const next = f.makeGroup(), actions = f.addActions(next, ['checklist', 'board', 'console', 'sessions', 'priority']); f.reset();
+  f.emit([{ type: 'childList', target: f.root, addedNodes: [next], removedNodes: [old] }]);
+  assert.equal(f.search(), search); assert.equal(search.previousElementSibling, actions.at(-1)); assert.equal(input.value, 'alpha'); assert.equal(f.counts.styleReads, 1);
+  f.reset(); f.emit([{ type: 'childList', target: search.children[1], addedNodes: [], removedNodes: [] }]);
+  assert.deepEqual(f.counts, { styleReads: 0, terminalReads: 0, serializations: 0 }); assert.equal(f.moves, 0);
 });

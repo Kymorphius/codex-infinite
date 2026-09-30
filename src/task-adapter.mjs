@@ -7,6 +7,7 @@ import { buildProjectPriorities } from "./priority.mjs";
 import { parseConversationActivity } from "./conversation-activity.mjs";
 import { boundedSessionTitle, userTextFromSessionRecord } from "./session-title.mjs";
 import { normalizeThreadSettings } from "./thread-settings.mjs";
+import { SessionFileScan } from "./session-file-scan.mjs";
 
 const DEFAULT_MAX_FILES = 160;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
@@ -132,22 +133,6 @@ export function parseSessionJsonl(content, filePath = "") {
   };
 }
 
-async function collectJsonlFiles(root, output = []) {
-  let entries;
-  try {
-    entries = await fs.readdir(root, { withFileTypes: true });
-  } catch (error) {
-    if (error.code === "ENOENT") return output;
-    throw error;
-  }
-  for (const entry of entries) {
-    const fullPath = path.join(root, entry.name);
-    if (entry.isDirectory()) await collectJsonlFiles(fullPath, output);
-    else if (entry.isFile() && entry.name.endsWith(".jsonl")) output.push(fullPath);
-  }
-  return output;
-}
-
 async function readTaskFile(filePath, maxBytes) {
   const stat = await fs.stat(filePath);
   let content;
@@ -186,7 +171,7 @@ async function readFileTail(filePath, maxBytes = DEFAULT_ACTIVITY_BYTES) {
 }
 
 export class CodexTaskAdapter {
-  constructor({ sessionRoot, archivedSessionRoot, titleIndex, runtimeStatusProvider, contextWindowStore = null, sessionSettingsIndex = null, projectNameIndex = null, threadProjectIndex = null, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device, readTaskFileImpl = readTaskFile } = {}) {
+  constructor({ sessionRoot, archivedSessionRoot, titleIndex, runtimeStatusProvider, contextWindowStore = null, sessionSettingsIndex = null, projectNameIndex = null, threadProjectIndex = null, maxFiles = DEFAULT_MAX_FILES, maxBytesPerFile = DEFAULT_MAX_BYTES, device, readTaskFileImpl = readTaskFile, fsImpl = fs, clock = Date.now, metadataTtlMs = 250 } = {}) {
     this.sessionRoot = sessionRoot;
     this.archivedSessionRoot = archivedSessionRoot;
     this.maxFiles = maxFiles;
@@ -199,6 +184,7 @@ export class CodexTaskAdapter {
     this.threadProjectIndex = threadProjectIndex;
     this.device = normalizeSessionDevice(device);
     this.readTaskFile = readTaskFileImpl;
+    this.fileScan = new SessionFileScan({ sessionRoot, archivedSessionRoot, fsImpl, clock, ttlMs: metadataTtlMs });
     this.fileCache = new Map();
     this.listing = null;
     this.taskIndex = new Map();
@@ -232,10 +218,7 @@ export class CodexTaskAdapter {
       return { status: "disconnected", source: "codex-session-metadata-read-only", readOnly: true, tasks: [], projects: [], devices: [{ ...this.device, status: "disconnected" }], message: "未配置 Codex 本地任务目录。" };
     }
     try {
-      const files = await collectJsonlFiles(this.sessionRoot);
-      if (this.archivedSessionRoot) await collectJsonlFiles(this.archivedSessionRoot, files);
-      const stats = await Promise.all(files.map(async (filePath) => ({ filePath, stat: await fs.stat(filePath) })));
-      stats.sort((left, right) => right.stat.mtimeMs - left.stat.mtimeMs);
+      const stats = await this.fileScan.read();
       const indexedTitles = await this.titleIndex?.read() || new Map();
       const runtimeStatuses = await this.runtimeStatusProvider?.readThreadStatuses() || new Map();
       let projectNames = null;
@@ -244,7 +227,7 @@ export class CodexTaskAdapter {
       const selected = stats.slice(0, this.maxFiles);
       const selectedPaths = new Set(selected.map(({ filePath }) => filePath));
       for (const { filePath, stat } of selected) {
-        const signature = `${stat.size}:${stat.mtimeMs}`;
+        const signature = `${stat.dev}:${stat.ino}:${stat.ctimeMs}:${stat.size}:${stat.mtimeMs}`;
         const cached = this.fileCache.get(filePath);
         let task;
         if (cached?.signature === signature) task = cached.task ? { ...cached.task } : null;
@@ -294,6 +277,7 @@ export class CodexTaskAdapter {
       }
       return { status: "connected", source: "codex-session-metadata-read-only", readOnly: true, tasks: currentTasks, projects: buildProjectPriorities(currentTasks), devices: [this.device] };
     } catch (error) {
+      this.fileScan.invalidate();
       return { status: "error", source: "codex-session-metadata-read-only", readOnly: true, tasks: [], projects: [], devices: [{ ...this.device, status: "error" }], message: `读取 Codex 任务记录失败：${error.message}` };
     }
   }

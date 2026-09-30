@@ -265,8 +265,8 @@ ${providerSource}
       return;
     }
     fallback?.remove();
-    positionNativeSidebarDot(document, anchor);
-    installNativeSidebarModuleEntries(document, anchor, definitions, entryIcons, module => openWorkspace(module));
+    const shortcutAnchor = positionNativeSidebarDot(document, anchor) || anchor;
+    installNativeSidebarModuleEntries(document, anchor, definitions, entryIcons, module => openWorkspace(module), shortcutAnchor);
     scheduleEmbeddedFrameRecovery(
       () => !document.querySelector(WORKSPACE_SELECTOR) && Boolean(nativeAnchor()),
       (recovery) => { terminalTarget = recovery.reference || null; openWorkspace(recovery.module, '正在恢复会话…', recovery.module !== 'terminal'); }

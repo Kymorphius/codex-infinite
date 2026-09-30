@@ -58,6 +58,7 @@ export class SshPeerAdapter {
     this.nextReadAt = 0;
     this.snapshotRequest = null;
     this.lastSnapshot = null;
+    this.readRoutes = new Map();
     this.sidebar = new SshPeerSidebar({ peer, execFile: execFileImpl, spawn: spawnImpl, actionKeyPath });
     this.skills = new SshPeerSkills({ peer, execFile: execFileImpl, spawn: spawnImpl, actionKeyPath, logger });
   }
@@ -74,6 +75,13 @@ export class SshPeerAdapter {
     this.readFailures = 0;
     this.nextReadAt = 0;
   }
+  registerRouteReadFailure(index, transport) {
+    const previous = this.readRoutes.get(index);
+    const failures = (previous?.failures || 0) + 1;
+    const delay = Math.min(this.backoffMaxMs, this.backoffBaseMs * (2 ** (failures - 1)));
+    this.readRoutes.set(index, { failures, nextReadAt: this.clock() + delay });
+    if (!previous) this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} transport ${transport.type} route ${index + 1} unavailable`);
+  }
 
   listTasks() {
     if (this.nextReadAt > this.clock()) return Promise.resolve(this.lastSnapshot || this.unavailableSnapshot());
@@ -83,7 +91,8 @@ export class SshPeerAdapter {
   }
 
   async fetchSnapshot() {
-    for (const transport of this.peer.transports) {
+    for (const [index, transport] of this.peer.transports.entries()) {
+      if ((this.readRoutes.get(index)?.nextReadAt || 0) > this.clock()) continue;
       try {
         const { stdout } = await this.execFile("ssh", sshSnapshotArguments(transport, { remotePlatform: this.peer.platform }), {
           encoding: "utf8",
@@ -91,11 +100,12 @@ export class SshPeerAdapter {
           maxBuffer: MAX_SNAPSHOT_BYTES
         });
         const result = normalizePeerSnapshot(this.peer, JSON.parse(stdout));
+        this.readRoutes.delete(index);
         this.registerReadSuccess();
         this.lastSnapshot = { ...result, transport: transport.type };
         return this.lastSnapshot;
       } catch (error) {
-        this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} transport ${transport.type} unavailable`);
+        this.registerRouteReadFailure(index, transport);
       }
     }
     this.registerReadFailure();
@@ -110,17 +120,20 @@ export class SshPeerAdapter {
       error.statusCode = 503;
       throw error;
     }
-    for (const transport of this.peer.transports) {
+    for (const [index, transport] of this.peer.transports.entries()) {
+      if ((this.readRoutes.get(index)?.nextReadAt || 0) > this.clock()) continue;
       try {
         const { stdout } = await this.execFile("ssh", sshActivityArguments(transport, threadId, { remotePlatform: this.peer.platform }), {
           encoding: "utf8",
           timeout: ACTIVITY_PROCESS_TIMEOUT_MS,
           maxBuffer: MAX_ACTIVITY_BYTES
         });
+        const result = normalizePeerActivity(this.peer, JSON.parse(stdout));
+        this.readRoutes.delete(index);
         this.registerReadSuccess();
-        return { ...normalizePeerActivity(this.peer, JSON.parse(stdout)), transport: transport.type };
+        return { ...result, transport: transport.type };
       } catch {
-        this.logger.warn?.(`[codex-control-console] peer ${this.peer.id} activity transport ${transport.type} unavailable`);
+        this.registerRouteReadFailure(index, transport);
       }
     }
     this.registerReadFailure();

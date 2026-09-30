@@ -1,4 +1,5 @@
 import { installBindings } from './native-bindings.mjs';
+import { installNativeCached } from './native-installer-cache.mjs';
 import { buildNativeUnifiedSidebarInjectionScript } from './native-unified-sidebar.mjs';
 import { buildNativeClaudePreviewInjectionScript } from './native-claude-preview.mjs';
 import { buildNativeClaudeToolRowsInjectionScript } from './native-claude-tool-rows.mjs';
@@ -41,6 +42,7 @@ import { NATIVE_DASHBOARD_BINDING } from "./native-dashboard-launch.mjs";
 import { installNativeTerminalBinding } from './native-terminal-binding.mjs';
 import { prepareNativeTerminalRuntime } from './native-terminal-runtime.mjs';
 import { prepareNativeCspBypass } from "./native-csp-bypass.mjs";
+import { findNativeEntryAnchor, nativeLayoutTransition } from './native-entry-probe.mjs';
 
 export async function persistNativeContextAction(payload, contextWindowStore) {
   if (!contextWindowStore) return null;
@@ -64,39 +66,35 @@ export async function drainNativeContextActions(connection, contextWindowStore) 
   return actions;
 }
 
-async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations) {
-  await connection.evaluate(buildNativeApprovalInjectionScript());
-  await connection.evaluate(buildNativeContextInjectionScript());
+export const NATIVE_INSTALLER_READINESS = `[window.__codexControlConsoleNativeContextVersion, window.__codexControlConsoleNativeApprovalVersion,
+  typeof window.__codexControlConsoleSetContextOverrides === 'function', typeof window.__codexControlConsoleReadPendingApprovals === 'function',
+  window.__codexControlConsoleProjectSearch?.version, window.__cccClaudePreviewVersion, window.__cccClaudeToolRows?.version,
+  Boolean(document.getElementById('ccc-claude-panel-style')), Boolean(document.querySelector('style[data-ccc-claude-tool-style]'))]`;
+export const NATIVE_INSTALLER_REPAIR = `if (typeof window.__codexControlConsoleSetContextOverrides !== 'function') delete window.__codexControlConsoleNativeContextVersion;
+if (typeof window.__codexControlConsoleReadPendingApprovals !== 'function') delete window.__codexControlConsoleNativeApprovalVersion;`;
+
+function contextInstallers() {
+  return [NATIVE_INSTALLER_REPAIR, buildNativeApprovalInjectionScript(), buildNativeContextInjectionScript(), buildNativeJevRoutingInjectionScript(),
+    buildNativeClaudePreviewInjectionScript(), buildNativeClaudeToolRowsInjectionScript(), buildNativeTurboInjectionScript(),
+    buildNativeSidebarLabelsInjectionScript(), buildNativeSidebarActivityInjectionScript(), buildNativeRemoteSidebarInjectionScript(),
+    buildNativeAttentionStickyInjectionScript(), buildNativeChatgptChatSectionInjectionScript(), buildNativeOpenLocalProjectInjectionScript(),
+    buildNativeComposerHeldQueueInjectionScript(), `(() => { ${buildNativeComposerControlOrderSource()} })()`, buildNativeComposerIconControlsSource(),
+    buildNativeLongConversationInjectionScript(), buildNativeTurnStateInjectionScript(), buildNativeNewProjectsInjectionScript(),
+    buildNativeAttentionConversationsInjectionScript(), buildNativePinnedEmptyInjectionScript(), buildNativeProjectSearchInjectionScript(), buildNativeSentMessageSearchInjectionScript()];
+}
+
+async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, force) {
+  await installNativeCached(connection, { key: 'dedicated-context', build: () => contextInstallers(), readiness: NATIVE_INSTALLER_READINESS, force });
   await drainNativeContextActions(connection, contextWindowStore);
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
-  await connection.evaluate(buildNativeJevRoutingInjectionScript());
-  await connection.evaluate(buildNativeClaudePreviewInjectionScript());
-  await connection.evaluate(buildNativeClaudeToolRowsInjectionScript());
   await connection.evaluate(buildNativeJevRoutingSnapshotScript(jevRouting));
-  await connection.evaluate(buildNativeTurboInjectionScript());
   await connection.evaluate(buildNativeTurboSnapshotScript(turboPolicy));
-  await connection.evaluate(buildNativeSidebarLabelsInjectionScript());
-  await connection.evaluate(buildNativeSidebarActivityInjectionScript());
   await connection.evaluate(buildNativeSidebarLabelsSnapshotScript(sidebarLabels));
-  await connection.evaluate(buildNativeRemoteSidebarInjectionScript());
   await connection.evaluate(buildNativeRemoteSidebarSnapshotScript(remoteSidebar));
-  await connection.evaluate(buildNativeAttentionStickyInjectionScript());
-  await connection.evaluate(buildNativeChatgptChatSectionInjectionScript());
-  await connection.evaluate(buildNativeOpenLocalProjectInjectionScript());
-  await connection.evaluate(buildNativeComposerHeldQueueInjectionScript());
-  await connection.evaluate(`(() => { ${buildNativeComposerControlOrderSource()} })()`);
-  await connection.evaluate(buildNativeComposerIconControlsSource());
-  await connection.evaluate(buildNativeLongConversationInjectionScript());
-  await connection.evaluate(buildNativeTurnStateInjectionScript());
   await connection.evaluate(buildNativeTurnStateSnapshotScript(turnStateSnapshot));
-  await connection.evaluate(buildNativeNewProjectsInjectionScript());
   await connection.evaluate(buildNativeNewProjectsSnapshotScript(newProjects));
-  await connection.evaluate(buildNativeAttentionConversationsInjectionScript());
   await connection.evaluate(buildNativeAttentionConversationsSnapshotScript(attentionConversations));
   await connection.evaluate(buildNativeRecentSentSnapshotScript(recentSentConversations));
-  await connection.evaluate(buildNativePinnedEmptyInjectionScript());
-  await connection.evaluate(buildNativeProjectSearchInjectionScript());
-  await connection.evaluate(buildNativeSentMessageSearchInjectionScript());
   const search = mergeProjectSearchCatalog(projectSearch, remoteSidebar);
   await connection.evaluate(buildNativeProjectSearchSnapshotScript(search));
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
@@ -108,48 +106,20 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
       source: "window.__codexControlConsoleCspDocumentPrepared = true;"
     });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeContextInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeApprovalInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeJevRoutingInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeTurboInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeSidebarLabelsInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeSidebarActivityInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeRemoteSidebarInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeAttentionStickyInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeChatgptChatSectionInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", {
-      source: deferNativeDocumentSource(buildNativeOpenLocalProjectInjectionScript())
-    });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(`(() => { ${buildNativeComposerControlOrderSource()} })()`) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeComposerIconControlsSource()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeLongConversationInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeTurnStateInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeNewProjectsInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeAttentionConversationsInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeProjectSearchInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativeSentMessageSearchInjectionScript()) });
-    await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(buildNativePinnedEmptyInjectionScript()) });
+    for (const source of [buildNativeContextInjectionScript(), buildNativeApprovalInjectionScript(), buildNativeJevRoutingInjectionScript(), buildNativeTurboInjectionScript(),
+      buildNativeSidebarLabelsInjectionScript(), buildNativeSidebarActivityInjectionScript(), buildNativeRemoteSidebarInjectionScript(), buildNativeAttentionStickyInjectionScript(),
+      buildNativeChatgptChatSectionInjectionScript(), buildNativeOpenLocalProjectInjectionScript(), `(() => { ${buildNativeComposerControlOrderSource()} })()`, buildNativeComposerIconControlsSource(),
+      buildNativeLongConversationInjectionScript(), buildNativeTurnStateInjectionScript(), buildNativeNewProjectsInjectionScript(), buildNativeAttentionConversationsInjectionScript(),
+      buildNativeProjectSearchInjectionScript(), buildNativeSentMessageSearchInjectionScript(), buildNativePinnedEmptyInjectionScript()]) {
+      await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(source) });
+    }
     connection.__codexControlConsoleScriptsPrepared = true;
   }
   if (!standaloneDashboardBinding) {
     await prepareNativeCspBypass(connection, { reloadAfterCspBypass });
     await connection.evaluate(buildNativeUnifiedSidebarInjectionScript(dashboardUrl));
   }
-  await connection.evaluate(buildNativeSidebarRestartInjectionScript(dashboardUrl, hostActionBinding));
+  await installNativeCached(connection, { key: `dedicated-restart:${JSON.stringify([dashboardUrl, hostActionBinding])}`, build: () => buildNativeSidebarRestartInjectionScript(dashboardUrl, hostActionBinding), force });
   if (!force && connection.__codexControlConsoleInstalled) {
     const state = await connection.evaluate(`(() => {
       const entry = document.querySelector('[data-codex-control-console-entry]');
@@ -167,9 +137,8 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     }
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
-      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
-      await beforeInjection?.();
-      await connection.evaluate(buildInjectionScript(dashboardUrl, { standaloneDashboardBinding }));
+      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, force);
+      await installNativeShell(connection, dashboardUrl, standaloneDashboardBinding, force, beforeInjection);
       return { status: "already-installed" };
     }
     if (state.hasEntry && state.hasFrame && !state.frameReady) {
@@ -177,11 +146,23 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       connection.__codexControlConsoleRecoveryAttempted = true;
     }
   }
-  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations);
-  await beforeInjection?.();
-  await connection.evaluate(buildInjectionScript(dashboardUrl, { standaloneDashboardBinding }));
+  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, force);
+  await installNativeShell(connection, dashboardUrl, standaloneDashboardBinding, force, beforeInjection);
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
+}
+
+function shellRepair(find, layout) {
+  const damaged = document.querySelector('[data-codex-control-console-workspace]') && typeof window.__codexControlConsoleClose !== 'function';
+  if (document.querySelector('[data-codex-control-console-entry]')) return Boolean(damaged);
+  return Boolean(damaged || (layout(document, false).normal && find(document, v => String(v || '').replace(/\s+/g, ' ').trim())));
+}
+
+function installNativeShell(connection, dashboardUrl, standaloneDashboardBinding, force, beforeInstall) {
+  const repair = `(${shellRepair.toString()})(${findNativeEntryAnchor.toString()}, ${nativeLayoutTransition.toString()})`;
+  return installNativeCached(connection, { key: `dedicated-shell:${JSON.stringify([dashboardUrl, standaloneDashboardBinding])}`, force, beforeInstall,
+    readiness: `[window.__codexControlConsoleInjectionVersion, Boolean(window.__codexControlConsoleObserver), !${repair}]`,
+    build: () => `if (${repair}) delete window.__codexControlConsoleInjectionVersion;\n${buildInjectionScript(dashboardUrl, { standaloneDashboardBinding })}` });
 }
 
 export class CodexInjector {

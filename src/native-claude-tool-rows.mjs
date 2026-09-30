@@ -21,12 +21,12 @@ export function parseClaudeNativeToolNotice(value) {
 }
 
 export function installNativeClaudeToolRows(parseNotice) {
+  const VERSION = '2026-09-30.render-gate1';
   const rootSelector = '[data-thread-user-message-navigation-content],[data-app-action-timeline-scroll]';
   const rowAttribute = 'data-ccc-claude-tool-row';
+  const sourceAttribute = 'data-ccc-claude-tool-source';
   const inlineSelector = 'em,strong,b,i,code,span,a,del,s,br';
-  const style = document.querySelector('style[data-ccc-claude-tool-style]') || document.createElement('style');
-  style.setAttribute('data-ccc-claude-tool-style', '');
-  style.textContent = `
+  const css = `
     [${rowAttribute}] { margin:3px 0!important;color:#a6a6aa;font:500 14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     [data-ccc-claude-tool-container] { margin-block:0!important;padding-block:0!important;row-gap:0!important;min-height:0!important; }
     [data-ccc-claude-tool-adjacent] { margin-block-start:calc(6px - var(--ccc-claude-tool-parent-gap, 0px))!important; }
@@ -38,15 +38,22 @@ export function installNativeClaudeToolRows(parseNotice) {
     [${rowAttribute}] [data-ccc-claude-tool-label] { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
     [${rowAttribute}] pre { margin:7px 0 10px 27px;padding:8px 10px;border-radius:7px;background:#ffffff0b;color:#bbb;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
   `;
-  document.head.append(style);
-  if (window.__cccClaudeToolRows) {
-    window.__cccClaudeToolRows.render();
-    compact(document.querySelector(rootSelector));
-    window.__codexControlConsoleMutationSubscribers?.delete(window.__cccClaudeToolRows.compact);
-    window.__cccClaudeToolRows.compact = () => compact(document.querySelector(rootSelector));
-    (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(window.__cccClaudeToolRows.compact);
-    return;
+  function ensureStyle() {
+    const style = document.querySelector('style[data-ccc-claude-tool-style]') || document.createElement('style');
+    if (style.getAttribute?.('data-ccc-claude-tool-style') == null) style.setAttribute('data-ccc-claude-tool-style', '');
+    if (style.textContent !== css) style.textContent = css;
+    if (style.parentElement !== document.head) document.head.append(style);
   }
+  const previous = window.__cccClaudeToolRows;
+  if (previous?.version === VERSION) { previous.recover(); return; }
+  previous?.dispose?.();
+  const subscribers = window.__codexControlConsoleMutationSubscribers ||= new Set();
+  if (previous && !previous.dispose) {
+    subscribers.delete(previous.compact);
+    // Legacy private observers and unexposed callbacks retire with the native document.
+    // Their function bodies cannot establish ownership of a subscriber.
+  }
+  ensureStyle();
   // Only collapse wrappers containing tool notices exclusively, never prose or turns.
   function compact(node) {
     if (!node) return false;
@@ -87,7 +94,7 @@ export function installNativeClaudeToolRows(parseNotice) {
   }
 
   const processed = new WeakMap(), pending = new Map();
-  let queued = false;
+  let queued = false, disposed = false, lastRoot = null, observer = null, sharedObserver = null;
   function key(source, notice) {
     const turn = source.closest?.('[data-turn-key],[data-content-search-turn-key]');
     return `${turn?.getAttribute('data-turn-key') || turn?.getAttribute('data-content-search-turn-key') || ''}\u0000${notice.name}\u0000${notice.detail}`;
@@ -110,7 +117,9 @@ export function installNativeClaudeToolRows(parseNotice) {
     return row;
   }
   function render() {
+    if (disposed) return;
     const root = document.querySelector(rootSelector);
+    lastRoot = root;
     if (!root) return;
     for (const source of root.querySelectorAll('p,div,span')) {
       // Markdown may render command globs as <em>/<code>; accept inline-only
@@ -119,9 +128,19 @@ export function installNativeClaudeToolRows(parseNotice) {
       if (source.parentElement?.closest?.('[data-ccc-claude-tool-source]')) continue;
       const original = source.textContent || '';
       if (processed.get(source) === original) continue;
+      const seen = processed.has(source);
       const notice = parseNotice(original);
+      processed.set(source, original);
       if (!notice) continue;
       const identity = key(source, notice);
+      // Retain rows from a previous version instead of converting their hidden sources twice.
+      if (!seen && source.hasAttribute?.(sourceAttribute)) {
+        const earlier = source.previousElementSibling;
+        if (earlier?.hasAttribute?.(rowAttribute)) {
+          if (notice.status === '执行中') { const queue = pending.get(identity) || []; queue.push(earlier); pending.set(identity, queue); }
+          continue;
+        }
+      }
       if (notice.status !== '执行中') {
         const queue = pending.get(identity);
         const earlier = queue?.find(item => item.isConnected);
@@ -132,23 +151,37 @@ export function installNativeClaudeToolRows(parseNotice) {
         const queue = pending.get(identity) || []; queue.push(row); pending.set(identity, queue);
       }
       source.style.display = 'none';
-      source.setAttribute('data-ccc-claude-tool-source', '');
-      processed.set(source, original);
+      source.setAttribute(sourceAttribute, '');
     }
     compact(root);
   }
 
-  function schedule() {
-    if (queued) return;
-    queued = true;
-    queueMicrotask(() => { queued = false; render(); });
+  function relevant(record) {
+    const target = record.target?.nodeType === 3 ? record.target.parentElement : record.target;
+    if (target?.closest?.(rootSelector) && !target.closest?.('[' + rowAttribute + ']')) return true;
+    return [...(record.addedNodes || []), ...(record.removedNodes || [])].some(node => node.nodeType === 1
+      && (node.matches?.(rootSelector) || node.querySelector?.(rootSelector)));
   }
-  (window.__codexControlConsoleMutationSubscribers ||= new Set()).add(schedule);
-  const observer = !window.__codexControlConsoleObserver && typeof MutationObserver === 'function'
-    ? new MutationObserver(schedule) : null;
-  observer?.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
-  window.__cccClaudeToolRows = { render };
-  render();
+  function schedule(records = []) {
+    if (disposed || queued || records.length && !records.some(relevant)) return;
+    queued = true;
+    queueMicrotask(() => { queued = false; if (!disposed) render(); });
+  }
+  function recover() {
+    if (disposed) return;
+    ensureStyle();
+    // The common observer delivers child-list changes; a small local observer also catches text edits.
+    if (typeof MutationObserver === 'function' && (!observer || sharedObserver !== Boolean(window.__codexControlConsoleObserver))) {
+      observer?.disconnect(); sharedObserver = Boolean(window.__codexControlConsoleObserver);
+      observer = new MutationObserver(schedule);
+      observer.observe(document.documentElement, { subtree: true, childList: !sharedObserver, characterData: true });
+    }
+    if (document.querySelector(rootSelector) !== lastRoot) render();
+  }
+  subscribers.add(schedule);
+  window.__cccClaudeToolRows = { version: VERSION, render, recover, compact: () => compact(document.querySelector(rootSelector)),
+    dispose() { disposed = true; observer?.disconnect(); subscribers.delete(schedule); } };
+  recover();
 }
 
 export function buildNativeClaudeToolRowsInjectionScript() {

@@ -103,6 +103,7 @@ test('compact tool-only wrappers including old installed rows without shrinking 
   const second = node({ 'data-content-search-turn-key': 'message-2' }, [node({ 'data-ccc-claude-tool-row': '' })]);
   const mixed = node({}, [wrapper, second, prose]);
   const root = node({ 'data-turn-key': '' }, [mixed, empty]);
+  root.querySelectorAll = () => [];
   const style = node();
   const document = { querySelector: selector => selector.startsWith('style') ? style : root, head: { append() {} } };
   let renders = 0;
@@ -127,5 +128,5 @@ test('compact tool-only wrappers including old installed rows without shrinking 
   assert.equal(second.hasAttribute('data-ccc-claude-tool-adjacent'), false);
   vm.runInNewContext(script, { document, window, getComputedStyle: () => ({ rowGap: '32px' }) });
   assert.equal(window.__codexControlConsoleMutationSubscribers.size, 1);
-  assert.equal(renders, 2);
+  assert.equal(renders, 0, 'upgrades use the current renderer rather than retaining the legacy render closure');
 });

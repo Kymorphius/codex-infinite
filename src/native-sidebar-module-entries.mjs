@@ -1,11 +1,11 @@
 // This helper is serialized into the native page; keep every dependency local.
-export function installNativeSidebarModuleEntries(documentRef, anchor, definitions, icons, openModule) {
-  const parent = anchor?.parentElement;
-  if (!parent || anchor.closest?.('nav[data-app-navigation-rail]')) return [];
+export function installNativeSidebarModuleEntries(documentRef, anchor, definitions, icons, openModule, placementAnchor = anchor) {
+  const parent = placementAnchor?.parentElement;
+  if (!parent || anchor.closest?.('nav[data-app-navigation-rail]') || placementAnchor.closest?.('nav[data-app-navigation-rail]')) return [];
   const checklist = documentRef.querySelector('[data-ccc-general-checklist-entry]');
   const fallback = ['[data-codex-control-console-open-local-project]', '[data-codex-control-console-butler-entry]', '[data-sidebar-destination="builtin:orbit"]']
     .map(selector => Array.from(documentRef.querySelectorAll(selector)).find(node => node.parentElement === parent)).find(Boolean);
-  let previous = checklist?.parentElement === parent ? checklist : fallback || anchor;
+  let previous = checklist?.parentElement === parent ? checklist : fallback || placementAnchor;
   const selectedClasses = /^(?:bg-primary-ghost-hover|bg-text-info\/10|text-info|text-emphasis|text-codex-icon-active|(?:is-)?selected|(?:is-)?active)$/;
   const className = String(anchor.className || '').split(/\s+/).filter(value => value && !selectedClasses.test(value)).join(' ');
   const outerStyle = 'display:flex;align-items:center;min-width:0;width:100%;white-space:nowrap;text-align:start;';

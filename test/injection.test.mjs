@@ -96,7 +96,8 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, new RegExp(SESSION_ENTRY_ATTRIBUTE));
   assert.match(source, new RegExp(PRIORITY_ENTRY_ATTRIBUTE));
   assert.match(source, /KANBAN_ENTRY_TEXT = '看板'/);
-  assert.match(source, /installNativeSidebarModuleEntries\(document, anchor, definitions, entryIcons, module => openWorkspace\(module\)\)/);
+  assert.match(source, /const shortcutAnchor = positionNativeSidebarDot\(document, anchor\) \|\| anchor/);
+  assert.match(source, /installNativeSidebarModuleEntries\(document, anchor, definitions, entryIcons, module => openWorkspace\(module\), shortcutAnchor\)/);
   assert.match(source, /SESSION_ENTRY_TEXT = '会话中心'/);
   assert.match(source, /PRIORITY_ENTRY_TEXT = '项目优先级'/);
   assert.doesNotMatch(source, /data-codex-control-console-version/);

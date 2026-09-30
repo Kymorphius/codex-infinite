@@ -145,6 +145,7 @@ test("session adapter reuses unchanged parses and invalidates a changed file", a
   let reads = 0;
   const adapter = new CodexTaskAdapter({
     sessionRoot: directory,
+    metadataTtlMs: 0,
     async readTaskFileImpl(target) {
       reads += 1;
       return parseSessionJsonl(await fs.readFile(target, "utf8"), target);

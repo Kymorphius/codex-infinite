@@ -4,7 +4,7 @@ import { installNativeProjectSearchActions } from './native-project-search-actio
 import { NATIVE_SIDEBAR_ORDER } from './native-sidebar-order.mjs';
 
 export function installNativeProjectSearch(filter, terminalRows = () => [], order = 10) {
-  const VERSION = '2026-09-30.shortcut-search-tail1';
+  const VERSION = '2026-09-30.shortcut-search-perf2';
   if (window.__codexControlConsoleProjectSearch?.version === VERSION) return;
   const saved = window.__codexControlConsoleProjectSearch?.getState?.() || { query: document.querySelector('[data-codex-control-console-project-search] input')?.value || '', expanded: [] };
   window.__codexControlConsoleProjectSearch?.dispose();
@@ -12,6 +12,7 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
   document.querySelectorAll('[' + ATTR + ']').forEach(node => node.remove());
   let root, input, results, clear, signature = '', disposed = false, scheduled = false;
   let snapshot = { projects: [], stale: true };
+  let placementParent = null, nativeSection = null, paintedParent = null, paintedFixed = false, themeDirty = true;
   const expanded = new Set(saved.expanded);
   const make = (tag, cls, text) => {
     const node = document.createElement(tag); node.className = cls || '';
@@ -84,6 +85,7 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     const fixed = Boolean(anchor?.parentElement);
     const parent = fixed ? anchor.parentElement : native?.parentElement?.parentElement;
     if (!parent) return;
+    placementParent = parent; nativeSection = native;
     if (!root) {
       root = make('div', 'py-1'); root.setAttribute(ATTR, ''); root.style.order = String(order);
       const bar = make('div', 'flex items-center gap-1 rounded-md border border-token-border-default px-2');
@@ -102,6 +104,13 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     if (fixed) { if (root.parentElement !== parent || root.previousElementSibling !== anchor) parent.insertBefore(root, anchor.nextSibling); }
     else if (root.parentElement !== parent) parent.insertBefore(root, native.parentElement);
     const query = input.value || '';
+    const rootClassName = (native?.className || 'relative px-row-x') + ' py-1';
+    if (root.className !== rootClassName) root.className = rootClassName;
+    const display = query.trim() ? '' : 'none';
+    if (results.style.display !== display) results.style.display = display;
+    if (clear.hidden !== !query) clear.hidden = !query;
+    // A closed search needs placement only, not project/template scans or backdrop reads.
+    if (!query.trim()) { if (signature) results.replaceChildren(); signature = ''; return; }
     const style = templates();
     const terminals = (window.__cccTerminalConversations?.records?.() || []).map(record => ({ id: record.id, deviceId: record.deviceId, provider: record.provider,
       title: record.title, cwd: record.cwd, kind: record.kind, status: record.status, archived: record.archived, updatedAt: record.updatedAt, projectRef: record.projectRef,
@@ -111,26 +120,24 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     const companions = new Map(terminals.filter(record => record.companionOf && !record.archived).map(record => [record.companionOf, record]));
     const companionOpen = companionExpanded();
     const next = JSON.stringify([query, snapshot, [...expanded], style.signature, terminals, [...companionOpen]]);
-    const rootClassName = (native?.className || 'relative px-row-x') + ' py-1';
-    if (root.className !== rootClassName) root.className = rootClassName;
     // Fixed slot: results float over the sidebar in their own scroller, so the list's scroll
     // position and the results never affect each other. Backdrop is borrowed from the nearest
     // ancestor that paints one.
-    let backdrop = 'transparent';
-    if (fixed) for (let node = parent; node; node = node.parentElement) {
-      const color = getComputedStyle(node).backgroundColor;
-      if (color && color !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(color)) { backdrop = color; break; }
+    if (paintedParent !== parent || paintedFixed !== fixed || themeDirty) {
+      let backdrop = 'transparent';
+      if (fixed) for (let node = parent; node; node = node.parentElement) {
+        const color = getComputedStyle(node).backgroundColor;
+        if (color && color !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(color)) { backdrop = color; break; }
+      }
+      if (backdrop === 'transparent') backdrop = 'var(--color-surface,#202020)';
+      root.style.position = 'relative';
+      Object.assign(results.style, fixed ? { position: 'absolute', top: '100%', left: '0', right: '0', zIndex: '30', maxHeight: '65vh', overflowY: 'auto', overscrollBehavior: 'contain', backgroundColor: 'color-mix(in srgb, ' + backdrop + ' 90%, transparent)', backdropFilter: 'blur(18px) saturate(1.4)', webkitBackdropFilter: 'blur(18px) saturate(1.4)', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,.4)' } : { position: '', top: '', left: '', right: '', zIndex: '', maxHeight: '', overflowY: '', overscrollBehavior: '', backgroundColor: '', backdropFilter: '', webkitBackdropFilter: '', border: '', borderRadius: '', boxShadow: '' });
+      paintedParent = parent; paintedFixed = fixed; themeDirty = false;
     }
-    if (backdrop === 'transparent') backdrop = 'var(--color-surface,#202020)';
-    root.style.position = 'relative';
-    if (fixed) Object.assign(results.style, { position: 'absolute', top: '100%', left: '0', right: '0', zIndex: '30', maxHeight: '65vh', overflowY: 'auto', overscrollBehavior: 'contain', backgroundColor: 'color-mix(in srgb, ' + backdrop + ' 90%, transparent)', backdropFilter: 'blur(18px) saturate(1.4)', webkitBackdropFilter: 'blur(18px) saturate(1.4)', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,.4)' });
-    results.style.display = query.trim() ? '' : 'none';
     if (signature === next) return;
     signature = next;
-    clear.hidden = !query;
     const scrollTop = results.scrollTop;
     results.replaceChildren();
-    if (!query.trim()) return;
     const projects = filter(snapshot.projects, query);
     const status = make('div', 'px-1 py-1 text-sm text-tertiary', (projects.length ? projects.length + ' 个项目' : '没有匹配的项目') + (snapshot.stale ? ' · 本机列表暂未更新' : ''));
     status.setAttribute('role', 'status'); results.append(status);
@@ -218,11 +225,25 @@ export function installNativeProjectSearch(filter, terminalRows = () => [], orde
     for (const child of results.children) child.style.flexShrink = '0';
     results.scrollTop = scrollTop;
   }
-  const observer = new MutationObserver(() => {
+  const contains = (ancestor, node) => { for (let current = node; current; current = current.parentElement) if (current === ancestor) return true; return false; };
+  const relevantNode = node => node?.nodeType !== 3 && (node === placementParent || node === nativeSection
+    || contains(node, root) || node?.matches?.('#app-shell-sidebar,[data-ccc-general-checklist-entry],[data-ccc-sidebar-module-entry],[data-app-action-sidebar-project-id],[data-app-action-sidebar-thread-row],section[data-app-action-sidebar-section-heading="Projects"]')
+    || node?.querySelector?.('#app-shell-sidebar,[data-ccc-general-checklist-entry],[data-ccc-sidebar-module-entry],section[data-app-action-sidebar-section-heading="Projects"]'));
+  const observer = new MutationObserver(records => {
+    const relevant = records.some(record => {
+      if (contains(root, record.target)) return false;
+      if (record.type === 'attributes') {
+        if (record.target === document.documentElement || record.target === document.body || contains(record.target, root)) { themeDirty = true; return true; }
+        return Boolean(record.target?.matches?.('[data-app-action-sidebar-project-id],[data-app-action-sidebar-thread-row]'));
+      }
+      return root?.isConnected === false || record.target === placementParent || contains(nativeSection, record.target)
+        || Boolean(record.target?.closest?.('#app-shell-sidebar')) || [...record.addedNodes, ...record.removedNodes].some(relevantNode);
+    });
+    if (!relevant) return;
     if (scheduled || disposed) return; scheduled = true;
     requestAnimationFrame(() => { scheduled = false; render(); });
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'data-theme', 'data-color-mode'] });
   window.__codexControlConsoleProjectSearch = {
     version: VERSION,
     getState() { return { query: input?.value || '', expanded: [...expanded] }; },

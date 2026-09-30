@@ -1,4 +1,5 @@
 import { installBindings } from './native-bindings.mjs';
+import { installNativeCached, nativeInstallerSources } from './native-installer-cache.mjs';
 import { buildNativePinnedEmptyInjectionScript } from "./native-pinned-empty.mjs";
 import { buildNativeClaudePreviewInjectionScript } from './native-claude-preview.mjs';
 import { buildNativeClaudeToolRowsInjectionScript } from './native-claude-tool-rows.mjs';
@@ -13,7 +14,7 @@ import {
   buildNativeContextSnapshotScript,
   NATIVE_CONTEXT_BINDING
 } from "./native-context-injection.mjs";
-import { persistNativeContextAction } from "./injector.mjs";
+import { persistNativeContextAction, NATIVE_INSTALLER_READINESS, NATIVE_INSTALLER_REPAIR } from "./injector.mjs";
 import { respondToNativeTurboBinding, buildNativeTurboInjectionScript, buildNativeTurboSnapshotScript, NATIVE_TURBO_BINDING } from "./native-turbo-injection.mjs";
 import { buildNativeJevRoutingInjectionScript, buildNativeJevRoutingSnapshotScript, NATIVE_JEV_ROUTING_BINDING, respondToNativeJevRoutingBinding } from "./native-jev-routing.mjs";
 import { buildNativeSidebarLabelsInjectionScript, buildNativeSidebarLabelsSnapshotScript } from "./native-sidebar-labels.mjs";
@@ -56,8 +57,11 @@ function nativeOwnerInjectionScripts() {
   ];
 }
 
-function nativeOwnerDocumentStartScripts() {
-  return nativeOwnerInjectionScripts().filter((source) => !source.includes("__codexControlConsoleHeldQueueInstalledVersion"));
+function nativeOwnerSources(connection) {
+  return nativeInstallerSources(connection, 'owner-sources', () => nativeOwnerInjectionScripts());
+}
+function nativeOwnerDocumentStartScripts(connection) {
+  return nativeOwnerSources(connection).filter((source) => !source.includes("__codexControlConsoleHeldQueueInstalledVersion"));
 }
 
 export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
@@ -110,7 +114,7 @@ export class NativeOwnerInjector {
       await connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       await connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
-      for (const source of nativeOwnerDocumentStartScripts()) {
+      for (const source of nativeOwnerDocumentStartScripts(connection)) {
         await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(source) });
       }
     } catch (error) {
@@ -153,7 +157,8 @@ export class NativeOwnerInjector {
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
-      for (const source of nativeOwnerInjectionScripts()) await this.connection.evaluate(source);
+      await installNativeCached(this.connection, { key: 'owner-context', readiness: NATIVE_INSTALLER_READINESS,
+        build: () => [NATIVE_INSTALLER_REPAIR, ...nativeOwnerSources(this.connection)] });
       await this.connection.evaluate(buildNativeContextSnapshotScript(this.contextWindowStore?.list?.() || []));
       await this.connection.evaluate(buildNativeTurboSnapshotScript(this.turboPolicyProvider?.snapshot?.() || null));
       await this.connection.evaluate(buildNativeJevRoutingSnapshotScript(await this.jevRoutingService?.snapshot?.() || null));

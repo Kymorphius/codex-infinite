@@ -83,6 +83,7 @@ preserved. Record backend activation separately from native-window acceptance.
   the backend model directory includes GPT-6.1 Sol with all six reasoning efforts.
   No profile, credential, catalog or model-selection configuration was changed.
 - Activation used process lifecycle and backend-health checks without the default
-  CDP console-click recovery. Actual native model-picker visibility and the new
-  sidebar arrangement still require user confirmation or a supplied screenshot;
-  process/catalog checks alone do not establish UI acceptance.
+  CDP console-click recovery. The user subsequently confirmed GPT-6.1 Sol appears
+  in the native model menu. Their screenshot confirms project search follows the
+  shortcut group, but the native dot remains below it. Dot placement requires the
+  nested-wrapper repair in `2026-09-30-dot-placement-runtime-repair.md`.
