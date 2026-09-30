@@ -8,7 +8,7 @@ import { installNativeRestartNeedsEntry } from "./native-restart-needs-panel.mjs
 import { installNativeConversationBoardEntry } from "./native-conversation-board-entry.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall, nativeLayoutTransition } from "./native-entry-probe.mjs";
 import { openNativeChecklistTask } from './native-checklist-board-jump.mjs';
-import { placeNativeBoardBelowChecklist } from './native-board-below-checklist.mjs';
+import { installNativeSidebarModuleEntries } from './native-sidebar-module-entries.mjs';
 
 export const CONTROL_ENTRY_ATTRIBUTE = "data-codex-control-console-entry";
 export const KANBAN_ENTRY_ATTRIBUTE = "data-codex-control-console-kanban-entry";
@@ -27,6 +27,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const providerSource = buildNativeProviderNavigationSource();
   const providerDigest = createHash('sha256').update(providerSource).digest('hex').slice(0, 12);
   const probeDigest = createHash('sha256').update(findNativeEntryAnchor.toString() + nativeLayoutTransition.toString()).digest('hex').slice(0, 8);
+  const sidebarDigest = createHash('sha256').update(installNativeSidebarModuleEntries.toString()).digest('hex').slice(0, 8);
 
   return `(() => {
   const DASHBOARD_URL = ${dashboardLiteral};
@@ -41,7 +42,7 @@ export function buildInjectionScript(dashboardUrl, { standaloneDashboardBinding 
   const SESSION_ENTRY_SELECTOR = '[' + SESSION_ENTRY_ATTRIBUTE + ']';
   const PRIORITY_ENTRY_SELECTOR = '[' + PRIORITY_ENTRY_ATTRIBUTE + ']';
   const WORKSPACE_SELECTOR = '[' + WORKSPACE_ATTRIBUTE + ']';
-  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.terminal-inline.tabs-${digest}.provider-${providerDigest}.probe-${probeDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
+  const INJECTION_VERSION = ${JSON.stringify(`2026-09-27.chatgpt26.terminal-inline.tabs-${digest}.provider-${providerDigest}.probe-${probeDigest}.sidebar-${sidebarDigest}.standalone-${Boolean(standaloneDashboardBinding)}`)};
   const ENTRY_POLICY_VERSION = '2026-09-09.native-only';
   const ENTRY_TEXT = '控制台';
   const KANBAN_ENTRY_TEXT = '看板';
@@ -55,7 +56,7 @@ ${embeddedFrameRecoverySource}
 ${findNativeEntryAnchor.toString()}${nativeLayoutTransition.toString()}
 ${nativeEntryMutationNeedsInstall.toString()}
 ${openNativeChecklistTask.toString()}
-${placeNativeBoardBelowChecklist.toString()}
+${installNativeSidebarModuleEntries.toString()}
   if (window.__codexControlConsoleEntryPolicyVersion === ENTRY_POLICY_VERSION && window.__codexControlConsoleInjectionVersion === INJECTION_VERSION && window.__codexControlConsoleObserver) return;
   if (window.__codexControlConsoleInjected) {
     window.__codexControlConsoleObserver?.disconnect?.();
@@ -252,29 +253,17 @@ ${providerSource}
     const layout = nativeLayoutTransition(document, wasNormalLayout); wasNormalLayout = layout.normal; if (layout.leftNormal) { cancelTerminalNavigation(); restoreWorkspace(); } const anchor = layout.normal ? nativeAnchor() : null;
     const fallback = document.querySelector('[data-codex-control-console-fallback]');
     const definitions = [
-      { attribute: ENTRY_ATTRIBUTE, text: ENTRY_TEXT, module: 'console' },
       { attribute: KANBAN_ENTRY_ATTRIBUTE, text: KANBAN_ENTRY_TEXT, module: 'board' },
+      { attribute: ENTRY_ATTRIBUTE, text: ENTRY_TEXT, module: 'console' },
       { attribute: SESSION_ENTRY_ATTRIBUTE, text: SESSION_ENTRY_TEXT, module: 'sessions' },
       { attribute: PRIORITY_ENTRY_ATTRIBUTE, text: PRIORITY_ENTRY_TEXT, module: 'priority' }
     ];
-    const missing = definitions.filter((definition) => !document.querySelector('[' + definition.attribute + ']'));
     if (!anchor) {
       fallback?.remove();
       return;
     }
     fallback?.remove();
-    const insertionPoint = anchor.nextSibling;
-    for (const definition of missing) {
-      const entry = document.createElement('button');
-      entry.type = 'button';
-      entry.className = anchor.className;
-      entry.setAttribute(definition.attribute, '');
-      entry.setAttribute('aria-label', definition.text);
-      entry.innerHTML = entryIcons[definition.module] + '<span class="truncate">' + definition.text + '</span>';
-      entry.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openWorkspace(definition.module); });
-      anchor.parentElement?.insertBefore(entry, insertionPoint);
-    }
-    placeNativeBoardBelowChecklist(document.querySelector(KANBAN_ENTRY_SELECTOR), document.querySelector('[data-ccc-general-checklist-entry]'));
+    installNativeSidebarModuleEntries(document, anchor, definitions, entryIcons, module => openWorkspace(module));
     scheduleEmbeddedFrameRecovery(
       () => !document.querySelector(WORKSPACE_SELECTOR) && Boolean(nativeAnchor()),
       (recovery) => { terminalTarget = recovery.reference || null; openWorkspace(recovery.module, '正在恢复会话…', recovery.module !== 'terminal'); }

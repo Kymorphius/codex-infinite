@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { buildNativeConversationTabsInjectionSource } from "../src/native-conversation-tabs.mjs";
 import { buildNativeProviderNavigationSource } from "../src/native-terminal-navigation.mjs";
 import { findNativeEntryAnchor, nativeEntryMutationNeedsInstall, nativeLayoutTransition } from "../src/native-entry-probe.mjs";
+import { installNativeSidebarModuleEntries } from "../src/native-sidebar-module-entries.mjs";
 import {
   buildInjectionScript,
   injectionDecision,
@@ -71,7 +72,8 @@ test("outer injection version tracks native tabs source so recent menu changes r
   const digest = createHash("sha256").update(buildNativeConversationTabsInjectionSource()).digest("hex").slice(0, 12);
   const providerDigest = createHash("sha256").update(buildNativeProviderNavigationSource()).digest("hex").slice(0, 12);
   const probeDigest = createHash("sha256").update(findNativeEntryAnchor.toString() + nativeLayoutTransition.toString()).digest("hex").slice(0, 8);
-  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.probe-${probeDigest}\\.standalone-false"`));
+  const sidebarDigest = createHash("sha256").update(installNativeSidebarModuleEntries.toString()).digest("hex").slice(0, 8);
+  assert.match(source, new RegExp(`const INJECTION_VERSION = "2026-09-27\\.chatgpt26\\.terminal-inline\\.tabs-${digest}\\.provider-${providerDigest}\\.probe-${probeDigest}\\.sidebar-${sidebarDigest}\\.standalone-false"`));
   assert.match(source, /codex-control-console-open-checklist-task/);
   assert.doesNotMatch(source, /发送于 /);
 });
@@ -93,7 +95,7 @@ test("injection source includes a duplicate guard and dashboard origin", () => {
   assert.match(source, new RegExp(SESSION_ENTRY_ATTRIBUTE));
   assert.match(source, new RegExp(PRIORITY_ENTRY_ATTRIBUTE));
   assert.match(source, /KANBAN_ENTRY_TEXT = '看板'/);
-  assert.match(source, /placeNativeBoardBelowChecklist\(document\.querySelector\(KANBAN_ENTRY_SELECTOR\), document\.querySelector\('\[data-ccc-general-checklist-entry\]'\)\)/);
+  assert.match(source, /installNativeSidebarModuleEntries\(document, anchor, definitions, entryIcons, module => openWorkspace\(module\)\)/);
   assert.match(source, /SESSION_ENTRY_TEXT = '会话中心'/);
   assert.match(source, /PRIORITY_ENTRY_TEXT = '项目优先级'/);
   assert.doesNotMatch(source, /data-codex-control-console-version/);

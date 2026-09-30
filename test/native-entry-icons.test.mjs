@@ -19,7 +19,10 @@ test("all four entry icons are distinct, theme-aware and decorative", () => {
 test("native entries retain module icons without a floating fallback", () => {
   const source = buildInjectionScript("http://127.0.0.1:47831");
   assert.doesNotMatch(source, /button\.innerHTML = entryIcons\[definition\.module\]/);
-  assert.match(source, /entry\.innerHTML = entryIcons\[definition\.module\]/);
+  for (const icon of Object.values(NATIVE_ENTRY_ICONS)) {
+    assert.ok(source.includes(JSON.stringify(icon)), 'serialized injection preserves each module icon');
+  }
+  assert.match(source, /installNativeSidebarModuleEntries\(document, anchor, definitions, entryIcons,/);
   assert.doesNotMatch(source, /const iconMarkup/);
   assert.doesNotThrow(() => new Function(source));
 });
