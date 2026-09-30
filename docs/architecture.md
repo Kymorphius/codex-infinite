@@ -127,6 +127,11 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   new checkout creation in configured parents, exclusive directory creation,
   preserved failure receipts and live native project registration with independent
   readback. The coordinator owns no filesystem or native runtime details.
+- `src/conversation-continuation-service.mjs`, `src/local-conversation-continuation-adapter.mjs`,
+  `src/conversation-continuation-package.mjs`, `src/native-conversation-continuation.mjs` —
+  explicit idle conversation copies between associated identical Git snapshots,
+  bounded read-only rollout packages, stable new native identities and recoverable
+  existing-project import. Copying does not transfer source write ownership or start a turn.
 - `src/approval-contract.mjs` — pure bounded contract for owner-issued approval
   capabilities; only one-turn acceptance and denial cross the node boundary.
 - `src/execution-transcript.mjs` — pure, bounded full-fidelity projection and

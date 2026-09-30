@@ -167,3 +167,33 @@ test('replica browser actions require exact origin and node creation actions req
   assert.equal((await request(url, { body, headers })).body.result.bytes, 10000);
   assert.equal((await request(url, { body, headers })).status, 409);
 });
+
+test('conversation copies keep browser metadata small and transfer history only through signed peers', async t => {
+  const { request, signed } = await fixture(t, {
+    service: { conversationList: async () => ({ conversations: [] }), conversationPreflight: async () => ({ token: 'preview' }), conversationExecute: async () => ({ verified: true }), conversationResume: async () => ({ verified: true }) },
+    localAdapter: { conversationPrepare: async input => ({ bytes: input.history.length }), conversationExport: async () => ({ base64: 'h'.repeat(100000) }) }
+  });
+  for (const action of ['conversation-list', 'conversation-preflight', 'conversation-execute', 'conversation-resume']) {
+    assert.equal((await request(`/api/project-sync/${action}`, { headers: { 'content-type': 'application/json' } })).status, 403);
+    assert.equal((await request(`/api/project-sync/${action}`, { headers: { origin, 'content-type': 'application/json' } })).status, 200);
+  }
+  const prepare = '/api/node/project-sync/conversationPrepare', body = JSON.stringify({ history: 'h'.repeat(10000) });
+  assert.equal((await request(prepare, { body, headers: { 'content-type': 'application/json' } })).status, 401);
+  const headers = signed(prepare, body);
+  assert.equal((await request(prepare, { body, headers })).body.result.bytes, 10000);
+  assert.equal((await request(prepare, { body, headers })).status, 409);
+  const exportPath = '/api/node/project-sync/conversationExport', empty = '{}';
+  assert.equal((await request(exportPath, { body: empty, headers: signed(exportPath, empty) })).body.result.base64.length, 100000);
+  assert.equal((await request('/api/project-sync/conversationExport', { headers: { origin, 'content-type': 'application/json' } })).status, 404);
+});
+
+test('conversation execute reports definitive pre-dispatch rejection only, without exposing arbitrary error details', async t => {
+  let details = { applyStarted: false, privateHistory: 'private' };
+  const f = await fixture(t, { service: { conversationExecute: async () => { throw Object.assign(new Error('源会话已变化'), { statusCode: 409, details }); } } });
+  const input = { headers: { origin, 'content-type': 'application/json' } };
+  const rejected = await f.request('/api/project-sync/conversation-execute', input);
+  assert.equal(rejected.status, 409);
+  assert.deepEqual(rejected.body, { status: 'error', message: '源会话已变化', details: { applyStarted: false } });
+  details = { applyStarted: true };
+  assert.equal(Object.hasOwn((await f.request('/api/project-sync/conversation-execute', input)).body, 'details'), false);
+});

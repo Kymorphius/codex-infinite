@@ -1,14 +1,21 @@
 import path from 'node:path';
-import { LocalProjectReplicaAdapter } from './local-project-replica-adapter.mjs';
+import { LocalConversationContinuationAdapter } from './local-conversation-continuation-adapter.mjs';
+import { NativeConversationContinuation } from './native-conversation-continuation.mjs';
 import { NativeProjectRegistration } from './native-project-registration.mjs';
 import { ProjectIdentityStore } from './project-identity-store.mjs';
 import { SshProjectSyncAdapter } from './ssh-project-sync-adapter.mjs';
-import { ProjectReplicaService } from './project-replica-service.mjs';
+import { ConversationContinuationService } from './conversation-continuation-service.mjs';
 import { syncError } from './project-sync-contract.mjs';
 
 export function createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeConversationAdapter, localAdapter, peers, nativeProjectRegistrar = null }) {
   const registrar = nativeProjectRegistrar || new NativeProjectRegistration({ cdpOrigin: config.cdpOrigin, sidebar: nativeSidebarAdapter });
-  const localProjectSyncAdapter = new LocalProjectReplicaAdapter({
+  const localProjectSyncAdapter = new LocalConversationContinuationAdapter({
+    taskReader: id => localAdapter.getTask(id),
+    sessionRoots: [config.sessionRoot, config.archivedSessionRoot].filter(Boolean),
+    continuation: config.wrapperCodexHome && config.codexPath ? new NativeConversationContinuation({
+      codexPath: config.codexPath, codexHome: config.nativeCodexHome || config.sourceCodexHome,
+      sessionRoot: config.sessionRoot, receiptRoot: path.join(config.wrapperCodexHome, 'conversation-continuations')
+    }) : null,
     creationRoots: config.projectCopyRoots || [],
     receiptDirectory: config.wrapperCodexHome ? path.join(config.wrapperCodexHome, 'project-replica-receipts') : null,
     registrar,
@@ -40,7 +47,7 @@ export function createProjectSyncRuntime({ config, nativeSidebarAdapter, nativeC
       return tasks;
     }
   });
-  const projectSyncService = new ProjectReplicaService({
+  const projectSyncService = new ConversationContinuationService({
     localAdapter: localProjectSyncAdapter, localDevice: config.nodeDevice,
     peers: peers.map(peer => new SshProjectSyncAdapter({ peer, actionKeyPath: path.join(config.peerActionKeyDirectory, `${peer.id}.key`) }))
   });

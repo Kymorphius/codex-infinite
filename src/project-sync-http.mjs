@@ -11,7 +11,12 @@ const BROWSER_PATHS = Object.freeze({
   "/api/project-sync/create-options": "createOptions",
   "/api/project-sync/create-preflight": "createPreflight",
   "/api/project-sync/create-execute": "createExecute",
-  "/api/project-sync/create-resume": "createResume"
+  "/api/project-sync/create-resume": "createResume",
+  "/api/project-sync/conversation-list": "conversationList",
+  "/api/project-sync/conversation-operations": "conversationOperations",
+  "/api/project-sync/conversation-preflight": "conversationPreflight",
+  "/api/project-sync/conversation-execute": "conversationExecute",
+  "/api/project-sync/conversation-resume": "conversationResume"
 });
 
 function assertJson(request) {
@@ -42,14 +47,21 @@ export function createProjectSyncHttpHandler({ service, localAdapter, dashboardO
         assertJson(request);
         input = assertInput(await readJsonBody(request, PROJECT_SYNC_SMALL_BODY_BYTES));
       }
-      const result = await service[browserAction](input);
+      let result;
+      try { result = await service[browserAction](input); }
+      catch (error) {
+        if (browserAction !== "conversationExecute" || error.details?.applyStarted !== false) throw error;
+        const statusCode = error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 502;
+        sendJson(response, statusCode, { status: "error", message: statusCode < 500 ? String(error.message).slice(0, 500) : "执行前检查未完成，请重新预检", details: { applyStarted: false } });
+        return true;
+      }
       sendJson(response, 200, { status: "ok", ...result });
       return true;
     }
     if (request.headers.origin !== undefined || Object.keys(request.headers).some((name) => name.startsWith("sec-fetch-"))) throw httpError(403, "项目同步节点接口仅接受设备通道请求");
     assertJson(request);
     if (!localAdapter) throw httpError(503, "本机项目同步服务未配置");
-    const body = await readRequestBody(request, ["prepare", "createPrepare"].includes(nodeAction) ? PROJECT_SYNC_PACKAGE_BYTES : PROJECT_SYNC_SMALL_BODY_BYTES);
+    const body = await readRequestBody(request, ["prepare", "createPrepare", "conversationPrepare"].includes(nodeAction) ? PROJECT_SYNC_PACKAGE_BYTES : PROJECT_SYNC_SMALL_BODY_BYTES);
     const key = await loadActionKey(nodeActionKeyPath);
     const verification = verifyPeerAction({ key, method: request.method, path: requestUrl.pathname, headers: request.headers, body, replayWindow });
     if (!verification.ok) throw httpError(401, "项目同步节点认证失败");
@@ -59,7 +71,7 @@ export function createProjectSyncHttpHandler({ service, localAdapter, dashboardO
     catch { throw httpError(400, "请求 JSON 无效"); }
     const result = await localAdapter[nodeAction](assertInput(input));
     const payload = { status: "ok", result };
-    const maxResponseBytes = nodeAction === "export" ? PROJECT_SYNC_PACKAGE_BYTES : nodeAction === "catalog" ? 2 * 1024 * 1024 : 64 * 1024;
+    const maxResponseBytes = ["export", "conversationExport"].includes(nodeAction) ? PROJECT_SYNC_PACKAGE_BYTES : ["catalog", "conversationList", "conversationOperations"].includes(nodeAction) ? 2 * 1024 * 1024 : 64 * 1024;
     if (Buffer.byteLength(JSON.stringify(payload), "utf8") > maxResponseBytes) throw httpError(502, "项目同步响应过大");
     sendJson(response, 200, payload);
     return true;
