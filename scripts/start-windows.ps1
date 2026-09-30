@@ -5,12 +5,28 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $required = @('applicationDirectory', 'nodeExecutable', 'nodeId', 'nodeName', 'nodeLocation')
 foreach ($name in $required) {
   if ([string]::IsNullOrWhiteSpace([string]$config.$name)) {
     throw "Windows node config is missing $name"
   }
+}
+
+if ($null -eq $config.PSObject.Properties['projectCopyRoots']) {
+  Remove-Item Env:CODEX_CONTROL_PROJECT_COPY_ROOTS -ErrorAction SilentlyContinue
+} else {
+  if ($config.projectCopyRoots -isnot [Array] -or $config.projectCopyRoots.Count -eq 0) {
+    throw 'Windows projectCopyRoots must be a nonempty array'
+  }
+  $copyRoots = foreach ($root in $config.projectCopyRoots) {
+    if ($root -isnot [string] -or [string]::IsNullOrWhiteSpace($root) -or $root -match '[;\x00\r\n]' -or
+        $root -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/]|$))') {
+      throw 'Windows projectCopyRoots must contain absolute directory paths without delimiters or control characters'
+    }
+    [IO.Path]::GetFullPath($root)
+  }
+  $env:CODEX_CONTROL_PROJECT_COPY_ROOTS = $copyRoots -join ';'
 }
 
 $applicationDirectory = [IO.Path]::GetFullPath([string]$config.applicationDirectory)
