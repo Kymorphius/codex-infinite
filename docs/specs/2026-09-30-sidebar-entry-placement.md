@@ -70,9 +70,11 @@ must remain separate from tests and backend health.
 - `npm test` passed: 1802/1802, including rail/text-pane selection, hidden and
   remounted panes, in-place migration, unrelated checklists, duplicate repair,
   preserved click routes, and zero repeated DOM writes after SVG serialization.
-- Activation is pending a safe backend reload. The currently running service
-  still reports one running terminal, created after the previous reload was
-  completed. Reloading the backend disposes that terminal; this impact needs
-  current scoped authorization before activation.
+- Backend activation completed after the user explicitly authorized ending the
+  one running terminal. Health is OK, a new runtime instance is active, and zero
+  terminals remain. Both original and enhanced native app processes survived.
+- Reload verification exposed a separate shared-CLI model-cache race. The
+  [native catalog source correction](2026-09-30-native-model-catalog-source.md)
+  restores the app-owned source; the final backend catalog includes GPT-6.1 Sol.
 - Updated native-window visual acceptance remains pending; automated UI access
   to the native app is denied. Tests do not establish the final rendered result.

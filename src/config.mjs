@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { resolveBundledCodexPath } from "./codex-cli-path.mjs";
+import { resolveModelCatalogPath } from "./model-catalog-path.mjs";
 
 export const DEFAULT_DASHBOARD_HOST = "127.0.0.1";
 export const DEFAULT_DASHBOARD_PORT = 47831;
@@ -66,7 +67,7 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const personalPanelTaskBridgePath = env.CODEX_CONTROL_PERSONAL_PANEL_TASK_BRIDGE || hostPath.join(homeDirectory, '333.dev', 'personal-panel', 'scripts', 'multica-task-bridge.cjs');
   const zoteroLocalApiOrigin = env.CODEX_CONTROL_ZOTERO_LOCAL_API_ORIGIN || env.CODEX_CONTROL_ZOTERO_API_ORIGIN || "http://127.0.0.1:23119/api/";
   const zoteroCredentialPath = hostPath.join(profileDirectory, "zotero-local-api-keys.json");
-  const modelCatalogPath = env.CODEX_CONTROL_MODEL_CATALOG_PATH || hostPath.join(sourceCodexHome, "models_cache.json");
+  const modelCatalogPath = resolveModelCatalogPath({ overridePath: env.CODEX_CONTROL_MODEL_CATALOG_PATH, nativeCodexHome, sourceCodexHome, platform });
   const routerStateDirectory = env.MODEL_ROUTER_STATE_DIR || env.CODEX_ROUTER_STATE_DIR || hostPath.join(wrapperCodexHome, "codex-router");
   const jevRoutingPath = env.CODEX_CONTROL_JEV_ROUTING_PATH || hostPath.join(routerStateDirectory, "jev-task-routing.json");
   const jevThreadRoutingPath = env.CODEX_CONTROL_JEV_THREAD_ROUTING_PATH || hostPath.join(routerStateDirectory, "jev-native-thread-routing.json");
