@@ -10,16 +10,17 @@ export const JEV_TIERS = Object.freeze([
   { id: "critical", label: "关键", description: "高风险架构或迁移" },
   { id: "extreme", label: "极限", description: "极高风险或高度模糊" }
 ]);
-export const JEV_MODELS = Object.freeze(["gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-reserve", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]);
+export const JEV_MODELS = Object.freeze(["gpt-6.1-sol", "gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-reserve", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]);
 export const JEV_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]);
 export const JEV_MODEL_EFFORTS = Object.freeze({
+  "gpt-6.1-sol": JEV_EFFORTS,
   "gpt-6-luna": ["low", "medium", "high", "xhigh", "max"], "gpt-6-sol": JEV_EFFORTS, "gpt-6-astra": JEV_EFFORTS,
   "gpt-reserve": ["low", "medium", "high", "xhigh", "max"], "gpt-5.6-luna": ["low", "medium", "high", "xhigh", "max"],
   "gpt-5.6-terra": JEV_EFFORTS, "gpt-5.6-sol": JEV_EFFORTS, "gpt-5.5": ["low", "medium", "high", "xhigh"]
 });
 
 function modelLabel(model) {
-  return ({ "gpt-6-luna": "GPT-6 Luna", "gpt-6-sol": "GPT-6 Sol", "gpt-6-astra": "GPT-6 Astra", "gpt-reserve": "GPT-Reserve", "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5" })[model] || model;
+  return ({ "gpt-6.1-sol": "GPT-6.1 Sol", "gpt-6-luna": "GPT-6 Luna", "gpt-6-sol": "GPT-6 Sol", "gpt-6-astra": "GPT-6 Astra", "gpt-reserve": "GPT-Reserve", "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5" })[model] || model;
 }
 
 export function createJevRoutingFeature({ $, showToast }) {

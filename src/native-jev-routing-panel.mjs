@@ -5,6 +5,7 @@ export function buildNativeJevRoutingPanelSource() {
     ['complex', '复杂'], ['deep', '深度'], ['critical', '关键'], ['extreme', '极限']
   ];
   const ROUTE_MODEL_OPTIONS = [
+    ['gpt-6.1-sol', 'GPT-6.1 Sol'],
     ['gpt-6-luna', 'GPT-6 Luna'], ['gpt-6-sol', 'GPT-6 Sol'], ['gpt-6-astra', 'GPT-6 Astra'], ['gpt-reserve', 'GPT-Reserve'],
     ['gpt-5.6-luna', 'GPT-5.6 Luna'], ['gpt-5.6-terra', 'GPT-5.6 Terra'], ['gpt-5.6-sol', 'GPT-5.6 Sol'], ['gpt-5.5', 'GPT-5.5']
   ];
@@ -12,6 +13,7 @@ export function buildNativeJevRoutingPanelSource() {
     ['low', '轻度'], ['medium', '中'], ['high', '高'], ['xhigh', '极高'], ['max', '最高'], ['ultra', 'Ultra']
   ];
   const ROUTE_MODEL_EFFORTS = {
+    'gpt-6.1-sol': ['low','medium','high','xhigh','max','ultra'],
     'gpt-6-luna': ['low','medium','high','xhigh','max'], 'gpt-6-sol': ['low','medium','high','xhigh','max','ultra'], 'gpt-6-astra': ['low','medium','high','xhigh','max','ultra'],
     'gpt-reserve': ['low','medium','high','xhigh','max'], 'gpt-5.6-luna': ['low','medium','high','xhigh','max'], 'gpt-5.6-terra': ['low','medium','high','xhigh','max','ultra'],
     'gpt-5.6-sol': ['low','medium','high','xhigh','max','ultra'], 'gpt-5.5': ['low','medium','high','xhigh']

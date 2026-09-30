@@ -10,6 +10,7 @@ export const JEV_ROUTE_TIERS = Object.freeze([
 ]);
 export const JEV_ROUTE_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]);
 export const JEV_ROUTE_MODEL_EFFORTS = Object.freeze({
+  "gpt-6.1-sol": JEV_ROUTE_EFFORTS,
   "gpt-6-luna": Object.freeze(["low", "medium", "high", "xhigh", "max"]),
   "gpt-6-sol": JEV_ROUTE_EFFORTS,
   "gpt-6-astra": JEV_ROUTE_EFFORTS,

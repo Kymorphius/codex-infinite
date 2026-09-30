@@ -1,4 +1,4 @@
-const ROUTE_MODELS = new Set(["gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-reserve", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]);
+const ROUTE_MODELS = new Set(["gpt-6.1-sol", "gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-reserve", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]);
 const ROUTE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max", "ultra"]);
 const THREAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function formatNativeJevEffort(value) {
@@ -15,7 +15,7 @@ export function formatNativeJevTurnChoice(value = {}) {
 }
 
 export function formatNativeJevModelChange(value = {}) {
-  const labels = { "gpt-6-luna": "GPT-6 Luna", "gpt-6-sol": "GPT-6 Sol", "gpt-6-astra": "GPT-6 Astra", "gpt-reserve": "GPT-Reserve", "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5" };
+  const labels = { "gpt-6.1-sol": "GPT-6.1 Sol", "gpt-6-luna": "GPT-6 Luna", "gpt-6-sol": "GPT-6 Sol", "gpt-6-astra": "GPT-6 Astra", "gpt-reserve": "GPT-Reserve", "gpt-5.6-luna": "GPT-5.6 Luna", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.5": "GPT-5.5" };
   const model = labels[value.model] || String(value.model || "").trim();
   const effort = String(value.effort || "").trim();
   if (!model || !effort) return "";
