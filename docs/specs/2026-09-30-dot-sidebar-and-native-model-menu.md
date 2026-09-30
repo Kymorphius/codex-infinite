@@ -61,7 +61,7 @@ Run `npm run check` and `npm test`, get a fresh read-only review, and commit onl
 owned differences. Existing dirty/untracked Butler and other feature work is
 preserved. Record backend activation separately from native-window acceptance.
 
-## Verified implementation and pending activation
+## Verified implementation and dedicated-host activation
 
 - Fresh read-only review approved the owned layout changes.
 - Targeted dot/search/injection tests passed 34/34. Full `npm test` passed
@@ -73,7 +73,16 @@ preserved. Record backend activation separately from native-window acceptance.
 - Process inspection confirms the dedicated native host's exact profile and its
   earlier app-server startup. The native custom catalog currently includes a
   visible GPT-6.1 Sol. No native model-list RPC or UI inspection was performed.
-- Full dedicated-host activation is pending authorization for native-session
-  interruption. Recovery will check backend health/new instance and process
-  ownership only, without the default CDP console-click recovery. The unrelated
-  original app instance is outside the restart target.
+- The user authorized a full restart of the dedicated native window and service.
+  The service manager was stopped before terminating the exact dedicated-profile
+  host, then restored from its existing LaunchAgent. An initial LaunchAgent
+  registration error was resolved by retrying after removal completed.
+- Recovery confirmed a new backend instance, dedicated native host and child
+  app-server; the previous dedicated host/app-server exited. The original app
+  instance remains alive. Backend health is OK with zero running terminals, and
+  the backend model directory includes GPT-6.1 Sol with all six reasoning efforts.
+  No profile, credential, catalog or model-selection configuration was changed.
+- Activation used process lifecycle and backend-health checks without the default
+  CDP console-click recovery. Actual native model-picker visibility and the new
+  sidebar arrangement still require user confirmation or a supplied screenshot;
+  process/catalog checks alone do not establish UI acceptance.
