@@ -4,9 +4,15 @@ import { createConversationShortcutLayout } from '../src/native-conversation-sho
 
 function fixture() {
   let writes = 0, callback;
-  const element = () => ({ attrs: new Map(), values: new Map(), isConnected: true,
+  const element = (tag = 'div') => ({ attrs: new Map(), values: new Map(), isConnected: true, tagName: tag.toUpperCase(),
     setAttribute(k, v) { this.attrs.set(k, v); }, removeAttribute(k) { this.attrs.delete(k); }, remove() { this.removed = true; },
     getAttribute(k) { return this.attrs.get(k) ?? null; }, getClientRects() { return this.hidden || !this.isConnected ? [] : [{}]; },
+    matches(selector) {
+      if (selector === ':modal') return this.modal === true;
+      const tag = selector.match(/^\w+/)?.[0];
+      return (!tag || tag.toUpperCase() === this.tagName) && Array.from(selector.matchAll(/\[([^=\]]+)(?:="([^"]*)")?\]/g))
+        .every(([, key, value]) => this.attrs.has(key) && (value === undefined || this.getAttribute(key) === value));
+    },
     get style() { const values = this.values; return { getPropertyValue: k => values.get(k) || '', setProperty(k, v) { writes++; values.set(k, v); }, removeProperty(k) { values.delete(k); } }; }
   });
   const host = element();
@@ -14,6 +20,10 @@ function fixture() {
   const composer = surface => {
     const node = element(); node.setAttribute('data-codex-composer', 'true'); node.setAttribute('contenteditable', 'true');
     node.closest = selector => selector === '[data-composer-surface-variant]' ? surface : null; return node;
+  };
+  const form = (left = 240, placement = 'thread') => {
+    const node = element('form'); node.setAttribute('data-thread-find-composer', 'true'); node.setAttribute('data-composer-placement', placement);
+    node.getBoundingClientRect = () => ({ left, top: 580 + (parseFloat(node.values.get('--ccc-shortcut-height')) || 0), width: 720, height: 100 }); return node;
   };
   const editor = composer(host), candidates = [editor];
   const toolbar = element(); toolbar.hidden = true; toolbar.height = 34;
@@ -24,14 +34,14 @@ function fixture() {
   const window = { innerHeight: 900, innerWidth: 1200, getComputedStyle: node => ({ marginTop: '12px', ...node.appearance }),
     ResizeObserver: class { constructor(fn) { callback = fn; } observe(n) { observed.add(n); } unobserve(n) { observed.delete(n); } disconnect() { observed.clear(); } } };
   const dialogs = [], menus = [], modelControls = [];
-  const document = { head: { append() {} }, createElement: element, querySelectorAll: selector => selector === '[data-codex-composer="true"]'
-    ? candidates.filter(node => node.getAttribute('data-codex-composer') === 'true')
+  const document = { head: { append() {} }, createElement: element, querySelectorAll: selector => selector === '[data-codex-composer="true"]' || selector.startsWith('form[')
+    ? candidates.filter(node => node.matches(selector))
     : selector.startsWith('dialog') ? dialogs : selector.startsWith('[data-reasoning-slider]') ? modelControls : menus,
     querySelector: selector => candidates.find(node => selector.startsWith('[data-codex-composer="true"]')
       && node.getAttribute('data-codex-composer') === 'true'
       && (!selector.includes('[contenteditable="true"]') || node.getAttribute('contenteditable') === 'true')) || null };
   const layout = createConversationShortcutLayout(document, window, toolbar);
-  return { layout, host, toolbar, observed, dialogs, menus, modelControls, editor, candidates, element, composer,
+  return { layout, host, toolbar, observed, dialogs, menus, modelControls, editor, candidates, element, composer, form,
     writes: () => writes, resize: () => callback(), switchTo: node => { candidates.splice(0, candidates.length, ...(node ? [composer(node)] : [])); }, window };
 }
 
@@ -69,6 +79,58 @@ test('visible read-only composers remain anchored through editing-state changes'
   f.editor.setAttribute('contenteditable', 'true'); f.layout.update();
   f.editor.setAttribute('contenteditable', 'false'); f.resize();
   assert.equal(f.toolbar.hidden, false); assert.equal(f.writes(), writes);
+});
+
+test('New chat Codex surfaces transition to ChatGPT and Work home/thread forms, including inert read-only forms', () => {
+  for (const [work, placement] of [[false, 'home'], [false, 'thread'], [true, 'home'], [true, 'thread']]) {
+    const f = fixture(); f.layout.update(); const form = f.form(260, placement);
+    if (!work) form.setAttribute('data-chatgpt-composer', '');
+    form.setAttribute('inert', ''); form.inert = true; form.setAttribute('contenteditable', 'false');
+    f.host.hidden = true; f.candidates.push(form); f.layout.update();
+    assert.equal(f.toolbar.hidden, false); assert.equal(f.toolbar.values.get('left'), '272px');
+    assert.equal(f.observed.has(form), true); assert.equal(f.observed.has(f.host), false);
+    assert.equal(f.host.values.size, 0); assert.equal(form.values.get('--ccc-shortcut-height'), '50px');
+    assert.equal(form.inert, true); assert.equal(form.getAttribute('contenteditable'), 'false', 'layout grants no input permission');
+    assert.equal(form.attrs.has('data-chatgpt-composer'), !work, 'Work does not need the optional ChatGPT marker');
+    const writes = f.writes(); for (let index = 0; index < 5; index++) f.layout.update();
+    assert.equal(f.writes(), writes, 'the form keeps stable spacing');
+    f.host.hidden = false; form.isConnected = false; f.layout.update();
+    assert.equal(f.toolbar.hidden, false); assert.equal(f.toolbar.values.get('left'), '192px');
+    assert.equal(form.values.size, 0); assert.equal(form.attrs.has('data-ccc-shortcut-space'), false);
+    assert.equal(form.attrs.has('inert'), true); assert.equal(f.observed.has(form), false);
+  }
+});
+
+test('old native forms yield to visible replacements and recover after remount with owned cleanup', () => {
+  const f = fixture(), old = f.form(), fresh = f.form(300);
+  f.candidates.splice(0, f.candidates.length, old, fresh); f.layout.update();
+  old.hidden = true; f.layout.update();
+  assert.equal(f.toolbar.hidden, false); assert.equal(f.toolbar.values.get('left'), '312px');
+  assert.equal(f.observed.has(old), false); assert.equal(old.values.size, 0);
+  for (const invalidate of [() => { old.isConnected = false; }, () => { old.appearance = { display: 'none' }; },
+    () => { old.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 }); }]) {
+    old.hidden = false; old.isConnected = true; old.appearance = {}; invalidate(); f.layout.update();
+    assert.equal(f.toolbar.hidden, false); assert.equal(f.observed.has(fresh), true);
+  }
+  fresh.isConnected = false; f.layout.update(); assert.equal(f.toolbar.hidden, true);
+  assert.equal(fresh.values.size, 0); assert.equal(f.observed.has(fresh), false);
+  const remounted = f.form(340); f.candidates.push(remounted); f.layout.update();
+  assert.equal(f.toolbar.hidden, false); assert.equal(f.toolbar.values.get('left'), '352px');
+  const writes = f.writes(); f.resize(); f.layout.update(); assert.equal(f.writes(), writes);
+  f.layout.dispose(); assert.equal(remounted.values.size, 0); assert.equal(f.observed.size, 0);
+  assert.equal(remounted.getAttribute('data-thread-find-composer'), 'true', 'cleanup preserves native markers');
+});
+
+test('generic forms, non-form elements and incomplete native form markers are ignored', () => {
+  const f = fixture(); f.candidates.length = 0;
+  const generic = f.element('form'); generic.setAttribute('data-chatgpt-composer', '');
+  const noPlacement = f.form(); noPlacement.removeAttribute('data-composer-placement');
+  const noThreadFind = f.form(); noThreadFind.removeAttribute('data-thread-find-composer');
+  const wrongThreadFind = f.form(); wrongThreadFind.setAttribute('data-thread-find-composer', 'false');
+  const nonForm = f.form(); nonForm.tagName = 'TEXTAREA';
+  f.candidates.push(generic, noPlacement, noThreadFind, wrongThreadFind, nonForm); f.layout.update();
+  assert.equal(f.toolbar.hidden, true); assert.equal(f.observed.size, 1, 'only the toolbar is observed');
+  assert.equal(f.writes(), 0); for (const node of f.candidates) assert.equal(node.attrs.has('data-ccc-shortcut-space'), false);
 });
 
 test('hidden, disconnected and zero-size old composers do not block a later visible surface', () => {
@@ -122,9 +184,9 @@ test('owned reserved spacing remains stable at a small viewport while a new visi
   assert.equal(f.host.values.size, 0, 'the fallback reservation is released when a better anchor appears');
 });
 
-test('visible hooks/dialog overlays hide shortcuts while preserving spacing, then restore them', () => {
+test('visible modal overlays hide shortcuts while preserving spacing, then restore them', () => {
   const f = fixture(); f.layout.update();
-  const dialog = { hidden: false, getAttribute: () => null, getClientRects: () => [{}] };
+  const dialog = f.element(); dialog.setAttribute('aria-modal', 'true');
   f.dialogs.push(dialog); f.layout.update();
   assert.equal(f.toolbar.hidden, true);
   assert.equal(f.host.values.get('--ccc-shortcut-height'), '50px');
@@ -134,6 +196,41 @@ test('visible hooks/dialog overlays hide shortcuts while preserving spacing, the
   dialog.getClientRects = () => [{}]; dialog.getAttribute = key => key === 'data-state' ? 'closed' : null;
   f.layout.update(); assert.equal(f.toolbar.hidden, false);
   f.dialogs.length = 0; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+});
+
+test('nonmodal role and HTML dialogs yield only while overlapping, retain hidden bounds and recover', () => {
+  for (const tag of ['div', 'dialog']) {
+    const f = fixture(); f.layout.update(); const panel = f.element(tag);
+    panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'false');
+    if (tag === 'dialog') panel.setAttribute('open', '');
+    let bounds = { left: 10, right: 160, top: 20, bottom: 170 };
+    panel.getBoundingClientRect = () => bounds; f.dialogs.push(panel);
+    const writes = f.writes(); f.layout.update();
+    assert.equal(f.toolbar.hidden, false, 'distant nonmodal panels do not suppress page chrome');
+    assert.equal(f.writes(), writes);
+    bounds = { left: 700, right: 900, top: 590, bottom: 700 }; f.layout.update();
+    assert.equal(f.toolbar.hidden, true); assert.equal(f.host.values.get('--ccc-shortcut-height'), '50px');
+    for (let index = 0; index < 5; index++) { f.resize(); assert.equal(f.toolbar.hidden, true, 'the previous hit area prevents flashing'); }
+    assert.equal(f.writes(), writes);
+    bounds = { left: 900, right: 1100, top: 590, bottom: 700 }; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+    bounds = { left: 700, right: 900, top: 590, bottom: 700 }; f.layout.update(); assert.equal(f.toolbar.hidden, true);
+    panel.hidden = true; f.layout.update(); assert.equal(f.toolbar.hidden, false, 'closing restores the bar');
+    panel.hidden = false; panel.owned = true; f.layout.update(); assert.equal(f.toolbar.hidden, false, 'owned toolbar panels stay usable');
+    panel.owned = false; panel.setAttribute('data-state', 'closed'); f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  }
+});
+
+test('aria-modal, native top-layer modal and alertdialog gates suppress globally even when distant', () => {
+  for (const gate of ['aria-modal', 'native', 'alertdialog']) {
+    const f = fixture(); f.layout.update(); const panel = f.element(gate === 'native' ? 'dialog' : 'div');
+    if (gate === 'aria-modal') panel.setAttribute('aria-modal', 'true');
+    if (gate === 'alertdialog') panel.setAttribute('role', 'alertdialog');
+    if (gate === 'native') { panel.setAttribute('open', ''); panel.modal = true; }
+    panel.getBoundingClientRect = () => ({ left: 10, right: 160, top: 20, bottom: 170 }); f.dialogs.push(panel);
+    f.layout.update(); assert.equal(f.toolbar.hidden, true, gate);
+    f.layout.update(); assert.equal(f.toolbar.hidden, true, 'a modal gate does not flash the toolbar');
+    panel.hidden = true; f.layout.update(); assert.equal(f.toolbar.hidden, false);
+  }
 });
 
 test('model and reasoning controls yield space even without menu or dialog semantics', () => {

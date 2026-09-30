@@ -22,8 +22,11 @@ export function createConversationShortcutLayout(document, window, toolbar) {
   const usableBox = (box, offset = 0) => Boolean(box && box.width > 0 && box.height > 0 && box.top - offset > 0 && box.top - offset < window.innerHeight);
   const nativeHost = () => {
     const surfaces = new Map(); let retained = null;
-    for (const composer of document.querySelectorAll('[data-codex-composer="true"]')) {
-      const surface = composer.closest('[data-composer-surface-variant]');
+    const candidates = [
+      ...Array.from(document.querySelectorAll('[data-codex-composer="true"]'), composer => [composer.closest('[data-composer-surface-variant]'), composer]),
+      ...Array.from(document.querySelectorAll('form[data-thread-find-composer="true"][data-composer-placement]'), form => [form, form])
+    ];
+    for (const [surface, composer] of candidates) {
       if (!surface || composer.isConnected === false || surface.isConnected === false) continue;
       if (!surfaces.has(surface)) surfaces.set(surface, []);
       surfaces.get(surface).push(composer);
@@ -54,17 +57,22 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       }
     }
     const anchor = terminal || host, box = anchor?.getBoundingClientRect();
-    const modal = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')).some(isVisible);
+    const dialogs = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]'));
+    const isModal = node => node.getAttribute('aria-modal') === 'true' || node.getAttribute('role') === 'alertdialog'
+      || node.tagName === 'DIALOG' && node.matches?.(':modal');
+    const modal = dialogs.some(node => !toolbar.contains?.(node) && isModal(node) && isVisible(node));
     const modelPicker = Array.from(document.querySelectorAll('[data-reasoning-slider],[data-model-picker-view-toggle],[data-composer-navigation-target="reasoning"][aria-expanded="true"],[data-composer-navigation-target="model"][aria-expanded="true"]')).some(isVisible);
     const measured = toolbar.getBoundingClientRect();
     if (!toolbar.hidden && measured.width > 0) lastBox = measured;
     const toolBox = lastBox || measured;
-    const menu = Array.from(document.querySelectorAll('[role="menu"],[role="listbox"],[data-radix-menu-content]')).some(node => {
+    const overlapsToolbar = node => {
       if (toolbar.contains?.(node) || !isVisible(node)) return false;
       const bounds = node.getBoundingClientRect();
       return bounds.left < toolBox.right && bounds.right > toolBox.left && bounds.top < toolBox.bottom && bounds.bottom > toolBox.top;
-    });
-    const visible = !modal && !modelPicker && !menu && usableBox(box);
+    };
+    const obscured = dialogs.some(node => !isModal(node) && overlapsToolbar(node))
+      || Array.from(document.querySelectorAll('[role="menu"],[role="listbox"],[data-radix-menu-content]')).some(overlapsToolbar);
+    const visible = !modal && !modelPicker && !obscured && usableBox(box);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
     const appearance = window.getComputedStyle(anchor);
