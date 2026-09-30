@@ -6,6 +6,7 @@ import { buildNativeSentMessageSearchInjectionScript } from '../src/native-sent-
 
 const element = () => ({ attrs: new Map(), values: new Map(), isConnected: true,
   setAttribute(k, v) { this.attrs.set(k, v); }, removeAttribute(k) { this.attrs.delete(k); },
+  getAttribute(k) { return this.attrs.get(k) ?? null; }, getClientRects() { return this.isConnected ? [{}] : []; },
   get style() { const values = this.values; return { getPropertyValue: k => values.get(k) || '', setProperty(k, v) { values.set(k, v); }, removeProperty(k) { values.delete(k); } }; } });
 
 test('inside a terminal conversation the shortcut bar anchors to the terminal composer and reserves its row there', () => {
@@ -15,7 +16,10 @@ test('inside a terminal conversation the shortcut bar anchors to the terminal co
   toolbar.getBoundingClientRect = () => ({ height: 34, width: 776, left: 412, right: 1188, top: 600, bottom: 634 });
   const window = { innerHeight: 900, innerWidth: 1280, __cccNativeTerminalView: { composer },
     getComputedStyle: node => ({ marginTop: '0px', backgroundColor: node === composer ? 'rgb(54, 54, 54)' : 'transparent', fontFamily: 'system-ui' }) };
-  const document = { head: { append() {} }, createElement: element, querySelectorAll: () => [], querySelector: () => ({ closest: () => host }) };
+  const editor = element(); editor.setAttribute('data-codex-composer', 'true'); editor.setAttribute('contenteditable', 'false'); editor.closest = () => host;
+  const document = { head: { append() {} }, createElement: element, querySelectorAll: selector => selector === '[data-codex-composer="true"]' ? [editor] : [],
+    querySelector: selector => selector.startsWith('[data-codex-composer="true"]')
+      && (!selector.includes('[contenteditable="true"]') || editor.getAttribute('contenteditable') === 'true') ? editor : null };
   const layout = createConversationShortcutLayout(document, window, toolbar);
   layout.update();
   assert.equal(toolbar.hidden, false, 'the bar stays visible although the native composer is hidden');
@@ -25,6 +29,10 @@ test('inside a terminal conversation the shortcut bar anchors to the terminal co
   assert.equal(900 - parseFloat(toolbar.values.get('bottom')), 690 - 8, 'bar sits 8px above the moved composer');
   composer.isConnected = false; host.getBoundingClientRect = () => ({ left: 180, top: 600, width: 700, height: 100 }); layout.update();
   assert.equal(host.attrs.has('data-ccc-shortcut-space'), true, 'leaving the terminal re-anchors to the native composer');
+  assert.equal(toolbar.hidden, false, 'native read-only composer is a valid navigation anchor');
+  composer.isConnected = true; layout.update();
+  assert.equal(host.attrs.size, 0, 'returning to the terminal releases native reserved spacing');
+  assert.equal(toolbar.values.get('left'), '412px'); assert.equal(toolbar.hidden, false);
 });
 
 test('recent sent merges Claude CLI conversations by your latest message and skips shells, archived and unsent ones', () => {

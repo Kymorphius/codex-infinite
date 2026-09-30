@@ -13,13 +13,39 @@ export function createConversationShortcutLayout(document, window, toolbar) {
     host.removeAttribute(attribute); host.style.removeProperty(base); host.style.removeProperty(space);
     host = null; lastBox = null;
   };
+  const isVisible = node => {
+    if (node.isConnected === false || node.hidden || node.getAttribute('aria-hidden') === 'true' || node.getAttribute('data-state') === 'closed') return false;
+    if (!node.getClientRects().length) return false;
+    const appearance = window.getComputedStyle(node);
+    return appearance.visibility !== 'hidden' && appearance.visibility !== 'collapse' && appearance.display !== 'none';
+  };
+  const usableBox = (box, offset = 0) => Boolean(box && box.width > 0 && box.height > 0 && box.top - offset > 0 && box.top - offset < window.innerHeight);
+  const nativeHost = () => {
+    const surfaces = new Map(); let retained = null;
+    for (const composer of document.querySelectorAll('[data-codex-composer="true"]')) {
+      const surface = composer.closest('[data-composer-surface-variant]');
+      if (!surface || composer.isConnected === false || surface.isConnected === false) continue;
+      if (!surfaces.has(surface)) surfaces.set(surface, []);
+      surfaces.get(surface).push(composer);
+    }
+    for (const [surface, composers] of surfaces) {
+      const box = surface.getBoundingClientRect(), inView = usableBox(box);
+      const reserve = surface === host ? parseFloat(surface.style.getPropertyValue(space)) || 0 : 0;
+      // Keep owned spacing when it alone pushed the current anchor out of view.
+      if (!inView && !(reserve > 0 && usableBox(box, reserve))) continue;
+      if (!isVisible(surface) || !composers.some(isVisible)) continue;
+      if (inView) return surface;
+      retained = surface;
+    }
+    return retained;
+  };
   const update = () => {
     if (disposed) return;
     // Inside a terminal conversation the native composer is hidden; anchor to the
     // terminal composer instead, which reserves the row through its own margin.
     const terminalAnchor = window.__cccNativeTerminalView?.composer;
     const terminal = terminalAnchor?.isConnected ? terminalAnchor : null;
-    const next = terminal ? null : document.querySelector('[data-codex-composer="true"][contenteditable="true"]')?.closest('[data-composer-surface-variant]') || null;
+    const next = terminal ? null : nativeHost();
     if (next !== host) {
       release(); host = next;
       if (host) {
@@ -28,12 +54,6 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       }
     }
     const anchor = terminal || host, box = anchor?.getBoundingClientRect();
-    const isVisible = node => {
-      if (node.hidden || node.getAttribute('aria-hidden') === 'true' || node.getAttribute('data-state') === 'closed') return false;
-      if (!node.getClientRects().length) return false;
-      const appearance = window.getComputedStyle(node);
-      return appearance.visibility !== 'hidden' && appearance.visibility !== 'collapse' && appearance.display !== 'none';
-    };
     const modal = Array.from(document.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')).some(isVisible);
     const modelPicker = Array.from(document.querySelectorAll('[data-reasoning-slider],[data-model-picker-view-toggle],[data-composer-navigation-target="reasoning"][aria-expanded="true"],[data-composer-navigation-target="model"][aria-expanded="true"]')).some(isVisible);
     const measured = toolbar.getBoundingClientRect();
@@ -44,7 +64,7 @@ export function createConversationShortcutLayout(document, window, toolbar) {
       const bounds = node.getBoundingClientRect();
       return bounds.left < toolBox.right && bounds.right > toolBox.left && bounds.top < toolBox.bottom && bounds.bottom > toolBox.top;
     });
-    const visible = !modal && !modelPicker && !menu && Boolean(box && box.width > 0 && box.height > 0 && box.top > 0 && box.top < window.innerHeight);
+    const visible = !modal && !modelPicker && !menu && usableBox(box);
     if (toolbar.hidden === visible) toolbar.hidden = !visible;
     if (!visible) return;
     const appearance = window.getComputedStyle(anchor);
