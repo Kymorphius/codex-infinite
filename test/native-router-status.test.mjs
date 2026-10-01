@@ -35,16 +35,19 @@ function fakePage() {
   const make = (attrs = {}) => ({ attrs, style: {}, dataset: {}, listeners: {}, parentElement: null, nextElementSibling: null,
     setAttribute(name, value) { this.attrs[name] = value; }, getAttribute(name) { return name in this.attrs ? this.attrs[name] : null; },
     removeAttribute(name) { delete this.attrs[name]; }, addEventListener(type, listener) { this.listeners[type] = listener; },
-    querySelector() { return this.dot || (this.dot = { style: {} }); }, remove() { this.parentElement = null; } });
+    parts: {}, querySelector(selector) { return this.parts[selector] || (this.parts[selector] = { style: {}, className: '' }); },
+    get isConnected() { return Boolean(this.parentElement); }, getBoundingClientRect: () => ({ top: 700, right: 44, height: 36 }), offsetHeight: 40,
+    append(child) { child.parentElement = this; this.lastTooltip = child; }, remove() { this.parentElement = null; } });
   const sample = make({ class: '_Button ghost', 'data-variant': 'ghost', 'data-size': 'xl' });
+  sample.parts[':scope > span'] = { className: '_ButtonInner' };
   const list = make(), profile = make();
   const rail = { children: [list, profile], querySelector: () => sample,
     insertBefore(node, before) { this.children = this.children.filter((child) => child !== node); this.children.splice(this.children.indexOf(before), 0, node); node.parentElement = this; node.nextElementSibling = before; } };
   const sent = [];
   const window = { confirm: () => true };
   window[NATIVE_ROUTER_STATUS_BINDING] = (payload) => sent.push(JSON.parse(payload).kind);
-  const document = { visibilityState: 'visible', documentElement: {}, createElement: () => make(), querySelector: (selector) => selector.includes('sidebar-rail') ? rail : null };
-  window.window = window; window.document = document;
+  const document = { visibilityState: 'visible', documentElement: {}, body: make(), createElement: () => make(), querySelector: (selector) => selector.includes('sidebar-rail') ? rail : null };
+  window.window = window; window.document = document; window.innerHeight = 900;
   Object.assign(window, { MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame: (fn) => fn(), setInterval: () => 1, clearInterval() {} });
   return { window, rail, profile, sent };
 }
@@ -56,14 +59,20 @@ test('page script docks above the rail profile with native look, renders status 
   const button = page.rail.children[1];
   assert.equal(page.rail.children.length, 3); assert.equal(button.nextElementSibling, page.profile);
   assert.equal(button.attrs.class, '_Button ghost'); assert.equal(button.attrs['data-variant'], 'ghost');
+  assert.equal(button.parts['[data-router-inner]'].className, '_ButtonInner', 'icon uses the native centering wrapper');
   assert.deepEqual(page.sent, ['status']);
   vm.runInContext(createNativeRouterStatusBinding({}).source, context);
   assert.deepEqual(page.sent, ['status'], 'reinstall with the same version is a no-op');
   page.window.__codexControlConsoleRouterStatus.apply(presentRouterStatus({ status: 'ready', repair: null }));
-  assert.equal(button.dataset.routerState, 'ready'); assert.equal(button.dot.style.background, '#29a568');
+  const dot = button.parts['[data-router-dot]'];
+  assert.equal(button.dataset.routerState, 'ready'); assert.equal(dot.style.background, '#29a568');
+  button.listeners.mouseenter();
+  const tooltip = page.window.document.body.lastTooltip;
+  assert.equal(tooltip.style.display, 'block'); assert.equal(tooltip.textContent, 'Router：运行中'); assert.equal(tooltip.style.left, '50px');
+  button.listeners.mouseleave(); assert.equal(tooltip.style.display, 'none');
   button.listeners.click(); assert.deepEqual(page.sent, ['status']);
   page.window.__codexControlConsoleRouterStatus.apply(presentRouterStatus(stopped));
-  assert.equal(button.dot.style.background, '#d64545');
+  assert.equal(dot.style.background, '#d64545');
   button.listeners.click(); button.listeners.click();
   assert.deepEqual(page.sent, ['status', 'repair']);
 });
