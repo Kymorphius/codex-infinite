@@ -1,13 +1,13 @@
-export function confirmRestart(message, documentImpl = document) {
+export function confirmRestart(message, documentImpl = document, { title: heading = '重启控制台', action = '重启' } = {}) {
   return new Promise(resolve => {
     const dialog = documentImpl.createElement('dialog');
     dialog.style.cssText = 'max-width:420px;border:1px solid var(--native-ui-border);border-radius:12px;padding:24px;background:var(--native-ui-surface,#fff);color:var(--native-ui-text,#222)';
-    const title = documentImpl.createElement('h2'); title.textContent = '重启控制台';
+    const title = documentImpl.createElement('h2'); title.textContent = heading;
     const text = documentImpl.createElement('p'); text.textContent = message; text.style.whiteSpace = 'pre-line';
     const actions = documentImpl.createElement('div'); actions.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;margin-top:20px';
     const cancel = documentImpl.createElement('button'), restart = documentImpl.createElement('button');
     cancel.type = restart.type = 'button'; cancel.className = restart.className = 'quiet-button';
-    cancel.textContent = '取消'; restart.textContent = '重启';
+    cancel.textContent = '取消'; restart.textContent = action;
     let done = false;
     const finish = value => { if (done) return; done = true; dialog.close(); dialog.remove(); resolve(value); };
     cancel.addEventListener('click', () => finish(false)); restart.addEventListener('click', () => finish(true));

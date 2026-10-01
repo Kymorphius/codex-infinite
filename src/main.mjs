@@ -47,6 +47,9 @@ import { CodexCliDispatcher, DispatchScheduler } from "./dispatcher.mjs";
 import { GeneratorStore } from "./generator-store.mjs";
 import { GeneratorService } from "./generator-service.mjs";
 import { RuntimeDiagnosticsService } from "./runtime-diagnostics.mjs";
+import { createRouterSupervisor } from "./router-supervision-runtime.mjs";
+import { createNativeRouterStatusBinding } from "./native-router-status.mjs";
+import { logStartup } from "./startup-log.mjs";
 import { ContextWindowStore, ModelCatalog } from "./context-window.mjs";
 import { prepareWrapperCodexHome } from "./wrapper-codex-home.mjs";
 import { orderWrapperProjectState } from "./wrapper-project-state.mjs";
@@ -227,7 +230,8 @@ export async function run() {
     contextWindow: config.perThreadContextWindow
   });
   const scheduler = new DispatchScheduler({ store: dispatchStore, dispatcher, generatorService });
-  const diagnosticsService = new RuntimeDiagnosticsService({ nodeRuntimeService, dispatchStore, auditStore: dispatchAuditStore, scheduler });
+  const routerSupervisor = createRouterSupervisor(config);
+  const diagnosticsService = new RuntimeDiagnosticsService({ nodeRuntimeService, dispatchStore, auditStore: dispatchAuditStore, scheduler, routerSupervisor });
   let injector;
   let nativeOwnerInjector = null;
   const claudeInteractionClient = createRouterInteractionClient({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath });
@@ -238,14 +242,14 @@ export async function run() {
     companions: createClaudeCompanionSource({ routerStateDirectory: config.routerStateDirectory }), codexTitle: createCodexTitleLookup({ filePath: config.sessionTitleIndexPath }),
     companionCreator: createRouterCompanionClient({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath }) });
   const discussions = createDiscussionRuntime({ config, terminalConversations, terminalService, localAdapter, remoteMessageService, catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }) });
-  const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); } });
+  const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); routerSupervisor.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const nativeDashboardLaunchService = new NativeDashboardLaunchService({ restart: () => restartService.request(), launchOriginal: () => nativeAppLaunchService.launch() });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
   const checklistStore = new ProjectChecklistStore(path.join(config.wrapperCodexHome, 'project-checklists'));
   const taskCenter = createTaskCenterRuntime({ config, checklistStore, dispatchStore, adapter, peers, terminalConversations });
   const personalPanelTaskAdapter = new PersonalPanelTaskAdapter({ scriptPath: config.personalPanelTaskBridgePath });
-  const dashboard = createDashboardServer({ config, terminalService, terminalConversations, discussions, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
+  const dashboard = createDashboardServer({ config, terminalService, terminalConversations, discussions, taskCenter, experimentService, adapter, local: localAdapter, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync, nodeRuntimeService, diagnosticsService, routerSupervisor, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter });
   const detachTerminal = attachTerminalWebSocket({ server: dashboard.server, service: terminalService, dashboardOrigin: config.dashboardOrigin });
   try {
     await dashboard.listen();
@@ -270,7 +274,7 @@ export async function run() {
       reloadAfterCspBypass: config.cspReloadRequired,
       terminalConversations, terminalService,
       dashboardLauncher: nativeDashboardLaunchService,
-      extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient), createNativeRestartMarksBinding(restartMarks), createNativeDiscussionBinding(discussions)]
+      extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient), createNativeRestartMarksBinding(restartMarks), createNativeDiscussionBinding(discussions), createNativeRouterStatusBinding(routerSupervisor)]
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
@@ -278,13 +282,9 @@ export async function run() {
       await nativeOwnerInjector.start();
     }
     scheduler.start();
+    routerSupervisor.start();
     void turboRuntime.start();
-    console.log(`[codex-control-console] dashboard listening at ${config.dashboardOrigin}`);
-    console.log(`[codex-control-console] CDP ${codex.mode} on ${config.cdpOrigin}`);
-    console.log(`[codex-control-console] dedicated profile: ${config.profileDirectory}`);
-    console.log(`[codex-control-console] wrapper CODEX_HOME: ${wrapper.wrapperHome}`);
-    console.log("[codex-control-console] regular-chat context: model default");
-    console.log(`[codex-control-console] per-thread extended context request: ${wrapper.requestedContextWindow}`);
+    logStartup({ config, codex, wrapper });
   } catch (error) {
     detachTerminal();
     await terminalService.dispose();
@@ -303,7 +303,7 @@ export async function run() {
     await injector.stop();
     await nativeOwnerInjector?.stop();
     await sentMessageSearchService.index?.close();
-    scheduler.stop();
+    scheduler.stop(); routerSupervisor.stop();
     zoteroAdapter.close();
     await dashboard.close();
   };

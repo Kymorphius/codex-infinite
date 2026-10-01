@@ -18,13 +18,14 @@ import { createTurboHttpHandler } from "./turbo-http.mjs";
 import { createProjectCopyHttpHandler } from "./project-copy-http.mjs";
 import { createProjectSyncHttpHandler } from './project-sync-http.mjs';
 import { createDiagnosticsHttpHandler } from "./diagnostics-http.mjs";
+import { createRouterSupervisionHttpHandler } from "./router-supervision-http.mjs";
 import { createSkillsHttpHandler } from "./skills-http.mjs";
 import { createJevRoutingHttpHandler } from "./jev-routing-http.mjs";
 import { createPersonalPanelTaskHttpHandler } from './personal-panel-task-http.mjs';
 import { AccountUsageReader } from './account-usage.mjs';
 import { createAccountUsageHttpHandler } from './account-usage-http.mjs';
 
-export function createDashboardHandlers({ config, terminalService = null, terminalConversations = null, discussions = null, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
+export function createDashboardHandlers({ config, terminalService = null, terminalConversations = null, discussions = null, taskCenter = {}, experimentService, adapter, local, remoteMessageService, remoteThreadSettingsService, turboCoordinator, turboPolicyService, skillSyncService, localSkillAdapter, projectCopyService, projectSync = {}, nodeRuntimeService, diagnosticsService, routerSupervisor = null, restartService, nativeAppLaunchService, zoteroAdapter, zoteroLocalApi, dispatchStore, checklistStore, generatorService, sidebarService, nativeSidebarAdapter, contextWindowStore, modelCatalog, jevRoutingService, personalPanelTaskAdapter }) {
   const health = createHealthHttpHandler(config);
   return [
     createTerminalHttpHandler({ service: terminalService, dashboardOrigin: config.dashboardOrigin }),
@@ -37,6 +38,7 @@ export function createDashboardHandlers({ config, terminalService = null, termin
     createTaskCenterHttpHandler({ ...taskCenter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createExperimentsHttpHandler({ experimentService }),
     createDiagnosticsHttpHandler({ diagnosticsService }),
+    createRouterSupervisionHttpHandler({ supervisor: routerSupervisor, dashboardOrigin: config.dashboardOrigin }),
     createSkillsHttpHandler({ skillSyncService, localSkillAdapter, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createPeerActionHttpHandler({ adapter, remoteMessageService, remoteThreadSettingsService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),
     createTurboHttpHandler({ turboCoordinator, turboPolicyService, jevRoutingService, dashboardOrigin: config.dashboardOrigin, nodeActionKeyPath: config.nodeActionKeyPath }),

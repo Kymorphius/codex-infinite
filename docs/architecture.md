@@ -94,6 +94,14 @@ Dependencies point inward. Domain policies do not import HTTP, DOM, filesystem, 
   and federated through existing authenticated SSH transports.
 - `src/runtime-diagnostics.mjs`, `src/diagnostics-http.mjs` — passive normalized
   readiness checks and their read-only loopback transport.
+- `src/router-supervision-policy.mjs`, `src/router-launchd-adapter.mjs`,
+  `src/router-supervisor.mjs`, `src/router-supervision-http.mjs`,
+  `src/router-supervision-runtime.mjs`, `public/features/runtime/router-status.js`,
+  `src/native-router-status.mjs` —
+  Codex Router LaunchAgent supervision: status, throttled auto-bootstrap of an
+  enabled but unloaded agent, confirmed manual start/restart, dashboard top-bar pill and native header button
+  (see docs/specs/2026-10-01-router-supervision.md). The router stays a
+  separate product; disabled or uninstalled agents are never started.
 - `src/context-http.mjs`, `src/dispatch-http.mjs`, `src/tasks-http.mjs`, `src/zotero-http.mjs` — bounded-context HTTP route orchestration.
 - `src/http-utils.mjs`, `src/static-assets.mjs` — shared loopback transport primitives and allowlisted public assets.
 - `src/task-adapter.mjs`, `src/current-project-names.mjs`, `src/zotero-adapter.mjs`, `src/zotero-read-contract.mjs`, `src/zotero-read-metadata.mjs` — external providers, read-only current-project display-name resolution, and normalized Zotero read boundaries.

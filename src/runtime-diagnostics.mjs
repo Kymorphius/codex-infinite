@@ -10,7 +10,7 @@ function normalizedCheck(name, input = {}) {
   });
 }
 
-export function deriveRuntimeDiagnostics({ runtime, dispatch, audit, scheduler } = {}) {
+export function deriveRuntimeDiagnostics({ runtime, dispatch, audit, scheduler, router } = {}) {
   const checks = Object.freeze([
     normalizedCheck("dashboard", { status: "ready" }),
     normalizedCheck("native-desktop", {
@@ -27,7 +27,8 @@ export function deriveRuntimeDiagnostics({ runtime, dispatch, audit, scheduler }
       status: scheduler?.status,
       reason: scheduler?.status === "ready" ? null : "调度器尚未运行",
       details: scheduler ? { busy: scheduler.busy, lastTickAt: scheduler.lastTickAt, lastSuccessAt: scheduler.lastSuccessAt, lastFailureAt: scheduler.lastFailureAt } : null
-    })
+    }),
+    ...(router ? [normalizedCheck("codex-router", router)] : [])
   ]);
   const status = checks.some((check) => check.status === "unavailable") ? "unavailable"
     : checks.some((check) => ["degraded", "unknown"].includes(check.status)) ? "degraded" : "ready";
@@ -35,11 +36,12 @@ export function deriveRuntimeDiagnostics({ runtime, dispatch, audit, scheduler }
 }
 
 export class RuntimeDiagnosticsService {
-  constructor({ nodeRuntimeService = null, dispatchStore = null, auditStore = null, scheduler = null } = {}) {
+  constructor({ nodeRuntimeService = null, dispatchStore = null, auditStore = null, scheduler = null, routerSupervisor = null } = {}) {
     this.nodeRuntimeService = nodeRuntimeService;
     this.dispatchStore = dispatchStore;
     this.auditStore = auditStore;
     this.scheduler = scheduler;
+    this.routerSupervisor = routerSupervisor;
   }
 
   async read() {
@@ -49,7 +51,8 @@ export class RuntimeDiagnosticsService {
       runtime,
       dispatch: this.dispatchStore?.diagnostics?.(),
       audit: this.auditStore?.diagnostics?.(),
-      scheduler: this.scheduler?.diagnostics?.()
+      scheduler: this.scheduler?.diagnostics?.(),
+      router: this.routerSupervisor?.diagnostics?.()
     });
   }
 }

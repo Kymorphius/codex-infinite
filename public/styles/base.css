@@ -98,3 +98,10 @@ code { color: #55555b; font: 500 var(--native-ui-code-size)/var(--native-ui-code
 .metric-card strong { font-size: 18px; line-height: 23px; letter-spacing: -.02em; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 16px; }
 .section-heading h2 { margin-bottom: 0; font-size: var(--native-ui-section-title-size); line-height: var(--native-ui-section-title-line); }
+.router-pill { font: inherit; font-size: var(--native-ui-meta-size); }
+.router-pill[aria-disabled="false"] { cursor: pointer; }
+.router-pill[aria-disabled="false"]:hover { background: var(--native-ui-surface-hover); color: var(--native-ui-text); }
+.router-pill[data-router-state="degraded"] .status-dot, .router-pill[data-router-state="unknown"] .status-dot { background: #d99a1e; box-shadow: 0 0 0 3px rgba(217,154,30,.14); }
+.router-pill[data-router-state="stopped"] .status-dot, .router-pill[data-router-state="not-installed"] .status-dot { background: #d64545; box-shadow: 0 0 0 3px rgba(214,69,69,.14); }
+.router-pill[data-router-state="disabled"] .status-dot { background: var(--native-ui-text-tertiary); box-shadow: none; }
+.router-pill[hidden] { display: none; }

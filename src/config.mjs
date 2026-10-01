@@ -74,6 +74,8 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
   const jevRoutingReceiptsDirectory = env.CODEX_CONTROL_JEV_RECEIPTS_DIR || hostPath.join(routerStateDirectory, "jev-routing-receipts");
   const routerCallerSecretPath = env.CODEX_CONTROL_ROUTER_CALLER_SECRET || hostPath.join(routerStateDirectory, "caller-secret");
   const routerOrigin = env.CODEX_CONTROL_ROUTER_ORIGIN || "http://127.0.0.1:4202";
+  const routerLaunchAgentLabel = env.CODEX_CONTROL_ROUTER_LAUNCH_AGENT || "io.github.codex-router";
+  const routerLaunchAgentPath = hostPath.join(homeDirectory, "Library", "LaunchAgents", `${routerLaunchAgentLabel}.plist`);
   const jevPath = env.CODEX_CONTROL_JEV_PATH || hostPath.join(homeDirectory, ".local", "bin", platform === "win32" ? "jev.cmd" : "jev");
   const hostname = os.hostname() || "本机";
   const nodeDevice = Object.freeze({
@@ -129,6 +131,9 @@ export function getConfig(env = process.env, homeDirectory = os.homedir(), platf
     jevRoutingReceiptsDirectory,
     routerCallerSecretPath,
     routerOrigin,
+    routerLaunchAgentLabel,
+    routerLaunchAgentPath,
+    routerAutoRepair: env.CODEX_CONTROL_ROUTER_AUTO_REPAIR !== "0",
     jevPath,
     threadStateDatabasePath: env.CODEX_CONTROL_THREAD_STATE_DB || hostPath.join(sourceCodexHome, "state_5.sqlite"),
     sessionTitleIndexPath: env.CODEX_CONTROL_SESSION_TITLE_INDEX || path.join(sourceCodexHome, "session_index.jsonl"),

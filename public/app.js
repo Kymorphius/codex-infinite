@@ -1,5 +1,6 @@
 import { createExperimentsFeature } from './features/experiments/index.js';
 import { installRestartButton } from "./features/runtime/index.js";
+import { installRouterStatus } from "./features/runtime/router-status.js";
 import { createDomServices } from "./core/dom.js";
 import { formatDate, formatDuration, formatTokens, taskStatusLabel } from "./core/format.js";
 import { announceEmbeddedReady, createNavigation } from "./core/navigation.js";
@@ -25,6 +26,7 @@ import { createTerminalFeature } from "./features/terminal/index.js";
   const state = createAppState(requestedModule);
   const { $, setScopedState, showToast } = createDomServices();
   installRestartButton({ button: document.querySelector('[data-action="restart"]'), showToast });
+  installRouterStatus({ pill: document.querySelector('[data-router-status]'), showToast });
 
   let sessionsFeature;
   let pendingRemoteReference = null;
