@@ -146,8 +146,21 @@ test('a reloaded service replaces the older Claude panel closure without reloadi
   assert.ok(removed >= 1);
   assert.equal(oldRefreshes, 0);
   assert.equal(subscribers.has(oldRefresh), false);
-  assert.equal(window.__cccClaudePreviewVersion, 3);
+  assert.equal(window.__cccClaudePreviewVersion, 4);
   assert.equal(typeof window.__cccClaudePreviewDispose, 'function');
+});
+
+test('page global set routes a thread through the recorded read-back path', async () => {
+  const saved = new Map(), id = '019a0000-0000-7000-8000-00000000b001';
+  let current = { model: 'gpt-6-sol', reasoningEffort: 'medium' };
+  const window = { addEventListener() {}, __codexControlConsoleReadThreadSettings: async () => current,
+    __codexControlConsoleApplyThreadSettings: async (_id, next) => { current = next; return { applied: true }; } };
+  vm.runInNewContext(buildNativeClaudePreviewInjectionScript(), { window, document: { getElementById: () => ({}), querySelector: () => null, querySelectorAll: () => [], addEventListener() {} },
+    localStorage: { getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value) }, setTimeout: () => 1, clearTimeout() {} });
+  await window.__cccClaudePreviewSet(id, 'auto', false, 'opus');
+  assert.deepEqual({ ...current }, { model: 'claude-subscription/opus-auto', reasoningEffort: 'medium' });
+  assert.equal(window.__cccClaudePreviewBlocks(id), true);
+  assert.equal(JSON.parse(saved.get('codex-control-console.claude-preview.v1'))[0].nativeTools, false);
 });
 
 test('early installation creates subscription and later injection requests a render', () => {

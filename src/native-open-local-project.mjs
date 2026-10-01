@@ -7,7 +7,7 @@ export function nativeOpenProjectCopy(platform = "") {
 
 export function buildNativeOpenLocalProjectInjectionScript() {
   return `(() => {
-  const VERSION = '2026-09-23.top-action-layout1';
+  const VERSION = '2026-09-29.top-action-butler1';
   const ENTRY = 'data-codex-control-console-open-local-project';
   const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
   const copy = ${nativeOpenProjectCopy.toString()}(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
@@ -65,7 +65,9 @@ export function buildNativeOpenLocalProjectInjectionScript() {
     entry.innerHTML = '<span aria-hidden="true" style="display:inline-flex;width:1.1rem;height:1.1rem;align-items:center;justify-content:center"><svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.75 5.25h5l1.5 1.75h8v8.25h-14.5z" stroke-linejoin="round"/><path d="M2.75 7h14.5"/></svg></span><span class="truncate"></span>';
     entry.querySelector('.truncate').textContent = copy.label;
     entry.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void openLocalProject(); });
-    newChat.parentElement.insertBefore(entry, newChat.nextSibling);
+    const butler = document.querySelector('[data-codex-control-console-butler-entry]');
+    const anchor = butler?.parentElement === newChat.parentElement ? butler : newChat;
+    newChat.parentElement.insertBefore(entry, anchor.nextSibling);
   }
 
   if (window.__codexControlConsoleOpenLocalProjectVersion !== VERSION) {

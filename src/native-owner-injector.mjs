@@ -22,7 +22,7 @@ import { buildNativeSidebarActivityInjectionScript } from "./native-sidebar-acti
 import { buildNativeRemoteSidebarInjectionScript, buildNativeRemoteSidebarSnapshotScript } from "./native-remote-sidebar.mjs";
 import { buildNativeAttentionStickyInjectionScript } from "./native-attention-sticky.mjs";
 import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-chat-section.mjs";
-import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
+import { buildNativeTopActionScripts } from "./native-top-actions.mjs";
 import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
 import { buildNativeComposerControlOrderSource } from "./native-composer-control-order.mjs";
 import { buildNativeComposerIconControlsSource } from "./native-composer-icon-controls.mjs";
@@ -30,7 +30,7 @@ import { buildNativeLongConversationInjectionScript } from "./native-long-conver
 import { buildNativeTurnStateInjectionScript, buildNativeTurnStateSnapshotScript } from "./native-turn-state-status.mjs";
 import { deferNativeDocumentSource } from "./native-document-bootstrap.mjs";
 
-function nativeOwnerInjectionScripts() {
+function nativeOwnerInjectionScripts(butlerCwd = "") {
   return [
     buildNativePinnedEmptyInjectionScript(),
     buildNativeProjectSearchInjectionScript(),
@@ -46,7 +46,7 @@ function nativeOwnerInjectionScripts() {
     buildNativeRemoteSidebarInjectionScript(),
     buildNativeAttentionStickyInjectionScript(),
     buildNativeChatgptChatSectionInjectionScript(),
-    buildNativeOpenLocalProjectInjectionScript(),
+    ...buildNativeTopActionScripts({ butlerCwd }),
     buildNativeComposerHeldQueueInjectionScript(),
     `(() => { ${buildNativeComposerControlOrderSource()} })()`,
     buildNativeComposerIconControlsSource(),
@@ -57,11 +57,11 @@ function nativeOwnerInjectionScripts() {
   ];
 }
 
-function nativeOwnerSources(connection) {
-  return nativeInstallerSources(connection, 'owner-sources', () => nativeOwnerInjectionScripts());
+function nativeOwnerSources(connection, butlerCwd) {
+  return nativeInstallerSources(connection, `owner-sources:${JSON.stringify(butlerCwd)}`, () => nativeOwnerInjectionScripts(butlerCwd));
 }
-function nativeOwnerDocumentStartScripts(connection) {
-  return nativeOwnerSources(connection).filter((source) => !source.includes("__codexControlConsoleHeldQueueInstalledVersion"));
+function nativeOwnerDocumentStartScripts(connection, butlerCwd) {
+  return nativeOwnerSources(connection, butlerCwd).filter((source) => !source.includes("__codexControlConsoleHeldQueueInstalledVersion"));
 }
 
 export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
@@ -71,7 +71,7 @@ export function nativeOwnerPollDelay(pollMs, failureCount, maximumMs = 30000) {
 }
 
 export class NativeOwnerInjector {
-  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, turnStateProvider = null, extraBindings = [], pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
+  constructor({ cdpOrigin, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, turnStateProvider = null, butlerCwd = "", extraBindings = [], pollMs = 1200, backoffMaxMs = 30000, logger = console, discover = discoverTargets, choose = chooseMainTarget, connectionFactory = (url) => new CdpConnection(url) } = {}) {
     this.cdpOrigin = cdpOrigin;
     this.extraBindings = extraBindings;
     this.contextWindowStore = contextWindowStore;
@@ -84,6 +84,7 @@ export class NativeOwnerInjector {
     this.sentMessageSearchService = sentMessageSearchService;
     this.attentionConversationProvider = attentionConversationProvider;
     this.turnStateProvider = turnStateProvider;
+    this.butlerCwd = butlerCwd;
     this.pollMs = pollMs;
     this.backoffMaxMs = backoffMaxMs;
     this.logger = logger;
@@ -114,7 +115,7 @@ export class NativeOwnerInjector {
       await connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       await connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
-      for (const source of nativeOwnerDocumentStartScripts(connection)) {
+      for (const source of nativeOwnerDocumentStartScripts(connection, this.butlerCwd)) {
         await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(source) });
       }
     } catch (error) {
@@ -157,8 +158,8 @@ export class NativeOwnerInjector {
       await this.connection.send("Runtime.addBinding", { name: NATIVE_TURBO_BINDING });
       await this.connection.send("Runtime.addBinding", { name: NATIVE_JEV_ROUTING_BINDING });
       await this.connection.send("Runtime.addBinding", { name: SENT_MESSAGE_SEARCH_BINDING });
-      await installNativeCached(this.connection, { key: 'owner-context', readiness: NATIVE_INSTALLER_READINESS,
-        build: () => [NATIVE_INSTALLER_REPAIR, ...nativeOwnerSources(this.connection)] });
+      await installNativeCached(this.connection, { key: `owner-context:${JSON.stringify(this.butlerCwd)}`, readiness: NATIVE_INSTALLER_READINESS,
+        build: () => [NATIVE_INSTALLER_REPAIR, ...nativeOwnerSources(this.connection, this.butlerCwd)] });
       await this.connection.evaluate(buildNativeContextSnapshotScript(this.contextWindowStore?.list?.() || []));
       await this.connection.evaluate(buildNativeTurboSnapshotScript(this.turboPolicyProvider?.snapshot?.() || null));
       await this.connection.evaluate(buildNativeJevRoutingSnapshotScript(await this.jevRoutingService?.snapshot?.() || null));

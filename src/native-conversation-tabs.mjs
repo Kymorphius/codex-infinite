@@ -11,6 +11,7 @@ import { installNativeNewConversationButton } from "./native-new-conversation-bu
 import { installNativeDiscussionButton, NATIVE_DISCUSSION_STYLE } from "./native-discussion-button.mjs";
 import { createNativeDiscussionStarter } from "./native-discussion-start.mjs";
 import { buildNativeDiscussionClientSource } from "./native-discussion-binding.mjs";
+import { installNativeArchiveButton, NATIVE_ARCHIVE_STYLE } from "./native-archive-button.mjs";
 import { createNativeChecklistThreadStarter } from "./native-checklist-new-thread-claim.mjs";
 import { buildNativeRestartMarksStoreSource } from "./native-restart-marks.mjs";
 import { buildNativeTerminalTabSource } from './native-terminal-tabs.mjs';
@@ -47,6 +48,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${installNativeNewConversationButton.toString()}
   ${installNativeDiscussionButton.toString()}
   ${buildNativeDiscussionClientSource()}
+  ${installNativeArchiveButton.toString()}
   ${createNativeChecklistThreadStarter.toString()}
   ${createNativeDiscussionStarter.toString()}
   ${buildNativeRecentConversationMenuInjectionSource()}
@@ -56,7 +58,7 @@ export function buildNativeConversationTabsInjectionSource() {
   ${buildNativeConversationTabStyle.toString()}
   ${buildNativeTerminalTabSource()}
   function installNativeConversationTabs(options) {
-    const VERSION = '2026-09-29.discussion-start';
+    const VERSION = '2026-09-29.new-directory-picker';
     const modules = ['board', 'console', 'sessions', 'context', 'priority', 'projects', 'conversations', 'zotero'];
     const ROOT_SELECTOR = '[data-codex-control-console-native-tabs]';
     const STYLE_SELECTOR = '[data-codex-control-console-native-tab-style]';
@@ -73,7 +75,7 @@ export function buildNativeConversationTabsInjectionSource() {
     document.querySelectorAll(ROOT_SELECTOR + ',' + STYLE_SELECTOR).forEach((node) => node.remove());
 
     let state = { tabs: [], activeKey: 'console', consoleModule: 'board', wheelDirection: 'standard', dismissedLocalKeys: [] };
-    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, shortcutRoot = null, transition = null, recentMenu = null, newButton = null, discussionButton = null;
+    let observer = null, renderPending = false, renderTimer = null, lastSyncAt = 0, root = null, shortcutRoot = null, transition = null, recentMenu = null, newButton = null, discussionButton = null, archiveButton = null;
     let recentSentMenu = null, latestNavigation = createNativeLatestNavigation(document, window);
     const clean = (value, limit) => String(value || '').replace(/[\\u0000-\\u001f\\u007f]/g, '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const keyFor = (tab) => tab.kind === 'local' ? 'local:' + tab.id.toLowerCase() : tab.kind === 'chatgpt' ? 'chatgpt:' + tab.id.toLowerCase() : tab.kind + ':' + encodeURIComponent(tab.deviceId) + '/' + encodeURIComponent(tab.id);
@@ -135,6 +137,7 @@ export function buildNativeConversationTabsInjectionSource() {
       recentSentMenu?.render();
       newButton?.update();
       discussionButton?.update();
+      archiveButton?.update();
       position();
     }
 
@@ -234,7 +237,7 @@ export function buildNativeConversationTabsInjectionSource() {
     }
 
     const style = document.createElement('style'); style.setAttribute('data-codex-control-console-native-tab-style', '');
-    style.textContent = buildNativeConversationTabStyle(ROOT_SELECTOR, TITLE_HIDDEN_ATTRIBUTE, nativeConversationTabTransitionStyle(ROOT_SELECTOR), ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE + NATIVE_RECENT_CONVERSATION_STYLE + NATIVE_DISCUSSION_STYLE)});
+    style.textContent = buildNativeConversationTabStyle(ROOT_SELECTOR, TITLE_HIDDEN_ATTRIBUTE, nativeConversationTabTransitionStyle(ROOT_SELECTOR), ${JSON.stringify(NATIVE_CONVERSATION_WINDOW_STYLE + NATIVE_RECENT_CONVERSATION_STYLE + NATIVE_DISCUSSION_STYLE + NATIVE_ARCHIVE_STYLE)});
     document.head.append(style);
 
     // Detached transition target: navigation state remains, retired tab DOM does not.
@@ -245,6 +248,7 @@ export function buildNativeConversationTabsInjectionSource() {
     recentSentMenu = installNativeRecentSentMenu({ documentRef: document, root: shortcutRoot, state, keyFor, openLocal: (tab) => request(tab, true), openTerminal: (tab) => window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find((record) => record.id === tab.id) || { provider: 'terminal', conversationId: tab.id, deviceId: tab.deviceId }), readSnapshot: () => window.__codexControlConsoleRecentSentSnapshot, readTerminal: () => window.__cccTerminalConversations?.records?.() || [] });
     newButton = installNativeNewConversationButton({ documentRef: document, root: shortcutRoot, activeTab });
     discussionButton = installNativeDiscussionButton({ documentRef: document, root: shortcutRoot, activeTab, createThreadStarter: createNativeChecklistThreadStarter, createStarter: createNativeDiscussionStarter });
+    archiveButton = installNativeArchiveButton({ documentRef: document, root: shortcutRoot, activeTab, closeTab: (tab) => close(keyFor(tab)) });
     transition = createNativeConversationTabTransition(root, () => { render(); syncLocal(); });
 
     const nativeClick = (event) => {
@@ -265,7 +269,7 @@ export function buildNativeConversationTabsInjectionSource() {
     window.addEventListener('resize', onResize);
     const terminalTabs = createNativeTerminalTabController({ state, keyFor, normalizeTab, open, close, render });
     const openMarked = (mark) => mark.provider === 'terminal' ? window.__codexControlConsoleOpenTerminalConversation?.(window.__cccTerminalConversations?.records?.().find((record) => record.id === mark.id) || { provider: 'terminal', conversationId: mark.id, deviceId: mark.deviceId }) : request({ id: mark.id, title: mark.title }, true);
-    const controller = { ...terminalTabs, version: VERSION, openMarked, relayout: () => position(), updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); shortcutLayout.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); newButton?.destroy(); discussionButton?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
+    const controller = { ...terminalTabs, version: VERSION, openMarked, relayout: () => position(), updateOptions(next) { options = next; }, openLocal: request, openChatgpt: (tab) => open({ ...tab, kind: 'chatgpt' }), openRemote: (tab) => open({ ...tab, kind: 'remote' }), showConsole, active: activeTab, snapshot, latestNavigation: latestNavigation.snapshot, updateRecentSent: () => { recentMenu?.render(); recentSentMenu?.render(); }, destroy() { latestNavigation.cancel(); shortcutLayout.dispose(); observer?.disconnect(); transition.dispose(); recentMenu?.destroy(); recentSentMenu?.destroy(); newButton?.destroy(); discussionButton?.destroy(); archiveButton?.destroy(); if (renderTimer) clearTimeout(renderTimer); document.removeEventListener('click', nativeClick, true); window.removeEventListener('resize', onResize); document.querySelectorAll('[' + TITLE_HIDDEN_ATTRIBUTE + ']').forEach((node) => node.removeAttribute(TITLE_HIDDEN_ATTRIBUTE)); shortcutRoot?.remove(); root?.remove(); style.remove(); } };
     render(); scheduleSync(true, true); return controller;
   }
   `;

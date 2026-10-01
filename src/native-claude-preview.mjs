@@ -30,7 +30,7 @@ export function buildNativeClaudePanelStyleScript() {
 }
 
 function installClaudePreview(createSelection, readThreadId, activateButton) {
-  const version = 3;
+  const version = 4;
   if (window.__cccClaudePreviewInstalled && window.__cccClaudePreviewVersion === version && window.__cccClaudePreviewRefresh) {
     window.__cccClaudePreviewRefresh(); return;
   }
@@ -58,6 +58,7 @@ function installClaudePreview(createSelection, readThreadId, activateButton) {
     changed: () => schedule(),
   });
   window.__cccClaudePreviewBlocks = id => selection.blocks(id);
+  window.__cccClaudePreviewSet = (id, effort, nativeTools, family) => selection.set(id, effort, nativeTools, family);
   const running = () => Boolean(document.querySelector('button[aria-label="停止"],button[aria-label="Stop"],button[aria-label="停止流式传输"],button[aria-label="Stop streaming"]'));
   const routerReady = () => window.__cccClaudeRouterReady?.() === true;
   function current() {

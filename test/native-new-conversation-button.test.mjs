@@ -112,17 +112,54 @@ test('from a Codex conversation: GPT uses the catalog project, else the sidebar 
   assert.deepEqual(second.calls.create, [{ id: 'project-9' }]);
 });
 
-test('from a Codex conversation: Claude is created in the project directory only when it is unambiguous', async () => {
+test('from a Codex conversation: one directory creates Claude directly; none explains itself', async () => {
   const single = { id: 'catalog', sourceDirectories: ['/work'] };
   const f = setup({ kind: 'local', id }, { projectOfTask: single });
   await f.choose('claude');
   assert.deepEqual(f.calls.claudeCreate, [[single, '/work', 'claude']]);
-  const many = setup({ kind: 'local', id }, { projectOfTask: { id: 'm', sourceDirectories: ['/a', '/b'] } });
-  await many.choose('claude');
-  assert.deepEqual(many.calls.claudeCreate, []); assert.match(many.body.children[0].textContent, /多个目录/);
   const none = setup({ kind: 'local', id }, { projectOfTask: { id: 'n' } });
   await none.choose('claude');
   assert.deepEqual(none.calls.claudeCreate, []); assert.match(none.body.children[0].textContent, /找不到项目目录/);
+});
+
+const texts = menu => menu.children.map(item => item.children[0].children.map(node => node.textContent));
+const pick = async (menu, match) => { await menu.children.find(match).listeners.click({ preventDefault() {}, stopPropagation() {} }); };
+
+test('from a Codex conversation: several directories list them, and the chosen one creates Claude there', async () => {
+  const many = { id: 'm', sourceDirectories: ['/a/app', '/b/docs/', '/a/app'] };
+  const f = setup({ kind: 'local', id }, { projectOfTask: many });
+  f.open(); await f.choose('claude');
+  assert.equal(f.menu.hidden, false, 'the menu stays open to pick a directory');
+  assert.deepEqual(texts(f.menu), [['app', '/a/app'], ['docs', '/b/docs/'], ['返回']]);
+  assert.equal(f.menu.children[0].focused, true);
+  await pick(f.menu, item => item.dataset.newDirectory === '/b/docs/');
+  assert.deepEqual(f.calls.claudeCreate, [[many, '/b/docs/', 'claude']]);
+  assert.equal(f.menu.hidden, true);
+  assert.deepEqual(f.menu.children.map(item => item.dataset.newTarget), ['codex', 'claude'], 'closing restores the two engines');
+});
+
+test('the directory list goes back, and closing it by Escape or the trigger restores the engines', async () => {
+  const f = setup({ kind: 'local', id }, { projectOfTask: { id: 'm', sourceDirectories: ['/a', '/b'] } });
+  f.open(); await f.choose('claude');
+  await pick(f.menu, item => item.dataset.newBack === 'true');
+  assert.equal(f.menu.hidden, false); assert.deepEqual(f.menu.children.map(item => item.dataset.newTarget), ['codex', 'claude']);
+  await f.choose('claude'); f.docListeners.keydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(f.menu.hidden, true); assert.deepEqual(f.menu.children.map(item => item.dataset.newTarget), ['codex', 'claude']);
+  f.open(); await f.choose('claude'); f.open();
+  assert.equal(f.menu.hidden, true); assert.deepEqual(f.menu.children.map(item => item.dataset.newTarget), ['codex', 'claude']);
+  assert.deepEqual(f.calls.claudeCreate, []);
+});
+
+test('from a Claude conversation in a multi-directory project: its own directory comes first and keeps the sibling path', async () => {
+  const project = { id: 'm', sourceDirectories: ['/other', '/work'] };
+  const f = setup({ kind: 'terminal', id, engine: 'claude' }, { records: [claude], projectOfDirectory: project });
+  f.open(); await f.choose('claude');
+  assert.deepEqual(texts(f.menu), [['work（当前会话目录）', '/work'], ['other', '/other'], ['返回']]);
+  await pick(f.menu, item => item.dataset.newDirectory === '/work');
+  assert.deepEqual(f.calls.fresh, [id]); assert.deepEqual(f.calls.claudeCreate, []);
+  f.open(); await f.choose('claude');
+  await pick(f.menu, item => item.dataset.newDirectory === '/other');
+  assert.deepEqual(f.calls.claudeCreate, [[project, '/other', 'claude']]); assert.deepEqual(f.calls.fresh, [id]);
 });
 
 test('unresolvable projects and missing Claude records explain themselves and create nothing', async () => {

@@ -16,6 +16,8 @@ test("native open-project injection delegates to the native local-project flow",
   assert.match(source, /labels\.some\([^\n]+\) && isVisible\(button\)/);
   assert.doesNotMatch(source, /button\.innerText/);
   assert.match(source, /data-codex-control-console-open-local-project/);
+  assert.match(source, /butler\?\.parentElement === newChat\.parentElement \? butler : newChat/);
+  assert.match(source, /insertBefore\(entry, anchor\.nextSibling\)/);
   assert.match(source, /\['添加新项目', 'Add project', 'Create new project'\]/);
   assert.match(source, /\['本地', 'Local'\]/);
   assert.match(source, /\['下一步', 'Next'\]/);

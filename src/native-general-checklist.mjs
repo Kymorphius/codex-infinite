@@ -1,6 +1,6 @@
 // Own an additive top-action entry; native controls and sections remain React-owned.
 export function installNativeGeneralChecklist() {
-  const VERSION = '2026-09-23.top-action-layout1';
+  const VERSION = '2026-09-29.top-action-butler1';
   if (window.__cccGeneralChecklist?.version === VERSION) return;
   window.__cccGeneralChecklist?.dispose();
   const ENTRY = 'data-ccc-general-checklist-entry';
@@ -24,7 +24,8 @@ export function installNativeGeneralChecklist() {
     const parent = openProject?.parentElement || newChat?.parentElement;
     if (!parent) return;
     if (newChat && button.className !== newChat.className) button.className = newChat.className;
-    const anchor = openProject?.parentElement === parent ? openProject : newChat;
+    const butler = document.querySelector('[data-codex-control-console-butler-entry]');
+    const anchor = openProject?.parentElement === parent ? openProject : butler?.parentElement === parent ? butler : newChat;
     if (button.parentElement !== parent || button.previousElementSibling !== anchor) parent.insertBefore(button, anchor.nextSibling);
   }
   function schedule() { if (disposed || scheduled) return; scheduled = true; requestAnimationFrame(() => { scheduled = false; place(); }); }

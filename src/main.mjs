@@ -25,6 +25,7 @@ import { createAppInstanceReader } from "./app-instance.mjs";
 import { createNativeRestartMarksBinding } from "./native-restart-marks.mjs";
 import { GptContextCatalog } from './gpt-context-catalog.mjs';
 import { createDiscussionRuntime } from './discussion-runtime.mjs';
+import { createButlerWorkspace } from './butler-runtime.mjs';
 import { createNativeDiscussionBinding } from './native-discussion-binding.mjs';
 import { SentMessageSearchService } from './sent-message-search-service.mjs';
 import { resolveRipgrepPath } from './ripgrep-path.mjs';
@@ -241,8 +242,9 @@ export async function run() {
     filePath: path.join(config.wrapperCodexHome, 'terminal-conversations.json'), validateProject: createTerminalProjectValidator(nativeSidebarAdapter),
     companions: createClaudeCompanionSource({ routerStateDirectory: config.routerStateDirectory }), codexTitle: createCodexTitleLookup({ filePath: config.sessionTitleIndexPath }),
     companionCreator: createRouterCompanionClient({ origin: config.routerOrigin, callerSecretPath: config.routerCallerSecretPath }) });
+  const butler = createButlerWorkspace({ config, adapter, terminalConversations, attention: attentionConversations });
   const discussions = createDiscussionRuntime({ config, terminalConversations, terminalService, localAdapter, remoteMessageService, catalog: new GptContextCatalog({ databasePath: config.threadStateDatabasePath, sessionRoots: [config.sessionRoot], titleIndexPath: config.sessionTitleIndexPath, device: config.nodeDevice }) });
-  const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); routerSupervisor.stop(); } });
+  const restartService = new RuntimeRestartService({ config, prepare: async () => { await terminalService.dispose(); turboRuntime.stop(); butler.stop(); await injector?.stop(); await nativeOwnerInjector?.stop(); await sentMessageSearchService.index?.close(); scheduler.stop(); routerSupervisor.stop(); } });
   const nativeAppLaunchService = new NativeAppLaunchService({ config });
   const nativeDashboardLaunchService = new NativeDashboardLaunchService({ restart: () => restartService.request(), launchOriginal: () => nativeAppLaunchService.launch() });
   const experimentService = new ExperimentService({ localAdapter: new NativeExperimentAdapter({ cdpOrigin: config.cdpOrigin }), localDevice: config.nodeDevice, peers });
@@ -273,16 +275,17 @@ export async function run() {
       recoverTarget: () => ensureDedicatedCodex(config),
       reloadAfterCspBypass: config.cspReloadRequired,
       terminalConversations, terminalService,
-      dashboardLauncher: nativeDashboardLaunchService,
+      dashboardLauncher: nativeDashboardLaunchService, butlerCwd: butler.cwd,
       extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient), createNativeRestartMarksBinding(restartMarks), createNativeDiscussionBinding(discussions), createNativeRouterStatusBinding(routerSupervisor)]
     });
     await injector.start();
     if (config.primaryCdpEnabled) {
-      nativeOwnerInjector = new NativeOwnerInjector({ extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient)], cdpOrigin: config.primaryCdpOrigin, contextWindowStore, turboPolicyProvider: turboRuntime.policyProvider, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
+      nativeOwnerInjector = new NativeOwnerInjector({ extraBindings: [createNativeClaudeInteractionBinding(claudeInteractionClient)], cdpOrigin: config.primaryCdpOrigin, butlerCwd: butler.cwd, contextWindowStore, turboPolicyProvider: turboRuntime.policyProvider, turboController: turboCoordinator, jevRoutingService, sidebarLabelProvider: sidebarLabelService, remoteSidebarProvider: remoteSidebarService, newProjectProvider: newProjectService, sentMessageSearchService, attentionConversationProvider: primaryAttentionConversations, turnStateProvider: turnStateService });
       await nativeOwnerInjector.start();
     }
     scheduler.start();
     routerSupervisor.start();
+    butler.start();
     void turboRuntime.start();
     logStartup({ config, codex, wrapper });
   } catch (error) {
@@ -299,6 +302,7 @@ export async function run() {
     detachTerminal();
     await terminalService.dispose();
     turboRuntime.stop();
+    butler.stop();
     jevTaskDispatcher.close();
     await injector.stop();
     await nativeOwnerInjector?.stop();

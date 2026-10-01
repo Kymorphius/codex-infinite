@@ -31,7 +31,7 @@ import { buildNativeSidebarActivityInjectionScript } from "./native-sidebar-acti
 import { buildNativeRemoteSidebarInjectionScript, buildNativeRemoteSidebarSnapshotScript } from "./native-remote-sidebar.mjs";
 import { buildNativeAttentionStickyInjectionScript } from "./native-attention-sticky.mjs";
 import { buildNativeChatgptChatSectionInjectionScript } from "./native-chatgpt-chat-section.mjs";
-import { buildNativeOpenLocalProjectInjectionScript } from "./native-open-local-project.mjs";
+import { buildNativeTopActionScripts } from "./native-top-actions.mjs";
 import { buildNativeComposerHeldQueueInjectionScript } from "./native-composer-held-queue.mjs";
 import { buildNativeComposerControlOrderSource } from "./native-composer-control-order.mjs";
 import { buildNativeComposerIconControlsSource } from "./native-composer-icon-controls.mjs";
@@ -73,18 +73,18 @@ export const NATIVE_INSTALLER_READINESS = `[window.__codexControlConsoleNativeCo
 export const NATIVE_INSTALLER_REPAIR = `if (typeof window.__codexControlConsoleSetContextOverrides !== 'function') delete window.__codexControlConsoleNativeContextVersion;
 if (typeof window.__codexControlConsoleReadPendingApprovals !== 'function') delete window.__codexControlConsoleNativeApprovalVersion;`;
 
-function contextInstallers() {
+function contextInstallers(butlerCwd) {
   return [NATIVE_INSTALLER_REPAIR, buildNativeApprovalInjectionScript(), buildNativeContextInjectionScript(), buildNativeJevRoutingInjectionScript(),
     buildNativeClaudePreviewInjectionScript(), buildNativeClaudeToolRowsInjectionScript(), buildNativeTurboInjectionScript(),
     buildNativeSidebarLabelsInjectionScript(), buildNativeSidebarActivityInjectionScript(), buildNativeRemoteSidebarInjectionScript(),
-    buildNativeAttentionStickyInjectionScript(), buildNativeChatgptChatSectionInjectionScript(), buildNativeOpenLocalProjectInjectionScript(),
+    buildNativeAttentionStickyInjectionScript(), buildNativeChatgptChatSectionInjectionScript(), ...buildNativeTopActionScripts({ butlerCwd }),
     buildNativeComposerHeldQueueInjectionScript(), `(() => { ${buildNativeComposerControlOrderSource()} })()`, buildNativeComposerIconControlsSource(),
     buildNativeLongConversationInjectionScript(), buildNativeTurnStateInjectionScript(), buildNativeNewProjectsInjectionScript(),
     buildNativeAttentionConversationsInjectionScript(), buildNativePinnedEmptyInjectionScript(), buildNativeProjectSearchInjectionScript(), buildNativeSentMessageSearchInjectionScript()];
 }
 
-async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, force) {
-  await installNativeCached(connection, { key: 'dedicated-context', build: () => contextInstallers(), readiness: NATIVE_INSTALLER_READINESS, force });
+async function syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, butlerCwd, force) {
+  await installNativeCached(connection, { key: `dedicated-context:${JSON.stringify(butlerCwd)}`, build: () => contextInstallers(butlerCwd), readiness: NATIVE_INSTALLER_READINESS, force });
   await drainNativeContextActions(connection, contextWindowStore);
   await connection.evaluate(buildNativeContextSnapshotScript(contextWindowStore?.list?.() || contextOverrides));
   await connection.evaluate(buildNativeJevRoutingSnapshotScript(jevRouting));
@@ -100,7 +100,7 @@ async function syncNativeContext(connection, contextWindowStore, contextOverride
   await connection.evaluate(buildNativeProjectPathMenuScript([...(projectSearch?.projects || []), ...search.projects]));
 }
 
-export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "", hostActionBinding = standaloneDashboardBinding, beforeInjection = null } = {}) {
+export async function installIntoTarget(connection, dashboardUrl, { force = false, contextOverrides = [], contextWindowStore = null, turboPolicy = null, jevRouting = null, sidebarLabels = [], remoteSidebar = [], newProjects = [], attentionConversations = undefined, projectSearch = undefined, turnStateSnapshot = undefined, recentSentConversations = undefined, reloadAfterCspBypass = true, standaloneDashboardBinding = "", hostActionBinding = standaloneDashboardBinding, beforeInjection = null, butlerCwd = "" } = {}) {
   await connection.send("Page.enable");
   if (!connection.__codexControlConsoleScriptsPrepared) {
     await connection.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -108,7 +108,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     });
     for (const source of [buildNativeContextInjectionScript(), buildNativeApprovalInjectionScript(), buildNativeJevRoutingInjectionScript(), buildNativeTurboInjectionScript(),
       buildNativeSidebarLabelsInjectionScript(), buildNativeSidebarActivityInjectionScript(), buildNativeRemoteSidebarInjectionScript(), buildNativeAttentionStickyInjectionScript(),
-      buildNativeChatgptChatSectionInjectionScript(), buildNativeOpenLocalProjectInjectionScript(), `(() => { ${buildNativeComposerControlOrderSource()} })()`, buildNativeComposerIconControlsSource(),
+      buildNativeChatgptChatSectionInjectionScript(), ...buildNativeTopActionScripts({ butlerCwd }), `(() => { ${buildNativeComposerControlOrderSource()} })()`, buildNativeComposerIconControlsSource(),
       buildNativeLongConversationInjectionScript(), buildNativeTurnStateInjectionScript(), buildNativeNewProjectsInjectionScript(), buildNativeAttentionConversationsInjectionScript(),
       buildNativeProjectSearchInjectionScript(), buildNativeSentMessageSearchInjectionScript(), buildNativePinnedEmptyInjectionScript()]) {
       await connection.send("Page.addScriptToEvaluateOnNewDocument", { source: deferNativeDocumentSource(source) });
@@ -137,7 +137,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
     }
     if (state.frameRecoveryManaged) connection.__codexControlConsoleRecoveryAttempted = false;
     if (state.hasEntry && (!state.hasFrame || state.frameReady || state.frameRecoveryManaged || connection.__codexControlConsoleRecoveryAttempted)) {
-      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, force);
+      await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, butlerCwd, force);
       await installNativeShell(connection, dashboardUrl, standaloneDashboardBinding, force, beforeInjection);
       return { status: "already-installed" };
     }
@@ -146,7 +146,7 @@ export async function installIntoTarget(connection, dashboardUrl, { force = fals
       connection.__codexControlConsoleRecoveryAttempted = true;
     }
   }
-  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, force);
+  await syncNativeContext(connection, contextWindowStore, contextOverrides, turboPolicy, jevRouting, sidebarLabels, remoteSidebar, newProjects, attentionConversations, projectSearch, turnStateSnapshot, recentSentConversations, butlerCwd, force);
   await installNativeShell(connection, dashboardUrl, standaloneDashboardBinding, force, beforeInjection);
   connection.__codexControlConsoleInstalled = true;
   return { status: "installed" };
@@ -166,7 +166,7 @@ function installNativeShell(connection, dashboardUrl, standaloneDashboardBinding
 }
 
 export class CodexInjector {
-  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, terminalConversations = null, terminalService = null, extraBindings = [], pollMs = 1200, logger = console }) {
+  constructor({ cdpOrigin, dashboardUrl, checklistStore = null, annotationStore = null, contextWindowStore = null, turboPolicyProvider = null, turboController = null, jevRoutingService = null, sidebarLabelProvider = null, remoteSidebarProvider = null, newProjectProvider = null, sentMessageSearchService = null, attentionConversationProvider = null, recentSentConversationProvider = null, turnStateProvider = null, recoverTarget = null, reloadAfterCspBypass = true, dashboardLauncher = null, terminalConversations = null, terminalService = null, extraBindings = [], butlerCwd = "", pollMs = 1200, logger = console }) {
     this.annotationStore = annotationStore;
     this.checklistStore = checklistStore;
     this.cdpOrigin = cdpOrigin;
@@ -186,7 +186,7 @@ export class CodexInjector {
     this.turnStateProvider = turnStateProvider;
     this.recoverTarget = recoverTarget;
     this.reloadAfterCspBypass = reloadAfterCspBypass;
-    this.dashboardLauncher = dashboardLauncher; this.terminalConversations = terminalConversations; this.terminalService = terminalService; this.extraBindings = extraBindings;
+    this.dashboardLauncher = dashboardLauncher; this.terminalConversations = terminalConversations; this.terminalService = terminalService; this.extraBindings = extraBindings; this.butlerCwd = butlerCwd;
     this.running = false;
     this.timer = null;
     this.syncing = false;
@@ -278,7 +278,7 @@ export class CodexInjector {
         attentionConversations: await this.attentionConversationProvider?.read?.(),
         recentSentConversations: await this.recentSentConversationProvider?.read?.(),
         turnStateSnapshot: await this.turnStateProvider?.snapshot?.(),
-        reloadAfterCspBypass: this.reloadAfterCspBypass,
+        reloadAfterCspBypass: this.reloadAfterCspBypass, butlerCwd: this.butlerCwd,
         standaloneDashboardBinding: this.dashboardLauncher && !this.reloadAfterCspBypass ? NATIVE_DASHBOARD_BINDING : "",
         hostActionBinding: this.dashboardLauncher ? NATIVE_DASHBOARD_BINDING : "",
         beforeInjection: this.terminalConversations ? () => prepareNativeTerminalRuntime(this.connection) : null
